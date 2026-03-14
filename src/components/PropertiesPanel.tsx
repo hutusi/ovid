@@ -30,56 +30,60 @@ export function PropertiesPanel({ frontmatter, isOpen, onToggle }: PropertiesPan
   const keys = sortedKeys(frontmatter);
 
   return (
-    <div className={`properties-panel ${isOpen ? "open" : "closed"}`}>
-      <div className="properties-inner">
-        {keys.map((key) => {
-          const val = frontmatter[key];
-          if (val === null || val === undefined) return null;
+    // Wrapper stays visible at all times so the toggle button is always reachable
+    <div className={`properties-wrapper ${isOpen ? "" : "panel-closed"}`}>
+      <div className={`properties-panel ${isOpen ? "open" : "closed"}`}>
+        <div className="properties-inner">
+          {keys.map((key) => {
+            const val = frontmatter[key];
+            if (val === null || val === undefined) return null;
 
-          if (key === "draft" && val === true) {
+            if (key === "draft" && val === true) {
+              return (
+                <div key={key} className="prop-field">
+                  <span className="prop-draft">Draft</span>
+                </div>
+              );
+            }
+
+            if (key === "tags" && Array.isArray(val)) {
+              if (val.length === 0) return null;
+              return (
+                <div key={key} className="prop-field">
+                  {val.map((tag) => (
+                    <span key={tag} className="prop-tag">{tag}</span>
+                  ))}
+                </div>
+              );
+            }
+
+            if (key === "date" && typeof val === "string") {
+              return (
+                <div key={key} className="prop-field">
+                  <span className="prop-label">date</span>
+                  <span className="prop-value">{formatDate(val)}</span>
+                </div>
+              );
+            }
+
+            if (key === "title") {
+              return (
+                <div key={key} className="prop-field">
+                  <span className="prop-value prop-title">{String(val)}</span>
+                </div>
+              );
+            }
+
             return (
               <div key={key} className="prop-field">
-                <span className="prop-draft">Draft</span>
+                <span className="prop-label">{key}</span>
+                <span className="prop-value">{String(val)}</span>
               </div>
             );
-          }
-
-          if (key === "tags" && Array.isArray(val)) {
-            if (val.length === 0) return null;
-            return (
-              <div key={key} className="prop-field">
-                {val.map((tag) => (
-                  <span key={tag} className="prop-tag">{tag}</span>
-                ))}
-              </div>
-            );
-          }
-
-          if (key === "date" && typeof val === "string") {
-            return (
-              <div key={key} className="prop-field">
-                <span className="prop-label">date</span>
-                <span className="prop-value">{formatDate(val)}</span>
-              </div>
-            );
-          }
-
-          if (key === "title") {
-            return (
-              <div key={key} className="prop-field">
-                <span className="prop-value prop-title">{String(val)}</span>
-              </div>
-            );
-          }
-
-          return (
-            <div key={key} className="prop-field">
-              <span className="prop-label">{key}</span>
-              <span className="prop-value">{String(val)}</span>
-            </div>
-          );
-        })}
+          })}
+        </div>
       </div>
+      {/* Toggle lives outside the collapsible panel so it's always visible */}
       <button
         className="properties-toggle"
         onClick={onToggle}
