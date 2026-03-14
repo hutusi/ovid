@@ -1,0 +1,39 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "d8638e2980b6",
+  "session_id": "f3ead4d9-265b-49df-83e8-cfaa70364444",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-14T12:35:08.664779Z",
+  "branch": "validate",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/App.tsx",
+    ".github/workflows/ci.yml",
+    "tsconfig.test.json",
+    "package.json"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "a78c1af485dd",
+  "checkpoint_transcript_start": 256,
+  "transcript_lines_at_start": 256,
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 185114,
+    "cache_read_tokens": 1281505,
+    "output_tokens": 7427,
+    "api_call_count": 18
+  },
+  "session_metrics": {
+    "turn_count": 8
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-14T12:35:08.327622Z",
+    "agent_lines": 15,
+    "human_added": 7,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 22,
+    "agent_percentage": 68.18181818181817
+  }
+}

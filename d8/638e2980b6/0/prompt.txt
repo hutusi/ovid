@@ -1,0 +1,9 @@
+QA scripts shoudld be "bun run xx" not "npm run xx", right?
+
+---
+
+OK
+
+---
+
+check out the code reviews by coderabbit, PR #2
