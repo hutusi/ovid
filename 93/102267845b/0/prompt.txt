@@ -1,0 +1,5 @@
+is it better to create a separate ROADMAP file and update CLAUDE.md?
+
+---
+
+go ahead
