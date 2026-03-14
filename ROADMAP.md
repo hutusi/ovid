@@ -14,40 +14,40 @@ Ovid App is purpose-built for content creators working in Amytis workspaces. Thi
 
 ---
 
-## Phase 1 — Core UX Polish
+## ✅ Phase 1 — Core UX Polish
 > Goal: make what exists feel complete and intentional. No new features until these feel right.
 
-6. **Sidebar collapse** (`Cmd+\`) — toggle sidebar visibility to maximize writing space; animate width; remember state across sessions
-7. **Directory expand/collapse** — sidebar directories currently show all children always; add click-to-toggle with chevron; persist expanded state per workspace
-8. **Keyboard shortcuts** — register global shortcuts:
+6. ✅ **Sidebar collapse** (`Cmd+\`) — toggle sidebar visibility to maximize writing space; animate width; remember state across sessions
+7. ✅ **Directory expand/collapse** — sidebar directories currently show all children always; add click-to-toggle with chevron; persist expanded state per workspace
+8. ✅ **Keyboard shortcuts** — register global shortcuts:
    - `Cmd+\` — toggle sidebar
    - `Cmd+Shift+P` — toggle properties panel
    - `Cmd+S` — force-save immediately (bypass debounce)
    - `Cmd+W` — close current file (return to blank state)
-9. **Save status indicator** — subtle dot in status bar: grey = saved, amber = unsaved; never intrusive
-10. **Error notifications** — replace `console.error` with a brief toast (2s, bottom-center); never block writing
-11. **Empty state** — when no workspace is open or no file selected, show a calm, intentional empty state (not a blank white box)
+9. ✅ **Save status indicator** — subtle dot in status bar: grey = saved, amber = unsaved; never intrusive
+10. ✅ **Error notifications** — replace `console.error` with a brief toast (2s, bottom-center); never block writing
+11. ✅ **Empty state** — when no workspace is open or no file selected, show a calm, intentional empty state (not a blank white box)
 
 ---
 
-## Phase 2 — File Management
+## ✅ Phase 2 — File Management
 > Goal: a content creator should never need to leave the app to manage files.
 
-12. **New file** (`Cmd+N`) — create a new `.md` file; prompt for filename; auto-insert Amytis frontmatter template (`title`, `date`, `draft: true`); open immediately in editor
-13. **Rename file** (`F2` or double-click filename in sidebar) — inline rename; validates no duplicate names; updates open editor tab if renaming current file
-14. **Delete file** — right-click context menu or keyboard shortcut; confirmation dialog; moves to system Trash (not permanent delete)
-15. **Editable properties panel** — click any field to edit inline; writes changes back to frontmatter on disk verbatim; tab between fields; `Esc` to cancel; support adding new fields
-16. **New folder** — create subdirectory from sidebar; useful for organizing Amytis content collections
+12. ✅ **New file** (`Cmd+N`) — create a new `.md` file; prompt for filename; auto-insert Amytis frontmatter template (`title`, `date`, `draft: true`); open immediately in editor
+13. ✅ **Rename file** (`F2` or double-click filename in sidebar) — inline rename; validates no duplicate names; updates open editor tab if renaming current file
+14. ✅ **Delete file** — right-click context menu or keyboard shortcut; confirmation dialog; moves to system Trash (not permanent delete)
+15. ✅ **Editable properties panel** — click any field to edit inline; writes changes back to frontmatter on disk verbatim; tab between fields; `Esc` to cancel; support adding new fields
+16. ✅ **New folder** — create subdirectory from sidebar; useful for organizing Amytis content collections
 
 ---
 
-## Phase 3 — Navigation & Discovery
+## ✅ Phase 3 — Navigation & Discovery
 > Goal: moving between files should be instant and effortless.
 
-17. **Quick file switcher** (`Cmd+P`) — fuzzy search by filename and frontmatter `title`; keyboard-navigable; shows path for disambiguation; searches across entire workspace tree
-18. **Recent files** — track last N opened files per workspace; show in empty state and at top of switcher; persisted via Tauri store
-19. **Sidebar title display** — show frontmatter `title` instead of filename in sidebar when available; fall back to filename; reduces visual noise of slugs
-20. **Sidebar draft indicator** — dim or badge files with `draft: true`; helps distinguish published vs in-progress content at a glance
+17. ✅ **Quick file switcher** (`Cmd+P`) — fuzzy search by filename and frontmatter `title`; keyboard-navigable; shows path for disambiguation; searches across entire workspace tree
+18. ✅ **Recent files** — track last 10 opened files per workspace; show in empty state and at top of switcher; persisted in `localStorage`
+19. ✅ **Sidebar title display** — show frontmatter `title` instead of filename in sidebar when available; fall back to filename; reduces visual noise of slugs
+20. ✅ **Sidebar draft indicator** — dim files with `draft: true`; helps distinguish published vs in-progress content at a glance
 
 ---
 

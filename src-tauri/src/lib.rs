@@ -18,6 +18,35 @@ struct FileNode {
     is_directory: bool,
     children: Option<Vec<FileNode>>,
     extension: Option<String>,
+    title: Option<String>,
+    draft: Option<bool>,
+}
+
+/// Read the frontmatter block (between `---` fences) of a markdown file and
+/// extract the `title` and `draft` scalar values using simple line scanning.
+/// Returns `(None, None)` if the file can't be read or has no frontmatter.
+fn read_frontmatter_meta(path: &Path) -> (Option<String>, Option<bool>) {
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return (None, None);
+    };
+    let mut lines = content.lines();
+    if lines.next().map(str::trim) != Some("---") {
+        return (None, None);
+    }
+    let mut title: Option<String> = None;
+    let mut draft: Option<bool> = None;
+    for line in lines {
+        if line.trim() == "---" {
+            break;
+        }
+        if let Some(rest) = line.strip_prefix("title:") {
+            title = Some(rest.trim().trim_matches('"').trim_matches('\'').to_string());
+        } else if let Some(rest) = line.strip_prefix("draft:") {
+            let val = rest.trim();
+            draft = Some(val == "true");
+        }
+    }
+    (title, draft)
 }
 
 #[derive(Serialize)]
@@ -56,6 +85,8 @@ fn walk_dir(path: &Path) -> Vec<FileNode> {
                     is_directory: true,
                     children: Some(children),
                     extension: None,
+                    title: None,
+                    draft: None,
                 });
             }
         } else {
@@ -64,12 +95,15 @@ fn walk_dir(path: &Path) -> Vec<FileNode> {
                 .and_then(|e| e.to_str())
                 .unwrap_or("");
             if ext == "md" || ext == "mdx" {
+                let (title, draft) = read_frontmatter_meta(&entry_path);
                 nodes.push(FileNode {
                     name,
                     path: entry_path.to_string_lossy().to_string(),
                     is_directory: false,
                     children: None,
                     extension: Some(format!(".{}", ext)),
+                    title,
+                    draft,
                 });
             }
         }

@@ -175,6 +175,17 @@
   font-weight: 500;
 }
 
+.sidebar-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-file-name.draft {
+  opacity: 0.5;
+}
+
 .sidebar-delete-btn {
   opacity: 0;
   font-size: 10px;

@@ -4,6 +4,8 @@ export interface FileNode {
   isDirectory: boolean;
   children?: FileNode[];
   extension?: string;
+  title?: string;
+  draft?: boolean;
 }
 
 export interface WorkspaceState {

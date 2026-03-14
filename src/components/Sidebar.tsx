@@ -123,6 +123,8 @@ function FileItem({
     );
   }
 
+  const displayName = node.title || baseName;
+
   return (
     <div className={`sidebar-file-row ${isSelected ? "selected" : ""}`}>
       <button
@@ -136,7 +138,9 @@ function FileItem({
         }}
       >
         <span className="sidebar-icon">◦</span>
-        {baseName}
+        <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
+          {displayName}
+        </span>
       </button>
       <button
         type="button"

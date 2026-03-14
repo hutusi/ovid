@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Editor } from "./components/Editor";
 import { EmptyState } from "./components/EmptyState";
+import { FileSwitcher } from "./components/FileSwitcher";
 import { InputModal } from "./components/InputModal";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { useFileEditor } from "./lib/useFileEditor";
+import { useRecentFiles } from "./lib/useRecentFiles";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWorkspace } from "./lib/useWorkspace";
@@ -23,6 +25,7 @@ function App() {
   );
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [modal, setModal] = useState<ModalState>(null);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
 
   const { toasts, showToast } = useToast();
 
@@ -64,6 +67,13 @@ function App() {
     resetFileState,
   });
 
+  const { recentFiles, pushRecent, resetRecent } = useRecentFiles(workspaceRoot);
+
+  // Sync recent files list when workspace changes
+  useEffect(() => {
+    if (workspaceRoot) resetRecent(workspaceRoot);
+  }, [workspaceRoot, resetRecent]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -94,6 +104,10 @@ function App() {
             setPropertiesOpen((v) => !v);
           }
           break;
+        case "p":
+          e.preventDefault();
+          if (tree.length > 0) setSwitcherOpen(true);
+          break;
         case "n":
           e.preventDefault();
           if (workspaceRoot) setModal({ type: "new-file", dirPath: workspaceRoot });
@@ -110,7 +124,7 @@ function App() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [flushPendingSave, handleCloseFile, handleOpenWorkspace, workspaceRoot]);
+  }, [flushPendingSave, handleCloseFile, handleOpenWorkspace, workspaceRoot, tree]);
 
   const hasFrontmatter = Object.keys(parsedFrontmatter).length > 0;
 
@@ -124,7 +138,10 @@ function App() {
           visible={sidebarVisible}
           workspaceName={workspaceName}
           workspaceRoot={workspaceRoot}
-          onSelect={handleSelectFile}
+          onSelect={(node) => {
+            void handleSelectFile(node);
+            pushRecent(node);
+          }}
           onOpenWorkspace={handleOpenWorkspace}
           onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
           onRename={handleRename}
@@ -151,7 +168,19 @@ function App() {
           ) : (
             <EmptyState
               workspaceOpen={workspaceRoot !== null}
+              recentFiles={recentFiles}
               onOpenWorkspace={handleOpenWorkspace}
+              onOpenRecent={(path) => {
+                const node = tree
+                  .flatMap(function flatten(n): typeof tree {
+                    return n.isDirectory ? (n.children ?? []).flatMap(flatten) : [n];
+                  })
+                  .find((n) => n.path === path);
+                if (node) {
+                  void handleSelectFile(node);
+                  pushRecent(node);
+                }
+              }}
             />
           )}
         </div>
@@ -171,6 +200,18 @@ function App() {
             </div>
           ))}
         </div>
+      )}
+      {switcherOpen && (
+        <FileSwitcher
+          tree={tree}
+          recentFiles={recentFiles}
+          onSelect={(node) => {
+            void handleSelectFile(node);
+            pushRecent(node);
+            setSwitcherOpen(false);
+          }}
+          onClose={() => setSwitcherOpen(false)}
+        />
       )}
       {modal?.type === "new-file" && (
         <InputModal
