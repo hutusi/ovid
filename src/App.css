@@ -21,6 +21,25 @@
   overflow: hidden;
 }
 
+/* ── Zen mode ────────────────────────────────── */
+.app[data-zen] .statusbar {
+  display: none;
+}
+
+.app[data-zen] .sidebar,
+.app[data-zen] .search-panel {
+  display: none;
+}
+
+.app[data-zen] .properties-wrapper {
+  display: none;
+}
+
+.app[data-zen] .editor-scroll {
+  padding-top: 10vh;
+  padding-bottom: 10vh;
+}
+
 /* ── Toasts ──────────────────────────────────── */
 .toast-container {
   position: fixed;

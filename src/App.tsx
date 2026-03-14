@@ -29,6 +29,9 @@ function App() {
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
   const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [zenMode, setZenMode] = useState(false);
+  const [typewriterMode, setTypewriterMode] = useState(false);
+  const [sessionBaseline, setSessionBaseline] = useState<number | null>(null);
   const [modal, setModal] = useState<ModalState>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -85,9 +88,25 @@ function App() {
     if (workspaceRoot) resetRecent(workspaceRoot);
   }, [workspaceRoot, resetRecent]);
 
+  // Reset session baseline when switching files (selectedFile is the trigger, not used in body)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedFile is the intended trigger
+  useEffect(() => {
+    setSessionBaseline(null);
+  }, [selectedFile]);
+
+  // Capture baseline on first word count update after file switch
+  useEffect(() => {
+    if (sessionBaseline === null) setSessionBaseline(wordCount);
+  }, [wordCount, sessionBaseline]);
+
   // Global keyboard shortcuts
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      // Escape exits zen mode (before other guards)
+      if (e.key === "Escape" && zenMode && !modal && !commitDialog && !switcherOpen) {
+        setZenMode(false);
+        return;
+      }
       if (!e.metaKey && !e.ctrlKey) return;
       const target = e.target as HTMLElement;
       if (
@@ -124,6 +143,12 @@ function App() {
                 setCommitDialog({ message: `Update: ${title}`, branch });
               })
               .catch(() => showToast("Failed to get git branch"));
+          }
+          break;
+        case "Z":
+          if (e.shiftKey) {
+            e.preventDefault();
+            setZenMode((v) => !v);
           }
           break;
         case "P":
@@ -163,6 +188,10 @@ function App() {
     parsedFrontmatter,
     selectedFile,
     showToast,
+    zenMode,
+    modal,
+    commitDialog,
+    switcherOpen,
   ]);
 
   // Refresh git status after each save completes
@@ -198,8 +227,10 @@ function App() {
     }
   }
 
+  const sessionWordsAdded = sessionBaseline !== null ? Math.max(0, wordCount - sessionBaseline) : 0;
+
   return (
-    <div className="app">
+    <div className="app" data-zen={zenMode ? "true" : undefined}>
       <div className="app-body">
         {searchOpen ? (
           <SearchPanel onOpenFile={handleOpenByPath} onClose={() => setSearchOpen(false)} />
@@ -237,6 +268,7 @@ function App() {
             <Editor
               key={selectedFile.path}
               content={fileContent}
+              typewriterMode={typewriterMode}
               onWordCount={setWordCount}
               onChange={handleEditorChange}
             />
@@ -255,7 +287,12 @@ function App() {
         wordCount={wordCount}
         resolvedTheme={resolvedTheme}
         saveStatus={saveStatus}
+        zenMode={zenMode}
+        typewriterMode={typewriterMode}
+        sessionWordsAdded={sessionWordsAdded}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
+        onToggleZen={() => setZenMode((v) => !v)}
+        onToggleTypewriter={() => setTypewriterMode((v) => !v)}
       />
       {toasts.length > 0 && (
         <div className="toast-container">

@@ -568,6 +568,45 @@ fn git_commit(
     Ok(())
 }
 
+/// Copy an image from an arbitrary path into `<workspace>/assets/` and return
+/// the relative markdown path (e.g. `assets/photo.png`).
+#[tauri::command]
+fn save_asset(
+    src_path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<String, String> {
+    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
+    drop(root_guard);
+
+    let src = Path::new(&src_path);
+    let file_name = src
+        .file_name()
+        .ok_or("invalid source path")?
+        .to_string_lossy()
+        .to_string();
+
+    let assets_dir = root.join("assets");
+    std::fs::create_dir_all(&assets_dir)
+        .map_err(|e| format!("could not create assets dir: {e}"))?;
+
+    // Avoid collisions by inserting a timestamp prefix when the file exists.
+    let dest_name = if assets_dir.join(&file_name).exists() {
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        format!("{ts}_{file_name}")
+    } else {
+        file_name
+    };
+
+    let dest = assets_dir.join(&dest_name);
+    std::fs::copy(src, &dest).map_err(|e| format!("copy failed: {e}"))?;
+
+    Ok(format!("assets/{dest_name}"))
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -593,6 +632,7 @@ pub fn run() {
             get_git_status,
             get_git_branch,
             git_commit,
+            save_asset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")

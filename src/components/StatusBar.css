@@ -72,3 +72,35 @@
   background: var(--color-accent-light);
   opacity: 1;
 }
+
+.statusbar-session {
+  font-size: 11px;
+  color: var(--color-success, #22c55e);
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.statusbar-mode-btn {
+  font-size: 13px;
+  color: var(--color-status-text);
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition:
+    color 0.15s,
+    background 0.15s;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.statusbar-mode-btn:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+  opacity: 0.8;
+}
+
+.statusbar-mode-btn.active {
+  color: var(--color-accent);
+  opacity: 1;
+}

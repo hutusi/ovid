@@ -168,3 +168,60 @@
 .ProseMirror:focus {
   outline: none;
 }
+
+/* ── Syntax highlighting (lowlight/highlight.js tokens) ─── */
+.hljs-comment,
+.hljs-quote {
+  color: var(--color-text-faint);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name,
+.hljs-tag {
+  color: #7c7fff;
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-section,
+.hljs-attribute,
+.hljs-literal,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-type,
+.hljs-addition {
+  color: #22c55e;
+}
+
+.hljs-deletion,
+.hljs-selector-attr,
+.hljs-selector-pseudo,
+.hljs-meta {
+  color: #f59e0b;
+}
+
+.hljs-doctag,
+.hljs-attr {
+  color: #6366f1;
+}
+
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-subst,
+.hljs-variable,
+.hljs-number,
+.hljs-regexp {
+  color: #f97316;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
