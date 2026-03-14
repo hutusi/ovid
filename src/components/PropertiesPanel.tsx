@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./PropertiesPanel.css";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 
 interface PropertiesPanelProps {

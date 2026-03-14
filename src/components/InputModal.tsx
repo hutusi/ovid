@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./InputModal.css";
 
 interface InputModalProps {
   title: string;

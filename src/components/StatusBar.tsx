@@ -1,6 +1,8 @@
+import type { SaveStatus } from "../lib/types";
 import type { ResolvedTheme } from "../lib/useTheme";
+import "./StatusBar.css";
 
-export type SaveStatus = "saved" | "unsaved";
+export type { SaveStatus };
 
 interface StatusBarProps {
   fileName: string | null;

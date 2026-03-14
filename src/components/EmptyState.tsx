@@ -1,3 +1,5 @@
+import "./EmptyState.css";
+
 const isMac = navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Mac");
 const modKey = isMac ? "⌘" : "Ctrl+";
 

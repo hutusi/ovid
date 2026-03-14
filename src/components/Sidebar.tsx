@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./Sidebar.css";
 import type { FileNode } from "../lib/types";
 
 interface SidebarProps {

@@ -1,0 +1,243 @@
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--color-bg-sidebar);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  transition:
+    width 0.2s ease,
+    min-width 0.2s ease,
+    border-right-color 0.2s ease;
+}
+
+.sidebar.hidden {
+  width: 0;
+  min-width: 0;
+  border-right-color: transparent;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--color-border);
+  min-height: 44px;
+}
+
+.sidebar-workspace-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-open-btn {
+  font-size: 16px;
+  color: var(--color-text-faint);
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition:
+    color 0.15s,
+    background 0.15s;
+  flex-shrink: 0;
+}
+
+.sidebar-open-btn:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar-action-btn {
+  font-size: 16px;
+  color: var(--color-text-faint);
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.sidebar-action-btn:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+.sidebar-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+/* ── Directory rows ──────────────────────────── */
+.sidebar-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 6px;
+}
+
+.sidebar-dir-action {
+  opacity: 0;
+  font-size: 14px;
+  color: var(--color-text-faint);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: auto;
+  transition:
+    color 0.15s,
+    opacity 0.15s,
+    background 0.15s;
+}
+
+.sidebar-dir-row:hover .sidebar-dir-action {
+  opacity: 1;
+}
+
+.sidebar-dir-action:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+.sidebar-dir {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.sidebar-dir:hover {
+  background: var(--color-bg-hover);
+}
+
+.sidebar-chevron {
+  font-size: 9px;
+  transition: none;
+}
+
+/* ── File rows ───────────────────────────────── */
+.sidebar-file-row {
+  display: flex;
+  align-items: center;
+  padding-right: 6px;
+  border-radius: 4px;
+}
+
+.sidebar-file-row:hover {
+  background: var(--color-bg-hover);
+}
+
+.sidebar-file-row.selected {
+  background: var(--color-bg-selected);
+}
+
+.sidebar-file {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 4px 5px 0;
+  font-size: 13.5px;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: none;
+}
+
+.sidebar-file-row.selected .sidebar-file {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.sidebar-delete-btn {
+  opacity: 0;
+  font-size: 10px;
+  color: var(--color-text-faint);
+  padding: 2px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition:
+    opacity 0.15s,
+    color 0.15s,
+    background 0.15s;
+}
+
+.sidebar-file-row:hover .sidebar-delete-btn {
+  opacity: 1;
+}
+
+.sidebar-delete-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ── Inline rename ───────────────────────────── */
+.sidebar-rename-row {
+  padding: 3px 10px 3px 0;
+}
+
+.sidebar-rename-input {
+  width: 100%;
+  padding: 3px 6px;
+  font-size: 13.5px;
+  font-family: var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  outline: none;
+}
+
+.sidebar-icon {
+  font-size: 10px;
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+/* ── Empty workspace state ───────────────────── */
+.sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
+
+.sidebar-open-workspace-btn {
+  font-size: 13px;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 6px;
+  padding: 6px 14px;
+  transition: background 0.15s;
+}
+
+.sidebar-open-workspace-btn:hover {
+  background: var(--color-accent-light);
+}

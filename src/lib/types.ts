@@ -10,3 +10,5 @@ export interface WorkspaceState {
   rootPath: string | null;
   tree: FileNode[];
 }
+
+export type SaveStatus = "saved" | "unsaved";
