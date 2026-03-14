@@ -27,6 +27,15 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      // Best-effort flush on unmount — fire-and-forget since cleanup is synchronous
+      const path = selectedPathRef.current;
+      const markdown = pendingMarkdownRef.current;
+      if (path && markdown !== null) {
+        void invoke("write_file", {
+          path,
+          content: joinFrontmatter(frontmatterRef.current, markdown),
+        });
+      }
     };
   }, []);
 
@@ -70,9 +79,6 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
 
   async function handleSelectFile(node: FileNode) {
     await flushPendingSave();
-    setWordCount(0);
-    setParsedFrontmatter({});
-    setSaveStatus("saved");
     const prevPath = selectedPathRef.current;
     selectedPathRef.current = node.path;
     pendingMarkdownRef.current = null;
@@ -82,9 +88,13 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       if (selectedPathRef.current !== node.path) return;
       const { frontmatter, body } = parseFrontmatter(raw);
       frontmatterRef.current = frontmatter;
-      setSelectedFile(node);
-      setFileContent(body);
+      // Update all state only after a successful read so a failure leaves the
+      // previous file's metadata intact on screen.
+      setWordCount(0);
       setParsedFrontmatter(parseYamlFrontmatter(raw));
+      setSaveStatus("saved");
+      setFileContent(body);
+      setSelectedFile(node);
     } catch (err) {
       console.error("Failed to read file:", err);
       showToast("Failed to open file — check console for details");

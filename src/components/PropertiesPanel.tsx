@@ -73,7 +73,13 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
         : [];
       onSave(arr);
     } else if (typeof value === "boolean") {
-      onSave(trimmed === "true" ? true : trimmed === "false" ? false : value);
+      const normalized = trimmed.toLowerCase();
+      if (normalized !== "true" && normalized !== "false") {
+        // Invalid input — reset draft and bail without saving
+        setDraft(toInputString(value));
+        return;
+      }
+      onSave(normalized === "true");
     } else if (typeof value === "number") {
       const num = Number(trimmed);
       onSave(Number.isNaN(num) ? value : num);
