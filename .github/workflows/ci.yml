@@ -24,3 +24,6 @@ jobs:
 
       - name: Validate (typecheck + lint + test)
         run: bun run validate
+
+      - name: Build (bundler smoke-check)
+        run: bun run build
