@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "2d502648d02e",
+  "strategy": "manual-commit",
+  "branch": "phase-6",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "ROADMAP.md",
+    "src/App.css",
+    "src/components/StatusBar.css",
+    "src/components/StatusBar.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/2d/502648d02e/0/metadata.json",
+      "transcript": "/2d/502648d02e/0/full.jsonl",
+      "content_hash": "/2d/502648d02e/0/content_hash.txt",
+      "prompt": "/2d/502648d02e/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1051,
+    "cache_creation_tokens": 1771821,
+    "cache_read_tokens": 47644075,
+    "output_tokens": 255681,
+    "api_call_count": 515
+  }
+}
