@@ -1,0 +1,9 @@
+/commit
+
+---
+
+is "bun run test" or "bun test"? and should put "bun run build" in validate and ci? what do you think?
+
+---
+
+OK
