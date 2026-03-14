@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { FlatFile } from "../lib/fileSearch";
+import { flattenTree, score } from "../lib/fileSearch";
 import type { FileNode } from "../lib/types";
 import "./FileSwitcher.css";
 
@@ -13,38 +15,6 @@ interface FileSwitcherProps {
   recentFiles: RecentFile[];
   onSelect: (node: FileNode) => void;
   onClose: () => void;
-}
-
-interface FlatFile {
-  node: FileNode;
-  displayName: string;
-  relativePath: string;
-}
-
-function flattenTree(nodes: FileNode[], prefix = ""): FlatFile[] {
-  const result: FlatFile[] = [];
-  for (const node of nodes) {
-    if (node.isDirectory) {
-      const dir = prefix ? `${prefix}/${node.name}` : node.name;
-      if (node.children) result.push(...flattenTree(node.children, dir));
-    } else {
-      const baseName = node.name.replace(/\.mdx?$/, "");
-      const displayName = node.title || baseName;
-      const relativePath = prefix ? `${prefix}/${node.name}` : node.name;
-      result.push({ node, displayName, relativePath });
-    }
-  }
-  return result;
-}
-
-function score(file: FlatFile, query: string): number {
-  const q = query.toLowerCase();
-  const name = file.displayName.toLowerCase();
-  const path = file.relativePath.toLowerCase();
-  if (name === q) return 3;
-  if (name.startsWith(q)) return 2;
-  if (name.includes(q) || path.includes(q)) return 1;
-  return 0;
 }
 
 export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitcherProps) {
