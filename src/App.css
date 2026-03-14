@@ -1,0 +1,156 @@
+/* App shell */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── Sidebar ─────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--color-bg-sidebar);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--color-border);
+  min-height: 44px;
+}
+
+.sidebar-workspace-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-open-btn {
+  font-size: 16px;
+  color: var(--color-text-faint);
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.sidebar-open-btn:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
+.sidebar-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.sidebar-dir {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: default;
+}
+
+.sidebar-file {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px 5px 0;
+  font-size: 13.5px;
+  color: var(--color-text);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.sidebar-file:hover {
+  background: var(--color-bg-hover);
+}
+
+.sidebar-file.selected {
+  background: var(--color-bg-selected);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.sidebar-icon {
+  font-size: 10px;
+  color: var(--color-text-faint);
+  flex-shrink: 0;
+}
+
+.sidebar-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}
+
+.sidebar-open-workspace-btn {
+  font-size: 13px;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 6px;
+  padding: 6px 14px;
+  transition: background 0.15s;
+}
+
+.sidebar-open-workspace-btn:hover {
+  background: var(--color-accent-light);
+}
+
+/* ── Status Bar ──────────────────────────────── */
+.statusbar {
+  height: var(--statusbar-height);
+  background: var(--color-status-bg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+
+.statusbar-file {
+  font-size: 11.5px;
+  color: var(--color-status-text);
+  font-family: var(--font-ui);
+}
+
+.statusbar-words {
+  font-size: 11.5px;
+  color: var(--color-status-text);
+  font-family: var(--font-ui);
+}
