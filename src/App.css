@@ -132,6 +132,110 @@
   background: var(--color-accent-light);
 }
 
+/* ── Editor Column ───────────────────────────── */
+.editor-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Properties Panel ────────────────────────── */
+.properties-wrapper {
+  position: relative;
+  flex-shrink: 0;
+  /* min-height keeps the toggle button visible when the panel is collapsed */
+  min-height: 28px;
+  border-bottom: 1px solid var(--color-border);
+  transition: border-bottom-color 0.2s ease;
+}
+
+.properties-wrapper.panel-closed {
+  border-bottom-color: transparent;
+}
+
+.properties-panel {
+  background: var(--color-bg-sidebar);
+  overflow: hidden;
+  max-height: 56px;
+  transition: max-height 0.2s ease;
+}
+
+.properties-panel.closed {
+  max-height: 0;
+}
+
+.properties-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 56px 0 24px;
+  height: 56px;
+  overflow: hidden;
+}
+
+.prop-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.prop-label {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.prop-value {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.prop-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.prop-tag {
+  font-size: 11px;
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.prop-draft {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-warning);
+  background: var(--color-warning-light);
+  border-radius: 4px;
+  padding: 1px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.properties-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: var(--color-text-faint);
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.properties-toggle:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+}
+
 /* ── Status Bar ──────────────────────────────── */
 .statusbar {
   height: var(--statusbar-height);
@@ -153,4 +257,27 @@
   font-size: 11.5px;
   color: var(--color-status-text);
   font-family: var(--font-ui);
+}
+
+.statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.statusbar-theme-btn {
+  font-size: 13px;
+  color: var(--color-status-text);
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.statusbar-theme-btn:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+  opacity: 1;
 }

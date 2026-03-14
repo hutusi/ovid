@@ -4,17 +4,23 @@ import Placeholder from "@tiptap/extension-placeholder";
 import Typography from "@tiptap/extension-typography";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
+import { Markdown } from "tiptap-markdown";
 import "../styles/editor.css";
 
 interface EditorProps {
   content?: string;
   onWordCount?: (count: number) => void;
+  onChange?: (markdown: string) => void;
 }
 
-export function Editor({ content = "", onWordCount }: EditorProps) {
+export function Editor({ content = "", onWordCount, onChange }: EditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit,
+      Markdown.configure({
+        transformPastedText: true,
+        transformCopiedText: true,
+      }),
       Placeholder.configure({
         placeholder: "Start writing…",
       }),
@@ -27,10 +33,13 @@ export function Editor({ content = "", onWordCount }: EditorProps) {
     ],
     content,
     onUpdate({ editor }) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const markdown = (editor.storage as any).markdown.getMarkdown() as string;
+      onChange?.(markdown);
+
       if (onWordCount) {
         const text = editor.getText();
-        const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-        onWordCount(words);
+        onWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
       }
     },
   });

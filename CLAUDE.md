@@ -35,20 +35,23 @@ Three-zone layout managed by `src/App.tsx`:
 **`src/App.tsx`** — Root component; owns all global state (workspace, selected file, word count).
 
 **`src/components/`**
-- `Editor.tsx` — Tiptap WYSIWYG editor (StarterKit + Placeholder + Typography + Link + Image)
+- `Editor.tsx` — Tiptap WYSIWYG editor (StarterKit + Placeholder + Typography + Link + Image + tiptap-markdown)
 - `Sidebar.tsx` — File tree; shows only `.md` / `.mdx` files
-- `StatusBar.tsx` — Filename + word count
+- `StatusBar.tsx` — Filename, word count, dark mode toggle
+- `PropertiesPanel.tsx` — Collapsible bar above editor showing parsed frontmatter fields
 
 **`src/lib/`**
 - `types.ts` — Shared interfaces (`FileNode`, `WorkspaceState`)
+- `frontmatter.ts` — `parseFrontmatter` / `joinFrontmatter` (raw round-trip) + `parseYamlFrontmatter` (js-yaml)
+- `useTheme.ts` — Hook for system/manual dark mode; syncs to `localStorage`; applies `data-theme` on `<html>`
 
 **`src/styles/`**
-- `global.css` — CSS reset + design tokens (CSS custom properties)
+- `global.css` — CSS reset + design tokens (CSS custom properties, light + dark sets)
 - `editor.css` — ProseMirror / Tiptap prose typography
 
-**`src/theme.ts`** — Design tokens mirrored as TypeScript constants.
-
-**`src-tauri/`** — Rust backend (Tauri 2). File I/O and git operations will live here as Tauri commands.
+**`src-tauri/`** — Rust backend (Tauri 2).
+- `open_workspace` — folder picker dialog (async, tokio oneshot); walks file tree
+- `read_file` / `write_file` — path-validated against workspace root; atomic saves via temp-file + rename
 
 ## Design Principles
 
@@ -69,12 +72,8 @@ Three-zone layout managed by `src/App.tsx`:
 
 ## Amytis Workspace
 
-An Amytis workspace is identified by the presence of `site.config.ts` + `content/` directory. Content files are `.md` with YAML frontmatter. Frontmatter should be parsed and stripped from the editor view (shown separately in a properties panel later).
+An Amytis workspace is identified by the presence of `site.config.ts` + `content/` directory. Content files are `.md` with YAML frontmatter. Frontmatter is parsed with `js-yaml`, stripped from the editor view, and displayed in the properties panel. The raw frontmatter block is always written back verbatim to preserve formatting.
 
-## Roadmap (what's not built yet)
+## Roadmap
 
-1. **Workspace open** — Tauri `dialog.open()` to pick a folder, walk file tree via Tauri FS
-2. **File read/write** — load `.md` into editor, save on change (debounced)
-3. **Frontmatter** — parse YAML, strip from editor, show in properties panel
-4. **Dark mode** — follow system preference, toggle manually
-5. **Properties panel** — right sidebar showing frontmatter fields
+See [ROADMAP.md](./ROADMAP.md) for completed and planned features.
