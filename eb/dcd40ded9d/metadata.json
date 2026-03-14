@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "ebdcd40ded9d",
+  "strategy": "manual-commit",
+  "branch": "fix-edit",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "biome.json",
+    "package.json",
+    "src/components/Editor.tsx",
+    "src/components/PropertiesPanel.tsx",
+    "src/components/Sidebar.tsx",
+    "src/components/StatusBar.tsx",
+    "src/lib/frontmatter.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/eb/dcd40ded9d/0/metadata.json",
+      "transcript": "/eb/dcd40ded9d/0/full.jsonl",
+      "content_hash": "/eb/dcd40ded9d/0/content_hash.txt",
+      "prompt": "/eb/dcd40ded9d/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 67,
+    "cache_creation_tokens": 77252,
+    "cache_read_tokens": 1291947,
+    "output_tokens": 10914,
+    "api_call_count": 35
+  }
+}

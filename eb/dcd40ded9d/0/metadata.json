@@ -1,0 +1,42 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "ebdcd40ded9d",
+  "session_id": "f3ead4d9-265b-49df-83e8-cfaa70364444",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-14T10:47:08.862907Z",
+  "branch": "fix-edit",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "biome.json",
+    "src/lib/frontmatter.test.ts",
+    "package.json",
+    "src/components/Sidebar.tsx",
+    "src/components/StatusBar.tsx",
+    "src/components/PropertiesPanel.tsx",
+    "src/components/Editor.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "fa7f9a6fa6f8",
+  "checkpoint_transcript_start": 35,
+  "transcript_lines_at_start": 35,
+  "token_usage": {
+    "input_tokens": 67,
+    "cache_creation_tokens": 77252,
+    "cache_read_tokens": 1291947,
+    "output_tokens": 10914,
+    "api_call_count": 35
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-14T10:47:08.732243Z",
+    "agent_lines": 195,
+    "human_added": 72,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 267,
+    "agent_percentage": 73.03370786516854
+  }
+}

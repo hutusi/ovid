@@ -1,0 +1,9 @@
+Let's think about quality assurance. Do we need to add linting, testing, or other quality assurance measures? What do you think?
+
+---
+
+why not use biome or bun test? is ESLint + Vitest better?
+
+---
+
+OK
