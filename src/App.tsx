@@ -67,8 +67,10 @@ function App() {
     };
   }, []);
 
+  const toastIdRef = useRef(0);
+
   const showToast = useCallback((message: string) => {
-    const id = Date.now();
+    const id = ++toastIdRef.current;
     setToasts((prev) => [...prev, { id, message }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -121,7 +123,7 @@ function App() {
   // Global keyboard shortcuts
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (!e.metaKey) return;
+      if (!e.metaKey && !e.ctrlKey) return;
       switch (e.key) {
         case "\\":
           e.preventDefault();

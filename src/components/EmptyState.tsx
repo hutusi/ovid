@@ -1,3 +1,6 @@
+const isMac = navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Mac");
+const modKey = isMac ? "⌘" : "Ctrl+";
+
 interface EmptyStateProps {
   workspaceOpen: boolean;
   onOpenWorkspace: () => void;
@@ -19,7 +22,7 @@ export function EmptyState({ workspaceOpen, onOpenWorkspace }: EmptyStateProps) 
       <button type="button" className="empty-state-btn" onClick={onOpenWorkspace}>
         Open workspace
       </button>
-      <p className="empty-state-shortcut">⌘O to open a folder</p>
+      <p className="empty-state-shortcut">{modKey}O to open a folder</p>
     </div>
   );
 }
