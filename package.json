@@ -11,7 +11,8 @@
     "lint": "biome check src",
     "lint:fix": "biome check --write src",
     "format": "biome format --write src",
-    "test": "bun test"
+    "test": "bun test",
+    "validate": "tsc --noEmit && biome check src && bun test"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
