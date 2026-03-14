@@ -78,8 +78,6 @@ function App() {
     // Flush any pending save for the outgoing file before switching
     await flushPendingSave();
 
-    setSelectedFile(node);
-    setFileContent("");
     setWordCount(0);
     setParsedFrontmatter({});
     selectedPathRef.current = node.path;
@@ -90,6 +88,11 @@ function App() {
       if (selectedPathRef.current !== node.path) return;
       const { frontmatter, body } = parseFrontmatter(raw);
       frontmatterRef.current = frontmatter;
+      // Set selectedFile and fileContent together so the Editor mounts with
+      // the new key only after content is ready. Tiptap's useEditor treats
+      // `content` as an initialisation-only value, so the Editor must receive
+      // the correct content on its first render or it will stay blank.
+      setSelectedFile(node);
       setFileContent(body);
       setParsedFrontmatter(parseYamlFrontmatter(raw));
     } catch (err) {
