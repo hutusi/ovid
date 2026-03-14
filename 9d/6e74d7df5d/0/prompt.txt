@@ -1,0 +1,9 @@
+is it better to make the items in ROADMAP as markdown checkbox? what do you think?
+
+---
+
+should we put Design Principles into CLAUDE.md instead of ROADMAP? what do you think?
+
+---
+
+OK
