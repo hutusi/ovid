@@ -1,0 +1,37 @@
+do we need to add or update some tests?
+
+---
+
+check about code revies by coderabbit on PR #8
+
+---
+
+do we need to add or update some tests?
+
+---
+
+open a new PR
+
+---
+
+reply the comments
+
+---
+
+reply the comments on PR #8
+
+---
+
+what should we do next? what do you think?
+
+---
+
+let's start phase 5
+
+---
+
+do we need to add or update some tests?
+
+---
+
+check about code revies by coderabbit on PR #9
