@@ -1,4 +1,6 @@
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -23,12 +25,12 @@
   --color-status-bg: #18181b;
   --color-status-text: #a1a1aa;
 
-  --color-warning:       #f59e0b;
+  --color-warning: #f59e0b;
   --color-warning-light: rgba(245, 158, 11, 0.12);
 
   --font-ui: system-ui, -apple-system, sans-serif;
-  --font-editor: 'Georgia', 'Times New Roman', serif;
-  --font-mono: 'Fira Code', 'JetBrains Mono', monospace;
+  --font-editor: "Georgia", "Times New Roman", serif;
+  --font-mono: "Fira Code", "JetBrains Mono", monospace;
 
   --sidebar-width: 240px;
   --statusbar-height: 28px;
@@ -39,37 +41,43 @@
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root { transition: none; }
+  :root {
+    transition: none;
+  }
 }
 
 [data-theme="dark"] {
-  --color-bg:              #1c1c1e;
-  --color-bg-sidebar:      #161618;
-  --color-bg-hover:        #2c2c2e;
-  --color-bg-selected:     #3a3a3c;
+  --color-bg: #1c1c1e;
+  --color-bg-sidebar: #161618;
+  --color-bg-hover: #2c2c2e;
+  --color-bg-selected: #3a3a3c;
 
-  --color-border:          #3a3a3c;
-  --color-border-strong:   #48484a;
+  --color-border: #3a3a3c;
+  --color-border-strong: #48484a;
 
-  --color-text:            #f2f2f7;
-  --color-text-muted:      #aeaeb2;
-  --color-text-faint:      #636366;
+  --color-text: #f2f2f7;
+  --color-text-muted: #aeaeb2;
+  --color-text-faint: #636366;
 
-  --color-accent:          #7c7fff;
-  --color-accent-light:    rgba(124, 127, 255, 0.15);
+  --color-accent: #7c7fff;
+  --color-accent-light: rgba(124, 127, 255, 0.15);
 
-  --color-status-bg:       #111113;
-  --color-status-text:     #636366;
+  --color-status-bg: #111113;
+  --color-status-text: #636366;
 
-  --color-warning:         #fbbf24;
-  --color-warning-light:   rgba(251, 191, 36, 0.15);
+  --color-warning: #fbbf24;
+  --color-warning-light: rgba(251, 191, 36, 0.15);
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
   overflow: hidden;

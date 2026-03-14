@@ -1,4 +1,4 @@
-import { ParsedFrontmatter } from "../lib/frontmatter";
+import type { ParsedFrontmatter } from "../lib/frontmatter";
 
 interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
@@ -9,7 +9,7 @@ interface PropertiesPanelProps {
 function formatDate(value: string): string {
   try {
     return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-      new Date(value + "T00:00:00")
+      new Date(`${value}T00:00:00`)
     );
   } catch {
     return value;
@@ -51,7 +51,9 @@ export function PropertiesPanel({ frontmatter, isOpen, onToggle }: PropertiesPan
               return (
                 <div key={key} className="prop-field">
                   {val.map((tag) => (
-                    <span key={tag} className="prop-tag">{tag}</span>
+                    <span key={tag} className="prop-tag">
+                      {tag}
+                    </span>
                   ))}
                 </div>
               );
@@ -85,6 +87,7 @@ export function PropertiesPanel({ frontmatter, isOpen, onToggle }: PropertiesPan
       </div>
       {/* Toggle lives outside the collapsible panel so it's always visible */}
       <button
+        type="button"
         className="properties-toggle"
         onClick={onToggle}
         title={isOpen ? "Hide properties" : "Show properties"}

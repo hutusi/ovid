@@ -1,9 +1,9 @@
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Typography from "@tiptap/extension-typography";
-import Link from "@tiptap/extension-link";
-import Image from "@tiptap/extension-image";
+import { EditorContent, useEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import { Markdown } from "tiptap-markdown";
 import "../styles/editor.css";
 
@@ -33,7 +33,7 @@ export function Editor({ content = "", onWordCount, onChange }: EditorProps) {
     ],
     content,
     onUpdate({ editor }) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // biome-ignore lint/suspicious/noExplicitAny: tiptap-markdown storage has no public type
       const markdown = (editor.storage as any).markdown.getMarkdown() as string;
       onChange?.(markdown);
 

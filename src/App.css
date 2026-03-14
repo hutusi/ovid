@@ -52,7 +52,9 @@
   line-height: 1;
   padding: 2px 4px;
   border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
   flex-shrink: 0;
 }
 
@@ -227,7 +229,9 @@
   color: var(--color-text-faint);
   padding: 2px 6px;
   border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
   line-height: 1;
 }
 
@@ -271,7 +275,9 @@
   line-height: 1;
   padding: 2px 4px;
   border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    background 0.15s;
   flex-shrink: 0;
   opacity: 0.7;
 }

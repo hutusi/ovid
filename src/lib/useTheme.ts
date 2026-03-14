@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export type ThemePreference = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
@@ -28,11 +28,9 @@ export function useTheme(): {
   resolvedTheme: ResolvedTheme;
   setPreference: (p: ThemePreference) => void;
 } {
-  const [preference, setPreferenceState] = useState<ThemePreference>(
-    () => readStoredPreference()
-  );
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(
-    () => resolve(readStoredPreference())
+  const [preference, setPreferenceState] = useState<ThemePreference>(() => readStoredPreference());
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
+    resolve(readStoredPreference())
   );
 
   useEffect(() => {

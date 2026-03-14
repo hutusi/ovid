@@ -1,4 +1,4 @@
-import { FileNode } from "../lib/types";
+import type { FileNode } from "../lib/types";
 
 interface SidebarProps {
   tree: FileNode[];
@@ -22,10 +22,7 @@ function FileItem({ node, depth, selectedPath, onSelect }: FileItemProps) {
   if (node.isDirectory) {
     return (
       <div>
-        <div
-          className="sidebar-dir"
-          style={{ paddingLeft: `${12 + depth * 14}px` }}
-        >
+        <div className="sidebar-dir" style={{ paddingLeft: `${12 + depth * 14}px` }}>
           <span className="sidebar-icon">▸</span>
           {node.name}
         </div>
@@ -45,14 +42,15 @@ function FileItem({ node, depth, selectedPath, onSelect }: FileItemProps) {
   if (!isMarkdown) return null;
 
   return (
-    <div
+    <button
+      type="button"
       className={`sidebar-file ${isSelected ? "selected" : ""}`}
       style={{ paddingLeft: `${12 + depth * 14}px` }}
       onClick={() => onSelect(node)}
     >
       <span className="sidebar-icon">◦</span>
       {node.name.replace(/\.mdx?$/, "")}
-    </div>
+    </button>
   );
 }
 
@@ -66,10 +64,13 @@ export function Sidebar({
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <span className="sidebar-workspace-name">
-          {workspaceName ?? "No workspace"}
-        </span>
-        <button className="sidebar-open-btn" onClick={onOpenWorkspace} title="Open workspace">
+        <span className="sidebar-workspace-name">{workspaceName ?? "No workspace"}</span>
+        <button
+          type="button"
+          className="sidebar-open-btn"
+          onClick={onOpenWorkspace}
+          title="Open workspace"
+        >
           ⊕
         </button>
       </div>
@@ -78,7 +79,7 @@ export function Sidebar({
         {tree.length === 0 ? (
           <div className="sidebar-empty">
             <p>No workspace open.</p>
-            <button className="sidebar-open-workspace-btn" onClick={onOpenWorkspace}>
+            <button type="button" className="sidebar-open-workspace-btn" onClick={onOpenWorkspace}>
               Open folder
             </button>
           </div>

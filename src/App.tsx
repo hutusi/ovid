@@ -1,11 +1,16 @@
-import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Sidebar } from "./components/Sidebar";
+import { useEffect, useRef, useState } from "react";
 import { Editor } from "./components/Editor";
 import { PropertiesPanel } from "./components/PropertiesPanel";
+import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
-import { FileNode } from "./lib/types";
-import { parseFrontmatter, joinFrontmatter, parseYamlFrontmatter, ParsedFrontmatter } from "./lib/frontmatter";
+import {
+  joinFrontmatter,
+  type ParsedFrontmatter,
+  parseFrontmatter,
+  parseYamlFrontmatter,
+} from "./lib/frontmatter";
+import type { FileNode } from "./lib/types";
 import { useTheme } from "./lib/useTheme";
 import "./styles/global.css";
 import "./App.css";
@@ -78,10 +83,9 @@ function App() {
     // Flush any pending save for the outgoing file before switching
     await flushPendingSave();
 
-    setSelectedFile(node);
-    setFileContent("");
     setWordCount(0);
     setParsedFrontmatter({});
+    const prevPath = selectedPathRef.current;
     selectedPathRef.current = node.path;
     pendingMarkdownRef.current = null;
 
@@ -90,10 +94,18 @@ function App() {
       if (selectedPathRef.current !== node.path) return;
       const { frontmatter, body } = parseFrontmatter(raw);
       frontmatterRef.current = frontmatter;
+      // Set selectedFile and fileContent together so the Editor mounts with
+      // the new key only after content is ready. Tiptap's useEditor treats
+      // `content` as an initialisation-only value, so the Editor must receive
+      // the correct content on its first render or it will stay blank.
+      setSelectedFile(node);
       setFileContent(body);
       setParsedFrontmatter(parseYamlFrontmatter(raw));
     } catch (err) {
       console.error("Failed to read file:", err);
+      // Restore previous path so flushPendingSave doesn't write to the
+      // failed file's path if the user continues editing the old file.
+      if (selectedPathRef.current === node.path) selectedPathRef.current = prevPath;
     }
   }
 
