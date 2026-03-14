@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "deeb78c91365",
+  "session_id": "ec84c889-39b6-4748-a7e3-1d91d8906436",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-14T14:48:57.568849Z",
+  "branch": "phase-2",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/App.tsx",
+    "src/components/PropertiesPanel.tsx",
+    "src/components/InputModal.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "1b725beb9006",
+  "checkpoint_transcript_start": 593,
+  "transcript_lines_at_start": 593,
+  "token_usage": {
+    "input_tokens": 51,
+    "cache_creation_tokens": 153237,
+    "cache_read_tokens": 2291858,
+    "output_tokens": 19883,
+    "api_call_count": 27
+  },
+  "session_metrics": {
+    "turn_count": 23
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-14T14:48:56.468568Z",
+    "agent_lines": 96,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 96,
+    "agent_percentage": 100
+  }
+}
