@@ -14,3 +14,20 @@ export interface WorkspaceState {
 }
 
 export type SaveStatus = "saved" | "unsaved";
+
+export interface RecentFile {
+  path: string;
+  name: string;
+  title?: string;
+}
+
+export interface SearchMatch {
+  lineNumber: number;
+  lineContent: string;
+}
+
+export interface SearchResult {
+  path: string;
+  title?: string;
+  matches: SearchMatch[];
+}

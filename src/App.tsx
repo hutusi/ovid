@@ -4,6 +4,7 @@ import { EmptyState } from "./components/EmptyState";
 import { FileSwitcher } from "./components/FileSwitcher";
 import { InputModal } from "./components/InputModal";
 import { PropertiesPanel } from "./components/PropertiesPanel";
+import { SearchPanel } from "./components/SearchPanel";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { useFileEditor } from "./lib/useFileEditor";
@@ -26,6 +27,7 @@ function App() {
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [modal, setModal] = useState<ModalState>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const { toasts, showToast } = useToast();
 
@@ -98,6 +100,12 @@ function App() {
           e.preventDefault();
           void handleOpenWorkspace();
           break;
+        case "F":
+          if (e.shiftKey) {
+            e.preventDefault();
+            if (workspaceRoot) setSearchOpen((v) => !v);
+          }
+          break;
         case "P":
           if (e.shiftKey) {
             e.preventDefault();
@@ -128,27 +136,44 @@ function App() {
 
   const hasFrontmatter = Object.keys(parsedFrontmatter).length > 0;
 
+  function handleOpenByPath(path: string) {
+    const node = tree
+      .flatMap(function flatten(n): typeof tree {
+        return n.isDirectory ? (n.children ?? []).flatMap(flatten) : [n];
+      })
+      .find((n) => n.path === path);
+    if (node) {
+      void handleSelectFile(node);
+      pushRecent(node);
+      setSearchOpen(false);
+    }
+  }
+
   return (
     <div className="app">
       <div className="app-body">
-        <Sidebar
-          tree={tree}
-          selectedPath={selectedFile?.path ?? null}
-          renamingPath={renamingPath}
-          visible={sidebarVisible}
-          workspaceName={workspaceName}
-          workspaceRoot={workspaceRoot}
-          onSelect={(node) => {
-            void handleSelectFile(node);
-            pushRecent(node);
-          }}
-          onOpenWorkspace={handleOpenWorkspace}
-          onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
-          onRename={handleRename}
-          onDelete={handleDelete}
-          onStartRename={setRenamingPath}
-          onCancelRename={() => setRenamingPath(null)}
-        />
+        {searchOpen ? (
+          <SearchPanel onOpenFile={handleOpenByPath} onClose={() => setSearchOpen(false)} />
+        ) : (
+          <Sidebar
+            tree={tree}
+            selectedPath={selectedFile?.path ?? null}
+            renamingPath={renamingPath}
+            visible={sidebarVisible}
+            workspaceName={workspaceName}
+            workspaceRoot={workspaceRoot}
+            onSelect={(node) => {
+              void handleSelectFile(node);
+              if (!node.isDirectory) pushRecent(node);
+            }}
+            onOpenWorkspace={handleOpenWorkspace}
+            onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
+            onRename={handleRename}
+            onDelete={handleDelete}
+            onStartRename={setRenamingPath}
+            onCancelRename={() => setRenamingPath(null)}
+          />
+        )}
         <div className="editor-column">
           {selectedFile && hasFrontmatter && (
             <PropertiesPanel
@@ -170,17 +195,7 @@ function App() {
               workspaceOpen={workspaceRoot !== null}
               recentFiles={recentFiles}
               onOpenWorkspace={handleOpenWorkspace}
-              onOpenRecent={(path) => {
-                const node = tree
-                  .flatMap(function flatten(n): typeof tree {
-                    return n.isDirectory ? (n.children ?? []).flatMap(flatten) : [n];
-                  })
-                  .find((n) => n.path === path);
-                if (node) {
-                  void handleSelectFile(node);
-                  pushRecent(node);
-                }
-              }}
+              onOpenRecent={handleOpenByPath}
             />
           )}
         </div>

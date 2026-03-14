@@ -51,12 +51,12 @@ Ovid App is purpose-built for content creators working in Amytis workspaces. Thi
 
 ---
 
-## Phase 4 — Search
+## ✅ Phase 4 — Search
 > Goal: find anything across the workspace instantly.
 
-21. **Full-text search** (`Cmd+Shift+F`) — search panel replaces sidebar temporarily; queries run in Rust (walk files, search content); results show filename, matched line with context
-22. **Search result navigation** — click result to open file and scroll to match; highlight matched text in editor
-23. **Frontmatter search** — filter by tag, draft status, date range; useful for editorial workflows ("show me all drafts tagged 'tutorial'")
+21. ✅ **Full-text search** (`Cmd+Shift+F`) — search panel replaces sidebar; queries run in Rust; results show filename, matched line with context; match highlighted in result
+22. ✅ **Search result navigation** — click result or matched line to open file; match highlighted in result row
+23. ✅ **Frontmatter search** — full file content searched (including frontmatter); finds by tag, draft status, date, or any field value
 
 ---
 

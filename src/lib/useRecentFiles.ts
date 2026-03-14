@@ -1,14 +1,10 @@
 import { useCallback, useState } from "react";
-import type { FileNode } from "./types";
+import type { FileNode, RecentFile } from "./types";
+
+export type { RecentFile };
 
 const MAX_RECENT = 10;
 const STORAGE_KEY = "ovid:recentFiles";
-
-interface RecentFile {
-  path: string;
-  name: string;
-  title?: string;
-}
 
 function loadRecent(workspaceRoot: string): RecentFile[] {
   try {
@@ -49,7 +45,11 @@ export function useRecentFiles(workspaceRoot: string | null) {
   const clearRecent = useCallback(() => {
     if (!workspaceRoot) return;
     setRecentFiles([]);
-    localStorage.removeItem(`${STORAGE_KEY}:${workspaceRoot}`);
+    try {
+      localStorage.removeItem(`${STORAGE_KEY}:${workspaceRoot}`);
+    } catch {
+      // storage-restricted environments — silently ignore
+    }
   }, [workspaceRoot]);
 
   const resetRecent = useCallback((root: string) => {

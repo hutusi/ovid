@@ -91,7 +91,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       // Update all state only after a successful read so a failure leaves the
       // previous file's metadata intact on screen.
       setWordCount(0);
-      setParsedFrontmatter(parseYamlFrontmatter(raw));
+      setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
       setSaveStatus("saved");
       setFileContent(body);
       setSelectedFile(node);

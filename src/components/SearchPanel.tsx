@@ -1,0 +1,141 @@
+import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { SearchResult } from "../lib/types";
+import "./SearchPanel.css";
+
+interface SearchPanelProps {
+  onOpenFile: (path: string) => void;
+  onClose: () => void;
+}
+
+const DEBOUNCE_MS = 300;
+
+export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const runSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    try {
+      const res = await invoke<SearchResult[]>("search_workspace", { query: q.trim() });
+      setResults(res);
+    } catch (err) {
+      console.error("Search failed:", err);
+      setResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const q = e.target.value;
+    setQuery(q);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => runSearch(q), DEBOUNCE_MS);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") onClose();
+  }
+
+  const totalMatches = results.reduce((n, r) => n + r.matches.length, 0);
+
+  return (
+    <div className="search-panel">
+      <div className="search-panel-header">
+        <input
+          ref={inputRef}
+          className="search-input"
+          placeholder="Search in workspace…"
+          value={query}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          aria-label="Search workspace"
+        />
+        <button
+          type="button"
+          className="search-close-btn"
+          onClick={onClose}
+          title="Close search (Esc)"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="search-results">
+        {searching && <p className="search-status">Searching…</p>}
+
+        {!searching && query.trim() && results.length === 0 && (
+          <p className="search-status">No results for "{query}"</p>
+        )}
+
+        {!searching && results.length > 0 && (
+          <p className="search-summary">
+            {totalMatches} {totalMatches === 1 ? "match" : "matches"} in {results.length}{" "}
+            {results.length === 1 ? "file" : "files"}
+          </p>
+        )}
+
+        {results.map((result) => {
+          const baseName =
+            result.path
+              .split("/")
+              .pop()
+              ?.replace(/\.mdx?$/, "") ?? result.path;
+          const displayName = result.title || baseName;
+          return (
+            <div key={result.path} className="search-result-group">
+              <button
+                type="button"
+                className="search-result-file"
+                onClick={() => onOpenFile(result.path)}
+              >
+                {displayName}
+              </button>
+              {result.matches.map((match) => (
+                <button
+                  key={match.lineNumber}
+                  type="button"
+                  className="search-result-match"
+                  onClick={() => onOpenFile(result.path)}
+                >
+                  <span className="search-match-line">{match.lineNumber}</span>
+                  <span className="search-match-content">
+                    <HighlightedLine text={match.lineContent} query={query} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HighlightedLine({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  const q = query.trim().toLowerCase();
+  const lower = text.toLowerCase();
+  const idx = lower.indexOf(q);
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="search-highlight">{text.slice(idx, idx + q.length)}</mark>
+      {text.slice(idx + q.length)}
+    </>
+  );
+}

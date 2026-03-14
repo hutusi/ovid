@@ -1,14 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FlatFile } from "../lib/fileSearch";
 import { flattenTree, score } from "../lib/fileSearch";
-import type { FileNode } from "../lib/types";
+import type { FileNode, RecentFile } from "../lib/types";
 import "./FileSwitcher.css";
-
-interface RecentFile {
-  path: string;
-  name: string;
-  title?: string;
-}
 
 interface FileSwitcherProps {
   tree: FileNode[];
@@ -64,7 +58,7 @@ export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitc
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
-        setActiveIndex((i) => Math.min(i + 1, results.length - 1));
+        if (results.length > 0) setActiveIndex((i) => Math.min(i + 1, results.length - 1));
         break;
       case "ArrowUp":
         e.preventDefault();

@@ -12,6 +12,21 @@ struct WorkspaceState {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+struct SearchMatch {
+    line_number: usize,
+    line_content: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SearchResult {
+    path: String,
+    title: Option<String>,
+    matches: Vec<SearchMatch>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct FileNode {
     name: String,
     path: String,
@@ -25,17 +40,21 @@ struct FileNode {
 /// Read the frontmatter block (between `---` fences) of a markdown file and
 /// extract the `title` and `draft` scalar values using simple line scanning.
 /// Returns `(None, None)` if the file can't be read or has no frontmatter.
+/// Uses a buffered reader so only the frontmatter is read, not the full file.
 fn read_frontmatter_meta(path: &Path) -> (Option<String>, Option<bool>) {
-    let Ok(content) = std::fs::read_to_string(path) else {
+    use std::io::{BufRead, BufReader};
+    let Ok(file) = std::fs::File::open(path) else {
         return (None, None);
     };
-    let mut lines = content.lines();
-    if lines.next().map(str::trim) != Some("---") {
+    let mut reader = BufReader::new(file);
+    let mut first_line = String::new();
+    if reader.read_line(&mut first_line).is_err() || first_line.trim() != "---" {
         return (None, None);
     }
     let mut title: Option<String> = None;
     let mut draft: Option<bool> = None;
-    for line in lines {
+    let mut line = String::new();
+    while reader.read_line(&mut line).unwrap_or(0) > 0 {
         if line.trim() == "---" {
             break;
         }
@@ -43,8 +62,13 @@ fn read_frontmatter_meta(path: &Path) -> (Option<String>, Option<bool>) {
             title = Some(rest.trim().trim_matches('"').trim_matches('\'').to_string());
         } else if let Some(rest) = line.strip_prefix("draft:") {
             let val = rest.trim();
-            draft = Some(val == "true");
+            draft = match val {
+                "true" => Some(true),
+                "false" => Some(false),
+                _ => None,
+            };
         }
+        line.clear();
     }
     (title, draft)
 }
@@ -261,6 +285,69 @@ fn trash_file(path: String, state: State<'_, WorkspaceState>) -> Result<(), Stri
     trash::delete(&canonical).map_err(|e| e.to_string())
 }
 
+/// Search all markdown files under `path` for lines containing `query` (case-insensitive).
+fn search_dir(path: &Path, query: &str) -> Vec<SearchResult> {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return Vec::new();
+    };
+    let mut entries: Vec<_> = entries.flatten().collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    let mut results = Vec::new();
+    for entry in entries {
+        let entry_path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        if entry_path.is_dir() {
+            results.extend(search_dir(&entry_path, query));
+        } else {
+            let ext = entry_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if ext != "md" && ext != "mdx" {
+                continue;
+            }
+            let Ok(content) = std::fs::read_to_string(&entry_path) else {
+                continue;
+            };
+            let q = query.to_lowercase();
+            let matches: Vec<SearchMatch> = content
+                .lines()
+                .enumerate()
+                .filter_map(|(i, line)| {
+                    if line.to_lowercase().contains(&q) {
+                        Some(SearchMatch {
+                            line_number: i + 1,
+                            line_content: line.trim().to_string(),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if !matches.is_empty() {
+                let (title, _) = read_frontmatter_meta(&entry_path);
+                results.push(SearchResult {
+                    path: entry_path.to_string_lossy().to_string(),
+                    title,
+                    matches,
+                });
+            }
+        }
+    }
+    results
+}
+
+#[tauri::command]
+fn search_workspace(query: String, state: State<'_, WorkspaceState>) -> Result<Vec<SearchResult>, String> {
+    if query.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root = root_guard.as_ref().ok_or("no workspace open")?;
+    Ok(search_dir(root, query.trim()))
+}
+
 #[tauri::command]
 fn create_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
@@ -289,6 +376,7 @@ pub fn run() {
             rename_file,
             trash_file,
             create_dir,
+            search_workspace,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")

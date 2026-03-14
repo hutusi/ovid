@@ -61,9 +61,9 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
   }
 
   function commit() {
-    setEditing(false);
     const trimmed = draft.trim();
     if (Array.isArray(value)) {
+      setEditing(false);
       // Parse comma-separated back to array
       const arr = trimmed
         ? trimmed
@@ -75,15 +75,18 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
     } else if (typeof value === "boolean") {
       const normalized = trimmed.toLowerCase();
       if (normalized !== "true" && normalized !== "false") {
-        // Invalid input — reset draft and bail without saving
+        // Invalid input — keep editing mode, reset draft, bail without saving
         setDraft(toInputString(value));
         return;
       }
+      setEditing(false);
       onSave(normalized === "true");
     } else if (typeof value === "number") {
+      setEditing(false);
       const num = Number(trimmed);
       onSave(Number.isNaN(num) ? value : num);
     } else {
+      setEditing(false);
       onSave(trimmed || null);
     }
   }
