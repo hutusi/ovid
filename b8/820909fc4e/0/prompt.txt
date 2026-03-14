@@ -1,0 +1,5 @@
+how can I test it?
+
+---
+
+When I run the app in development mode and try to open a workspace folder, it prompts the folder selection dialog. After that, the window freezes and the mouse cursor changes to a waiting/loading state.
