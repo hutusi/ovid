@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "e414c5587107",
+  "strategy": "manual-commit",
+  "branch": "phase-4",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "ROADMAP.md",
+    "src-tauri/src/lib.rs",
+    "src/App.tsx",
+    "src/components/SearchPanel.css",
+    "src/components/SearchPanel.tsx",
+    "src/lib/types.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/e4/14c5587107/0/metadata.json",
+      "transcript": "/e4/14c5587107/0/full.jsonl",
+      "content_hash": "/e4/14c5587107/0/content_hash.txt",
+      "prompt": "/e4/14c5587107/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 27,
+    "cache_creation_tokens": 17365,
+    "cache_read_tokens": 3430419,
+    "output_tokens": 9249,
+    "api_call_count": 23
+  }
+}
