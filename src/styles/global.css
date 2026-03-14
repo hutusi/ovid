@@ -23,6 +23,9 @@
   --color-status-bg: #18181b;
   --color-status-text: #a1a1aa;
 
+  --color-warning:       #f59e0b;
+  --color-warning-light: rgba(245, 158, 11, 0.12);
+
   --font-ui: system-ui, -apple-system, sans-serif;
   --font-editor: 'Georgia', 'Times New Roman', serif;
   --font-mono: 'Fira Code', 'JetBrains Mono', monospace;
@@ -61,6 +64,9 @@
 
   --color-status-bg:       #111113;
   --color-status-text:     #636366;
+
+  --color-warning:         #fbbf24;
+  --color-warning-light:   rgba(251, 191, 36, 0.15);
 }
 
 html, body, #root {

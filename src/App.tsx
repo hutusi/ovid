@@ -2,9 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Sidebar } from "./components/Sidebar";
 import { Editor } from "./components/Editor";
+import { PropertiesPanel } from "./components/PropertiesPanel";
 import { StatusBar } from "./components/StatusBar";
 import { FileNode } from "./lib/types";
-import { parseFrontmatter, joinFrontmatter } from "./lib/frontmatter";
+import { parseFrontmatter, joinFrontmatter, parseYamlFrontmatter, ParsedFrontmatter } from "./lib/frontmatter";
 import { useTheme } from "./lib/useTheme";
 import "./styles/global.css";
 import "./App.css";
@@ -24,6 +25,8 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
   const [wordCount, setWordCount] = useState(0);
+  const [parsedFrontmatter, setParsedFrontmatter] = useState<ParsedFrontmatter>({});
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
 
   const frontmatterRef = useRef<string>("");
   const selectedPathRef = useRef<string | null>(null);
@@ -43,13 +46,13 @@ function App() {
       setSelectedFile(null);
       setFileContent("");
       setWordCount(0);
+      setParsedFrontmatter({});
       frontmatterRef.current = "";
       selectedPathRef.current = null;
     }
   }
 
   async function handleSelectFile(node: FileNode) {
-    // Flush any pending save for the outgoing file
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
@@ -58,15 +61,16 @@ function App() {
     setSelectedFile(node);
     setFileContent("");
     setWordCount(0);
+    setParsedFrontmatter({});
     selectedPathRef.current = node.path;
 
     try {
       const raw = await invoke<string>("read_file", { path: node.path });
-      // Guard against stale response if user switched files rapidly
       if (selectedPathRef.current !== node.path) return;
       const { frontmatter, body } = parseFrontmatter(raw);
       frontmatterRef.current = frontmatter;
       setFileContent(body);
+      setParsedFrontmatter(parseYamlFrontmatter(raw));
     } catch (err) {
       console.error("Failed to read file:", err);
     }
@@ -85,6 +89,8 @@ function App() {
     }, SAVE_DELAY_MS);
   }
 
+  const hasFrontmatter = Object.keys(parsedFrontmatter).length > 0;
+
   return (
     <div className="app">
       <div className="app-body">
@@ -95,12 +101,21 @@ function App() {
           onOpenWorkspace={handleOpenWorkspace}
           workspaceName={workspaceName}
         />
-        <Editor
-          key={selectedFile?.path ?? "empty"}
-          content={fileContent}
-          onWordCount={setWordCount}
-          onChange={handleEditorChange}
-        />
+        <div className="editor-column">
+          {selectedFile && hasFrontmatter && (
+            <PropertiesPanel
+              frontmatter={parsedFrontmatter}
+              isOpen={propertiesOpen}
+              onToggle={() => setPropertiesOpen((v) => !v)}
+            />
+          )}
+          <Editor
+            key={selectedFile?.path ?? "empty"}
+            content={fileContent}
+            onWordCount={setWordCount}
+            onChange={handleEditorChange}
+          />
+        </div>
       </div>
       <StatusBar
         fileName={selectedFile?.name ?? null}

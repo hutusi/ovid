@@ -1,4 +1,10 @@
+import { load } from "js-yaml";
+
 const FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/;
+const YAML_INNER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
+
+export type FrontmatterValue = string | boolean | number | string[] | null;
+export type ParsedFrontmatter = Record<string, FrontmatterValue>;
 
 export function parseFrontmatter(raw: string): {
   frontmatter: string;
@@ -13,4 +19,30 @@ export function parseFrontmatter(raw: string): {
 
 export function joinFrontmatter(frontmatter: string, body: string): string {
   return frontmatter + body;
+}
+
+export function parseYamlFrontmatter(raw: string): ParsedFrontmatter {
+  const match = YAML_INNER_RE.exec(raw);
+  if (!match) return {};
+
+  try {
+    const parsed = load(match[1]);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+    const result: ParsedFrontmatter = {};
+    for (const [key, val] of Object.entries(parsed as Record<string, unknown>)) {
+      if (val === null || val === undefined) {
+        result[key] = null;
+      } else if (val instanceof Date) {
+        result[key] = val.toISOString().slice(0, 10);
+      } else if (typeof val === "string" || typeof val === "boolean" || typeof val === "number") {
+        result[key] = val;
+      } else if (Array.isArray(val)) {
+        result[key] = val.filter((v): v is string => typeof v === "string");
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
 }
