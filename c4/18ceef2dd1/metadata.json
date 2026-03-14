@@ -1,0 +1,40 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "c418ceef2dd1",
+  "strategy": "manual-commit",
+  "branch": "refactor",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/App.css",
+    "src/App.tsx",
+    "src/components/EmptyState.css",
+    "src/components/EmptyState.tsx",
+    "src/components/InputModal.css",
+    "src/components/InputModal.tsx",
+    "src/components/PropertiesPanel.css",
+    "src/components/PropertiesPanel.tsx",
+    "src/components/Sidebar.css",
+    "src/components/Sidebar.tsx",
+    "src/components/StatusBar.css",
+    "src/components/StatusBar.tsx",
+    "src/lib/types.ts",
+    "src/lib/useFileEditor.ts",
+    "src/lib/useToast.ts",
+    "src/lib/useWorkspace.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/c4/18ceef2dd1/0/metadata.json",
+      "transcript": "/c4/18ceef2dd1/0/full.jsonl",
+      "content_hash": "/c4/18ceef2dd1/0/content_hash.txt",
+      "prompt": "/c4/18ceef2dd1/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 55,
+    "cache_creation_tokens": 197790,
+    "cache_read_tokens": 3642038,
+    "output_tokens": 25575,
+    "api_call_count": 29
+  }
+}

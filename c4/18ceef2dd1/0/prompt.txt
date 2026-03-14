@@ -1,0 +1,9 @@
+reply all the comments
+
+---
+
+I think we need to refactor the code to make it modular, rather than putting everything in App.tsx and App.css. What do you think?
+
+---
+
+go ahead
