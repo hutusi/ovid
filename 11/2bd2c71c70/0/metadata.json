@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "112bd2c71c70",
+  "session_id": "ec84c889-39b6-4748-a7e3-1d91d8906436",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-14T14:20:23.782293Z",
+  "branch": "phase-2",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src-tauri/Cargo.toml",
+    "src-tauri/src/lib.rs",
+    "src/lib/frontmatter.ts",
+    "src/components/InputModal.tsx",
+    "src/components/Sidebar.tsx",
+    "src/components/PropertiesPanel.tsx",
+    "src/App.tsx",
+    "src/App.css"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "9084505ab59d",
+  "checkpoint_transcript_start": 341,
+  "transcript_lines_at_start": 341,
+  "token_usage": {
+    "input_tokens": 47,
+    "cache_creation_tokens": 64556,
+    "cache_read_tokens": 5304502,
+    "output_tokens": 45753,
+    "api_call_count": 45
+  },
+  "session_metrics": {
+    "turn_count": 16
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-14T14:20:23.433084Z",
+    "agent_lines": 862,
+    "human_added": 92,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 954,
+    "agent_percentage": 90.35639412997904
+  }
+}
