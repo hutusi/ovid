@@ -1,0 +1,5 @@
+what is your opinion?
+
+---
+
+the bubble menu works. but the code block problem still exists.
