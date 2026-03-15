@@ -239,3 +239,15 @@ check about the new code reviews by coderabbit on PR #17
 ---
 
 OK
+
+---
+
+I have committed it and push yet. please check the recent new code review comments by coderabbit on PR #17
+
+---
+
+what is your opinion?
+
+---
+
+OK
