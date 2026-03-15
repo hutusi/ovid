@@ -64,6 +64,7 @@ export function NewFileDialog({
         <input
           ref={inputRef}
           className="nfd-input"
+          aria-label="File name"
           value={filename}
           placeholder="File name"
           onChange={(e) => setFilename(e.target.value)}

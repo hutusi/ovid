@@ -71,6 +71,8 @@ export function FontSettingsButton({
             <button
               key={f}
               type="button"
+              aria-pressed={fontFamily === f}
+              aria-label={`${f === "serif" ? "Serif" : f === "sans" ? "Sans-serif" : "Monospace"} font`}
               className={`flex-1 px-1.5 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
                 fontFamily === f
                   ? "bg-secondary text-primary"
@@ -91,6 +93,8 @@ export function FontSettingsButton({
             <button
               key={s}
               type="button"
+              aria-pressed={fontSize === s}
+              aria-label={`${s === "small" ? "Small" : s === "default" ? "Medium" : "Large"} font size`}
               className={`flex-1 px-1.5 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
                 fontSize === s
                   ? "bg-secondary text-primary"
