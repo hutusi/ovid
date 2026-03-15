@@ -1,18 +1,31 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { InputRule } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
+import { Mathematics } from "@tiptap/extension-mathematics";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Table } from "@tiptap/extension-table";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableRow } from "@tiptap/extension-table-row";
 import Typography from "@tiptap/extension-typography";
 import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState } from "react";
 import { Markdown } from "tiptap-markdown";
+import { FindReplace } from "../lib/tiptap/FindReplace";
+import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
+import { TextFolding } from "../lib/tiptap/TextFolding";
+import { BubbleMenu } from "./BubbleMenu";
 import { CodeBlockView } from "./CodeBlockView";
+import { FindReplaceBar } from "./FindReplaceBar";
 import { LinkDialog } from "./LinkDialog";
+import { TableControls } from "./TableControls";
+import "katex/dist/katex.min.css";
 import "../styles/editor.css";
 
 const lowlight = createLowlight(common);
@@ -43,6 +56,7 @@ export function Editor({
   }, [typewriterMode]);
 
   const [linkDialog, setLinkDialog] = useState<{ href: string } | null>(null);
+  const [showFindReplace, setShowFindReplace] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -60,16 +74,58 @@ export function Editor({
         placeholder: "Start writing…",
       }),
       Typography,
-      Link.configure({
+      Link.extend({
+        addInputRules() {
+          return [
+            new InputRule({
+              // Match completed [text](url) at the cursor
+              find: /\[([^[\]]+)\]\(([^()]+)\)$/,
+              handler: ({ range, match, chain }) => {
+                const [, text, href] = match;
+                chain()
+                  .deleteRange(range)
+                  .insertContentAt(range.from, {
+                    type: "text",
+                    text,
+                    marks: [{ type: "link", attrs: { href, rel: "noopener noreferrer" } }],
+                  })
+                  .run();
+              },
+            }),
+          ];
+        },
+      }).configure({
         openOnClick: false,
         HTMLAttributes: { rel: "noopener noreferrer" },
       }),
       Image,
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      Mathematics,
       LinkPreview,
+      FindReplace,
+      TextFolding,
+      InlineEditMode,
     ],
     content,
     editorProps: {
       attributes: { spellcheck: spellCheck ? "true" : "false" },
+      handlePaste(view, event) {
+        const text = (event.clipboardData?.getData("text/plain") ?? "").trim();
+        if (!/^https?:\/\/\S+$/.test(text)) return false;
+        if (view.state.selection.empty) return false;
+        // Paste a URL with text selected → apply it as a link mark
+        event.preventDefault();
+        const { from, to } = view.state.selection;
+        const linkMark = view.state.schema.marks.link.create({
+          href: text,
+          rel: "noopener noreferrer",
+        });
+        view.dispatch(view.state.tr.addMark(from, to, linkMark));
+        return true;
+      },
       handleDrop(view, event) {
         const imageFiles = Array.from(event.dataTransfer?.files ?? [])
           .filter((f) => IMAGE_MIME.test(f.type))
@@ -133,12 +189,31 @@ export function Editor({
     },
   });
 
-  // Update spellcheck live when the preference changes
+  // Update spellcheck live — set directly on the DOM to avoid replacing editorProps
   useEffect(() => {
-    editor?.setOptions({
-      editorProps: { attributes: { spellcheck: spellCheck ? "true" : "false" } },
-    });
+    if (!editor) return;
+    try {
+      editor.view.dom.setAttribute("spellcheck", spellCheck ? "true" : "false");
+    } catch {
+      // view not yet mounted — initial value is set via editorProps in useEditor
+    }
   }, [editor, spellCheck]);
+
+  // Click on the ](url) hint from InlineEditMode → open link dialog
+  // Use scrollRef instead of editor.view.dom to avoid accessing the view before it's mounted
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !editor) return;
+    function onMouseDown(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.classList.contains("link-url-hint")) return;
+      e.preventDefault();
+      const href = editor.getAttributes("link").href ?? "";
+      setLinkDialog({ href });
+    }
+    container.addEventListener("mousedown", onMouseDown);
+    return () => container.removeEventListener("mousedown", onMouseDown);
+  }, [editor]);
 
   // Cmd+K — open link dialog when editor is focused
   useEffect(() => {
@@ -164,6 +239,40 @@ export function Editor({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [editor]);
+
+  // Cmd+Shift+V — paste as plain text, stripping all rich formatting
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key?.toLowerCase() !== "v") return;
+      if (!editor?.isFocused) return;
+      e.preventDefault();
+      navigator.clipboard
+        .readText()
+        .then((text) => {
+          editor.view.dispatch(editor.view.state.tr.insertText(text));
+        })
+        .catch((err) => {
+          console.error("Failed to read clipboard:", err);
+        });
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editor]);
+
+  // Cmd+H — open / close find & replace bar
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key?.toLowerCase() !== "h") return;
+      if (!editor?.isFocused && !showFindReplace) return;
+      e.preventDefault();
+      setShowFindReplace((v) => {
+        if (v) editor?.chain().focus().run();
+        return !v;
+      });
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editor, showFindReplace]);
 
   // Insert / Format menu commands forwarded from the native menu bar
   useEffect(() => {
@@ -213,6 +322,9 @@ export function Editor({
         case "insert-hr":
           editor.chain().focus().setHorizontalRule().run();
           break;
+        case "insert-table":
+          editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+          break;
       }
     }).then((fn) => {
       if (mounted) {
@@ -232,6 +344,25 @@ export function Editor({
       <div ref={scrollRef} className="editor-scroll">
         <EditorContent editor={editor} />
       </div>
+      {editor && showFindReplace && (
+        <FindReplaceBar
+          editor={editor}
+          onClose={() => {
+            setShowFindReplace(false);
+            editor.chain().focus().run();
+          }}
+        />
+      )}
+      {editor && <TableControls editor={editor} />}
+      {editor && (
+        <BubbleMenu
+          editor={editor}
+          onLinkClick={() => {
+            const href = editor.getAttributes("link").href ?? "";
+            setLinkDialog({ href });
+          }}
+        />
+      )}
       {linkDialog && (
         <LinkDialog
           initialHref={linkDialog.href}

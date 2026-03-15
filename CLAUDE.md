@@ -39,10 +39,22 @@ Three-zone layout managed by `src/App.tsx`:
 **`src/App.tsx`** — Root component; owns all global state (workspace, selected file, word count).
 
 **`src/components/`**
-- `Editor.tsx` — Tiptap WYSIWYG editor (StarterKit + Placeholder + Typography + Link + Image + tiptap-markdown)
+- `Editor.tsx` — Tiptap WYSIWYG editor (StarterKit + Markdown + Typography + Link + Image + Table + Mathematics + custom extensions)
+- `BubbleMenu.tsx` — Floating formatting toolbar (Bold, Italic, Strike, Code, Link) shown on text selection
+- `FindReplaceBar.tsx` — Find & replace bar (`Cmd+H`); live match highlighting, navigate, replace one/all
+- `TableControls.tsx` — Floating table toolbar (add/delete rows and columns) shown when cursor is in a table
+- `LinkDialog.tsx` — Modal for inserting/editing link URLs (`Cmd+K`)
+- `CodeBlockView.tsx` — Custom node view for code blocks with language picker
 - `Sidebar.tsx` — File tree; shows only `.md` / `.mdx` files
 - `StatusBar.tsx` — Filename, word count, dark mode toggle
 - `PropertiesPanel.tsx` — Collapsible bar above editor showing parsed frontmatter fields
+- `ErrorBoundary.tsx` — React error boundary wrapping the editor; surfaces render errors instead of blank screen
+
+**`src/lib/tiptap/`**
+- `FindReplace.ts` — ProseMirror plugin + Tiptap extension for find & replace; `collectMatches` exported for testing
+- `TextFolding.ts` — Heading-level fold/unfold via chevron widgets; `getHeadingRanges` exported for testing
+- `InlineEditMode.ts` — Shows `[` and `](url)` decorations around links when cursor is inside one; URL hint is clickable
+- `LinkPreview.ts` — Hover tooltip showing link URL
 
 **`src/lib/`**
 - `types.ts` — Shared interfaces (`FileNode`, `WorkspaceState`)
@@ -80,7 +92,7 @@ Product (non-negotiable):
 - **No shared code** with the TUI (`ovid`) — different runtime APIs; reference TUI for domain logic only
 - File I/O goes through **Tauri FS plugin** (`@tauri-apps/plugin-fs`) or Rust commands — never direct Node/Bun APIs
 - **Global UI state in `App.tsx`** — workspace and editor state live in `App.tsx`; theme state is managed by the `useTheme` hook; no external state library (no Zustand, Redux, etc.)
-- **No editor toolbar** — keyboard-first design; don't add toolbars or button bars to the editor
+- **No persistent toolbar** — keyboard-first design; no fixed toolbar above the editor; the bubble menu appears transiently on selection and disappears after use
 
 ## Amytis Workspace
 
@@ -89,7 +101,7 @@ An Amytis workspace is identified by the presence of `site.config.ts` + `content
 ## Error Handling
 
 - Tauri Rust commands return `Result<T, String>` — errors surface as rejected promises in the frontend
-- Display errors via `console.error` or in-UI feedback; no global error boundary currently exists
+- Display errors via `console.error` or in-UI feedback; `ErrorBoundary` wraps the editor and surfaces render errors
 - Path validation happens in Rust (`read_file` / `write_file` reject paths outside workspace root)
 
 ## Context Compression Hints
@@ -105,4 +117,4 @@ When compressing conversation history, preserve in priority order:
 
 ## Roadmap
 
-See [ROADMAP.md](./ROADMAP.md) for the full phased plan. Features are organized into 7 phases; complete each phase before starting the next.
+See [ROADMAP.md](./ROADMAP.md) for the full phased plan. Features are organized into 8 phases; complete each phase before starting the next. Phases 1–8 are complete.

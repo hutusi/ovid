@@ -31,6 +31,8 @@
   --color-warning: #f59e0b;
   --color-warning-subtle: rgba(245, 158, 11, 0.12);
   --color-success: #22c55e;
+  --color-error: #c0392b;
+  --color-danger: #e53e3e;
 
   /* Syntax highlighting */
   --color-syntax-comment: #a1a1aa;
@@ -66,6 +68,8 @@
   --color-warning: #fbbf24;
   --color-warning-subtle: rgba(251, 191, 36, 0.15);
   --color-success: #4ade80;
+  --color-error: #e55347;
+  --color-danger: #fc6767;
 
   --color-syntax-comment: #636366;
   --color-syntax-keyword: #a5b4fc;

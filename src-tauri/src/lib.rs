@@ -797,6 +797,7 @@ pub fn run() {
                         .build(app)?,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItemBuilder::with_id("insert-code-block", "Code Block").build(app)?,
+                    &MenuItemBuilder::with_id("insert-table", "Table").build(app)?,
                     &MenuItemBuilder::with_id("insert-hr", "Horizontal Rule").build(app)?,
                 ])
                 .build()?;

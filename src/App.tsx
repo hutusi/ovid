@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { CommitDialog } from "./components/CommitDialog";
 import { Editor } from "./components/Editor";
 import { EmptyState } from "./components/EmptyState";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FileSwitcher } from "./components/FileSwitcher";
 import { NewFileDialog } from "./components/NewFileDialog";
 import { PropertiesPanel } from "./components/PropertiesPanel";
@@ -407,15 +408,17 @@ function App() {
         )}
         <div className="editor-column">
           {selectedFile ? (
-            <Editor
-              key={selectedFile.path}
-              content={fileContent}
-              filePath={selectedFile.path}
-              typewriterMode={typewriterMode}
-              spellCheck={prefs.spellCheck}
-              onWordCount={setWordCount}
-              onChange={handleEditorChange}
-            />
+            <ErrorBoundary key={selectedFile.path}>
+              <Editor
+                key={selectedFile.path}
+                content={fileContent}
+                filePath={selectedFile.path}
+                typewriterMode={typewriterMode}
+                spellCheck={prefs.spellCheck}
+                onWordCount={setWordCount}
+                onChange={handleEditorChange}
+              />
+            </ErrorBoundary>
           ) : (
             <EmptyState
               workspaceOpen={workspaceRoot !== null}
