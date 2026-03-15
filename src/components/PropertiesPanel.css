@@ -1,102 +1,156 @@
-.properties-wrapper {
-  position: relative;
-  flex-shrink: 0;
-  /* min-height keeps the toggle button visible when the panel is collapsed */
-  min-height: 28px;
-  border-bottom: 1px solid var(--color-border);
-  transition: border-bottom-color 0.2s ease;
-}
-
-.properties-wrapper.panel-closed {
-  border-bottom-color: transparent;
-}
-
+/* ── Right-side properties panel ─────────────── */
 .properties-panel {
+  width: 220px;
+  min-width: 220px;
   background: var(--color-bg-sidebar);
-  overflow: hidden;
-  max-height: 56px;
-  transition: max-height 0.2s ease;
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  user-select: none;
+  transition:
+    width 0.2s ease,
+    min-width 0.2s ease,
+    border-left-color 0.2s ease;
 }
 
-.properties-panel.closed {
-  max-height: 0;
+.properties-panel.hidden {
+  width: 0;
+  min-width: 0;
+  border-left-color: transparent;
+  visibility: hidden;
 }
 
-.properties-inner {
+/* ── Header: type + status badge ─────────────── */
+.prop-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 56px 0 24px;
-  height: 56px;
-  overflow: hidden;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 8px;
 }
 
-.prop-field {
+.prop-type-row {
   display: flex;
   align-items: center;
   gap: 5px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s;
+  min-width: 0;
+}
+
+.prop-type-row:hover {
+  background: var(--color-bg-hover);
+}
+
+.prop-type-icon {
   flex-shrink: 0;
-}
-
-.prop-label {
-  font-size: 11px;
-  color: var(--color-text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.prop-value {
-  font-size: 12px;
   color: var(--color-text-muted);
 }
 
-.prop-title {
+.prop-type-name {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prop-type-select {
+  font-size: 12px;
+  font-family: var(--font-ui);
   color: var(--color-text);
-}
-
-.prop-tag {
-  font-size: 11px;
-  color: var(--color-accent);
-  background: var(--color-accent-light);
+  background: var(--color-bg);
+  border: 1px solid var(--color-accent);
   border-radius: 4px;
-  padding: 1px 6px;
+  padding: 2px 4px;
+  outline: none;
+  cursor: pointer;
 }
 
-.prop-draft {
-  font-size: 11px;
+.prop-status-badge {
+  flex-shrink: 0;
+  font-size: 10px;
   font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
   color: var(--color-warning);
   background: var(--color-warning-light);
-  border-radius: 4px;
-  padding: 1px 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  cursor: pointer;
   transition:
     color 0.15s,
-    background 0.15s;
+    background 0.15s,
+    opacity 0.15s;
 }
 
-.prop-draft:hover {
+.prop-status-badge:hover {
   opacity: 0.8;
 }
 
-.prop-draft-published {
+.prop-status-badge.published {
   color: var(--color-accent);
   background: var(--color-accent-light);
 }
 
-/* ── Editable property fields ────────────────── */
-.prop-editable-area {
+/* ── Body ────────────────────────────────────── */
+.properties-body {
+  padding: 14px 14px;
   display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 4px;
-  border-radius: 3px;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Individual field ────────────────────────── */
+.prop-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.prop-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--color-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.prop-value {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+}
+
+/* ── Slug (read-only) ────────────────────────── */
+.prop-slug {
+  font-size: 12px;
+  color: var(--color-text-faint);
+  font-family: var(--font-mono, monospace);
+  word-break: break-all;
+  padding: 2px 0;
+}
+
+/* ── Editable areas ──────────────────────────── */
+.prop-editable-area {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border-radius: 4px;
   cursor: text;
   transition: background 0.15s;
+  box-sizing: content-box;
 }
 
 .prop-editable-area:hover {
@@ -104,39 +158,144 @@
 }
 
 .prop-edit-input {
+  width: 100%;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  padding: 3px 6px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* ── Date field ──────────────────────────────── */
+.prop-date-input {
+  width: 100%;
   font-size: 12px;
   font-family: var(--font-ui);
   color: var(--color-text);
   background: var(--color-bg);
   border: 1px solid var(--color-accent);
-  border-radius: 3px;
-  padding: 1px 5px;
-  outline: none;
-  min-width: 80px;
-  max-width: 200px;
-}
-
-.prop-empty {
-  font-style: italic;
-  opacity: 0.5;
-}
-
-.properties-toggle {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 16px;
-  color: var(--color-text-faint);
-  padding: 2px 6px;
   border-radius: 4px;
+  padding: 3px 6px;
+  outline: none;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+/* ── Tag chip input ──────────────────────────── */
+.tag-input-area {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 5px;
+  background: var(--color-bg);
+  cursor: text;
+  min-height: 28px;
+  transition: border-color 0.15s;
+}
+
+.tag-input-area:focus-within {
+  border-color: var(--color-accent);
+}
+
+.prop-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--color-accent);
+  background: var(--color-accent-light);
+  border-radius: 4px;
+  padding: 1px 5px 1px 7px;
+  line-height: 1.6;
+}
+
+.prop-tag-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--color-accent);
+  opacity: 0.6;
+  padding: 0 1px;
+  border-radius: 2px;
+  transition: opacity 0.1s;
+  cursor: pointer;
+}
+
+.prop-tag-remove:hover {
+  opacity: 1;
+}
+
+.tag-input {
+  flex: 1;
+  min-width: 60px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  color: var(--color-text);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+}
+
+.tag-input::placeholder {
+  color: var(--color-text-faint);
+}
+
+/* ── Divider between standard and custom fields  */
+.prop-divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: 2px 0;
+  opacity: 0.6;
+}
+
+/* ── Add field row ───────────────────────────── */
+.prop-add-field-btn {
+  align-self: flex-start;
+  font-size: 11px;
+  color: var(--color-text-faint);
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
   transition:
     color 0.15s,
     background 0.15s;
-  line-height: 1;
 }
 
-.properties-toggle:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-light);
+.prop-add-field-btn:hover {
+  color: var(--color-text-muted);
+  background: var(--color-bg-hover);
+}
+
+.prop-add-row {
+  display: flex;
+  gap: 6px;
+}
+
+.prop-add-input {
+  flex: 1;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 3px 6px;
+  outline: none;
+  min-width: 0;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.prop-add-input:focus {
+  border-color: var(--color-accent);
 }

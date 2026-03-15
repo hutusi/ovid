@@ -406,14 +406,6 @@ function App() {
           />
         )}
         <div className="editor-column">
-          {selectedFile && hasFrontmatter && (
-            <PropertiesPanel
-              frontmatter={parsedFrontmatter}
-              isOpen={propertiesOpen}
-              onToggle={() => setPropertiesOpen((v) => !v)}
-              onFieldChange={handlePublishAwareFieldChange}
-            />
-          )}
           {selectedFile ? (
             <Editor
               key={selectedFile.path}
@@ -433,6 +425,14 @@ function App() {
             />
           )}
         </div>
+        {selectedFile && hasFrontmatter && (
+          <PropertiesPanel
+            frontmatter={parsedFrontmatter}
+            visible={propertiesOpen}
+            slug={selectedFile.name.replace(/\.mdx?$/, "")}
+            onFieldChange={handlePublishAwareFieldChange}
+          />
+        )}
       </div>
       <StatusBar
         fileName={selectedFile?.name ?? null}
