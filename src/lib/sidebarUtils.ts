@@ -25,7 +25,8 @@ export function filterTree(nodes: FileNode[], query: string): FileNode[] {
       const filtered = filterTree(node.children ?? [], q);
       return filtered.length > 0 ? [{ ...node, children: filtered }] : [];
     }
-    const name = (node.title || node.name).toLowerCase();
-    return name.includes(q) ? [node] : [];
+    const matches =
+      node.name.toLowerCase().includes(q) || node.title?.toLowerCase().includes(q) === true;
+    return matches ? [node] : [];
   });
 }

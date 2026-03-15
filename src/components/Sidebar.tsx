@@ -238,11 +238,20 @@ export function Sidebar({
   const [filterQuery, setFilterQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    return stored ? Number(stored) : SIDEBAR_DEFAULT;
+    const parsed = stored ? Number(stored) : SIDEBAR_DEFAULT;
+    if (!Number.isFinite(parsed)) return SIDEBAR_DEFAULT;
+    return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, parsed));
   });
   const [isResizing, setIsResizing] = useState(false);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
+  const isMounted = useRef(true);
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   function handleResizeMouseDown(e: React.MouseEvent) {
     e.preventDefault();
@@ -251,18 +260,20 @@ export function Sidebar({
     dragStartWidth.current = sidebarWidth;
 
     function onMouseMove(ev: MouseEvent) {
+      if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
       const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartWidth.current + delta));
       setSidebarWidth(next);
     }
 
     function onMouseUp(ev: MouseEvent) {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
       const final = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartWidth.current + delta));
       localStorage.setItem(SIDEBAR_WIDTH_KEY, String(final));
       setIsResizing(false);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
     }
 
     window.addEventListener("mousemove", onMouseMove);
@@ -389,6 +400,15 @@ export function Sidebar({
         tabIndex={0}
         className="sidebar-resize-handle"
         onMouseDown={handleResizeMouseDown}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+          e.preventDefault();
+          const step = e.shiftKey ? 24 : 12;
+          const delta = e.key === "ArrowRight" ? step : -step;
+          const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, sidebarWidth + delta));
+          setSidebarWidth(next);
+          localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
+        }}
       />
     </div>
   );

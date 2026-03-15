@@ -107,7 +107,7 @@ C. ✅ **Link management** — `Cmd+K` opens a link dialog (URL input + Apply / 
 
 D. ✅ **Inline code and code block language** — `Cmd+E` intercepted at window level to prevent WKWebView consuming it; code block NodeView shows a language label in the top-right, clicking opens a dropdown of common languages
 
-E. ✅ **Sidebar content type differentiation** — Rust reads the `type:` frontmatter field alongside `title` and `draft`; sidebar shows a small monospace badge per file; gracefully absent when the field is not set
+E. ✅ **Sidebar content type differentiation** — Rust reads the `type:` frontmatter field alongside `title` and `draft`; sidebar shows a content-type icon per file (post, flow, series, book, page, note); gracefully absent (generic file icon) when the field is not set
 
 ---
 

@@ -236,11 +236,11 @@ export function Editor({
         <LinkDialog
           initialHref={linkDialog.href}
           onApply={(url) => {
-            editor?.chain().focus().setLink({ href: url }).run();
+            editor?.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
             setLinkDialog(null);
           }}
           onRemove={() => {
-            editor?.chain().focus().unsetLink().run();
+            editor?.chain().focus().extendMarkRange("link").unsetLink().run();
             setLinkDialog(null);
           }}
           onCancel={() => setLinkDialog(null)}

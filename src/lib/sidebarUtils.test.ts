@@ -53,10 +53,14 @@ describe("filterTree", () => {
     expect(filterTree([file], "started")).toEqual([file]);
   });
 
-  it("prefers title over filename when both exist", () => {
+  it("matches by title when title exists", () => {
     const file = makeFile("xyz.md", { title: "Rust Tutorial" });
     expect(filterTree([file], "rust")).toEqual([file]);
-    expect(filterTree([file], "xyz")).toEqual([]);
+  });
+
+  it("also matches by filename when title exists", () => {
+    const file = makeFile("xyz.md", { title: "Rust Tutorial" });
+    expect(filterTree([file], "xyz")).toEqual([file]);
   });
 
   it("includes directory only when a child matches", () => {
