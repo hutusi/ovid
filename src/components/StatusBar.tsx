@@ -84,7 +84,7 @@ export function StatusBar({
         <span className="statusbar-words">{wordCount > 0 ? `${wordCount} words` : ""}</span>
         <button
           type="button"
-          className={`text-[13px] leading-none px-1 py-0.5 rounded transition-colors shrink-0 ${typewriterMode ? "text-[var(--color-accent)] opacity-100" : "text-[var(--color-status-text)] opacity-60 hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)] hover:opacity-100"}`}
+          className={`text-[13px] leading-none px-1 py-0.5 rounded transition-colors shrink-0 ${typewriterMode ? "text-accent opacity-100" : "text-fg-subtle opacity-60 hover:text-fg hover:bg-surface-hover hover:opacity-100"}`}
           onClick={onToggleTypewriter}
           title={
             typewriterMode
@@ -98,7 +98,7 @@ export function StatusBar({
         </button>
         <button
           type="button"
-          className={`text-[13px] leading-none px-1 py-0.5 rounded transition-colors shrink-0 ${zenMode ? "text-[var(--color-accent)] opacity-100" : "text-[var(--color-status-text)] opacity-60 hover:text-[var(--color-text)] hover:bg-[var(--color-bg-hover)] hover:opacity-100"}`}
+          className={`text-[13px] leading-none px-1 py-0.5 rounded transition-colors shrink-0 ${zenMode ? "text-accent opacity-100" : "text-fg-subtle opacity-60 hover:text-fg hover:bg-surface-hover hover:opacity-100"}`}
           onClick={onToggleZen}
           title={zenMode ? "Exit zen mode (Esc)" : "Enter zen mode (⌃⌘Z)"}
           aria-label="Toggle zen mode"
@@ -118,10 +118,11 @@ export function StatusBar({
         />
         <button
           type="button"
-          className="text-[13px] leading-none px-1 py-0.5 rounded opacity-60 transition-colors shrink-0 text-[var(--color-status-text)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-light)] hover:opacity-100"
+          className="text-[13px] leading-none px-1 py-0.5 rounded opacity-60 transition-colors shrink-0 text-fg-subtle hover:text-accent hover:bg-accent-subtle hover:opacity-100"
           onClick={onToggleTheme}
           title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           aria-label="Toggle theme"
+          aria-pressed={resolvedTheme === "dark"}
         >
           {resolvedTheme === "dark" ? "☀" : "⏾"}
         </button>

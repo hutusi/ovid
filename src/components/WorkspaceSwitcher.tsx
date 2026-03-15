@@ -1,7 +1,7 @@
 import type { RecentWorkspace } from "../lib/types";
-import { cn } from "../lib/utils";
-import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { useFocusTrap } from "../lib/useFocusTrap";
+import "./Modal.css";
+import "./WorkspaceSwitcher.css";
 
 interface WorkspaceSwitcherProps {
   recentWorkspaces: RecentWorkspace[];
@@ -18,74 +18,65 @@ export function WorkspaceSwitcher({
   onOpenOther,
   onClose,
 }: WorkspaceSwitcherProps) {
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent className="w-[380px] max-w-[calc(100vw-48px)]">
-        <DialogHeader>
-          <DialogTitle>Workspaces</DialogTitle>
-        </DialogHeader>
+  const dialogRef = useFocusTrap<HTMLDivElement>();
 
-        <div className="flex flex-col gap-0.5 max-h-60 overflow-y-auto -mx-1">
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      onClose();
+    }
+  }
+
+  return (
+    <div className="modal-overlay" role="presentation">
+      <button type="button" className="modal-backdrop" aria-label="Close" onClick={onClose} />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Workspaces"
+        className="modal-panel"
+        style={{ width: 380, maxWidth: "calc(100vw - 48px)" }}
+        onKeyDown={handleKeyDown}
+      >
+        <p className="modal-title">Workspaces</p>
+
+        <div className="ws-list">
           {recentWorkspaces.map((w) => (
             <button
               key={w.rootPath}
               type="button"
-              className={cn(
-                "flex flex-col items-start w-full px-2.5 py-2 rounded-md text-left cursor-pointer transition-colors relative gap-0.5",
-                w.rootPath === currentRootPath ? "bg-secondary" : "hover:bg-accent"
-              )}
+              className={`ws-item${w.rootPath === currentRootPath ? " ws-item--active" : ""}`}
               onClick={() => {
                 if (w.rootPath !== currentRootPath) onSelect(w.rootPath);
                 onClose();
               }}
             >
-              <span
-                className={cn(
-                  "text-[13px] font-medium",
-                  w.rootPath === currentRootPath ? "text-primary" : "text-foreground"
-                )}
-              >
-                {w.name}
-              </span>
-              <span className="text-[11px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap max-w-full">
-                {w.rootPath}
-              </span>
-              {w.rootPath === currentRootPath && (
-                <span className="absolute top-2 right-2.5 text-[10px] text-primary opacity-70">
-                  current
-                </span>
-              )}
+              <span className="ws-item-name">{w.name}</span>
+              <span className="ws-item-path">{w.rootPath}</span>
+              {w.rootPath === currentRootPath && <span className="ws-item-badge">current</span>}
             </button>
           ))}
-          {recentWorkspaces.length === 0 && (
-            <p className="text-[13px] text-muted-foreground px-2.5 py-3 text-center">
-              No recent workspaces.
-            </p>
-          )}
+          {recentWorkspaces.length === 0 && <p className="ws-empty">No recent workspaces.</p>}
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+        <div className="modal-actions">
+          <div className="modal-spacer" />
+          <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
             Cancel
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          </button>
+          <button
+            type="button"
+            className="modal-btn modal-btn-primary"
             onClick={() => {
               onOpenOther();
               onClose();
             }}
-            className="border-primary text-primary hover:bg-primary/10"
           >
             Open folder…
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }

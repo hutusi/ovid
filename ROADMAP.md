@@ -109,6 +109,12 @@ D. ✅ **Inline code and code block language** — `Cmd+E` intercepted at window
 
 E. ✅ **Sidebar content type differentiation** — Rust reads the `type:` frontmatter field alongside `title` and `draft`; sidebar shows a content-type icon per file (post, flow, series, book, page, note); gracefully absent (generic file icon) when the field is not set
 
+F. ✅ **Drop Radix UI / fix broken dialogs in Tauri WebView** — Radix UI `Dialog` and `Popover` render through `Portal` into `document.body`, outside the app's CSS tree; multi-hop CSS variable chains (`bg-background → --color-background → --background → --color-bg`) fail silently in Tauri's WebView; replaced all portal-based components (`LinkDialog`, `CommitDialog`, `FileSwitcher`, `WorkspaceSwitcher`, `FontSettings`, `CodeBlockView` language picker, `PropertiesPanel`) with plain CSS modals and panels using direct `var(--color-*)` references; removed 8 unused Radix packages and 8 unused shadcn component files
+
+G. ✅ **Tailwind-first design token system** — moved all color and font tokens into Tailwind's `@theme` block as the single source of truth (generates both CSS variables and utility classes simultaneously); renamed tokens semantically (`--color-bg` → `--color-surface`, `--color-text` → `--color-fg`, `--color-accent-light` → `--color-accent-subtle`, etc.); eliminated the shadcn bridge variable layer (`@theme inline` mappings); updated all CSS and TSX files across the codebase; clean utility classes now available (`bg-surface`, `text-fg-muted`, `bg-surface-hover`)
+
+H. ✅ **Dialog accessibility and focus management** — shared `useFocusTrap` hook for all modal dialogs: auto-focuses first element on open, traps Tab/Shift+Tab within dialog bounds, and restores focus to the previously focused element on close; applied to `LinkDialog`, `WorkspaceSwitcher`, `CommitDialog`; added document-level Escape handler to `FileSwitcher`; moved Escape key handling to dialog-level `onKeyDown` so it works even after focus leaves the primary input; added `aria-label` to all form inputs in `PropertiesPanel` (Date, editable fields, add-field row); extracted `CommitDialog` inline styles to reusable CSS classes in `Modal.css`
+
 ---
 
 ## Phase 8 — Editing Power

@@ -1,68 +1,38 @@
 @import "tailwindcss";
 
-/* Dark mode: use data-theme="dark" attribute instead of .dark class */
+/* Dark mode via data-theme="dark" attribute */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* Map shadcn/ui color tokens to Tailwind utility names */
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-shadcn-accent: var(--accent);
-  --color-shadcn-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 2px);
-  --radius-xl: calc(var(--radius) + 4px);
-}
+/* ── Design tokens ─────────────────────────────────────────────────────────
+   Single source of truth. Tailwind generates both CSS variables and
+   utility classes from @theme (e.g. bg-surface, text-fg, border-border).
+   ───────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* Surfaces */
+  --color-surface: #fafafa;
+  --color-surface-subtle: #f4f4f5;
+  --color-surface-hover: #ebebec;
+  --color-surface-active: #e4e4e7;
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-:root {
-  --color-bg: #fafafa;
-  --color-bg-sidebar: #f4f4f5;
-  --color-bg-hover: #ebebec;
-  --color-bg-selected: #e4e4e7;
-
+  /* Borders */
   --color-border: #e4e4e7;
   --color-border-strong: #d4d4d8;
 
-  --color-text: #18181b;
-  --color-text-muted: #71717a;
-  --color-text-faint: #a1a1aa;
+  /* Foreground */
+  --color-fg: #18181b;
+  --color-fg-muted: #71717a;
+  --color-fg-subtle: #a1a1aa;
 
+  /* Accent (brand) */
   --color-accent: #6366f1;
-  --color-accent-light: rgba(99, 102, 241, 0.12);
+  --color-accent-subtle: rgba(99, 102, 241, 0.12);
 
-  --color-status-bg: var(--color-bg-sidebar);
-  --color-status-text: var(--color-text-faint);
-
+  /* Status */
   --color-warning: #f59e0b;
-  --color-warning-light: rgba(245, 158, 11, 0.12);
+  --color-warning-subtle: rgba(245, 158, 11, 0.12);
   --color-success: #22c55e;
 
-  --shadow-tooltip: rgba(0, 0, 0, 0.12);
-
+  /* Syntax highlighting */
   --color-syntax-comment: #a1a1aa;
   --color-syntax-keyword: #6366f1;
   --color-syntax-string: #16a34a;
@@ -70,52 +40,72 @@
   --color-syntax-attr: #7c3aed;
   --color-syntax-number: #ea580c;
 
+  /* Fonts */
   --font-ui: system-ui, -apple-system, sans-serif;
   --font-editor: "Georgia", "Times New Roman", serif;
-  --font-editor-size: 17px;
   --font-mono: "Fira Code", "JetBrains Mono", monospace;
+}
 
-  /* Typography scale */
+/* ── Dark mode overrides ──────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --color-surface: #1c1c1e;
+  --color-surface-subtle: #161618;
+  --color-surface-hover: #2c2c2e;
+  --color-surface-active: #3a3a3c;
+
+  --color-border: #3a3a3c;
+  --color-border-strong: #48484a;
+
+  --color-fg: #f2f2f7;
+  --color-fg-muted: #aeaeb2;
+  --color-fg-subtle: #636366;
+
+  --color-accent: #7c7fff;
+  --color-accent-subtle: rgba(124, 127, 255, 0.15);
+
+  --color-warning: #fbbf24;
+  --color-warning-subtle: rgba(251, 191, 36, 0.15);
+  --color-success: #4ade80;
+
+  --color-syntax-comment: #636366;
+  --color-syntax-keyword: #a5b4fc;
+  --color-syntax-string: #86efac;
+  --color-syntax-meta: #fcd34d;
+  --color-syntax-attr: #a78bfa;
+  --color-syntax-number: #fb923c;
+}
+
+/* ── Constants (not in @theme — would conflict with Tailwind defaults) ──── */
+:root {
+  --font-editor-size: 17px;
+
+  /* App-specific font size scale */
   --text-2xs: 10px;
   --text-xs: 11px;
   --text-sm: 12px;
   --text-base: 13px;
   --text-md: 13.5px;
 
+  /* Layout */
   --sidebar-width: 240px;
   --statusbar-height: 28px;
 
-  /* shadcn/ui variables — mapped to existing design tokens */
-  --background: var(--color-bg);
-  --foreground: var(--color-text);
-  --card: var(--color-bg);
-  --card-foreground: var(--color-text);
-  --popover: var(--color-bg);
-  --popover-foreground: var(--color-text);
-  --primary: var(--color-accent);
-  --primary-foreground: #ffffff;
-  --secondary: var(--color-bg-selected);
-  --secondary-foreground: var(--color-text);
-  --muted: var(--color-bg-sidebar);
-  --muted-foreground: var(--color-text-muted);
-  --accent: var(--color-bg-hover);
-  --accent-foreground: var(--color-text);
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: var(--color-border);
-  --input: var(--color-border-strong);
-  --ring: var(--color-accent);
-  --radius: 6px;
+  /* Shadows */
+  --shadow-tooltip: rgba(0, 0, 0, 0.12);
 
   font-family: var(--font-ui);
   font-size: 14px;
-  color: var(--color-text);
-  background: var(--color-bg);
+  color: var(--color-fg);
+  background: var(--color-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
+}
+
+[data-theme="dark"] {
+  --shadow-tooltip: rgba(0, 0, 0, 0.28);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -124,41 +114,13 @@
   }
 }
 
-[data-theme="dark"] {
-  --color-bg: #1c1c1e;
-  --color-bg-sidebar: #161618;
-  --color-bg-hover: #2c2c2e;
-  --color-bg-selected: #3a3a3c;
-
-  --color-border: #3a3a3c;
-  --color-border-strong: #48484a;
-
-  --color-text: #f2f2f7;
-  --color-text-muted: #aeaeb2;
-  --color-text-faint: #636366;
-
-  --color-accent: #7c7fff;
-  --color-accent-light: rgba(124, 127, 255, 0.15);
-
-  --color-status-bg: #111113;
-  --color-status-text: #636366;
-
-  --color-warning: #fbbf24;
-  --color-warning-light: rgba(251, 191, 36, 0.15);
-  --color-success: #4ade80;
-
-  --shadow-tooltip: rgba(0, 0, 0, 0.28);
-
-  --color-syntax-comment: #636366;
-  --color-syntax-keyword: #a5b4fc;
-  --color-syntax-string: #86efac;
-  --color-syntax-meta: #fcd34d;
-  --color-syntax-attr: #a78bfa;
-  --color-syntax-number: #fb923c;
-
-  /* shadcn/ui dark overrides */
-  --destructive: #f87171;
-  --destructive-foreground: #ffffff;
+/* ── Reset ────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 html,
@@ -176,7 +138,7 @@ button {
   background: none;
 }
 
-/* Scrollbars */
+/* ── Scrollbars ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -189,5 +151,5 @@ button {
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-faint);
+  background: var(--color-fg-subtle);
 }

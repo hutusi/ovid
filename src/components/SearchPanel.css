@@ -3,7 +3,7 @@
   flex-direction: column;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  background: var(--color-bg-sidebar);
+  background: var(--color-surface-subtle);
   border-right: 1px solid var(--color-border);
   overflow: hidden;
 }
@@ -19,7 +19,7 @@
 
 .search-close-btn {
   font-size: 11px;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   padding: 3px 5px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -29,8 +29,8 @@
 }
 
 .search-close-btn:hover {
-  color: var(--color-text);
-  background: var(--color-bg-hover);
+  color: var(--color-fg);
+  background: var(--color-surface-hover);
 }
 
 .search-close-btn:focus-visible {
@@ -46,14 +46,14 @@
 
 .search-status {
   font-size: 12px;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   padding: 12px 14px;
   text-align: center;
 }
 
 .search-summary {
   font-size: 11px;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   padding: 6px 14px 4px;
 }
 
@@ -67,7 +67,7 @@
   text-align: left;
   font-size: 11.5px;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--color-fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 4px 14px 2px;
@@ -98,18 +98,18 @@
 }
 
 .search-result-match:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-surface-hover);
 }
 
 .search-result-match:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
-  background: var(--color-bg-hover);
+  background: var(--color-surface-hover);
 }
 
 .search-match-line {
   font-size: 10px;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   min-width: 24px;
   text-align: right;
   flex-shrink: 0;
@@ -118,7 +118,7 @@
 
 .search-match-content {
   font-size: 12px;
-  color: var(--color-text-muted);
+  color: var(--color-fg-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -126,7 +126,7 @@
 }
 
 .search-highlight {
-  background: var(--color-accent-light);
+  background: var(--color-accent-subtle);
   color: var(--color-accent);
   border-radius: 2px;
   font-style: normal;

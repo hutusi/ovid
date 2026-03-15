@@ -2,7 +2,7 @@
   position: relative;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  background: var(--color-bg-sidebar);
+  background: var(--color-surface-subtle);
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -72,7 +72,7 @@
 .sidebar-workspace-name {
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--color-fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   overflow: hidden;
@@ -86,12 +86,12 @@
 }
 
 .sidebar-workspace-name:hover {
-  color: var(--color-text);
+  color: var(--color-fg);
 }
 
 .sidebar-open-btn {
   font-size: 16px;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   line-height: 1;
   padding: 2px 4px;
   border-radius: 4px;
@@ -103,7 +103,7 @@
 
 .sidebar-open-btn:hover {
   color: var(--color-accent);
-  background: var(--color-accent-light);
+  background: var(--color-accent-subtle);
 }
 
 .sidebar-header-actions {
@@ -134,7 +134,7 @@
   flex: 1;
   font-size: 12px;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--color-fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   text-align: left;
@@ -144,7 +144,7 @@
 }
 
 .sidebar-dir:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-surface-hover);
 }
 
 /* ── File rows ───────────────────────────────── */
@@ -156,11 +156,11 @@
 }
 
 .sidebar-file-row:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-surface-hover);
 }
 
 .sidebar-file-row.selected {
-  background: var(--color-bg-selected);
+  background: var(--color-surface-active);
 }
 
 .sidebar-file {
@@ -170,7 +170,7 @@
   gap: 5px;
   padding: 5px 4px 5px 0;
   font-size: 13.5px;
-  color: var(--color-text);
+  color: var(--color-fg);
   text-align: left;
   cursor: pointer;
   transition: none;
@@ -194,7 +194,7 @@
 
 .sidebar-file-icon {
   flex-shrink: 0;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   opacity: 0.7;
 }
 
@@ -220,7 +220,7 @@
   gap: 14px;
   padding: 40px 20px;
   text-align: center;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   font-size: 13px;
 }
 
@@ -234,7 +234,7 @@
 }
 
 .sidebar-open-workspace-btn:hover {
-  background: var(--color-accent-light);
+  background: var(--color-accent-subtle);
 }
 
 /* ── Pages section divider ───────────────────── */
@@ -264,5 +264,5 @@
 }
 
 .git-dot-untracked {
-  background: var(--color-text-faint);
+  background: var(--color-fg-subtle);
 }

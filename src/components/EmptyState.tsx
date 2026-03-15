@@ -22,7 +22,7 @@ export function EmptyState({
 }: EmptyStateProps) {
   if (workspaceOpen) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[var(--color-text-faint)] select-none">
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-fg-subtle select-none">
         <p className="text-[13px]">Select a file to start writing</p>
         {recentFiles.length > 0 && (
           <div className="mt-4 text-center">
@@ -32,7 +32,7 @@ export function EmptyState({
                 <li key={f.path}>
                   <button
                     type="button"
-                    className="text-[13px] text-[var(--color-text-muted)] px-2.5 py-[3px] rounded transition-colors hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)] max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap"
+                    className="text-[13px] text-fg-muted px-2.5 py-[3px] rounded transition-colors hover:bg-surface-hover hover:text-fg max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap"
                     onClick={() => onOpenRecent(f.path)}
                   >
                     {f.title || f.name.replace(/\.mdx?$/, "")}
@@ -47,14 +47,14 @@ export function EmptyState({
   }
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[var(--color-text-faint)] select-none">
-      <h2 className="font-[var(--font-editor)] text-[28px] font-normal text-[var(--color-text-muted)] tracking-[0.02em]">
+    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-fg-subtle select-none">
+      <h2 className="font-[var(--font-editor)] text-[28px] font-normal text-fg-muted tracking-[0.02em]">
         Ovid
       </h2>
       <p className="text-[13px]">A writing space for Amytis content</p>
       <button
         type="button"
-        className="mt-1 text-[13px] text-[var(--color-accent)] border border-[var(--color-accent)] rounded-md px-4 py-1.5 transition-colors hover:bg-[var(--color-accent-light)]"
+        className="mt-1 text-[13px] text-accent border border-accent rounded-md px-4 py-1.5 transition-colors hover:bg-accent-subtle"
         onClick={onOpenWorkspace}
       >
         Open workspace

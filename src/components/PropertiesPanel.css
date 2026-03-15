@@ -2,7 +2,7 @@
 .properties-panel {
   width: 220px;
   min-width: 220px;
-  background: var(--color-bg-sidebar);
+  background: var(--color-surface-subtle);
   border-left: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -42,7 +42,7 @@
   border-radius: 4px;
   cursor: pointer;
   color: var(--color-warning);
-  background: var(--color-warning-light);
+  background: var(--color-warning-subtle);
   transition:
     color 0.15s,
     background 0.15s,
@@ -55,7 +55,7 @@
 
 .prop-status-badge.published {
   color: var(--color-accent);
-  background: var(--color-accent-light);
+  background: var(--color-accent-subtle);
 }
 
 /* ── Body ────────────────────────────────────── */
@@ -76,14 +76,14 @@
 .prop-label {
   font-size: 10px;
   font-weight: 600;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
 
 .prop-value {
   font-size: 13px;
-  color: var(--color-text-muted);
+  color: var(--color-fg-muted);
   line-height: 1.4;
   overflow-wrap: anywhere;
   word-wrap: break-word;
@@ -92,7 +92,7 @@
 /* ── Slug (read-only) ────────────────────────── */
 .prop-slug {
   font-size: 12px;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   font-family: var(--font-mono, monospace);
   word-break: break-all;
   padding: 2px 0;
@@ -112,7 +112,7 @@
 }
 
 .prop-editable-area:hover {
-  background: var(--color-bg-hover);
+  background: var(--color-surface-hover);
 }
 
 /* ── Tag chip input ──────────────────────────── */
@@ -124,7 +124,7 @@
   padding: 4px 6px;
   border: 1px solid var(--color-border);
   border-radius: 5px;
-  background: var(--color-bg);
+  background: var(--color-surface);
   cursor: text;
   min-height: 28px;
   transition: border-color 0.15s;
@@ -140,7 +140,7 @@
   gap: 3px;
   font-size: 11px;
   color: var(--color-accent);
-  background: var(--color-accent-light);
+  background: var(--color-accent-subtle);
   border-radius: 4px;
   padding: 1px 5px 1px 7px;
   line-height: 1.6;
@@ -169,7 +169,7 @@
   min-width: 60px;
   font-size: 12px;
   font-family: var(--font-ui);
-  color: var(--color-text);
+  color: var(--color-fg);
   background: transparent;
   border: none;
   outline: none;
@@ -177,14 +177,14 @@
 }
 
 .tag-input::placeholder {
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
 }
 
 /* ── Add field row ───────────────────────────── */
 .prop-add-field-btn {
   align-self: flex-start;
   font-size: 11px;
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   padding: 2px 4px;
   border-radius: 4px;
   cursor: pointer;
@@ -194,11 +194,76 @@
 }
 
 .prop-add-field-btn:hover {
-  color: var(--color-text-muted);
-  background: var(--color-bg-hover);
+  color: var(--color-fg-muted);
+  background: var(--color-surface-hover);
 }
 
 .prop-add-row {
   display: flex;
   gap: 6px;
+}
+
+/* ── Type selector ───────────────────────────── */
+.prop-type-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.prop-type-select {
+  font-size: 12px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  color: var(--color-fg-muted);
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  text-transform: capitalize;
+  padding: 0 2px;
+}
+
+.prop-type-select:focus {
+  color: var(--color-fg);
+}
+
+/* ── Inline input ────────────────────────────── */
+.prop-input {
+  width: 100%;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.prop-input:focus {
+  border-color: var(--color-accent);
+}
+
+.prop-input::placeholder {
+  color: var(--color-fg-subtle);
+}
+
+.prop-input--sm {
+  height: 26px;
+  font-size: 12px;
+}
+
+.prop-input--date {
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ── Divider ─────────────────────────────────── */
+.prop-divider {
+  height: 1px;
+  background: var(--color-border);
 }

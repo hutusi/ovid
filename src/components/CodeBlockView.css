@@ -14,7 +14,7 @@
   position: relative;
   display: flex;
   justify-content: flex-end;
-  background: var(--color-bg-sidebar);
+  background: var(--color-surface-subtle);
   border: 1px solid var(--color-border);
   border-bottom: none;
   border-radius: 6px 6px 0 0;
@@ -24,7 +24,7 @@
 .code-block-lang-btn {
   font-size: 11px;
   font-family: var(--font-mono);
-  color: var(--color-text-faint);
+  color: var(--color-fg-subtle);
   background: none;
   border: none;
   cursor: pointer;
@@ -36,6 +36,50 @@
 }
 
 .code-block-lang-btn:hover {
-  color: var(--color-text-muted);
-  background: var(--color-bg-hover);
+  color: var(--color-fg-muted);
+  background: var(--color-surface-hover);
+}
+
+/* ── Language picker panel ────────────────────── */
+.code-block-lang-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  width: 200px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.08);
+  padding: 6px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+
+.code-block-lang-option {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-fg-muted);
+  background: transparent;
+  border: none;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+
+.code-block-lang-option:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-fg);
+}
+
+.code-block-lang-option.active {
+  background: var(--color-accent-subtle);
+  color: var(--color-accent);
 }

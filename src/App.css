@@ -5,7 +5,7 @@
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background: var(--color-bg);
+  background: var(--color-surface);
 }
 
 .app-body {
@@ -54,8 +54,8 @@
 }
 
 .toast {
-  background: var(--color-text);
-  color: var(--color-bg);
+  background: var(--color-fg);
+  color: var(--color-surface);
   font-size: 12.5px;
   padding: 7px 16px;
   border-radius: 6px;

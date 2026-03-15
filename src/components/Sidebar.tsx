@@ -320,7 +320,7 @@ export function Sidebar({
             {filterQuery && (
               <button
                 type="button"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-[var(--color-text-faint)] p-0.5 rounded leading-none hover:text-[var(--color-text)]"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-fg-subtle p-0.5 rounded leading-none hover:text-fg"
                 aria-label="Clear filter"
                 onClick={() => setFilterQuery("")}
               >
