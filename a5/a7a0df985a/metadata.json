@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "a5a7a0df985a",
+  "strategy": "manual-commit",
+  "branch": "ui-refactor",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/components/StatusBar.css",
+    "src/components/StatusBar.tsx",
+    "src/styles/global.css"
+  ],
+  "sessions": [
+    {
+      "metadata": "/a5/a7a0df985a/0/metadata.json",
+      "transcript": "/a5/a7a0df985a/0/full.jsonl",
+      "content_hash": "/a5/a7a0df985a/0/content_hash.txt",
+      "prompt": "/a5/a7a0df985a/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1533,
+    "cache_creation_tokens": 2268887,
+    "cache_read_tokens": 77927544,
+    "output_tokens": 389929,
+    "api_call_count": 821
+  }
+}
