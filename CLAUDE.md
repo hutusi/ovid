@@ -38,30 +38,19 @@ Three-zone layout managed by `src/App.tsx`:
 
 **`src/App.tsx`** — Root component; owns all global state (workspace, selected file, word count).
 
-**`src/components/`**
+**`src/components/`** — UI components (list is representative, not exhaustive)
 - `Editor.tsx` — Tiptap WYSIWYG editor (StarterKit + Markdown + Typography + Link + Image + Table + Mathematics + custom extensions)
 - `BubbleMenu.tsx` — Floating formatting toolbar (Bold, Italic, Strike, Code, Link) shown on text selection
 - `FindReplaceBar.tsx` — Find & replace bar (`Cmd+H`); live match highlighting, navigate, replace one/all
 - `TableControls.tsx` — Floating table toolbar (add/delete rows and columns) shown when cursor is in a table
-- `LinkDialog.tsx` — Modal for inserting/editing link URLs (`Cmd+K`)
-- `CodeBlockView.tsx` — Custom node view for code blocks with language picker
-
-**`src/components/`** — UI components (list is representative, not exhaustive)
-- `Editor.tsx` — Tiptap WYSIWYG editor (StarterKit + Placeholder + Typography + Link + Image + tiptap-markdown)
 - `Sidebar.tsx` — File tree; shows only `.md` / `.mdx` files
 - `StatusBar.tsx` — Filename, word count, dark mode toggle, zen/typewriter toggles
 - `PropertiesPanel.tsx` — Collapsible bar above editor showing parsed frontmatter fields
-- `ErrorBoundary.tsx` — React error boundary wrapping the editor; surfaces render errors instead of blank screen
-
-**`src/lib/tiptap/`**
-- `FindReplace.ts` — ProseMirror plugin + Tiptap extension for find & replace; `collectMatches` exported for testing
-- `TextFolding.ts` — Heading-level fold/unfold via chevron widgets; `getHeadingRanges` exported for testing
-- `InlineEditMode.ts` — Shows `[` and `](url)` decorations around links when cursor is inside one; URL hint is clickable
-- `LinkPreview.ts` — Hover tooltip showing link URL
 - `SearchPanel.tsx` — Full-text search panel (replaces sidebar); queries run in Rust
 - `FileSwitcher.tsx` — `Cmd+P` command palette; wraps `cmdk`
 - `CommitDialog.tsx`, `LinkDialog.tsx`, `WorkspaceSwitcher.tsx` — Plain-CSS modal dialogs
 - `FontSettings.tsx`, `CodeBlockView.tsx` — Custom CSS-positioned panels (no Portal)
+- `ErrorBoundary.tsx` — React error boundary wrapping the editor; surfaces render errors instead of blank screen
 - `Modal.css` — Shared plain-CSS primitives for all modal dialogs (overlay, panel, buttons, inputs, badge, checkbox label)
 - `ui/command.tsx` — Thin wrapper around `cmdk` for the file switcher; styled with design tokens
 - `ui/input.tsx` — Plain input wrapper used by Sidebar filter and SearchPanel
@@ -71,6 +60,12 @@ Three-zone layout managed by `src/App.tsx`:
 - `frontmatter.ts` — `parseFrontmatter` / `joinFrontmatter` (raw round-trip) + `parseYamlFrontmatter` (js-yaml)
 - `useTheme.ts` — Hook for system/manual dark mode; syncs to `localStorage`; applies `data-theme` on `<html>`
 - `useFocusTrap.ts` — Hook for modal dialogs: auto-focuses first element on open, traps Tab/Shift+Tab within bounds, restores focus on close
+
+**`src/lib/tiptap/`**
+- `FindReplace.ts` — ProseMirror plugin + Tiptap extension for find & replace; `collectMatches` exported for testing
+- `TextFolding.ts` — Heading-level fold/unfold via chevron widgets; `getHeadingRanges` exported for testing
+- `InlineEditMode.ts` — Shows `[` and `](url)` decorations around links when cursor is inside one; URL hint is clickable
+- `LinkPreview.ts` — Hover tooltip showing link URL
 
 **`src/styles/`**
 - `global.css` — Tailwind `@theme` block (single source of truth for design tokens + utility classes); `[data-theme="dark"]` overrides; `:root` for non-theme constants (font sizes, layout, shadows)
@@ -143,8 +138,7 @@ These rules encode hard-won lessons about what works in Tauri's WebView. Violati
 - **No shared code** with the TUI (`ovid`) — different runtime APIs; reference TUI for domain logic only
 - File I/O goes through **Tauri FS plugin** (`@tauri-apps/plugin-fs`) or Rust commands — never direct Node/Bun APIs
 - **Global UI state in `App.tsx`** — workspace and editor state live in `App.tsx`; theme state is managed by the `useTheme` hook; no external state library (no Zustand, Redux, etc.)
-- **No persistent toolbar** — keyboard-first design; no fixed toolbar above the editor; the bubble menu appears transiently on selection and disappears after use
-- **No editor toolbar** — keyboard-first design; don't add toolbars or button bars to the editor
+- **No persistent toolbar** — no fixed toolbar above the editor; the bubble menu appears transiently on text selection and disappears after use; keyboard-first design remains the primary affordance
 - **Tailwind-first design tokens** — all color and font tokens live in `@theme` in `global.css`; generates both CSS variables (`var(--color-surface)`) and utility classes (`bg-surface`) simultaneously; dark mode overrides in `[data-theme="dark"]`; never add a `@theme inline` bridge layer
 - **`cmdk`** for the file switcher — keyboard-navigable fuzzy search; does not use Portal so it works correctly in Tauri's WebView; wrapped in `ui/command.tsx`
 - **`useFocusTrap`** for all modal dialogs — every `role="dialog"` element must attach the `useFocusTrap` ref; handles initial focus, Tab cycling, and focus restoration on close
@@ -156,8 +150,7 @@ An Amytis workspace is identified by the presence of `site.config.ts` + `content
 ## Error Handling
 
 - Tauri Rust commands return `Result<T, String>` — errors surface as rejected promises in the frontend
-- Display errors via `console.error` or in-UI feedback; `ErrorBoundary` wraps the editor and surfaces render errors
-- Display errors via the toast system (`showToast` in `App.tsx`) — never `console.error` for user-visible failures; no global error boundary currently exists
+- Display errors via the toast system (`showToast` in `App.tsx`) — never `console.error` for user-visible failures; `ErrorBoundary` wraps the editor and surfaces render errors instead of blank screen
 - Path validation happens in Rust (`read_file` / `write_file` reject paths outside workspace root)
 
 ## Context Compression Hints
