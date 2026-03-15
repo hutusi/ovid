@@ -71,7 +71,7 @@ describe("filterTree", () => {
     expect(result).toHaveLength(1);
     expect(result[0].isDirectory).toBe(true);
     expect(result[0].children).toHaveLength(1);
-    expect(result[0].children![0]).toBe(match);
+    expect(result[0].children?.[0]).toBe(match);
   });
 
   it("prunes empty directories", () => {
@@ -84,7 +84,7 @@ describe("filterTree", () => {
     const tree = [makeDir("a", [makeDir("b", [deep])])];
     const result = filterTree(tree, "deep");
     expect(result).toHaveLength(1);
-    expect(result[0].children![0].children![0]).toBe(deep);
+    expect(result[0].children?.[0].children?.[0]).toBe(deep);
   });
 
   it("returns multiple matches", () => {

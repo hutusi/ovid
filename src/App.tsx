@@ -429,6 +429,7 @@ function App() {
           <PropertiesPanel
             frontmatter={parsedFrontmatter}
             visible={propertiesOpen}
+            slug={selectedFile.name.replace(/\.mdx?$/, "")}
             onFieldChange={handlePublishAwareFieldChange}
           />
         )}

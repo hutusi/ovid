@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import "./PropertiesPanel.css";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
+import { ContentTypeIcon } from "./ContentTypeIcon";
+import "./PropertiesPanel.css";
 
 interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
   visible: boolean;
+  slug?: string;
   onFieldChange?: (key: string, value: FrontmatterValue) => void;
 }
+
+const STANDARD_FIELDS = new Set(["title", "type", "draft", "date", "tags"]);
+const STANDARD_TYPES = ["post", "flow", "note", "series", "book", "page"];
 
 function formatDate(value: string): string {
   try {
@@ -18,77 +23,185 @@ function formatDate(value: string): string {
   }
 }
 
-const FIELD_ORDER = ["title", "date", "tags", "draft"];
+// ---------------------------------------------------------------------------
+// Type selector in header
+// ---------------------------------------------------------------------------
 
-function toInputString(v: FrontmatterValue): string {
-  if (Array.isArray(v)) return v.join(", ");
-  if (v === null || v === undefined) return "";
-  return String(v);
-}
-
-function sortedKeys(frontmatter: ParsedFrontmatter): string[] {
-  const known = FIELD_ORDER.filter((k) => k in frontmatter);
-  const rest = Object.keys(frontmatter)
-    .filter((k) => !FIELD_ORDER.includes(k))
-    .sort();
-  return [...known, ...rest];
-}
-
-interface EditableValueProps {
-  fieldKey: string;
-  value: FrontmatterValue;
-  onSave: (newValue: FrontmatterValue) => void;
-}
-
-function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
+function TypeSelector({
+  type,
+  onChange,
+}: {
+  type: string | undefined;
+  onChange: (t: string) => void;
+}) {
   const [editing, setEditing] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState(toInputString(value));
+  const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
-    if (!editing) {
-      setDraft(toInputString(value));
+    if (editing) selectRef.current?.focus();
+  }, [editing]);
+
+  if (editing) {
+    return (
+      <select
+        ref={selectRef}
+        className="prop-type-select"
+        value={type ?? ""}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setEditing(false);
+        }}
+        onBlur={() => setEditing(false)}
+      >
+        {STANDARD_TYPES.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="prop-type-row"
+      title="Click to change type"
+      onClick={() => setEditing(true)}
+    >
+      <ContentTypeIcon type={type} size={14} className="prop-type-icon" />
+      <span className="prop-type-name">{type ?? "unknown"}</span>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Date field with native date picker
+// ---------------------------------------------------------------------------
+
+function DateField({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="date"
+        className="prop-date-input"
+        value={value}
+        onChange={(e) => {
+          if (e.target.value) onSave(e.target.value);
+        }}
+        onBlur={() => setEditing(false)}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className="prop-editable-area"
+      onClick={() => setEditing(true)}
+      title="Click to edit"
+    >
+      <span className="prop-value">{formatDate(value)}</span>
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tag chip input
+// ---------------------------------------------------------------------------
+
+function TagInput({ tags, onSave }: { tags: string[]; onSave: (tags: string[]) => void }) {
+  const [input, setInput] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function addTag(raw: string) {
+    const tag = raw.replace(/,$/, "").trim();
+    if (tag && !tags.includes(tag)) {
+      onSave([...tags, tag]);
     }
+    setInput("");
+  }
+
+  function removeTag(tag: string) {
+    onSave(tags.filter((t) => t !== tag));
+  }
+
+  return (
+    <div className="tag-input-area" role="none" onClick={() => inputRef.current?.focus()}>
+      {tags.map((tag) => (
+        <span key={tag} className="prop-tag">
+          {tag}
+          <button
+            type="button"
+            className="prop-tag-remove"
+            aria-label={`Remove tag ${tag}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              removeTag(tag);
+            }}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        ref={inputRef}
+        className="tag-input"
+        value={input}
+        placeholder={tags.length === 0 ? "add tag…" : ""}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            addTag(input);
+          } else if (e.key === "Backspace" && input === "" && tags.length > 0) {
+            removeTag(tags[tags.length - 1]);
+          }
+        }}
+        onBlur={() => {
+          if (input.trim()) addTag(input);
+        }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Generic editable text field
+// ---------------------------------------------------------------------------
+
+function EditableValue({
+  value,
+  onSave,
+}: {
+  value: FrontmatterValue;
+  onSave: (v: FrontmatterValue) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [draft, setDraft] = useState(String(value ?? ""));
+
+  useEffect(() => {
+    if (!editing) setDraft(String(value ?? ""));
   }, [value, editing]);
 
   function startEdit() {
-    setDraft(toInputString(value));
+    setDraft(String(value ?? ""));
     setEditing(true);
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
   function commit() {
-    const trimmed = draft.trim();
-    if (Array.isArray(value)) {
-      setEditing(false);
-      const arr = trimmed
-        ? trimmed
-            .split(",")
-            .map((t) => t.trim())
-            .filter(Boolean)
-        : [];
-      onSave(arr);
-    } else if (typeof value === "boolean") {
-      const normalized = trimmed.toLowerCase();
-      if (normalized !== "true" && normalized !== "false") {
-        setDraft(toInputString(value));
-        return;
-      }
-      setEditing(false);
-      onSave(normalized === "true");
-    } else if (typeof value === "number") {
-      setEditing(false);
-      const num = Number(trimmed);
-      onSave(Number.isNaN(num) ? value : num);
-    } else {
-      setEditing(false);
-      onSave(trimmed || null);
-    }
-  }
-
-  function cancel() {
     setEditing(false);
-    setDraft(toInputString(value));
+    onSave(draft.trim() || null);
   }
 
   if (editing) {
@@ -100,60 +213,14 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") commit();
-          else if (e.key === "Escape") cancel();
+          else if (e.key === "Escape") {
+            setEditing(false);
+            setDraft(String(value ?? ""));
+          }
         }}
         onBlur={commit}
         onKeyUp={(e) => e.stopPropagation()}
       />
-    );
-  }
-
-  if (fieldKey === "tags" && Array.isArray(value)) {
-    return (
-      <button
-        type="button"
-        className="prop-editable-area"
-        onClick={startEdit}
-        title="Click to edit"
-      >
-        {value.length > 0 ? (
-          <span className="prop-tags">
-            {value.map((tag) => (
-              <span key={tag} className="prop-tag">
-                {tag}
-              </span>
-            ))}
-          </span>
-        ) : (
-          <span className="prop-empty">add tags…</span>
-        )}
-      </button>
-    );
-  }
-
-  if (fieldKey === "date" && typeof value === "string") {
-    return (
-      <button
-        type="button"
-        className="prop-editable-area"
-        onClick={startEdit}
-        title="Click to edit"
-      >
-        <span className="prop-value">{formatDate(value)}</span>
-      </button>
-    );
-  }
-
-  if (fieldKey === "title") {
-    return (
-      <button
-        type="button"
-        className="prop-editable-area"
-        onClick={startEdit}
-        title="Click to edit"
-      >
-        <span className="prop-value prop-title">{String(value)}</span>
-      </button>
     );
   }
 
@@ -164,39 +231,148 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
   );
 }
 
-export function PropertiesPanel({ frontmatter, visible, onFieldChange }: PropertiesPanelProps) {
-  const keys = sortedKeys(frontmatter);
+// ---------------------------------------------------------------------------
+// Add field row
+// ---------------------------------------------------------------------------
+
+function AddFieldRow({ onAdd }: { onAdd: (key: string, value: string) => void }) {
+  const [adding, setAdding] = useState(false);
+  const [key, setKey] = useState("");
+  const [val, setVal] = useState("");
+  const keyRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (adding) keyRef.current?.focus();
+  }, [adding]);
+
+  function submit() {
+    const k = key.trim();
+    if (!k) return;
+    onAdd(k, val.trim());
+    setKey("");
+    setVal("");
+    setAdding(false);
+  }
+
+  function cancel() {
+    setKey("");
+    setVal("");
+    setAdding(false);
+  }
+
+  if (!adding) {
+    return (
+      <button type="button" className="prop-add-field-btn" onClick={() => setAdding(true)}>
+        + Add field
+      </button>
+    );
+  }
+
+  return (
+    <div className="prop-add-row">
+      <input
+        ref={keyRef}
+        className="prop-add-input"
+        placeholder="field name"
+        value={key}
+        onChange={(e) => setKey(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") cancel();
+          else if (e.key === "Enter") submit();
+        }}
+      />
+      <input
+        className="prop-add-input"
+        placeholder="value"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") cancel();
+          else if (e.key === "Enter") submit();
+        }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PropertiesPanel
+// ---------------------------------------------------------------------------
+
+export function PropertiesPanel({
+  frontmatter,
+  visible,
+  slug,
+  onFieldChange,
+}: PropertiesPanelProps) {
+  const type = frontmatter.type as string | undefined;
+  const draft = frontmatter.draft as boolean | undefined;
+  const title = frontmatter.title;
+  const date = frontmatter.date as string | undefined;
+  const tags = Array.isArray(frontmatter.tags) ? (frontmatter.tags as string[]) : undefined;
+  const customKeys = Object.keys(frontmatter)
+    .filter((k) => !STANDARD_FIELDS.has(k))
+    .sort();
 
   return (
     <div className={`properties-panel${visible ? "" : " hidden"}`}>
+      {/* ── Header: type + status ──────────────────── */}
+      <div className="prop-header">
+        <TypeSelector type={type} onChange={(t) => onFieldChange?.("type", t)} />
+        <button
+          type="button"
+          className={`prop-status-badge${draft ? "" : " published"}`}
+          title={draft ? "Click to publish" : "Click to mark as draft"}
+          onClick={() => onFieldChange?.("draft", !draft)}
+        >
+          {draft ? "Draft" : "Published"}
+        </button>
+      </div>
+
+      {/* ── Body: standard fields ──────────────────── */}
       <div className="properties-body">
-        {keys.map((key) => {
-          const val = frontmatter[key];
-          if (val === null || val === undefined) return null;
+        {title !== undefined && (
+          <div className="prop-field">
+            <span className="prop-label">Title</span>
+            <EditableValue value={title} onSave={(v) => onFieldChange?.("title", v)} />
+          </div>
+        )}
 
-          if (key === "draft") {
-            return (
+        {slug && (
+          <div className="prop-field">
+            <span className="prop-label">Slug</span>
+            <span className="prop-slug">{slug}</span>
+          </div>
+        )}
+
+        {date !== undefined && (
+          <div className="prop-field">
+            <span className="prop-label">Date</span>
+            <DateField value={date} onSave={(v) => onFieldChange?.("date", v)} />
+          </div>
+        )}
+
+        {tags !== undefined && (
+          <div className="prop-field">
+            <span className="prop-label">Tags</span>
+            <TagInput tags={tags} onSave={(v) => onFieldChange?.("tags", v)} />
+          </div>
+        )}
+
+        {/* ── Custom fields ─────────────────────────── */}
+        {customKeys.length > 0 && (
+          <>
+            <div className="prop-divider" />
+            {customKeys.map((key) => (
               <div key={key} className="prop-field">
-                <span className="prop-label">Draft</span>
-                <button
-                  type="button"
-                  className={`prop-draft${val ? "" : " prop-draft-published"}`}
-                  title={val ? "Click to publish" : "Click to mark as draft"}
-                  onClick={() => onFieldChange?.(key, !val)}
-                >
-                  {val ? "Draft" : "Published"}
-                </button>
+                <span className="prop-label">{key}</span>
+                <EditableValue value={frontmatter[key]} onSave={(v) => onFieldChange?.(key, v)} />
               </div>
-            );
-          }
+            ))}
+          </>
+        )}
 
-          return (
-            <div key={key} className="prop-field">
-              <span className="prop-label">{key}</span>
-              <EditableValue fieldKey={key} value={val} onSave={(v) => onFieldChange?.(key, v)} />
-            </div>
-          );
-        })}
+        <AddFieldRow onAdd={(k, v) => onFieldChange?.(k, v)} />
       </div>
     </div>
   );
