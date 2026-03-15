@@ -4,12 +4,13 @@ import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Typography from "@tiptap/extension-typography";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState } from "react";
 import { Markdown } from "tiptap-markdown";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
+import { CodeBlockView } from "./CodeBlockView";
 import { LinkDialog } from "./LinkDialog";
 import "../styles/editor.css";
 
@@ -45,7 +46,11 @@ export function Editor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false }),
-      CodeBlockLowlight.configure({ lowlight }),
+      CodeBlockLowlight.extend({
+        addNodeView() {
+          return ReactNodeViewRenderer(CodeBlockView);
+        },
+      }).configure({ lowlight }),
       Markdown.configure({
         transformPastedText: true,
         transformCopiedText: true,
@@ -142,6 +147,18 @@ export function Editor({
       e.preventDefault();
       const href = editor.getAttributes("link").href ?? "";
       setLinkDialog({ href });
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editor]);
+
+  // Cmd+E — toggle inline code; intercept before WKWebView's "Use Selection for Find"
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "e") return;
+      if (!editor?.isFocused) return;
+      e.preventDefault();
+      editor.chain().focus().toggleCode().run();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
