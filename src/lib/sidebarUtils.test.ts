@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { filterTree, rollupGitStatus } from "./sidebarUtils";
+import { filterTree, needsPageDivider, rollupGitStatus, sortNodes } from "./sidebarUtils";
 import type { FileNode, GitStatus } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -170,5 +170,114 @@ describe("rollupGitStatus", () => {
     const inner = makeDir("inner", [file]);
     const outer = makeDir("outer", [inner]);
     expect(rollupGitStatus(outer, makeStatusMap([[file, "staged"]]))).toBe("staged");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sortNodes
+// ---------------------------------------------------------------------------
+
+function makeTypedFile(name: string, contentType?: string): FileNode {
+  return {
+    name,
+    path: `/workspace/${name}`,
+    isDirectory: false,
+    extension: ".md",
+    contentType,
+  };
+}
+
+describe("sortNodes", () => {
+  it("returns empty array for empty input", () => {
+    expect(sortNodes([])).toEqual([]);
+  });
+
+  it("orders by content-type priority: flow → note → post → series → book → page", () => {
+    const page = makeTypedFile("page.md", "page");
+    const post = makeTypedFile("post.md", "post");
+    const flow = makeTypedFile("flow.md", "flow");
+    const book = makeTypedFile("book.md", "book");
+    const note = makeTypedFile("note.md", "note");
+    const series = makeTypedFile("series.md", "series");
+    const result = sortNodes([page, post, flow, book, note, series]);
+    expect(result.map((n) => n.contentType)).toEqual([
+      "flow",
+      "note",
+      "post",
+      "series",
+      "book",
+      "page",
+    ]);
+  });
+
+  it("sorts alphabetically within the same content type", () => {
+    const b = makeTypedFile("b-post.md", "post");
+    const a = makeTypedFile("a-post.md", "post");
+    const c = makeTypedFile("c-post.md", "post");
+    expect(sortNodes([b, a, c]).map((n) => n.name)).toEqual([
+      "a-post.md",
+      "b-post.md",
+      "c-post.md",
+    ]);
+  });
+
+  it("places unknown content types between book and page", () => {
+    const page = makeTypedFile("page.md", "page");
+    const unknown = makeTypedFile("unknown.md", undefined);
+    const book = makeTypedFile("book.md", "book");
+    const result = sortNodes([page, unknown, book]);
+    expect(result.map((n) => n.contentType)).toEqual(["book", undefined, "page"]);
+  });
+
+  it("places directories before files", () => {
+    const file = makeTypedFile("a-post.md", "post");
+    const dir = makeDir("z-folder", []);
+    const result = sortNodes([file, dir]);
+    expect(result[0].isDirectory).toBe(true);
+    expect(result[1].isDirectory).toBe(false);
+  });
+
+  it("does not mutate the input array", () => {
+    const nodes = [makeTypedFile("page.md", "page"), makeTypedFile("post.md", "post")];
+    const original = [...nodes];
+    sortNodes(nodes);
+    expect(nodes).toEqual(original);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// needsPageDivider
+// ---------------------------------------------------------------------------
+
+describe("needsPageDivider", () => {
+  it("returns false for a non-page file", () => {
+    const nodes = [makeTypedFile("post.md", "post"), makeTypedFile("page.md", "page")];
+    expect(needsPageDivider(nodes, 0)).toBe(false);
+  });
+
+  it("returns false when there are only pages (no mixed list)", () => {
+    const nodes = [makeTypedFile("about.md", "page"), makeTypedFile("links.md", "page")];
+    expect(needsPageDivider(nodes, 0)).toBe(false);
+  });
+
+  it("returns true for the first page in a mixed list", () => {
+    const nodes = [makeTypedFile("post.md", "post"), makeTypedFile("about.md", "page")];
+    expect(needsPageDivider(nodes, 1)).toBe(true);
+  });
+
+  it("returns false for subsequent pages after the first", () => {
+    const nodes = [
+      makeTypedFile("post.md", "post"),
+      makeTypedFile("about.md", "page"),
+      makeTypedFile("links.md", "page"),
+    ];
+    expect(needsPageDivider(nodes, 2)).toBe(false);
+  });
+
+  it("returns false for a directory node", () => {
+    const dir = makeDir("pages", []);
+    const post = makeTypedFile("post.md", "post");
+    const nodes = [post, dir];
+    expect(needsPageDivider(nodes, 1)).toBe(false);
   });
 });

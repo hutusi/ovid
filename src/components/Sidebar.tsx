@@ -9,8 +9,8 @@ import {
   ListOrdered,
   StickyNote,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { filterTree, rollupGitStatus } from "../lib/sidebarUtils";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { filterTree, needsPageDivider, rollupGitStatus, sortNodes } from "../lib/sidebarUtils";
 import { FileContextMenu } from "./FileContextMenu";
 import "./Sidebar.css";
 import type { FileNode, GitStatus } from "../lib/types";
@@ -128,23 +128,25 @@ function FileItem({
           </button>
         </div>
         {isExpanded &&
-          node.children?.map((child) => (
-            <FileItem
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              selectedPath={selectedPath}
-              renamingPath={renamingPath}
-              gitStatusMap={gitStatusMap}
-              forceExpand={forceExpand}
-              onSelect={onSelect}
-              onNewFile={onNewFile}
-              onRename={onRename}
-              onDelete={onDelete}
-              onStartRename={onStartRename}
-              onCancelRename={onCancelRename}
-              onContextMenu={onContextMenu}
-            />
+          sortNodes(node.children ?? []).map((child, idx, sorted) => (
+            <Fragment key={child.path}>
+              {needsPageDivider(sorted, idx) && <div className="sidebar-section-divider" />}
+              <FileItem
+                node={child}
+                depth={depth + 1}
+                selectedPath={selectedPath}
+                renamingPath={renamingPath}
+                gitStatusMap={gitStatusMap}
+                forceExpand={forceExpand}
+                onSelect={onSelect}
+                onNewFile={onNewFile}
+                onRename={onRename}
+                onDelete={onDelete}
+                onStartRename={onStartRename}
+                onCancelRename={onCancelRename}
+                onContextMenu={onContextMenu}
+              />
+            </Fragment>
           ))}
       </div>
     );
@@ -370,23 +372,25 @@ export function Sidebar({
             </button>
           </div>
         ) : (
-          (filterQuery ? filterTree(tree, filterQuery) : tree).map((node) => (
-            <FileItem
-              key={node.path}
-              node={node}
-              depth={0}
-              selectedPath={selectedPath}
-              renamingPath={renamingPath}
-              gitStatusMap={gitStatusMap}
-              forceExpand={filterQuery.length > 0}
-              onSelect={onSelect}
-              onNewFile={onNewFile}
-              onRename={onRename}
-              onDelete={onDelete}
-              onStartRename={onStartRename}
-              onCancelRename={onCancelRename}
-              onContextMenu={handleContextMenu}
-            />
+          sortNodes(filterQuery ? filterTree(tree, filterQuery) : tree).map((node, idx, sorted) => (
+            <Fragment key={node.path}>
+              {needsPageDivider(sorted, idx) && <div className="sidebar-section-divider" />}
+              <FileItem
+                node={node}
+                depth={0}
+                selectedPath={selectedPath}
+                renamingPath={renamingPath}
+                gitStatusMap={gitStatusMap}
+                forceExpand={filterQuery.length > 0}
+                onSelect={onSelect}
+                onNewFile={onNewFile}
+                onRename={onRename}
+                onDelete={onDelete}
+                onStartRename={onStartRename}
+                onCancelRename={onCancelRename}
+                onContextMenu={handleContextMenu}
+              />
+            </Fragment>
           ))
         )}
       </div>

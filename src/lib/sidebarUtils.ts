@@ -30,3 +30,43 @@ export function filterTree(nodes: FileNode[], query: string): FileNode[] {
     return matches ? [node] : [];
   });
 }
+
+// ---------------------------------------------------------------------------
+// Content-type ordering
+// ---------------------------------------------------------------------------
+
+const CONTENT_TYPE_RANK: Record<string, number> = {
+  flow: 0,
+  note: 1,
+  post: 2,
+  series: 3,
+  book: 4,
+  // unknown types (no contentType) get rank 5
+  page: 6,
+};
+
+function nodeRank(node: FileNode): number {
+  if (node.isDirectory) return -1; // directories always first
+  return CONTENT_TYPE_RANK[node.contentType ?? ""] ?? 5;
+}
+
+/** Sort nodes: directories first (alphabetical), then files by content-type
+ *  priority (flow → note → post → series → book → unknown → page),
+ *  alphabetical within each group. */
+export function sortNodes(nodes: FileNode[]): FileNode[] {
+  return [...nodes].sort((a, b) => {
+    const diff = nodeRank(a) - nodeRank(b);
+    if (diff !== 0) return diff;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/** Returns true when a divider should be rendered before `nodes[index]`:
+ *  the node is the first `page`-type file and there are non-page files
+ *  earlier in the same list. */
+export function needsPageDivider(nodes: FileNode[], index: number): boolean {
+  const node = nodes[index];
+  if (node.isDirectory || node.contentType !== "page") return false;
+  if (index > 0 && nodes[index - 1].contentType === "page") return false;
+  return nodes.slice(0, index).some((n) => !n.isDirectory && n.contentType !== "page");
+}
