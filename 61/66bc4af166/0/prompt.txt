@@ -1,0 +1,273 @@
+I have merged the old PR, please open a new PR
+
+---
+
+I have merged the old PR, please open a new PR
+
+---
+
+Let's think more deeply about refactoring the UI. Why don't we use Tailwind CSS? We discussed it at the very beginning, but it doesn't seem to have been included yet. Also, what other UI libraries or components do you recommend? What do you think?
+
+---
+
+Let's think harder about refactoring the UI. Why don't we use Tailwind CSS? We discussed it at the very beginning, but it doesn't seem to have been included yet. Also, what other UI libraries or components do you recommend? What do you think?
+
+---
+
+I think we can use TailwindCSS and Radix UI, what do you think?
+
+---
+
+OK, do we need a new branch?
+
+---
+
+Ok, go ahead. think harder to plan and implement it.
+
+---
+
+first, we need to merge the PR then to start the brach, right?
+
+---
+
+please just new branch from remediation
+
+---
+
+go ahead
+
+---
+
+go ahead
+
+---
+
+what's wrong?
+
+---
+
+sorry, please revert the changes, I think we need think again.
+
+---
+
+I think TailwindCSS + shadcn is more better. what do you think?
+
+---
+
+first, let's check about code reviews by coderabbit on PR#15
+
+---
+
+go ahead fix in the PR branch
+
+---
+
+reply the comments and push
+
+---
+
+I have merge the PR, plase update the ui-refactor branch
+
+---
+
+think harder about the ui refactor
+
+---
+
+go ahead
+
+---
+
+what can be refactor next?
+
+---
+
+open a new PR first.
+
+---
+
+why I found no shadcn in package.json, why there are radix-ui in it?
+
+---
+
+But do we still need Radix and other UI components? Isn't shadcn/ui enough?
+
+---
+
+ok, let's think about next ui refactor things
+
+---
+
+go ahead
+
+---
+
+think harder: what can be refactor next? I want the style code to be maintanable and reduce the duplication. I want build an elagant app.
+
+---
+
+go ahead.
+
+---
+
+check about the code reviews by coderabbit on PR #16
+
+---
+
+go ahead
+
+---
+
+the right click dropdown box of workspace sidebar seems ugly, and the new file dialog ugly too. try to improve them, make it elegant.
+
+---
+
+they are not improved, it seems bad too.
+
+---
+
+these are the two screenshot
+
+---
+
+It's a bit better, but still not nearly enough. The right-click dropdown menu doesn't feel like a real menu; the items are too crowded. The 'New File' dialog has a similar problem—it feels very crude. Please learn from Obsidian; they are far more elegant.
+
+---
+
+I haven't seen any change. why you don't use the system context menu style? the system context menu style is much much better?
+
+---
+
+the context menu is much better. how about the new file dialog? it still ugly.
+
+---
+
+there is no padding, and I can't see the OK button, lots of problems!
+
+---
+
+No, the problem still exists! I doubt it is actually using the Radix UI dialog component. Is it still handwritten CSS? Something is wrong in the code because I haven't seen any changes!
+
+---
+
+it's better, what is the reason?
+
+---
+
+check about the code reviews by coderabbit on PR #16
+
+---
+
+check about the new code reviews by coderabbit on PR #16
+
+---
+
+reply the review comments
+
+---
+
+let's take a look at footbar, the color is always black in dark and light mode, what do you think? and think harder to find what can be improve it, make it more elegant.
+
+---
+
+check about the new code reviews by coderabbit on PR #16
+
+---
+
+check about the new code reviews by coderabbit on PR #16
+
+---
+
+The 'insert link' dialog is also bad; it maybe needs to be reimplemented like the new file dialog. The font selector popup frame needs work too. What do you think? Do we need to drop shadcn and Radix UI?
+
+---
+
+OK
+
+---
+
+I am thinking, the ui problem, is it because our global style and component style too complex? maybe we can reduce lots of the code, make it simple. what do you think?
+
+---
+
+OK
+
+---
+
+Why should I map design tokens in Tailwind instead of just using Tailwind variables (CSS variables)? I'm not very good at CSS, so I'm confused. What do you think?
+
+---
+
+open a new PR, then we discuss this question.
+
+---
+
+I mean, we can choose tailwind-first, and we refactor our css code, to use tailwind tokens directly. what do you think? I am considering the long future maintaince.
+
+---
+
+I think we should refactor thoroughly to make the system and code clean. I want to ensure there is no technical debt for the future. what do you think?
+
+---
+
+go ahead
+
+---
+
+check about the code reviews by coderabbit on PR #17
+
+---
+
+yes
+
+---
+
+what do we should refactor next?
+
+---
+
+I mean about UI framework, what do we should refactor? is there anything need to consider?
+
+---
+
+we have done lots, please update or add items of what we have done yet in ROADMAP.
+
+---
+
+check about the new code reviews by coderabbit on PR #17
+
+---
+
+OK
+
+---
+
+I have committed it and push yet. please check the recent new code review comments by coderabbit on PR #17
+
+---
+
+what is your opinion?
+
+---
+
+OK
+
+---
+
+reply the review comments
+
+---
+
+please check the recent new code review comments by coderabbit on PR #17
+
+---
+
+OK
+
+---
+
+continue
+
+---
+
+reply the comments
