@@ -146,11 +146,6 @@
   background: var(--color-bg-hover);
 }
 
-.sidebar-chevron {
-  font-size: 9px;
-  transition: none;
-}
-
 /* ── File rows ───────────────────────────────── */
 .sidebar-file-row {
   display: flex;
@@ -195,21 +190,19 @@
   opacity: 0.5;
 }
 
-.sidebar-type-badge {
+.sidebar-file-icon {
   flex-shrink: 0;
-  font-size: 9px;
-  font-family: var(--font-mono);
   color: var(--color-text-faint);
-  background: var(--color-bg-hover);
-  border-radius: 3px;
-  padding: 1px 4px;
-  text-transform: lowercase;
-  letter-spacing: 0.02em;
-  margin-left: 4px;
-  max-width: 48px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  opacity: 0.7;
+}
+
+.sidebar-file-row.selected .sidebar-file-icon {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
+.sidebar-dir-icon {
+  opacity: 0.6;
 }
 
 .sidebar-delete-btn {
@@ -250,12 +243,6 @@
   border: 1px solid var(--color-accent);
   border-radius: 4px;
   outline: none;
-}
-
-.sidebar-icon {
-  font-size: 10px;
-  color: var(--color-text-faint);
-  flex-shrink: 0;
 }
 
 /* ── Empty workspace state ───────────────────── */

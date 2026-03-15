@@ -1,6 +1,37 @@
+import {
+  ArrowLeftRight,
+  BookOpen,
+  File,
+  FileText,
+  Folder,
+  FolderOpen,
+  LayoutTemplate,
+  ListOrdered,
+  StickyNote,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import "./Sidebar.css";
 import type { FileNode, GitStatus } from "../lib/types";
+
+function ContentTypeIcon({ type }: { type: string | undefined }) {
+  const props = { size: 13, className: "sidebar-file-icon" };
+  switch (type) {
+    case "post":
+      return <FileText {...props} />;
+    case "flow":
+      return <ArrowLeftRight {...props} />;
+    case "series":
+      return <ListOrdered {...props} />;
+    case "book":
+      return <BookOpen {...props} />;
+    case "page":
+      return <LayoutTemplate {...props} />;
+    case "note":
+      return <StickyNote {...props} />;
+    default:
+      return <File {...props} />;
+  }
+}
 
 interface SidebarProps {
   tree: FileNode[];
@@ -65,11 +96,12 @@ function FileItem({
   }, [isRenaming, baseName]);
 
   if (node.isDirectory) {
+    const DirIcon = expanded ? FolderOpen : Folder;
     return (
       <div>
         <div className="sidebar-dir-row" style={{ paddingLeft: indent }}>
           <button type="button" className="sidebar-dir" onClick={() => setExpanded((v) => !v)}>
-            <span className="sidebar-icon sidebar-chevron">{expanded ? "▾" : "▸"}</span>
+            <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
             {node.name}
           </button>
           <button
@@ -143,15 +175,10 @@ function FileItem({
           if (e.key === "F2") onStartRename(node.path);
         }}
       >
-        <span className="sidebar-icon">◦</span>
+        <ContentTypeIcon type={node.contentType} />
         <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
           {displayName}
         </span>
-        {node.contentType && (
-          <span className="sidebar-type-badge" title={`type: ${node.contentType}`}>
-            {node.contentType}
-          </span>
-        )}
         {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
       </button>
       <button
