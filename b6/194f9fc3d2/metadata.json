@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "b6194f9fc3d2",
+  "strategy": "manual-commit",
+  "branch": "ui-refactor",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "src/components/CommitDialog.tsx",
+    "src/components/FileSwitcher.tsx",
+    "src/components/LinkDialog.tsx",
+    "src/components/WorkspaceSwitcher.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/b6/194f9fc3d2/0/metadata.json",
+      "transcript": "/b6/194f9fc3d2/0/full.jsonl",
+      "content_hash": "/b6/194f9fc3d2/0/content_hash.txt",
+      "prompt": "/b6/194f9fc3d2/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 3811,
+    "cache_creation_tokens": 2413377,
+    "cache_read_tokens": 82409735,
+    "output_tokens": 420798,
+    "api_call_count": 869
+  }
+}
