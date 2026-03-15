@@ -7,9 +7,10 @@ import Typography from "@tiptap/extension-typography";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Markdown } from "tiptap-markdown";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
+import { LinkDialog } from "./LinkDialog";
 import "../styles/editor.css";
 
 const lowlight = createLowlight(common);
@@ -38,6 +39,8 @@ export function Editor({
   useEffect(() => {
     typewriterRef.current = typewriterMode;
   }, [typewriterMode]);
+
+  const [linkDialog, setLinkDialog] = useState<{ href: string } | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -131,11 +134,38 @@ export function Editor({
     });
   }, [editor, spellCheck]);
 
+  // Cmd+K — open link dialog when editor is focused
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "k") return;
+      if (!editor?.isFocused) return;
+      e.preventDefault();
+      const href = editor.getAttributes("link").href ?? "";
+      setLinkDialog({ href });
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editor]);
+
   return (
     <div className="editor-wrapper">
       <div ref={scrollRef} className="editor-scroll">
         <EditorContent editor={editor} />
       </div>
+      {linkDialog && (
+        <LinkDialog
+          initialHref={linkDialog.href}
+          onApply={(url) => {
+            editor?.chain().focus().setLink({ href: url }).run();
+            setLinkDialog(null);
+          }}
+          onRemove={() => {
+            editor?.chain().focus().unsetLink().run();
+            setLinkDialog(null);
+          }}
+          onCancel={() => setLinkDialog(null)}
+        />
+      )}
     </div>
   );
 }

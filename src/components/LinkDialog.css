@@ -1,0 +1,12 @@
+.link-dialog {
+  width: 360px;
+}
+
+.link-remove-btn {
+  margin-right: auto;
+  color: var(--color-warning);
+}
+
+.link-remove-btn:hover {
+  background: var(--color-warning-light);
+}
