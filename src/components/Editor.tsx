@@ -10,9 +10,11 @@ import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState } from "react";
 import { Markdown } from "tiptap-markdown";
+import { FindReplace } from "../lib/tiptap/FindReplace";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
 import { BubbleMenu } from "./BubbleMenu";
 import { CodeBlockView } from "./CodeBlockView";
+import { FindReplaceBar } from "./FindReplaceBar";
 import { LinkDialog } from "./LinkDialog";
 import "../styles/editor.css";
 
@@ -44,6 +46,7 @@ export function Editor({
   }, [typewriterMode]);
 
   const [linkDialog, setLinkDialog] = useState<{ href: string } | null>(null);
+  const [showFindReplace, setShowFindReplace] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -67,6 +70,7 @@ export function Editor({
       }),
       Image,
       LinkPreview,
+      FindReplace,
     ],
     content,
     editorProps: {
@@ -194,6 +198,18 @@ export function Editor({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [editor]);
 
+  // Cmd+H — open / close find & replace bar
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key?.toLowerCase() !== "h") return;
+      if (!editor?.isFocused && !showFindReplace) return;
+      e.preventDefault();
+      setShowFindReplace((v) => !v);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editor, showFindReplace]);
+
   // Insert / Format menu commands forwarded from the native menu bar
   useEffect(() => {
     let mounted = true;
@@ -261,6 +277,9 @@ export function Editor({
       <div ref={scrollRef} className="editor-scroll">
         <EditorContent editor={editor} />
       </div>
+      {editor && showFindReplace && (
+        <FindReplaceBar editor={editor} onClose={() => setShowFindReplace(false)} />
+      )}
       {editor && (
         <BubbleMenu
           editor={editor}
