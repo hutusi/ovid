@@ -1,0 +1,1 @@
+the linline bold/italic problem still exist, I think we can remove the bold/italic inline edit, because there is a popup menu, what do you think?
