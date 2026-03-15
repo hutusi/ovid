@@ -4,8 +4,7 @@ import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 
 interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
-  isOpen: boolean;
-  onToggle: () => void;
+  visible: boolean;
   onFieldChange?: (key: string, value: FrontmatterValue) => void;
 }
 
@@ -46,7 +45,6 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState(toInputString(value));
 
-  // Sync draft when value is updated externally (e.g. frontmatter written from disk)
   useEffect(() => {
     if (!editing) {
       setDraft(toInputString(value));
@@ -56,7 +54,6 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
   function startEdit() {
     setDraft(toInputString(value));
     setEditing(true);
-    // Focus on next tick after render
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
@@ -64,7 +61,6 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
     const trimmed = draft.trim();
     if (Array.isArray(value)) {
       setEditing(false);
-      // Parse comma-separated back to array
       const arr = trimmed
         ? trimmed
             .split(",")
@@ -75,7 +71,6 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
     } else if (typeof value === "boolean") {
       const normalized = trimmed.toLowerCase();
       if (normalized !== "true" && normalized !== "false") {
-        // Invalid input — keep editing mode, reset draft, bail without saving
         setDraft(toInputString(value));
         return;
       }
@@ -108,13 +103,11 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
           else if (e.key === "Escape") cancel();
         }}
         onBlur={commit}
-        // Prevent sidebar keyboard shortcuts from firing while editing
         onKeyUp={(e) => e.stopPropagation()}
       />
     );
   }
 
-  // For tags: show tag chips, click any to edit
   if (fieldKey === "tags" && Array.isArray(value)) {
     return (
       <button
@@ -123,12 +116,17 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
         onClick={startEdit}
         title="Click to edit"
       >
-        {value.map((tag) => (
-          <span key={tag} className="prop-tag">
-            {tag}
+        {value.length > 0 ? (
+          <span className="prop-tags">
+            {value.map((tag) => (
+              <span key={tag} className="prop-tag">
+                {tag}
+              </span>
+            ))}
           </span>
-        ))}
-        {value.length === 0 && <span className="prop-value prop-empty">add tags…</span>}
+        ) : (
+          <span className="prop-empty">add tags…</span>
+        )}
       </button>
     );
   }
@@ -166,93 +164,40 @@ function EditableValue({ fieldKey, value, onSave }: EditableValueProps) {
   );
 }
 
-export function PropertiesPanel({
-  frontmatter,
-  isOpen,
-  onToggle,
-  onFieldChange,
-}: PropertiesPanelProps) {
+export function PropertiesPanel({ frontmatter, visible, onFieldChange }: PropertiesPanelProps) {
   const keys = sortedKeys(frontmatter);
 
   return (
-    <div className={`properties-wrapper ${isOpen ? "" : "panel-closed"}`}>
-      <div className={`properties-panel ${isOpen ? "open" : "closed"}`}>
-        <div className="properties-inner">
-          {keys.map((key) => {
-            const val = frontmatter[key];
-            if (val === null || val === undefined) return null;
+    <div className={`properties-panel${visible ? "" : " hidden"}`}>
+      <div className="properties-body">
+        {keys.map((key) => {
+          const val = frontmatter[key];
+          if (val === null || val === undefined) return null;
 
-            // Draft: toggle button, not a text field
-            if (key === "draft") {
-              return (
-                <div key={key} className="prop-field">
-                  <button
-                    type="button"
-                    className={`prop-draft ${val ? "" : "prop-draft-published"}`}
-                    title={val ? "Click to publish" : "Click to mark as draft"}
-                    onClick={() => onFieldChange?.(key, !val)}
-                  >
-                    {val ? "Draft" : "Published"}
-                  </button>
-                </div>
-              );
-            }
-
-            if (key === "tags" && Array.isArray(val)) {
-              return (
-                <div key={key} className="prop-field">
-                  <EditableValue
-                    fieldKey={key}
-                    value={val}
-                    onSave={(v) => onFieldChange?.(key, v)}
-                  />
-                </div>
-              );
-            }
-
-            if (key === "title") {
-              return (
-                <div key={key} className="prop-field">
-                  <EditableValue
-                    fieldKey={key}
-                    value={val}
-                    onSave={(v) => onFieldChange?.(key, v)}
-                  />
-                </div>
-              );
-            }
-
-            if (key === "date" && typeof val === "string") {
-              return (
-                <div key={key} className="prop-field">
-                  <span className="prop-label">date</span>
-                  <EditableValue
-                    fieldKey={key}
-                    value={val}
-                    onSave={(v) => onFieldChange?.(key, v)}
-                  />
-                </div>
-              );
-            }
-
+          if (key === "draft") {
             return (
               <div key={key} className="prop-field">
-                <span className="prop-label">{key}</span>
-                <EditableValue fieldKey={key} value={val} onSave={(v) => onFieldChange?.(key, v)} />
+                <span className="prop-label">Draft</span>
+                <button
+                  type="button"
+                  className={`prop-draft${val ? "" : " prop-draft-published"}`}
+                  title={val ? "Click to publish" : "Click to mark as draft"}
+                  onClick={() => onFieldChange?.(key, !val)}
+                >
+                  {val ? "Draft" : "Published"}
+                </button>
               </div>
             );
-          })}
-        </div>
+          }
+
+          return (
+            <div key={key} className="prop-field">
+              <span className="prop-label">{key}</span>
+              <EditableValue fieldKey={key} value={val} onSave={(v) => onFieldChange?.(key, v)} />
+            </div>
+          );
+        })}
       </div>
-      <button
-        type="button"
-        className="properties-toggle"
-        onClick={onToggle}
-        title={isOpen ? "Hide properties" : "Show properties"}
-        aria-label="Toggle properties panel"
-      >
-        {isOpen ? "›" : "‹"}
-      </button>
     </div>
   );
 }
