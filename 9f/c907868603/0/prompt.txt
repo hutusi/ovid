@@ -1,0 +1,5 @@
+something bad, when I open a md file the app seems crash, only blank.
+
+---
+
+continue
