@@ -1,0 +1,27 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "ea7f64f029ef",
+  "strategy": "manual-commit",
+  "branch": "remediation",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/App.tsx",
+    "src/components/Editor.tsx",
+    "src/components/LinkDialog.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ea/7f64f029ef/0/metadata.json",
+      "transcript": "/ea/7f64f029ef/0/full.jsonl",
+      "content_hash": "/ea/7f64f029ef/0/content_hash.txt",
+      "prompt": "/ea/7f64f029ef/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 80069,
+    "cache_read_tokens": 1171728,
+    "output_tokens": 3981,
+    "api_call_count": 20
+  }
+}
