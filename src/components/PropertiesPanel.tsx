@@ -32,7 +32,7 @@ function TypeSelector({
   onChange,
 }: {
   type: string | undefined;
-  onChange: (t: string) => void;
+  onChange: (t: string | null) => void;
 }) {
   return (
     <div className="prop-type-row">
@@ -41,11 +41,9 @@ function TypeSelector({
         className="prop-type-select"
         value={type ?? ""}
         aria-label="Content type"
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(e.target.value || null)}
       >
-        <option value="" disabled>
-          unknown
-        </option>
+        <option value="">unknown</option>
         {STANDARD_TYPES.map((t) => (
           <option key={t} value={t}>
             {t}
@@ -136,6 +134,7 @@ function TagInput({ tags, onSave }: { tags: string[]; onSave: (tags: string[]) =
       ))}
       <input
         ref={inputRef}
+        aria-label="Add tag"
         className="tag-input"
         value={input}
         placeholder={tags.length === 0 ? "add tag…" : ""}
