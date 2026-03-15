@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
+import { Mathematics } from "@tiptap/extension-mathematics";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Table } from "@tiptap/extension-table";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -22,6 +23,7 @@ import { CodeBlockView } from "./CodeBlockView";
 import { FindReplaceBar } from "./FindReplaceBar";
 import { LinkDialog } from "./LinkDialog";
 import { TableControls } from "./TableControls";
+import "katex/dist/katex.min.css";
 import "../styles/editor.css";
 
 const lowlight = createLowlight(common);
@@ -79,6 +81,7 @@ export function Editor({
       TableRow,
       TableHeader,
       TableCell,
+      Mathematics,
       LinkPreview,
       FindReplace,
       TextFolding,
