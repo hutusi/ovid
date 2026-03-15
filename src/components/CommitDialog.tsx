@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import "./InputModal.css";
-import "./CommitDialog.css";
+import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 
 interface CommitDialogProps {
   defaultMessage: string;
@@ -20,52 +20,66 @@ export function CommitDialog({ defaultMessage, branch, onCommit, onCancel }: Com
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") onCancel();
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && message.trim()) {
       onCommit(message.trim(), push);
     }
   }
 
   return (
-    <div className="modal-overlay">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label="Close modal"
-        onClick={onCancel}
-      />
-      <div role="dialog" aria-modal="true" className="modal commit-modal" onKeyDown={handleKeyDown}>
-        <p className="modal-title">Commit changes</p>
-        <div className="commit-branch-row">
-          <span className="modal-type-label">Branch</span>
-          <code className="commit-branch">{branch}</code>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+    >
+      <DialogContent className="w-[400px] max-w-[calc(100vw-48px)]" onKeyDown={handleKeyDown}>
+        <DialogHeader>
+          <DialogTitle>Commit changes</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs text-muted-foreground shrink-0">Branch</span>
+            <code className="text-xs text-muted-foreground bg-muted border border-border rounded px-1.5 py-0.5">
+              {branch}
+            </code>
+          </div>
+
+          <textarea
+            ref={inputRef}
+            className="w-full text-sm font-[var(--font-ui)] text-foreground bg-muted border border-input rounded-md px-3 py-2 outline-none resize-y min-h-[72px] leading-relaxed focus:border-ring transition-colors"
+            value={message}
+            placeholder="Commit message"
+            rows={3}
+            onChange={(e) => setMessage(e.target.value)}
+          />
+
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={push}
+              onChange={(e) => setPush(e.target.checked)}
+              className="rounded"
+            />
+            <span className="text-sm text-muted-foreground">Push after commit</span>
+          </label>
         </div>
-        <textarea
-          ref={inputRef}
-          className="modal-input commit-message"
-          value={message}
-          placeholder="Commit message"
-          rows={3}
-          onChange={(e) => setMessage(e.target.value)}
-        />
-        <label className="commit-push-row">
-          <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} />
-          <span className="commit-push-label">Push after commit</span>
-        </label>
-        <div className="modal-actions">
-          <button type="button" className="modal-btn modal-cancel" onClick={onCancel}>
+
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onCancel}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="modal-btn modal-confirm"
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             disabled={!message.trim()}
             onClick={() => message.trim() && onCommit(message.trim(), push)}
+            className="border-primary text-primary hover:bg-primary/10"
           >
             Commit
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

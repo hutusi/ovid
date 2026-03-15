@@ -1,8 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { FlatFile } from "../lib/fileSearch";
 import { flattenTree, score } from "../lib/fileSearch";
 import type { FileNode, RecentFile } from "../lib/types";
-import "./FileSwitcher.css";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "./ui/command";
+import { Dialog, DialogContent } from "./ui/dialog";
 
 interface FileSwitcherProps {
   tree: FileNode[];
@@ -13,9 +22,6 @@ interface FileSwitcherProps {
 
 export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitcherProps) {
   const [query, setQuery] = useState("");
-  const [activeIndex, setActiveIndex] = useState(0);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   const allFiles = useMemo(() => flattenTree(tree), [tree]);
 
@@ -25,92 +31,79 @@ export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitc
     return map;
   }, [allFiles]);
 
-  const results = useMemo(() => {
+  const { recentResults, otherResults } = useMemo(() => {
     if (!query.trim()) {
-      // Show recents first (resolved to current tree), then remaining files
       const recentFlat = recentFiles
         .map((r) => filesByPath.get(r.path))
         .filter((f): f is FlatFile => f !== undefined);
       const recentPaths = new Set(recentFlat.map((f) => f.node.path));
-      const rest = allFiles.filter((f) => !recentPaths.has(f.node.path));
-      return [...recentFlat, ...rest].slice(0, 50);
+      const rest = allFiles
+        .filter((f) => !recentPaths.has(f.node.path))
+        .slice(0, 50 - recentFlat.length);
+      return { recentResults: recentFlat, otherResults: rest };
     }
-    return allFiles
+    const filtered = allFiles
       .map((f) => ({ file: f, s: score(f, query.trim()) }))
       .filter(({ s }) => s > 0)
       .sort((a, b) => b.s - a.s)
       .map(({ file }) => file)
       .slice(0, 50);
+    return { recentResults: [] as FlatFile[], otherResults: filtered };
   }, [allFiles, filesByPath, recentFiles, query]);
 
-  // Focus input on mount
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  // Scroll active item into view
-  useEffect(() => {
-    const item = listRef.current?.children[activeIndex] as HTMLElement | undefined;
-    item?.scrollIntoView({ block: "nearest" });
-  }, [activeIndex]);
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    switch (e.key) {
-      case "ArrowDown":
-        e.preventDefault();
-        if (results.length > 0) setActiveIndex((i) => Math.min(i + 1, results.length - 1));
-        break;
-      case "ArrowUp":
-        e.preventDefault();
-        setActiveIndex((i) => Math.max(i - 1, 0));
-        break;
-      case "Enter":
-        e.preventDefault();
-        if (results[activeIndex]) onSelect(results[activeIndex].node);
-        break;
-      case "Escape":
-        onClose();
-        break;
-    }
+  function renderItem(f: FlatFile) {
+    return (
+      <CommandItem
+        key={f.node.path}
+        value={f.node.path}
+        onSelect={() => onSelect(f.node)}
+        className="flex flex-col items-start gap-0.5 py-2 cursor-pointer"
+      >
+        <span className="text-[13.5px] truncate w-full" style={{ opacity: f.node.draft ? 0.5 : 1 }}>
+          {f.displayName}
+        </span>
+        <span className="text-[11px] text-muted-foreground truncate w-full">{f.relativePath}</span>
+      </CommandItem>
+    );
   }
 
   return (
-    <div className="switcher-overlay">
-      <button type="button" className="switcher-backdrop" aria-label="Close" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label="Quick file switcher" className="switcher">
-        <input
-          ref={inputRef}
-          className="switcher-input"
-          placeholder="Search files…"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setActiveIndex(0);
-          }}
-          onKeyDown={handleKeyDown}
-          aria-autocomplete="list"
-        />
-        {results.length > 0 ? (
-          <div ref={listRef} className="switcher-list">
-            {results.map((f, i) => (
-              <button
-                key={f.node.path}
-                type="button"
-                className={`switcher-item ${i === activeIndex ? "active" : ""}`}
-                onMouseEnter={() => setActiveIndex(i)}
-                onClick={() => onSelect(f.node)}
-              >
-                <span className={`switcher-name ${f.node.draft ? "draft" : ""}`}>
-                  {f.displayName}
-                </span>
-                <span className="switcher-path">{f.relativePath}</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="switcher-empty">No files match</p>
-        )}
-      </div>
-    </div>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
+        className="overflow-hidden p-0 top-[80px] translate-y-0 max-w-[480px] shadow-2xl"
+        aria-label="Quick file switcher"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search files…"
+            value={query}
+            onValueChange={(v) => setQuery(v)}
+          />
+          <CommandList className="max-h-[60vh]">
+            <CommandEmpty>No files match</CommandEmpty>
+            {query.trim() === "" ? (
+              <>
+                {recentResults.length > 0 && (
+                  <CommandGroup heading="Recent">{recentResults.map(renderItem)}</CommandGroup>
+                )}
+                {recentResults.length > 0 && otherResults.length > 0 && <CommandSeparator />}
+                {otherResults.length > 0 && (
+                  <CommandGroup heading={recentResults.length > 0 ? "All files" : undefined}>
+                    {otherResults.map(renderItem)}
+                  </CommandGroup>
+                )}
+              </>
+            ) : (
+              <CommandGroup>{otherResults.map(renderItem)}</CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </DialogContent>
+    </Dialog>
   );
 }

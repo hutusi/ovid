@@ -1,3 +1,34 @@
+@import "tailwindcss";
+
+/* Dark mode: use data-theme="dark" attribute instead of .dark class */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Map shadcn/ui color tokens to Tailwind utility names */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-shadcn-accent: var(--accent);
+  --color-shadcn-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
 *,
 *::before,
 *::after {
@@ -45,6 +76,27 @@
 
   --sidebar-width: 240px;
   --statusbar-height: 28px;
+
+  /* shadcn/ui variables — mapped to existing design tokens */
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --card: var(--color-bg);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-bg);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-accent);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-bg-selected);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--color-bg-sidebar);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-bg-hover);
+  --accent-foreground: var(--color-text);
+  --destructive: #ef4444;
+  --border: var(--color-border);
+  --input: var(--color-border-strong);
+  --ring: var(--color-accent);
+  --radius: 6px;
 
   font-family: var(--font-ui);
   font-size: 14px;
@@ -94,6 +146,9 @@
   --color-syntax-meta: #fcd34d;
   --color-syntax-attr: #a78bfa;
   --color-syntax-number: #fb923c;
+
+  /* shadcn/ui dark overrides */
+  --destructive: #f87171;
 }
 
 html,

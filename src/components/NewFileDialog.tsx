@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ContentType } from "../lib/types";
-import "./InputModal.css";
+import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 interface NewFileDialogProps {
   contentTypes: ContentType[];
@@ -18,9 +21,6 @@ export function NewFileDialog({
   const [filename, setFilename] = useState("");
   const [selectedType, setSelectedType] = useState<string>(contentTypes[0]?.name ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
-  const selectRef = useRef<HTMLSelectElement>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -46,25 +46,6 @@ export function NewFileDialog({
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && filename.trim()) handleConfirm();
-    else if (e.key === "Escape") onCancel();
-  }
-
-  function handleModalKeyDown(e: React.KeyboardEvent) {
-    if (e.key !== "Tab") return;
-    const focusable = [
-      inputRef.current,
-      preselectedType ? null : selectRef.current,
-      cancelRef.current,
-      confirmRef.current,
-    ].filter((el): el is HTMLInputElement | HTMLSelectElement | HTMLButtonElement => el !== null);
-    const idx = focusable.indexOf(
-      document.activeElement as HTMLInputElement | HTMLSelectElement | HTMLButtonElement
-    );
-    e.preventDefault();
-    const next = e.shiftKey
-      ? (idx - 1 + focusable.length) % focusable.length
-      : (idx + 1) % focusable.length;
-    focusable[next]?.focus();
   }
 
   const title = preselectedType
@@ -72,63 +53,62 @@ export function NewFileDialog({
     : "New file";
 
   return (
-    <div className="modal-overlay">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label="Close modal"
-        onClick={onCancel}
-      />
-      <div role="dialog" aria-modal="true" className="modal" onKeyDown={handleModalKeyDown}>
-        <p className="modal-title">{title}</p>
-        <input
-          ref={inputRef}
-          className="modal-input"
-          value={filename}
-          placeholder="filename"
-          onChange={(e) => setFilename(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        {!preselectedType && contentTypes.length > 0 && (
-          <div className="modal-type-row">
-            <label htmlFor="new-file-type" className="modal-type-label">
-              Type
-            </label>
-            <select
-              id="new-file-type"
-              ref={selectRef}
-              className="modal-type-select"
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-            >
-              {contentTypes.map((ct) => (
-                <option key={ct.name} value={ct.name}>
-                  {ct.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div className="modal-actions">
-          <button
-            ref={cancelRef}
-            type="button"
-            className="modal-btn modal-cancel"
-            onClick={onCancel}
-          >
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+    >
+      <DialogContent className="w-[320px] max-w-[calc(100vw-48px)]">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-3">
+          <Input
+            ref={inputRef}
+            value={filename}
+            placeholder="filename"
+            onChange={(e) => setFilename(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+
+          {!preselectedType && contentTypes.length > 0 && (
+            <div className="flex items-center gap-2.5">
+              <Label htmlFor="new-file-type" className="text-xs text-muted-foreground shrink-0">
+                Type
+              </Label>
+              <select
+                id="new-file-type"
+                className="flex-1 text-sm font-[var(--font-ui)] text-foreground bg-muted border border-input rounded-md px-2 py-1.5 outline-none focus:border-ring transition-colors cursor-pointer"
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+              >
+                {contentTypes.map((ct) => (
+                  <option key={ct.name} value={ct.name}>
+                    {ct.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onCancel}>
             Cancel
-          </button>
-          <button
-            ref={confirmRef}
-            type="button"
-            className="modal-btn modal-confirm"
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             disabled={!filename.trim()}
             onClick={handleConfirm}
+            className="border-primary text-primary hover:bg-primary/10"
           >
             Create
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
