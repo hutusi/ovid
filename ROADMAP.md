@@ -92,3 +92,52 @@ Ovid App is purpose-built for content creators working in Amytis workspaces. Thi
 38. ✅ **Word count goal** — set a session word count target; subtle progress indicator; no gamification, just awareness
 39. ✅ **Link preview** — hover over a URL to see a preview tooltip after a short delay
 
+---
+
+## Phase 8 — Editing Power
+> Goal: close the gap between Ovid and a professional writing tool for in-document editing.
+
+40. **Find & replace** (`Cmd+H`) — search within the current file with optional replace; highlight all matches; navigate with `Enter` / `Shift+Enter`; plain text and regex modes
+41. **Tables** — insert and edit Markdown tables inline; keyboard-navigable cells (`Tab` to advance); Tiptap table extension
+42. **Footnotes** — inline footnote syntax (`[^1]`); rendered inline in the editor; exported as standard Markdown footnotes
+43. **Paragraph focus mode** — dim all paragraphs except the one containing the cursor; toggle from status bar or shortcut; pairs with zen mode
+
+---
+
+## Phase 9 — Knowledge Graph
+> Goal: turn Ovid from a file editor into a tool writers actually think in.
+
+44. **Wikilinks** (`[[filename]]`) — type `[[` to open an autocomplete picker; resolves to the matching file in the workspace; renders as a styled inline link
+45. **Backlinks panel** — collapsible panel below the editor listing all files that link to the current file; click to navigate
+46. **Tags browser** — sidebar view listing all frontmatter `tags` values across the workspace; click a tag to filter the file list
+47. **Calendar view** — browse files by frontmatter `date` in a month grid; click a date to open the file; useful for blog-style content
+
+---
+
+## Phase 10 — Publishing Pipeline
+> Goal: complete the Amytis workflow without ever leaving the app.
+
+48. **In-app preview** (`Cmd+Shift+V`) — render the current file as it would appear on the published Amytis site; uses the site's CSS if available
+49. **Build & deploy** — trigger `amytis build` and `amytis deploy` from a command; stream output to a log panel; show success / error status
+50. **Git history per file** — browse the commit history for the current file; view a past version; one-click restore
+51. **Branch management** — create, switch, and delete branches from within the app; branch name shown in the status bar
+
+---
+
+## Phase 11 — Multi-file & Reliability
+> Goal: the app should handle real workspaces at scale without friction.
+
+52. **File watcher** — detect when the open file is modified externally; prompt to reload or keep the in-memory version
+53. **Tabs** — open multiple files simultaneously in a tab bar above the editor; `Cmd+T` new tab, `Cmd+W` closes tab
+54. **Drag to reorder** — drag files and folders in the sidebar to reorganize; writes the change to disk
+55. **User-defined templates** — create and save custom frontmatter templates beyond Amytis content types; available in the new file dialog
+
+---
+
+## Phase 12 — Customization
+> Goal: let power users make Ovid feel like their own.
+
+56. **Export** — export the current file as HTML or PDF; copy as rich text for sharing drafts outside the workspace
+57. **Custom keyboard shortcuts** — remap any shortcut from a settings panel; persisted in a local config file
+58. **Custom themes** — choose from built-in color schemes beyond light/dark; support importing a theme file
+
