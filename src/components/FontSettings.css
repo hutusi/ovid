@@ -1,0 +1,168 @@
+.fsp-anchor {
+  position: relative;
+}
+
+.fsp-panel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 100;
+  width: 188px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.12),
+    0 1px 4px rgba(0, 0, 0, 0.08);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Section label ────────────────────────────── */
+.fsp-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-faint);
+  padding: 0 2px;
+}
+
+/* ── Chip row ─────────────────────────────────── */
+.fsp-chip-row {
+  display: flex;
+  gap: 4px;
+}
+
+.fsp-chip {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  font-family: var(--font-ui);
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+
+.fsp-chip:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.fsp-chip--active {
+  background: var(--color-bg-selected);
+  color: var(--color-accent);
+}
+
+/* ── Divider ──────────────────────────────────── */
+.fsp-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 1px 0;
+}
+
+/* ── Spell check toggle ───────────────────────── */
+.fsp-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-family: var(--font-ui);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+
+.fsp-toggle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.fsp-toggle-value {
+  font-size: 10.5px;
+  flex-shrink: 0;
+}
+
+.fsp-toggle-value--on {
+  color: var(--color-accent);
+}
+
+/* ── Goal row ─────────────────────────────────── */
+.fsp-goal-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.fsp-goal-input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.fsp-goal-input:focus {
+  border-color: var(--color-accent);
+}
+
+.fsp-goal-input::placeholder {
+  color: var(--color-text-faint);
+}
+
+.fsp-goal-set {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-family: var(--font-ui);
+  color: var(--color-accent);
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.fsp-goal-set:hover {
+  background: var(--color-accent-light);
+}
+
+.fsp-goal-clear {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-family: var(--font-ui);
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.fsp-goal-clear:hover {
+  background: var(--color-bg-hover);
+}

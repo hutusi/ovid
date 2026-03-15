@@ -1,0 +1,153 @@
+/* ── Shared modal primitives ───────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay--top {
+  align-items: flex-start;
+  padding-top: 80px;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  cursor: default;
+}
+
+.modal-panel {
+  position: relative;
+  z-index: 1;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.18),
+    0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Title ────────────────────────────────────── */
+.modal-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1;
+  margin: 0;
+}
+
+/* ── Input / Textarea ─────────────────────────── */
+.modal-input,
+.modal-textarea {
+  width: 100%;
+  padding: 0 10px;
+  font-size: 13.5px;
+  font-family: var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.modal-input {
+  height: 34px;
+}
+
+.modal-textarea {
+  padding: 8px 10px;
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.5;
+}
+
+.modal-input:focus,
+.modal-textarea:focus {
+  border-color: var(--color-accent);
+}
+
+.modal-input::placeholder,
+.modal-textarea::placeholder {
+  color: var(--color-text-faint);
+}
+
+/* ── Actions ──────────────────────────────────── */
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.modal-spacer {
+  flex: 1;
+}
+
+.modal-btn {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.12s,
+    opacity 0.12s;
+}
+
+.modal-btn-cancel {
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+
+.modal-btn-cancel:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.modal-btn-primary {
+  color: #ffffff;
+  background: var(--color-accent);
+  border: 1px solid transparent;
+}
+
+.modal-btn-primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.modal-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.modal-btn-danger {
+  color: var(--color-warning);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.modal-btn-danger:hover {
+  background: var(--color-warning-light);
+}
+
+/* ── Divider ──────────────────────────────────── */
+.modal-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 2px 0;
+}

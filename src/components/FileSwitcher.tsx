@@ -11,7 +11,8 @@ import {
   CommandList,
   CommandSeparator,
 } from "./ui/command";
-import { Dialog, DialogContent } from "./ui/dialog";
+import "./Modal.css";
+import "./FileSwitcher.css";
 
 interface FileSwitcherProps {
   tree: FileNode[];
@@ -62,24 +63,18 @@ export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitc
         <span className="text-[13.5px] truncate w-full" style={{ opacity: f.node.draft ? 0.5 : 1 }}>
           {f.displayName}
         </span>
-        <span className="text-[11px] text-muted-foreground truncate w-full">{f.relativePath}</span>
+        <span className="text-[11px] truncate w-full" style={{ color: "var(--color-text-muted)" }}>
+          {f.relativePath}
+        </span>
       </CommandItem>
     ),
     [onSelect]
   );
 
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      <DialogContent
-        className="overflow-hidden p-0 top-[80px] translate-y-0 max-w-[480px] shadow-2xl"
-        aria-label="Quick file switcher"
-        hideCloseButton
-      >
+    <div className="modal-overlay modal-overlay--top" role="presentation">
+      <button type="button" className="modal-backdrop" aria-label="Close" onClick={onClose} />
+      <div role="dialog" aria-modal="true" aria-label="Quick file switcher" className="fs-panel">
         <Command shouldFilter={false}>
           <CommandInput
             placeholder="Search files…"
@@ -105,7 +100,7 @@ export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitc
             )}
           </CommandList>
         </Command>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }

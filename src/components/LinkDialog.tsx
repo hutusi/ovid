@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
-import { Input } from "./ui/input";
+import "./Modal.css";
 
 interface LinkDialogProps {
   initialHref: string;
@@ -19,57 +17,54 @@ export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDia
     inputRef.current?.select();
   }, []);
 
-  return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) onCancel();
-      }}
-    >
-      <DialogContent
-        className="w-[360px] max-w-[calc(100vw-48px)]"
-        onEscapeKeyDown={(e) => e.stopPropagation()}
-      >
-        <DialogHeader>
-          <DialogTitle>Insert link</DialogTitle>
-        </DialogHeader>
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && url.trim()) onApply(url.trim());
+    else if (e.key === "Escape") onCancel();
+  }
 
-        <Input
+  return (
+    <div className="modal-overlay" role="presentation">
+      <button type="button" className="modal-backdrop" aria-label="Close" onClick={onCancel} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Insert link"
+        className="modal-panel"
+        style={{ width: 360, maxWidth: "calc(100vw - 48px)" }}
+      >
+        <p className="modal-title">Insert link</p>
+
+        <input
           ref={inputRef}
+          className="modal-input"
           type="url"
+          aria-label="URL"
           value={url}
           placeholder="https://"
           onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && url.trim()) onApply(url.trim());
-          }}
+          onKeyDown={handleKeyDown}
         />
 
-        <DialogFooter>
+        <div className="modal-actions">
           {initialHref && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onRemove}
-              className="mr-auto text-[var(--color-warning)] hover:bg-[var(--color-warning-light)] hover:text-[var(--color-warning)]"
-            >
+            <button type="button" className="modal-btn modal-btn-danger" onClick={onRemove}>
               Remove
-            </Button>
+            </button>
           )}
-          <Button variant="ghost" size="sm" onClick={onCancel}>
+          <div className="modal-spacer" />
+          <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel}>
             Cancel
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          </button>
+          <button
+            type="button"
+            className="modal-btn modal-btn-primary"
             disabled={!url.trim()}
             onClick={() => url.trim() && onApply(url.trim())}
-            className="border-primary text-primary hover:bg-primary/10"
           >
             Apply
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
