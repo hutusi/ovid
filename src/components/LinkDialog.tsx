@@ -23,7 +23,7 @@ export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDia
     if (e.key === "Escape") {
       e.stopPropagation();
       onCancel();
-    } else if (e.key === "Enter" && url.trim()) {
+    } else if (e.key === "Enter" && e.target === inputRef.current && url.trim()) {
       e.stopPropagation();
       onApply(url.trim());
     }

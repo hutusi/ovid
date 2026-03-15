@@ -122,6 +122,7 @@ export function StatusBar({
           onClick={onToggleTheme}
           title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           aria-label="Toggle theme"
+          aria-pressed={resolvedTheme === "dark"}
         >
           {resolvedTheme === "dark" ? "☀" : "⏾"}
         </button>

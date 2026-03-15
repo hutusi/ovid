@@ -349,7 +349,7 @@ export function PropertiesPanel({
         {date !== undefined && (
           <div className="prop-field">
             <span className="prop-label">Date</span>
-            <DateField value={date} onSave={(v) => onFieldChange?.("date", v ?? "")} />
+            <DateField value={date} onSave={(v) => onFieldChange?.("date", v)} />
           </div>
         )}
 
