@@ -1,0 +1,9 @@
+The sidebar is better now, but there are a few things that need improvement: 1. Is it better to align the file names to the left (currently, they are center-aligned)? 2. The pages (about, links, etc.) don't seem to be grouped together; do you think it would be better to group them? What do you think?
+
+---
+
+go ahead
+
+---
+
+For the Pages, if they are not placed in a 'pages' folder, they get mixed in with 'Posts' and 'Books.' Can we order the sequence as: Flows, Notes, Posts, Series, and Books, followed by separate or grouped Pages? what do you think?
