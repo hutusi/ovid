@@ -2,7 +2,8 @@ use serde::Serialize;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::menu::{MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::{Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 // Holds workspace paths so file commands can validate against them.
@@ -715,6 +716,98 @@ pub fn run() {
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            // ── File ──────────────────────────────────────────────────────────
+            let file_menu = SubmenuBuilder::new(app, "File")
+                .items(&[
+                    &MenuItemBuilder::with_id("new-file", "New File")
+                        .accelerator("CmdOrCtrl+N")
+                        .build(app)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &MenuItemBuilder::with_id("open-workspace", "Open Workspace…")
+                        .accelerator("CmdOrCtrl+O")
+                        .build(app)?,
+                    &MenuItemBuilder::with_id("switch-workspace", "Switch Workspace…")
+                        .accelerator("CmdOrCtrl+Shift+O")
+                        .build(app)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &MenuItemBuilder::with_id("save", "Save")
+                        .accelerator("CmdOrCtrl+S")
+                        .build(app)?,
+                    &MenuItemBuilder::with_id("close-file", "Close File")
+                        .accelerator("CmdOrCtrl+W")
+                        .build(app)?,
+                ])
+                .build()?;
+
+            // ── Edit ──────────────────────────────────────────────────────────
+            let edit_menu = SubmenuBuilder::new(app, "Edit")
+                .items(&[
+                    &PredefinedMenuItem::undo(app, None)?,
+                    &PredefinedMenuItem::redo(app, None)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &PredefinedMenuItem::cut(app, None)?,
+                    &PredefinedMenuItem::copy(app, None)?,
+                    &PredefinedMenuItem::paste(app, None)?,
+                    &PredefinedMenuItem::select_all(app, None)?,
+                ])
+                .build()?;
+
+            // ── View ──────────────────────────────────────────────────────────
+            let view_menu = SubmenuBuilder::new(app, "View")
+                .items(&[
+                    &MenuItemBuilder::with_id("toggle-sidebar", "Toggle Sidebar")
+                        .accelerator("CmdOrCtrl+\\")
+                        .build(app)?,
+                    &MenuItemBuilder::with_id("toggle-properties", "Toggle Properties Panel")
+                        .accelerator("CmdOrCtrl+Shift+P")
+                        .build(app)?,
+                    &MenuItemBuilder::with_id("toggle-search", "Full-Text Search")
+                        .accelerator("CmdOrCtrl+Shift+F")
+                        .build(app)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &MenuItemBuilder::with_id("zen-mode", "Zen Mode")
+                        .accelerator("Ctrl+Cmd+Z")
+                        .build(app)?,
+                    &MenuItemBuilder::with_id("typewriter-mode", "Typewriter Mode")
+                        .build(app)?,
+                ])
+                .build()?;
+
+            // ── Go ────────────────────────────────────────────────────────────
+            let go_menu = SubmenuBuilder::new(app, "Go")
+                .items(&[
+                    &MenuItemBuilder::with_id("file-switcher", "Open Quickly…")
+                        .accelerator("CmdOrCtrl+P")
+                        .build(app)?,
+                    &MenuItemBuilder::with_id("recent-files", "Recent Files")
+                        .build(app)?,
+                ])
+                .build()?;
+
+            // ── Git ───────────────────────────────────────────────────────────
+            let git_menu = SubmenuBuilder::new(app, "Git")
+                .items(&[&MenuItemBuilder::with_id("commit-push", "Commit & Push…")
+                    .accelerator("CmdOrCtrl+Shift+G")
+                    .build(app)?])
+                .build()?;
+
+            let menu = tauri::menu::Menu::with_items(
+                app,
+                &[&file_menu, &edit_menu, &view_menu, &go_menu, &git_menu],
+            )?;
+            app.set_menu(menu)?;
+
+            // Forward menu events to the frontend as "menu-action" events.
+            let handle = app.handle().clone();
+            app.on_menu_event(move |_app, event| {
+                if let Some(window) = handle.get_webview_window("main") {
+                    let _ = window.emit("menu-action", event.id().as_ref());
+                }
+            });
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             open_workspace,
             open_workspace_at_path,

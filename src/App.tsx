@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { CommitDialog } from "./components/CommitDialog";
 import { Editor } from "./components/Editor";
@@ -247,6 +248,79 @@ function App() {
   useEffect(() => {
     if (saveStatus === "saved" && isGitRepo) void refreshGitStatus();
   }, [saveStatus, isGitRepo, refreshGitStatus]);
+
+  // Forward native menu events to the same handlers as keyboard shortcuts
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen<string>("menu-action", (event) => {
+      switch (event.payload) {
+        case "new-file":
+          if (workspaceRoot) setModal({ type: "new-file", dirPath: workspaceRoot });
+          break;
+        case "open-workspace":
+          void handleOpenWorkspace();
+          break;
+        case "switch-workspace":
+          setWorkspaceSwitcherOpen(true);
+          break;
+        case "save":
+          void flushPendingSave();
+          break;
+        case "close-file":
+          void handleCloseFile();
+          break;
+        case "toggle-sidebar":
+          setSidebarVisible((v) => {
+            const next = !v;
+            localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(next));
+            return next;
+          });
+          break;
+        case "toggle-properties":
+          setPropertiesOpen((v) => !v);
+          break;
+        case "toggle-search":
+          if (workspaceRoot) setSearchOpen((v) => !v);
+          break;
+        case "zen-mode":
+          setZenMode((v) => !v);
+          break;
+        case "typewriter-mode":
+          setTypewriterMode((v) => !v);
+          break;
+        case "file-switcher":
+          if (tree.length > 0) setSwitcherOpen(true);
+          break;
+        case "recent-files":
+          if (tree.length > 0) setSwitcherOpen(true);
+          break;
+        case "commit-push":
+          if (isGitRepo) {
+            void getBranch()
+              .then((branch) => {
+                const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
+                setCommitDialog({ message: `Update: ${title}`, branch });
+              })
+              .catch(() => showToast("Failed to get git branch"));
+          }
+          break;
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => unlisten?.();
+  }, [
+    workspaceRoot,
+    tree,
+    isGitRepo,
+    getBranch,
+    parsedFrontmatter,
+    selectedFile,
+    showToast,
+    flushPendingSave,
+    handleCloseFile,
+    handleOpenWorkspace,
+  ]);
 
   const hasFrontmatter = Object.keys(parsedFrontmatter).length > 0;
 
