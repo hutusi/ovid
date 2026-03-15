@@ -1,10 +1,17 @@
 import { Folder, FolderOpen } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { filterTree, needsPageDivider, rollupGitStatus, sortNodes } from "../lib/sidebarUtils";
-import { ContentTypeIcon } from "./ContentTypeIcon";
-import { FileContextMenu } from "./FileContextMenu";
-import "./Sidebar.css";
 import type { FileNode, GitStatus } from "../lib/types";
+import { ContentTypeIcon } from "./ContentTypeIcon";
+import "./Sidebar.css";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuShortcut,
+  ContextMenuTrigger,
+} from "./ui/context-menu";
 
 interface SidebarProps {
   tree: FileNode[];
@@ -36,7 +43,6 @@ interface FileItemProps {
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
   onCancelRename: () => void;
-  onContextMenu: (node: FileNode, x: number, y: number) => void;
 }
 
 function FileItem({
@@ -52,7 +58,6 @@ function FileItem({
   onDelete,
   onStartRename,
   onCancelRename,
-  onContextMenu,
 }: FileItemProps) {
   const [expanded, setExpanded] = useState(true);
   const isExpanded = forceExpand || expanded;
@@ -77,26 +82,35 @@ function FileItem({
     const dirRollup = !isExpanded ? rollupGitStatus(node, gitStatusMap) : undefined;
     return (
       <div>
-        <div
-          role="none"
-          className="sidebar-dir-row"
-          style={{ paddingLeft: indent }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            onContextMenu(node, e.clientX, e.clientY);
-          }}
-        >
-          <button type="button" className="sidebar-dir" onClick={() => setExpanded((v) => !v)}>
-            <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
-            {node.name}
-            {dirRollup && (
-              <span
-                className={`git-dot git-dot-${dirRollup}`}
-                title={`${dirRollup} changes inside`}
-              />
-            )}
-          </button>
-        </div>
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div role="none" className="sidebar-dir-row" style={{ paddingLeft: indent }}>
+              <button type="button" className="sidebar-dir" onClick={() => setExpanded((v) => !v)}>
+                <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
+                {node.name}
+                {dirRollup && (
+                  <span
+                    className={`git-dot git-dot-${dirRollup}`}
+                    title={`${dirRollup} changes inside`}
+                  />
+                )}
+              </button>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onClick={() => onNewFile(node.path)}>New file here</ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onClick={() => onStartRename(node.path)}>
+              Rename <ContextMenuShortcut>F2</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(node)}
+            >
+              Delete
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
         {isExpanded &&
           sortNodes(node.children ?? []).map((child, idx, sorted) => (
             <Fragment key={child.path}>
@@ -114,7 +128,6 @@ function FileItem({
                 onDelete={onDelete}
                 onStartRename={onStartRename}
                 onCancelRename={onCancelRename}
-                onContextMenu={onContextMenu}
               />
             </Fragment>
           ))}
@@ -152,31 +165,39 @@ function FileItem({
   const gitStatus = gitStatusMap.get(node.path);
 
   return (
-    <div
-      role="none"
-      className={`sidebar-file-row ${isSelected ? "selected" : ""}`}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onContextMenu(node, e.clientX, e.clientY);
-      }}
-    >
-      <button
-        type="button"
-        className="sidebar-file"
-        style={{ paddingLeft: indent }}
-        onClick={() => onSelect(node)}
-        onDoubleClick={() => onStartRename(node.path)}
-        onKeyDown={(e) => {
-          if (e.key === "F2") onStartRename(node.path);
-        }}
-      >
-        <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
-        <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
-          {displayName}
-        </span>
-        {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
-      </button>
-    </div>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div role="none" className={`sidebar-file-row ${isSelected ? "selected" : ""}`}>
+          <button
+            type="button"
+            className="sidebar-file"
+            style={{ paddingLeft: indent }}
+            onClick={() => onSelect(node)}
+            onDoubleClick={() => onStartRename(node.path)}
+            onKeyDown={(e) => {
+              if (e.key === "F2") onStartRename(node.path);
+            }}
+          >
+            <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
+            <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
+              {displayName}
+            </span>
+            {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
+          </button>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={() => onStartRename(node.path)}>
+          Rename <ContextMenuShortcut>F2</ContextMenuShortcut>
+        </ContextMenuItem>
+        <ContextMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={() => onDelete(node)}
+        >
+          Delete
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -201,11 +222,6 @@ export function Sidebar({
   onStartRename,
   onCancelRename,
 }: SidebarProps) {
-  const [contextMenu, setContextMenu] = useState<{
-    node: FileNode;
-    x: number;
-    y: number;
-  } | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
@@ -261,14 +277,6 @@ export function Sidebar({
     activeDragListeners.current = { onMouseMove, onMouseUp };
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
-  }
-
-  function handleContextMenu(node: FileNode, x: number, y: number) {
-    setContextMenu({ node, x, y });
-  }
-
-  function handleContextMenuRename(node: FileNode) {
-    onStartRename(node.path);
   }
 
   return (
@@ -347,23 +355,11 @@ export function Sidebar({
                 onDelete={onDelete}
                 onStartRename={onStartRename}
                 onCancelRename={onCancelRename}
-                onContextMenu={handleContextMenu}
               />
             </Fragment>
           ))
         )}
       </div>
-
-      {contextMenu && (
-        <FileContextMenu
-          node={contextMenu.node}
-          position={{ x: contextMenu.x, y: contextMenu.y }}
-          onNewFile={contextMenu.node.isDirectory ? onNewFile : undefined}
-          onRename={handleContextMenuRename}
-          onDelete={onDelete}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
 
       {/* biome-ignore lint/a11y/useSemanticElements: resize splitter widget requires div, not <hr> */}
       <div
