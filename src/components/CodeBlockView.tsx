@@ -1,7 +1,8 @@
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import "./CodeBlockView.css";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 const LANGUAGES = [
   "bash",
@@ -27,40 +28,36 @@ const LANGUAGES = [
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const [open, setOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const language = (node.attrs.language as string | null) ?? "";
 
-  useEffect(() => {
-    if (!open) return;
-    function onClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
-  }, [open]);
+  function selectLang(lang: string | null) {
+    updateAttributes({ language: lang });
+    setOpen(false);
+  }
 
   return (
     <NodeViewWrapper className="code-block-wrapper">
-      <div className="code-block-lang-bar" ref={dropdownRef} contentEditable={false}>
-        <button
-          type="button"
-          className="code-block-lang-btn"
-          onClick={() => setOpen((v) => !v)}
-          title="Change language"
-        >
-          {language || "plain"}
-        </button>
-        {open && (
-          <div className="code-block-lang-dropdown">
+      <div className="code-block-lang-bar" contentEditable={false}>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button type="button" className="code-block-lang-btn" title="Change language">
+              {language || "plain"}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-[200px] p-1.5 grid grid-cols-2 gap-0.5"
+            align="end"
+            side="bottom"
+            sideOffset={4}
+          >
             <button
               type="button"
-              className={`code-block-lang-option${!language ? " active" : ""}`}
-              onClick={() => {
-                updateAttributes({ language: null });
-                setOpen(false);
-              }}
+              className={`px-2 py-[5px] text-[12px] font-mono rounded text-left transition-colors cursor-pointer ${
+                !language
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+              onClick={() => selectLang(null)}
             >
               plain
             </button>
@@ -68,17 +65,18 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
               <button
                 key={lang}
                 type="button"
-                className={`code-block-lang-option${language === lang ? " active" : ""}`}
-                onClick={() => {
-                  updateAttributes({ language: lang });
-                  setOpen(false);
-                }}
+                className={`px-2 py-[5px] text-[12px] font-mono rounded text-left transition-colors cursor-pointer ${
+                  language === lang
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+                onClick={() => selectLang(lang)}
               >
                 {lang}
               </button>
             ))}
-          </div>
-        )}
+          </PopoverContent>
+        </Popover>
       </div>
       <pre>
         <NodeViewContent />
