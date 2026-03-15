@@ -103,29 +103,6 @@
   padding-right: 6px;
 }
 
-.sidebar-dir-action {
-  opacity: 0;
-  font-size: 14px;
-  color: var(--color-text-faint);
-  padding: 1px 4px;
-  border-radius: 3px;
-  margin-left: auto;
-  transition:
-    color 0.15s,
-    opacity 0.15s,
-    background 0.15s;
-}
-
-.sidebar-dir-row:hover .sidebar-dir-action,
-.sidebar-dir-row:focus-within .sidebar-dir-action {
-  opacity: 1;
-}
-
-.sidebar-dir-action:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-light);
-}
-
 .sidebar-dir {
   display: flex;
   align-items: center;
@@ -203,29 +180,6 @@
 
 .sidebar-dir-icon {
   opacity: 0.6;
-}
-
-.sidebar-delete-btn {
-  opacity: 0;
-  font-size: 10px;
-  color: var(--color-text-faint);
-  padding: 2px 4px;
-  border-radius: 3px;
-  flex-shrink: 0;
-  transition:
-    opacity 0.15s,
-    color 0.15s,
-    background 0.15s;
-}
-
-.sidebar-file-row:hover .sidebar-delete-btn,
-.sidebar-file-row:focus-within .sidebar-delete-btn {
-  opacity: 1;
-}
-
-.sidebar-delete-btn:hover {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.1);
 }
 
 /* ── Inline rename ───────────────────────────── */

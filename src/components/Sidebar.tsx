@@ -10,6 +10,7 @@ import {
   StickyNote,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { FileContextMenu } from "./FileContextMenu";
 import "./Sidebar.css";
 import type { FileNode, GitStatus } from "../lib/types";
 
@@ -63,6 +64,7 @@ interface FileItemProps {
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
   onCancelRename: () => void;
+  onContextMenu: (node: FileNode, x: number, y: number) => void;
 }
 
 function FileItem({
@@ -77,6 +79,7 @@ function FileItem({
   onDelete,
   onStartRename,
   onCancelRename,
+  onContextMenu,
 }: FileItemProps) {
   const [expanded, setExpanded] = useState(true);
   const isSelected = node.path === selectedPath;
@@ -99,18 +102,18 @@ function FileItem({
     const DirIcon = expanded ? FolderOpen : Folder;
     return (
       <div>
-        <div className="sidebar-dir-row" style={{ paddingLeft: indent }}>
+        <div
+          role="none"
+          className="sidebar-dir-row"
+          style={{ paddingLeft: indent }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            onContextMenu(node, e.clientX, e.clientY);
+          }}
+        >
           <button type="button" className="sidebar-dir" onClick={() => setExpanded((v) => !v)}>
             <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
             {node.name}
-          </button>
-          <button
-            type="button"
-            className="sidebar-dir-action"
-            title="New file here"
-            onClick={() => onNewFile(node.path)}
-          >
-            +
           </button>
         </div>
         {expanded &&
@@ -128,6 +131,7 @@ function FileItem({
               onDelete={onDelete}
               onStartRename={onStartRename}
               onCancelRename={onCancelRename}
+              onContextMenu={onContextMenu}
             />
           ))}
       </div>
@@ -164,7 +168,14 @@ function FileItem({
   const gitStatus = gitStatusMap.get(node.path);
 
   return (
-    <div className={`sidebar-file-row ${isSelected ? "selected" : ""}`}>
+    <div
+      role="none"
+      className={`sidebar-file-row ${isSelected ? "selected" : ""}`}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onContextMenu(node, e.clientX, e.clientY);
+      }}
+    >
       <button
         type="button"
         className="sidebar-file"
@@ -180,17 +191,6 @@ function FileItem({
           {displayName}
         </span>
         {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
-      </button>
-      <button
-        type="button"
-        className="sidebar-delete-btn"
-        title="Move to Trash"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(node);
-        }}
-      >
-        ✕
       </button>
     </div>
   );
@@ -213,6 +213,20 @@ export function Sidebar({
   onStartRename,
   onCancelRename,
 }: SidebarProps) {
+  const [contextMenu, setContextMenu] = useState<{
+    node: FileNode;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  function handleContextMenu(node: FileNode, x: number, y: number) {
+    setContextMenu({ node, x, y });
+  }
+
+  function handleContextMenuRename(node: FileNode) {
+    onStartRename(node.path);
+  }
+
   return (
     <div className={`sidebar ${visible ? "" : "hidden"}`}>
       <div className="sidebar-header">
@@ -269,10 +283,22 @@ export function Sidebar({
               onDelete={onDelete}
               onStartRename={onStartRename}
               onCancelRename={onCancelRename}
+              onContextMenu={handleContextMenu}
             />
           ))
         )}
       </div>
+
+      {contextMenu && (
+        <FileContextMenu
+          node={contextMenu.node}
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onNewFile={contextMenu.node.isDirectory ? onNewFile : undefined}
+          onRename={handleContextMenuRename}
+          onDelete={onDelete}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }
