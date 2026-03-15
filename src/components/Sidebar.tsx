@@ -12,6 +12,7 @@ import {
   ContextMenuShortcut,
   ContextMenuTrigger,
 } from "./ui/context-menu";
+import { Input } from "./ui/input";
 
 interface SidebarProps {
   tree: FileNode[];
@@ -140,9 +141,9 @@ function FileItem({
   if (isRenaming) {
     return (
       <div className="sidebar-rename-row" style={{ paddingLeft: indent }}>
-        <input
+        <Input
           ref={renameRef}
-          className="sidebar-rename-input"
+          className="h-7 text-[13.5px]"
           value={renameValue}
           onChange={(e) => setRenameValue(e.target.value)}
           onKeyDown={(e) => {
@@ -307,26 +308,28 @@ export function Sidebar({
 
       {tree.length > 0 && (
         <div className="sidebar-filter">
-          <input
-            type="text"
-            className="sidebar-filter-input"
-            placeholder="Filter files…"
-            value={filterQuery}
-            onChange={(e) => setFilterQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setFilterQuery("");
-            }}
-          />
-          {filterQuery && (
-            <button
-              type="button"
-              className="sidebar-filter-clear"
-              aria-label="Clear filter"
-              onClick={() => setFilterQuery("")}
-            >
-              ✕
-            </button>
-          )}
+          <div className="relative flex-1">
+            <Input
+              type="text"
+              className="h-7 text-[12px] pr-6"
+              placeholder="Filter files…"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setFilterQuery("");
+              }}
+            />
+            {filterQuery && (
+              <button
+                type="button"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-[var(--color-text-faint)] p-0.5 rounded leading-none hover:text-[var(--color-text)]"
+                aria-label="Clear filter"
+                onClick={() => setFilterQuery("")}
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       )}
 

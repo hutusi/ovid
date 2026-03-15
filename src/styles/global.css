@@ -74,6 +74,13 @@
   --font-editor-size: 17px;
   --font-mono: "Fira Code", "JetBrains Mono", monospace;
 
+  /* Typography scale */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 13.5px;
+
   --sidebar-width: 240px;
   --statusbar-height: 28px;
 
