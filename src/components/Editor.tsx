@@ -197,8 +197,10 @@ export function Editor({
   }, [editor, spellCheck]);
 
   // Click on the ](url) hint from InlineEditMode → open link dialog
+  // Use scrollRef instead of editor.view.dom to avoid accessing the view before it's mounted
   useEffect(() => {
-    if (!editor) return;
+    const container = scrollRef.current;
+    if (!container || !editor) return;
     function onMouseDown(e: MouseEvent) {
       const target = e.target as HTMLElement;
       if (!target.classList.contains("link-url-hint")) return;
@@ -206,8 +208,8 @@ export function Editor({
       const href = editor.getAttributes("link").href ?? "";
       setLinkDialog({ href });
     }
-    editor.view.dom.addEventListener("mousedown", onMouseDown);
-    return () => editor.view.dom.removeEventListener("mousedown", onMouseDown);
+    container.addEventListener("mousedown", onMouseDown);
+    return () => container.removeEventListener("mousedown", onMouseDown);
   }, [editor]);
 
   // Cmd+K — open link dialog when editor is focused
