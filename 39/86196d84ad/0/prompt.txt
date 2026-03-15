@@ -1,0 +1,169 @@
+do we need to add or update some tests?
+
+---
+
+check about code revies by coderabbit on PR #8
+
+---
+
+do we need to add or update some tests?
+
+---
+
+open a new PR
+
+---
+
+reply the comments
+
+---
+
+reply the comments on PR #8
+
+---
+
+what should we do next? what do you think?
+
+---
+
+let's start phase 5
+
+---
+
+do we need to add or update some tests?
+
+---
+
+check about code revies by coderabbit on PR #9
+
+---
+
+open a new PR
+
+---
+
+reply the comments on PR #9
+
+---
+
+what should we do next? what do you think?
+
+---
+
+let's start phase 6
+
+---
+
+do we need to add or update some tests?
+
+---
+
+/commit
+
+---
+
+check about code revies by coderabbit on PR #10
+
+---
+
+just apply fix in current branch
+
+---
+
+/commit
+
+---
+
+do we need to add or update some tests?
+
+---
+
+open a new PR
+
+---
+
+No, I want open a PR to merge phase 6 into master
+
+---
+
+I have close #11, please open a new PR, merge phase 6 into master
+
+---
+
+check about code reviews by coderabbit on PR #12
+
+---
+
+reply the comments
+
+---
+
+no need to push, I have pushed manually
+
+---
+
+what should we do next? what do you think?
+
+---
+
+check about code reviews by coderabbit on PR #12
+
+---
+
+check about the new code reviews by coderabbit on PR #12
+
+---
+
+push and reply the comments
+
+---
+
+what should we do next? what do you think?
+
+---
+
+OK, start phase 7
+
+---
+
+do we need to add or update some tests?
+
+---
+
+check about the recent new code reviews by coderabbit on PR #12
+
+---
+
+check about the new code reviews by coderabbit on PR #12
+
+---
+
+now the PR #12 contails phase 7, do you think it is better to update the title and description?
+
+---
+
+what should we do next? what do you think?
+
+---
+
+I want to test it first. Do you think we need to add some documentation or testing instructions for the user so I can follow them? What do you think?
+
+---
+
+I don't mean just this PR; I mean all the features from the beginning until now. Are the docs better this way?
+
+---
+
+let;s think and plan first. do I need to merge the PR first? or what is your opinion?
+
+---
+
+But TESTING.md seems like a temporary file. Do you think we need to add a comprehensive guide instead? What do you think?
+
+---
+
+Should I write this in the README.md or generate files in a docs/ folder? Also, should I start a new branch or just use this one? What do you think?
+
+---
+
+good, let's check about the new code reviews by coderabbit on PR #12. then do your suggested flow.
