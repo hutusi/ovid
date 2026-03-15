@@ -23,7 +23,7 @@ import { useWorkspace } from "./lib/useWorkspace";
 import "./styles/global.css";
 import "./App.css";
 
-type ModalState = { type: "new-file"; dirPath: string } | null;
+type ModalState = { type: "new-file"; dirPath: string; contentType?: string } | null;
 type CommitDialogState = { message: string; branch: string } | null;
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
@@ -212,7 +212,8 @@ function App() {
           break;
         case "n":
           e.preventDefault();
-          if (workspaceRoot) setModal({ type: "new-file", dirPath: workspaceRoot });
+          if (workspaceRoot)
+            setModal({ type: "new-file", dirPath: workspaceRoot, contentType: "post" });
           break;
         case "s":
           e.preventDefault();
@@ -257,9 +258,18 @@ function App() {
       const hasBlockingOverlay =
         modal !== null || commitDialog !== null || switcherOpen || workspaceSwitcherOpen;
       switch (event.payload) {
-        case "new-file":
+        case "new-post":
+        case "new-flow":
+        case "new-note":
+        case "new-series":
+        case "new-book":
+        case "new-page":
           if (!hasBlockingOverlay && workspaceRoot)
-            setModal({ type: "new-file", dirPath: workspaceRoot });
+            setModal({
+              type: "new-file",
+              dirPath: workspaceRoot,
+              contentType: event.payload.replace("new-", ""),
+            });
           break;
         case "open-workspace":
           void handleOpenWorkspace();
@@ -381,7 +391,6 @@ function App() {
             renamingPath={renamingPath}
             visible={sidebarVisible}
             workspaceName={workspaceName}
-            workspaceRoot={workspaceRoot}
             gitStatusMap={gitStatusMap}
             onSelect={(node) => {
               void handleSelectFile(node);
@@ -478,6 +487,7 @@ function App() {
       {modal?.type === "new-file" && (
         <NewFileDialog
           contentTypes={contentTypes}
+          preselectedType={modal.contentType}
           onConfirm={(name, contentType) => {
             void handleNewFile(modal.dirPath, name, contentType);
             setModal(null);

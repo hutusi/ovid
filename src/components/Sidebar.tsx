@@ -41,7 +41,6 @@ interface SidebarProps {
   renamingPath: string | null;
   visible: boolean;
   workspaceName: string | null;
-  workspaceRoot: string | null;
   gitStatusMap: Map<string, GitStatus>;
   onSelect: (node: FileNode) => void;
   onOpenWorkspace: () => void;
@@ -221,7 +220,6 @@ export function Sidebar({
   renamingPath,
   visible,
   workspaceName,
-  workspaceRoot,
   gitStatusMap,
   onSelect,
   onOpenWorkspace,
@@ -317,16 +315,6 @@ export function Sidebar({
           {workspaceName ?? "No workspace"}
         </button>
         <div className="sidebar-header-actions">
-          {workspaceRoot && (
-            <button
-              type="button"
-              className="sidebar-action-btn"
-              title="New file (⌘N)"
-              onClick={() => onNewFile(workspaceRoot)}
-            >
-              +
-            </button>
-          )}
           <button
             type="button"
             className="sidebar-open-btn"

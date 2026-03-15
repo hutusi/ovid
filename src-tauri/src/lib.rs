@@ -732,11 +732,22 @@ pub fn run() {
                 .build()?;
 
             // ── File ──────────────────────────────────────────────────────────
-            let file_menu = SubmenuBuilder::new(app, "File")
+            let new_submenu = SubmenuBuilder::new(app, "New")
                 .items(&[
-                    &MenuItemBuilder::with_id("new-file", "New File")
+                    &MenuItemBuilder::with_id("new-post", "New Post")
                         .accelerator("CmdOrCtrl+N")
                         .build(app)?,
+                    &MenuItemBuilder::with_id("new-flow", "New Flow").build(app)?,
+                    &MenuItemBuilder::with_id("new-note", "New Note").build(app)?,
+                    &MenuItemBuilder::with_id("new-series", "New Series").build(app)?,
+                    &MenuItemBuilder::with_id("new-book", "New Book").build(app)?,
+                    &MenuItemBuilder::with_id("new-page", "New Page").build(app)?,
+                ])
+                .build()?;
+
+            let file_menu = SubmenuBuilder::new(app, "File")
+                .items(&[
+                    &new_submenu,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItemBuilder::with_id("open-workspace", "Open Workspace…")
                         .accelerator("CmdOrCtrl+O")
