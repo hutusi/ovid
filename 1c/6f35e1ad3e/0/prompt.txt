@@ -1,0 +1,109 @@
+I have merged the old PR, please open a new PR
+
+---
+
+I have merged the old PR, please open a new PR
+
+---
+
+Let's think more deeply about refactoring the UI. Why don't we use Tailwind CSS? We discussed it at the very beginning, but it doesn't seem to have been included yet. Also, what other UI libraries or components do you recommend? What do you think?
+
+---
+
+Let's think harder about refactoring the UI. Why don't we use Tailwind CSS? We discussed it at the very beginning, but it doesn't seem to have been included yet. Also, what other UI libraries or components do you recommend? What do you think?
+
+---
+
+I think we can use TailwindCSS and Radix UI, what do you think?
+
+---
+
+OK, do we need a new branch?
+
+---
+
+Ok, go ahead. think harder to plan and implement it.
+
+---
+
+first, we need to merge the PR then to start the brach, right?
+
+---
+
+please just new branch from remediation
+
+---
+
+go ahead
+
+---
+
+go ahead
+
+---
+
+what's wrong?
+
+---
+
+sorry, please revert the changes, I think we need think again.
+
+---
+
+I think TailwindCSS + shadcn is more better. what do you think?
+
+---
+
+first, let's check about code reviews by coderabbit on PR#15
+
+---
+
+go ahead fix in the PR branch
+
+---
+
+reply the comments and push
+
+---
+
+I have merge the PR, plase update the ui-refactor branch
+
+---
+
+think harder about the ui refactor
+
+---
+
+go ahead
+
+---
+
+what can be refactor next?
+
+---
+
+open a new PR first.
+
+---
+
+why I found no shadcn in package.json, why there are radix-ui in it?
+
+---
+
+But do we still need Radix and other UI components? Isn't shadcn/ui enough?
+
+---
+
+ok, let's think about next ui refactor things
+
+---
+
+go ahead
+
+---
+
+think harder: what can be refactor next? I want the style code to be maintanable and reduce the duplication. I want build an elagant app.
+
+---
+
+go ahead.
