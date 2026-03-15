@@ -105,7 +105,7 @@ function FileItem({
               Rename <ContextMenuShortcut>F2</ContextMenuShortcut>
             </ContextMenuItem>
             <ContextMenuItem
-              className="text-destructive focus:text-destructive"
+              className="text-destructive focus:bg-destructive/10 focus:text-destructive"
               onClick={() => onDelete(node)}
             >
               Delete
@@ -192,7 +192,7 @@ function FileItem({
           Rename <ContextMenuShortcut>F2</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem
-          className="text-destructive focus:text-destructive"
+          className="text-destructive focus:bg-destructive/10 focus:text-destructive"
           onClick={() => onDelete(node)}
         >
           Delete

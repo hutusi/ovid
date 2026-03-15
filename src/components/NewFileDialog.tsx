@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ContentType } from "../lib/types";
+import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
 interface NewFileDialogProps {
   contentTypes: ContentType[];
@@ -60,51 +59,63 @@ export function NewFileDialog({
         if (!open) onCancel();
       }}
     >
-      <DialogContent className="w-[320px] max-w-[calc(100vw-48px)]">
+      <DialogContent className="w-[300px] max-w-[calc(100vw-48px)] p-5 gap-4">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className="text-[15px]">{title}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          <Input
-            ref={inputRef}
-            value={filename}
-            placeholder="filename"
-            onChange={(e) => setFilename(e.target.value)}
-            onKeyDown={handleKeyDown}
-          />
+          {/* Filename with .md suffix */}
+          <div className="flex items-center">
+            <Input
+              ref={inputRef}
+              value={filename}
+              placeholder="filename"
+              onChange={(e) => setFilename(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="flex-1 rounded-r-none border-r-0 h-8 text-[13px] focus-visible:z-10"
+            />
+            <span className="flex items-center h-8 px-2 rounded-r-md border border-input bg-muted text-[11.5px] text-muted-foreground font-mono shrink-0">
+              .md
+            </span>
+          </div>
 
+          {/* Content type chips */}
           {!preselectedType && contentTypes.length > 0 && (
-            <div className="flex items-center gap-2.5">
-              <Label htmlFor="new-file-type" className="text-xs text-muted-foreground shrink-0">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground px-0.5">
                 Type
-              </Label>
-              <Select value={selectedType} onValueChange={setSelectedType}>
-                <SelectTrigger id="new-file-type" className="flex-1 h-8 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {contentTypes.map((ct) => (
-                    <SelectItem key={ct.name} value={ct.name}>
-                      {ct.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              </span>
+              <div className="flex flex-wrap gap-1">
+                {contentTypes.map((ct) => (
+                  <button
+                    key={ct.name}
+                    type="button"
+                    onClick={() => setSelectedType(ct.name)}
+                    className={cn(
+                      "px-2.5 py-[3px] rounded text-[11.5px] capitalize transition-colors",
+                      selectedType === ct.name
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground bg-muted hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    {ct.name}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-row justify-end gap-1.5 pt-0">
           <Button variant="ghost" size="sm" onClick={onCancel}>
             Cancel
           </Button>
           <Button
-            variant="outline"
             size="sm"
             disabled={!filename.trim()}
             onClick={handleConfirm}
-            className="border-primary text-primary hover:bg-primary/10"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             Create
           </Button>
