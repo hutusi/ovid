@@ -196,6 +196,11 @@ function FileItem({
   );
 }
 
+const SIDEBAR_WIDTH_KEY = "ovid:sidebarWidth";
+const SIDEBAR_MIN = 180;
+const SIDEBAR_MAX = 480;
+const SIDEBAR_DEFAULT = 240;
+
 export function Sidebar({
   tree,
   selectedPath,
@@ -218,6 +223,38 @@ export function Sidebar({
     x: number;
     y: number;
   } | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
+    return stored ? Number(stored) : SIDEBAR_DEFAULT;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const dragStartX = useRef(0);
+  const dragStartWidth = useRef(0);
+
+  function handleResizeMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    setIsResizing(true);
+    dragStartX.current = e.clientX;
+    dragStartWidth.current = sidebarWidth;
+
+    function onMouseMove(ev: MouseEvent) {
+      const delta = ev.clientX - dragStartX.current;
+      const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartWidth.current + delta));
+      setSidebarWidth(next);
+    }
+
+    function onMouseUp(ev: MouseEvent) {
+      const delta = ev.clientX - dragStartX.current;
+      const final = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartWidth.current + delta));
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(final));
+      setIsResizing(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
 
   function handleContextMenu(node: FileNode, x: number, y: number) {
     setContextMenu({ node, x, y });
@@ -228,7 +265,10 @@ export function Sidebar({
   }
 
   return (
-    <div className={`sidebar ${visible ? "" : "hidden"}`}>
+    <div
+      className={`sidebar ${visible ? "" : "hidden"}${isResizing ? " resizing" : ""}`}
+      style={visible ? { width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` } : undefined}
+    >
       <div className="sidebar-header">
         <button
           type="button"
@@ -299,6 +339,18 @@ export function Sidebar({
           onClose={() => setContextMenu(null)}
         />
       )}
+
+      {/* biome-ignore lint/a11y/useSemanticElements: resize splitter widget requires div, not <hr> */}
+      <div
+        role="separator"
+        aria-label="Resize sidebar"
+        aria-valuenow={sidebarWidth}
+        aria-valuemin={SIDEBAR_MIN}
+        aria-valuemax={SIDEBAR_MAX}
+        tabIndex={0}
+        className="sidebar-resize-handle"
+        onMouseDown={handleResizeMouseDown}
+      />
     </div>
   );
 }

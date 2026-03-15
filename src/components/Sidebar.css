@@ -1,4 +1,5 @@
 .sidebar {
+  position: relative;
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   background: var(--color-bg-sidebar);
@@ -11,6 +12,36 @@
     width 0.2s ease,
     min-width 0.2s ease,
     border-right-color 0.2s ease;
+}
+
+.sidebar.resizing {
+  transition: none;
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+}
+
+.sidebar-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 2px;
+  width: 2px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.sidebar-resize-handle:hover::after {
+  background: var(--color-accent);
+  opacity: 0.5;
 }
 
 .sidebar.hidden {
