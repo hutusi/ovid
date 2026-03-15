@@ -245,34 +245,6 @@
   letter-spacing: 0;
 }
 
-.inline-syntax-bold {
-  font-weight: 700;
-  color: var(--color-fg-muted);
-  pointer-events: auto;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: opacity 0.12s;
-}
-
-.inline-syntax-bold:hover {
-  opacity: 1;
-  background: var(--color-surface-hover);
-}
-
-.inline-syntax-italic {
-  font-style: italic;
-  color: var(--color-fg-muted);
-  pointer-events: auto;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: opacity 0.12s;
-}
-
-.inline-syntax-italic:hover {
-  opacity: 1;
-  background: var(--color-surface-hover);
-}
-
 .inline-syntax-link {
   color: var(--color-accent);
   opacity: 0.75;

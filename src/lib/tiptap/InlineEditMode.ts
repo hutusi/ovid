@@ -60,15 +60,6 @@ function getMarkRange(state: EditorState, markType: MarkType): MarkRange | null 
   return from < to ? { from, to, mark: activeMark } : null;
 }
 
-function widgetAt(pos: number, text: string, cls: string, side: number, key: string): Decoration {
-  const span = document.createElement("span");
-  span.className = `inline-syntax ${cls}`;
-  span.textContent = text;
-  span.setAttribute("contenteditable", "false");
-  span.setAttribute("aria-hidden", "true");
-  return Decoration.widget(pos, () => span, { side, key });
-}
-
 function buildDecorations(state: EditorState): DecorationSet {
   const { selection } = state;
   if (!selection.empty) return DecorationSet.empty;
@@ -76,30 +67,17 @@ function buildDecorations(state: EditorState): DecorationSet {
   const { schema } = state;
   const decorations: Decoration[] = [];
 
-  // Bold: **…**
-  if (schema.marks.bold) {
-    const r = getMarkRange(state, schema.marks.bold);
-    if (r) {
-      decorations.push(widgetAt(r.from, "**", "inline-syntax-bold", -1, "bold-open"));
-      decorations.push(widgetAt(r.to, "**", "inline-syntax-bold", 1, "bold-close"));
-    }
-  }
-
-  // Italic: _…_
-  if (schema.marks.italic) {
-    const r = getMarkRange(state, schema.marks.italic);
-    if (r) {
-      decorations.push(widgetAt(r.from, "_", "inline-syntax-italic", -1, "italic-open"));
-      decorations.push(widgetAt(r.to, "_", "inline-syntax-italic", 1, "italic-close"));
-    }
-  }
-
   // Link: […](url) — the URL hint is clickable to trigger Cmd+K
   if (schema.marks.link) {
     const r = getMarkRange(state, schema.marks.link);
     if (r) {
       const href = (r.mark.attrs.href as string) || "";
-      decorations.push(widgetAt(r.from, "[", "inline-syntax-link", -1, "link-open"));
+      const openSpan = document.createElement("span");
+      openSpan.className = "inline-syntax inline-syntax-link";
+      openSpan.textContent = "[";
+      openSpan.setAttribute("contenteditable", "false");
+      openSpan.setAttribute("aria-hidden", "true");
+      decorations.push(Decoration.widget(r.from, () => openSpan, { side: -1, key: "link-open" }));
 
       const urlSpan = document.createElement("span");
       urlSpan.className = "inline-syntax inline-syntax-link link-url-hint";
