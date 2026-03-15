@@ -94,13 +94,20 @@ function buildDecorations(state: EditorState): DecorationSet {
     }
   }
 
-  // Link: […](url)
+  // Link: […](url) — the URL hint is clickable to trigger Cmd+K
   if (schema.marks.link) {
     const r = getMarkRange(state, schema.marks.link);
     if (r) {
       const href = (r.mark.attrs.href as string) || "";
       decorations.push(widgetAt(r.from, "[", "inline-syntax-link", -1, "link-open"));
-      decorations.push(widgetAt(r.to, `](${href})`, "inline-syntax-link", 1, "link-close"));
+
+      const urlSpan = document.createElement("span");
+      urlSpan.className = "inline-syntax inline-syntax-link link-url-hint";
+      urlSpan.textContent = `](${href})`;
+      urlSpan.setAttribute("contenteditable", "false");
+      urlSpan.setAttribute("aria-label", "Edit link URL — click or Cmd+K");
+      urlSpan.title = "Click to edit URL";
+      decorations.push(Decoration.widget(r.to, () => urlSpan, { side: 1, key: "link-close" }));
     }
   }
 
@@ -127,6 +134,18 @@ export const InlineEditMode = Extension.create({
         props: {
           decorations(state) {
             return INLINE_EDIT_KEY.getState(state) ?? DecorationSet.empty;
+          },
+          handleDOMEvents: {
+            mousedown(_view, event) {
+              const target = event.target as HTMLElement;
+              if (!target.classList.contains("link-url-hint")) return false;
+              // Prevent blur so the editor stays focused, then open the link dialog
+              event.preventDefault();
+              window.dispatchEvent(
+                new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true })
+              );
+              return true;
+            },
           },
         },
       }),

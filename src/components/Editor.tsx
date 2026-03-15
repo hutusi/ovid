@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { InputRule } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
@@ -73,7 +74,27 @@ export function Editor({
         placeholder: "Start writing…",
       }),
       Typography,
-      Link.configure({
+      Link.extend({
+        addInputRules() {
+          return [
+            new InputRule({
+              // Match completed [text](url) at the cursor
+              find: /\[([^[\]]+)\]\(([^()]+)\)$/,
+              handler: ({ range, match, chain }) => {
+                const [, text, href] = match;
+                chain()
+                  .deleteRange(range)
+                  .insertContentAt(range.from, {
+                    type: "text",
+                    text,
+                    marks: [{ type: "link", attrs: { href, rel: "noopener noreferrer" } }],
+                  })
+                  .run();
+              },
+            }),
+          ];
+        },
+      }).configure({
         openOnClick: false,
         HTMLAttributes: { rel: "noopener noreferrer" },
       }),
