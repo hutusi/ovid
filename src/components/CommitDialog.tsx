@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 
 interface CommitDialogProps {
@@ -12,6 +13,7 @@ export function CommitDialog({ defaultMessage, branch, onCommit, onCancel }: Com
   const [message, setMessage] = useState(defaultMessage);
   const [push, setPush] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const dialogRef = useFocusTrap<HTMLDivElement>();
 
   useEffect(() => {
     textareaRef.current?.focus();
@@ -29,30 +31,19 @@ export function CommitDialog({ defaultMessage, branch, onCommit, onCancel }: Com
     <div className="modal-overlay" role="presentation">
       <button type="button" className="modal-backdrop" aria-label="Close" onClick={onCancel} />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Commit changes"
         className="modal-panel"
         style={{ width: 400, maxWidth: "calc(100vw - 48px)" }}
+        onKeyDown={handleKeyDown}
       >
         <p className="modal-title">Commit changes</p>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 11.5, color: "var(--color-fg-muted)", flexShrink: 0 }}>
-            Branch
-          </span>
-          <code
-            style={{
-              fontSize: 11.5,
-              color: "var(--color-fg-muted)",
-              background: "var(--color-surface-subtle)",
-              border: "1px solid var(--color-border)",
-              borderRadius: 4,
-              padding: "1px 6px",
-            }}
-          >
-            {branch}
-          </code>
+        <div className="modal-branch-row">
+          <span className="modal-branch-label">Branch</span>
+          <code className="modal-badge">{branch}</code>
         </div>
 
         <textarea
@@ -65,16 +56,7 @@ export function CommitDialog({ defaultMessage, branch, onCommit, onCancel }: Com
           onKeyDown={handleKeyDown}
         />
 
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 13,
-            color: "var(--color-fg-muted)",
-            cursor: "pointer",
-          }}
-        >
+        <label className="modal-checkbox-label">
           <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} />
           Push after commit
         </label>

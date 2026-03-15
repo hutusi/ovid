@@ -73,6 +73,7 @@ function DateField({ value, onSave }: { value: string; onSave: (v: string | null
       <input
         ref={inputRef}
         type="date"
+        aria-label="Date"
         className="prop-input prop-input--date"
         value={value}
         onChange={(e) => {
@@ -161,9 +162,11 @@ function TagInput({ tags, onSave }: { tags: string[]; onSave: (tags: string[]) =
 
 function EditableValue({
   value,
+  label,
   onSave,
 }: {
   value: FrontmatterValue;
+  label?: string;
   onSave: (v: FrontmatterValue) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -190,6 +193,7 @@ function EditableValue({
     return (
       <input
         ref={inputRef}
+        aria-label={label}
         className="prop-input"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
@@ -263,6 +267,7 @@ function AddFieldRow({ onAdd }: { onAdd: (key: string, value: string) => void })
     <div className="prop-add-row">
       <input
         ref={keyRef}
+        aria-label="Field name"
         className="prop-input prop-input--sm"
         placeholder="field name"
         value={key}
@@ -273,6 +278,7 @@ function AddFieldRow({ onAdd }: { onAdd: (key: string, value: string) => void })
         }}
       />
       <input
+        aria-label="Field value"
         className="prop-input prop-input--sm"
         placeholder="value"
         value={val}
@@ -325,7 +331,11 @@ export function PropertiesPanel({
         {title !== undefined && (
           <div className="prop-field">
             <span className="prop-label">Title</span>
-            <EditableValue value={title} onSave={(v) => onFieldChange?.("title", v)} />
+            <EditableValue
+              label="Title"
+              value={title}
+              onSave={(v) => onFieldChange?.("title", v)}
+            />
           </div>
         )}
 
@@ -357,7 +367,11 @@ export function PropertiesPanel({
             {customKeys.map((key) => (
               <div key={key} className="prop-field">
                 <span className="prop-label">{key}</span>
-                <EditableValue value={frontmatter[key]} onSave={(v) => onFieldChange?.(key, v)} />
+                <EditableValue
+                  label={key}
+                  value={frontmatter[key]}
+                  onSave={(v) => onFieldChange?.(key, v)}
+                />
               </div>
             ))}
           </>

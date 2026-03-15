@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 
 interface LinkDialogProps {
@@ -11,26 +12,34 @@ interface LinkDialogProps {
 export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDialogProps) {
   const [url, setUrl] = useState(initialHref);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useFocusTrap<HTMLDivElement>();
 
+  // useFocusTrap focuses the first focusable element; also select the text.
   useEffect(() => {
-    inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && url.trim()) onApply(url.trim());
-    else if (e.key === "Escape") onCancel();
+  function handleDialogKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      onCancel();
+    } else if (e.key === "Enter" && url.trim()) {
+      e.stopPropagation();
+      onApply(url.trim());
+    }
   }
 
   return (
     <div className="modal-overlay" role="presentation">
       <button type="button" className="modal-backdrop" aria-label="Close" onClick={onCancel} />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Insert link"
         className="modal-panel"
         style={{ width: 360, maxWidth: "calc(100vw - 48px)" }}
+        onKeyDown={handleDialogKeyDown}
       >
         <p className="modal-title">Insert link</p>
 
@@ -42,7 +51,6 @@ export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDia
           value={url}
           placeholder="https://"
           onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={handleKeyDown}
         />
 
         <div className="modal-actions">

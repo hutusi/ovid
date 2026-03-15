@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FlatFile } from "../lib/fileSearch";
 import { flattenTree, score } from "../lib/fileSearch";
 import type { FileNode, RecentFile } from "../lib/types";
@@ -23,6 +23,14 @@ interface FileSwitcherProps {
 
 export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitcherProps) {
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const allFiles = useMemo(() => flattenTree(tree), [tree]);
 

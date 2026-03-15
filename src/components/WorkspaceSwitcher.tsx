@@ -1,4 +1,5 @@
 import type { RecentWorkspace } from "../lib/types";
+import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 import "./WorkspaceSwitcher.css";
 
@@ -17,14 +18,20 @@ export function WorkspaceSwitcher({
   onOpenOther,
   onClose,
 }: WorkspaceSwitcherProps) {
+  const dialogRef = useFocusTrap<HTMLDivElement>();
+
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      onClose();
+    }
   }
 
   return (
     <div className="modal-overlay" role="presentation">
       <button type="button" className="modal-backdrop" aria-label="Close" onClick={onClose} />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Workspaces"
