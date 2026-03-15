@@ -37,6 +37,7 @@ function App() {
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [sessionBaseline, setSessionBaseline] = useState<number | null>(null);
+  const [baselineCaptured, setBaselineCaptured] = useState(false);
   const [modal, setModal] = useState<ModalState>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [workspaceSwitcherOpen, setWorkspaceSwitcherOpen] = useState(false);
@@ -124,12 +125,16 @@ function App() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedFile is the intended trigger
   useEffect(() => {
     setSessionBaseline(null);
+    setBaselineCaptured(false);
   }, [selectedFile]);
 
-  // Capture baseline on first real word-count event for the new file (skip zero)
+  // Capture baseline on first word-count event for the new file (including empty files)
   useEffect(() => {
-    if (sessionBaseline === null && wordCount !== 0) setSessionBaseline(wordCount);
-  }, [wordCount, sessionBaseline]);
+    if (!baselineCaptured) {
+      setSessionBaseline(wordCount);
+      setBaselineCaptured(true);
+    }
+  }, [wordCount, baselineCaptured]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -140,6 +145,17 @@ function App() {
         return;
       }
       if (!e.metaKey && !e.ctrlKey) return;
+      // Mode toggles work even when editor has focus
+      if (e.shiftKey && e.key === "Z") {
+        e.preventDefault();
+        setZenMode((v) => !v);
+        return;
+      }
+      if (e.shiftKey && e.key === "P") {
+        e.preventDefault();
+        setPropertiesOpen((v) => !v);
+        return;
+      }
       const target = e.target as HTMLElement;
       if (
         target instanceof HTMLInputElement ||
@@ -179,18 +195,6 @@ function App() {
                 setCommitDialog({ message: `Update: ${title}`, branch });
               })
               .catch(() => showToast("Failed to get git branch"));
-          }
-          break;
-        case "Z":
-          if (e.shiftKey) {
-            e.preventDefault();
-            setZenMode((v) => !v);
-          }
-          break;
-        case "P":
-          if (e.shiftKey) {
-            e.preventDefault();
-            setPropertiesOpen((v) => !v);
           }
           break;
         case "p":
