@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ContentType } from "../lib/types";
 import { cn } from "../lib/utils";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input } from "./ui/input";
 
 interface NewFileDialogProps {
@@ -59,31 +59,24 @@ export function NewFileDialog({
         if (!open) onCancel();
       }}
     >
-      <DialogContent className="w-[300px] max-w-[calc(100vw-48px)] p-5 gap-4">
+      <DialogContent className="w-[320px] max-w-[calc(100vw-48px)] p-5 gap-4" hideCloseButton>
         <DialogHeader>
-          <DialogTitle className="text-[15px]">{title}</DialogTitle>
+          <DialogTitle className="text-[15px] font-semibold">{title}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          {/* Filename with .md suffix */}
-          <div className="flex items-center">
-            <Input
-              ref={inputRef}
-              value={filename}
-              placeholder="filename"
-              onChange={(e) => setFilename(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="flex-1 rounded-r-none border-r-0 h-8 text-[13px] focus-visible:z-10"
-            />
-            <span className="flex items-center h-8 px-2 rounded-r-md border border-input bg-muted text-[11.5px] text-muted-foreground font-mono shrink-0">
-              .md
-            </span>
-          </div>
+          <Input
+            ref={inputRef}
+            value={filename}
+            placeholder="filename"
+            onChange={(e) => setFilename(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="h-8 text-[13px]"
+          />
 
-          {/* Content type chips */}
           {!preselectedType && contentTypes.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground px-0.5">
+              <span className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
                 Type
               </span>
               <div className="flex flex-wrap gap-1">
@@ -107,8 +100,8 @@ export function NewFileDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-row justify-end gap-1.5 pt-0">
-          <Button variant="ghost" size="sm" onClick={onCancel}>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onCancel}>
             Cancel
           </Button>
           <Button
@@ -119,7 +112,7 @@ export function NewFileDialog({
           >
             Create
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
