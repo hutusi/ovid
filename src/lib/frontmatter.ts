@@ -36,6 +36,12 @@ export function createAmytisFrontmatter(slug: string): string {
   return `---\ntitle: "${title}"\ndate: ${today}\ndraft: true\n---\n`;
 }
 
+export function createTypedFrontmatter(slug: string, type: string): string {
+  const today = new Date().toISOString().slice(0, 10);
+  const title = slug.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return `---\ntitle: "${title}"\ndate: ${today}\ntype: ${type}\ndraft: true\n---\n`;
+}
+
 export function parseYamlFrontmatter(raw: string): ParsedFrontmatter {
   const match = YAML_INNER_RE.exec(raw);
   if (!match) return {};

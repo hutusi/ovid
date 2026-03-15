@@ -21,6 +21,13 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
     inputRef.current?.focus();
   }, []);
 
+  // Clear pending debounce timer on unmount to prevent state updates after unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
   const runSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
       setResults([]);
@@ -127,15 +134,21 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
 
 function HighlightedLine({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>;
-  const q = query.trim().toLowerCase();
-  const lower = text.toLowerCase();
-  const idx = lower.indexOf(q);
-  if (idx === -1) return <>{text}</>;
+  const escaped = query.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const regex = new RegExp(`(${escaped})`, "gi");
+  const parts = text.split(regex);
   return (
     <>
-      {text.slice(0, idx)}
-      <mark className="search-highlight">{text.slice(idx, idx + q.length)}</mark>
-      {text.slice(idx + q.length)}
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: split parts have no stable key
+          <mark key={i} className="search-highlight">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
     </>
   );
 }

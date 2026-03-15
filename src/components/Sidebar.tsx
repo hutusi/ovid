@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./Sidebar.css";
-import type { FileNode } from "../lib/types";
+import type { FileNode, GitStatus } from "../lib/types";
 
 interface SidebarProps {
   tree: FileNode[];
@@ -9,6 +9,7 @@ interface SidebarProps {
   visible: boolean;
   workspaceName: string | null;
   workspaceRoot: string | null;
+  gitStatusMap: Map<string, GitStatus>;
   onSelect: (node: FileNode) => void;
   onOpenWorkspace: () => void;
   onNewFile: (dirPath: string) => void;
@@ -23,6 +24,7 @@ interface FileItemProps {
   depth: number;
   selectedPath: string | null;
   renamingPath: string | null;
+  gitStatusMap: Map<string, GitStatus>;
   onSelect: (node: FileNode) => void;
   onNewFile: (dirPath: string) => void;
   onRename: (node: FileNode, newName: string) => void;
@@ -36,6 +38,7 @@ function FileItem({
   depth,
   selectedPath,
   renamingPath,
+  gitStatusMap,
   onSelect,
   onNewFile,
   onRename,
@@ -85,6 +88,7 @@ function FileItem({
               depth={depth + 1}
               selectedPath={selectedPath}
               renamingPath={renamingPath}
+              gitStatusMap={gitStatusMap}
               onSelect={onSelect}
               onNewFile={onNewFile}
               onRename={onRename}
@@ -124,6 +128,7 @@ function FileItem({
   }
 
   const displayName = node.title || baseName;
+  const gitStatus = gitStatusMap.get(node.path);
 
   return (
     <div className={`sidebar-file-row ${isSelected ? "selected" : ""}`}>
@@ -141,6 +146,7 @@ function FileItem({
         <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
           {displayName}
         </span>
+        {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
       </button>
       <button
         type="button"
@@ -164,6 +170,7 @@ export function Sidebar({
   visible,
   workspaceName,
   workspaceRoot,
+  gitStatusMap,
   onSelect,
   onOpenWorkspace,
   onNewFile,
@@ -214,6 +221,7 @@ export function Sidebar({
               depth={0}
               selectedPath={selectedPath}
               renamingPath={renamingPath}
+              gitStatusMap={gitStatusMap}
               onSelect={onSelect}
               onNewFile={onNewFile}
               onRename={onRename}

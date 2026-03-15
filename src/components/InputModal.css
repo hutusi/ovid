@@ -55,6 +55,35 @@
   border-color: var(--color-accent);
 }
 
+.modal-type-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-type-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.modal-type-select {
+  flex: 1;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--color-text);
+  background: var(--color-bg-sidebar);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  padding: 5px 8px;
+  outline: none;
+  cursor: pointer;
+}
+
+.modal-type-select:focus {
+  border-color: var(--color-accent);
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;

@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { MutableRefObject } from "react";
 import { useCallback, useState } from "react";
-import { createAmytisFrontmatter } from "./frontmatter";
+import { createAmytisFrontmatter, createTypedFrontmatter } from "./frontmatter";
 import type { FileNode } from "./types";
 
 export interface WorkspaceResult {
@@ -9,6 +9,7 @@ export interface WorkspaceResult {
   rootPath: string;
   treeRoot: string;
   tree: FileNode[];
+  isAmytisWorkspace: boolean;
 }
 
 interface UseWorkspaceOptions {
@@ -45,6 +46,7 @@ export function useWorkspace({
   const [tree, setTree] = useState<FileNode[]>([]);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
+  const [isAmytisWorkspace, setIsAmytisWorkspace] = useState(false);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
 
   const refreshTree = useCallback(async (): Promise<FileNode[]> => {
@@ -66,7 +68,11 @@ export function useWorkspace({
         setTree(result.tree);
         setWorkspaceName(result.name);
         setWorkspaceRoot(result.treeRoot);
+        setIsAmytisWorkspace(result.isAmytisWorkspace);
         resetFileState();
+        if (!result.isAmytisWorkspace) {
+          showToast("This folder doesn't look like an Amytis workspace.");
+        }
       }
     } catch (err) {
       console.error("Failed to open workspace:", err);
@@ -74,10 +80,12 @@ export function useWorkspace({
     }
   }, [flushPendingSave, resetFileState, showToast]);
 
-  async function handleNewFile(dirPath: string, filename: string) {
+  async function handleNewFile(dirPath: string, filename: string, contentType?: string) {
     const slug = filename.replace(/\.md$/, "");
     const filePath = `${dirPath}/${slug}.md`;
-    const content = createAmytisFrontmatter(slug);
+    const content = contentType
+      ? createTypedFrontmatter(slug, contentType)
+      : createAmytisFrontmatter(slug);
     try {
       await invoke("create_file", { path: filePath, content });
       const updated = await refreshTree();
@@ -131,6 +139,7 @@ export function useWorkspace({
     tree,
     workspaceName,
     workspaceRoot,
+    isAmytisWorkspace,
     renamingPath,
     setRenamingPath,
     handleOpenWorkspace,

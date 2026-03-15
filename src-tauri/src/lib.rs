@@ -5,9 +5,10 @@ use std::sync::Mutex;
 use tauri::State;
 use tauri_plugin_dialog::DialogExt;
 
-// Holds the workspace tree root so file commands can validate paths against it.
+// Holds workspace paths so file commands can validate against them.
 struct WorkspaceState {
     tree_root: Mutex<Option<PathBuf>>,
+    workspace_root: Mutex<Option<PathBuf>>,
 }
 
 #[derive(Serialize)]
@@ -80,6 +81,7 @@ struct WorkspaceResult {
     root_path: String,
     tree_root: String,
     tree: Vec<FileNode>,
+    is_amytis_workspace: bool,
 }
 
 fn walk_dir(path: &Path) -> Vec<FileNode> {
@@ -218,9 +220,11 @@ async fn open_workspace(
         root.clone()
     };
 
-    // Store tree root for path validation in read/write commands
+    // Store roots for path validation and git/config commands
     *state.tree_root.lock().map_err(|e| e.to_string())? = Some(tree_root.clone());
+    *state.workspace_root.lock().map_err(|e| e.to_string())? = Some(root.clone());
 
+    let is_amytis_workspace = root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = walk_dir(&tree_root);
 
     Ok(Some(WorkspaceResult {
@@ -228,6 +232,7 @@ async fn open_workspace(
         root_path: root.to_string_lossy().to_string(),
         tree_root: tree_root.to_string_lossy().to_string(),
         tree,
+        is_amytis_workspace,
     }))
 }
 
@@ -300,6 +305,10 @@ fn search_dir(path: &Path, query: &str) -> Vec<SearchResult> {
         if name.starts_with('.') {
             continue;
         }
+        // Skip symlinks to prevent traversal outside the workspace
+        if entry.file_type().map(|ft| ft.is_symlink()).unwrap_or(false) {
+            continue;
+        }
         if entry_path.is_dir() {
             results.extend(search_dir(&entry_path, query));
         } else {
@@ -343,9 +352,12 @@ fn search_workspace(query: String, state: State<'_, WorkspaceState>) -> Result<V
     if query.trim().is_empty() {
         return Ok(Vec::new());
     }
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    Ok(search_dir(root, query.trim()))
+    // Clone root before releasing the lock so the mutex is not held during search
+    let root = {
+        let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+        root_guard.as_ref().ok_or("no workspace open")?.clone()
+    };
+    Ok(search_dir(&root, query.trim()))
 }
 
 #[tauri::command]
@@ -359,11 +371,211 @@ fn create_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), Stri
     std::fs::create_dir_all(&new_path).map_err(|e| e.to_string())
 }
 
+// ── Content types ──────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ContentType {
+    name: String,
+}
+
+/// Best-effort scanner: find `contentTypes` in `site.config.ts` and extract
+/// the top-level key names (post, page, note, …). Returns empty vec on any
+/// parse failure so callers gracefully degrade to the default frontmatter.
+fn parse_content_types(config_path: &Path) -> Vec<ContentType> {
+    use std::io::{BufRead, BufReader};
+    let Ok(file) = std::fs::File::open(config_path) else {
+        return Vec::new();
+    };
+    let mut reader = BufReader::new(file);
+    let mut type_names: Vec<ContentType> = Vec::new();
+    let mut depth: i32 = 0;
+    let mut found_content_types = false;
+    let mut content_types_depth: Option<i32> = None;
+    let mut line = String::new();
+
+    loop {
+        line.clear();
+        if reader.read_line(&mut line).unwrap_or(0) == 0 {
+            break;
+        }
+        let trimmed = line.trim();
+        let open_count = line.chars().filter(|&c| c == '{').count() as i32;
+        let close_count = line.chars().filter(|&c| c == '}').count() as i32;
+
+        match content_types_depth {
+            None if !found_content_types => {
+                if trimmed.contains("contentTypes") {
+                    found_content_types = true;
+                    depth += open_count - close_count;
+                    if open_count > 0 {
+                        content_types_depth = Some(depth);
+                    }
+                } else {
+                    depth += open_count - close_count;
+                }
+            }
+            None => {
+                // found keyword, waiting for opening brace
+                depth += open_count - close_count;
+                if open_count > 0 {
+                    content_types_depth = Some(depth);
+                }
+            }
+            Some(ct_depth) => {
+                let prev_depth = depth;
+                depth += open_count - close_count;
+                if depth < ct_depth {
+                    break;
+                }
+                if prev_depth == ct_depth {
+                    if let Some(name) = extract_ts_key(trimmed) {
+                        type_names.push(ContentType { name });
+                    }
+                }
+            }
+        }
+    }
+    type_names
+}
+
+fn extract_ts_key(line: &str) -> Option<String> {
+    let line = line.trim();
+    if line.starts_with("//") || line.starts_with('*') || line.starts_with("/*") {
+        return None;
+    }
+    let end = line.find(':')?;
+    let key = line[..end].trim().trim_matches('"').trim_matches('\'');
+    if !key.is_empty() && key.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        Some(key.to_string())
+    } else {
+        None
+    }
+}
+
+#[tauri::command]
+fn get_content_types(state: State<'_, WorkspaceState>) -> Result<Vec<ContentType>, String> {
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
+    let root = match root_guard.as_ref() {
+        Some(r) => r.clone(),
+        None => return Ok(Vec::new()),
+    };
+    drop(root_guard);
+    let config = root.join("site.config.ts");
+    if !config.is_file() {
+        return Ok(Vec::new());
+    }
+    Ok(parse_content_types(&config))
+}
+
+// ── Git integration ────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitFileStatus {
+    path: String,
+    status: String,
+}
+
+/// Run a git subcommand rooted at `root`. Returns stdout on success or an
+/// error string (stderr) on failure. Returns an empty string if git is not
+/// found, so callers can treat a missing git as a graceful no-op.
+fn run_git(root: &str, args: &[&str]) -> Result<String, String> {
+    let mut cmd_args = vec!["-C", root];
+    cmd_args.extend_from_slice(args);
+    let output = std::process::Command::new("git")
+        .args(&cmd_args)
+        .output()
+        .map_err(|_| "git not found".to_string())?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() { "git command failed".to_string() } else { stderr });
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[tauri::command]
+fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>, String> {
+    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root = match root_guard.as_ref() {
+        Some(r) => r.clone(),
+        None => return Ok(Vec::new()),
+    };
+    drop(root_guard);
+    let root_str = root.to_string_lossy().to_string();
+
+    // Find the git repo root (may differ from tree_root if content/ is a subdir)
+    let git_root = match run_git(&root_str, &["rev-parse", "--show-toplevel"]) {
+        Ok(s) => s.trim().to_string(),
+        Err(_) => return Ok(Vec::new()), // not a git repo or git not found
+    };
+
+    let porcelain = match run_git(&git_root, &["status", "--porcelain"]) {
+        Ok(s) => s,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut statuses = Vec::new();
+    for line in porcelain.lines() {
+        if line.len() < 4 {
+            continue;
+        }
+        let xy = &line[..2];
+        let path_part = line[3..].trim();
+        // Handle renames: "R old -> new" — take the destination
+        let file_path = if path_part.contains(" -> ") {
+            path_part.split(" -> ").nth(1).unwrap_or(path_part)
+        } else {
+            path_part
+        };
+        let abs_path = format!("{}/{}", git_root, file_path);
+        let status = if xy.starts_with('?') {
+            "untracked"
+        } else if xy.chars().next().map(|c| c != ' ').unwrap_or(false) {
+            "staged"
+        } else {
+            "modified"
+        };
+        statuses.push(GitFileStatus { path: abs_path, status: status.to_string() });
+    }
+    Ok(statuses)
+}
+
+#[tauri::command]
+fn get_git_branch(state: State<'_, WorkspaceState>) -> Result<String, String> {
+    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
+    drop(root_guard);
+    run_git(&root.to_string_lossy(), &["rev-parse", "--abbrev-ref", "HEAD"])
+        .map(|s| s.trim().to_string())
+}
+
+#[tauri::command]
+fn git_commit(
+    message: String,
+    push: bool,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
+    drop(root_guard);
+    let root_str = root.to_string_lossy().to_string();
+    run_git(&root_str, &["add", "-A"])?;
+    run_git(&root_str, &["commit", "-m", &message])?;
+    if push {
+        run_git(&root_str, &["push"])?;
+    }
+    Ok(())
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(WorkspaceState {
             tree_root: Mutex::new(None),
+            workspace_root: Mutex::new(None),
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -377,6 +589,10 @@ pub fn run() {
             trash_file,
             create_dir,
             search_workspace,
+            get_content_types,
+            get_git_status,
+            get_git_branch,
+            git_commit,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")

@@ -54,6 +54,11 @@
   background: var(--color-bg-hover);
 }
 
+.search-close-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
 .search-results {
   flex: 1;
   overflow-y: auto;
@@ -97,6 +102,12 @@
   color: var(--color-accent);
 }
 
+.search-result-file:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  color: var(--color-accent);
+}
+
 .search-result-match {
   display: flex;
   align-items: baseline;
@@ -108,6 +119,12 @@
 }
 
 .search-result-match:hover {
+  background: var(--color-bg-hover);
+}
+
+.search-result-match:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
   background: var(--color-bg-hover);
 }
 

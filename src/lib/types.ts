@@ -21,6 +21,12 @@ export interface RecentFile {
   title?: string;
 }
 
+export interface ContentType {
+  name: string;
+}
+
+export type GitStatus = "modified" | "staged" | "untracked";
+
 export interface SearchMatch {
   lineNumber: number;
   lineContent: string;

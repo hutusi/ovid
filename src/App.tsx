@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
+import { CommitDialog } from "./components/CommitDialog";
 import { Editor } from "./components/Editor";
 import { EmptyState } from "./components/EmptyState";
 import { FileSwitcher } from "./components/FileSwitcher";
-import { InputModal } from "./components/InputModal";
+import { NewFileDialog } from "./components/NewFileDialog";
 import { PropertiesPanel } from "./components/PropertiesPanel";
 import { SearchPanel } from "./components/SearchPanel";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import { useContentTypes } from "./lib/useContentTypes";
 import { useFileEditor } from "./lib/useFileEditor";
+import { useGit } from "./lib/useGit";
 import { useRecentFiles } from "./lib/useRecentFiles";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
@@ -16,6 +19,7 @@ import "./styles/global.css";
 import "./App.css";
 
 type ModalState = { type: "new-file"; dirPath: string } | null;
+type CommitDialogState = { message: string; branch: string } | null;
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 
@@ -28,6 +32,7 @@ function App() {
   const [modal, setModal] = useState<ModalState>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [commitDialog, setCommitDialog] = useState<CommitDialogState>(null);
 
   const { toasts, showToast } = useToast();
 
@@ -52,6 +57,7 @@ function App() {
     tree,
     workspaceName,
     workspaceRoot,
+    isAmytisWorkspace,
     renamingPath,
     setRenamingPath,
     handleOpenWorkspace,
@@ -70,6 +76,9 @@ function App() {
   });
 
   const { recentFiles, pushRecent, resetRecent } = useRecentFiles(workspaceRoot);
+  const { gitStatusMap, isGitRepo, refreshGitStatus, handleCommit, getBranch } =
+    useGit(workspaceRoot);
+  const contentTypes = useContentTypes(workspaceRoot, isAmytisWorkspace);
 
   // Sync recent files list when workspace changes
   useEffect(() => {
@@ -106,6 +115,17 @@ function App() {
             if (workspaceRoot) setSearchOpen((v) => !v);
           }
           break;
+        case "G":
+          if (e.shiftKey && isGitRepo) {
+            e.preventDefault();
+            void getBranch()
+              .then((branch) => {
+                const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
+                setCommitDialog({ message: `Update: ${title}`, branch });
+              })
+              .catch(() => showToast("Failed to get git branch"));
+          }
+          break;
         case "P":
           if (e.shiftKey) {
             e.preventDefault();
@@ -132,9 +152,38 @@ function App() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [flushPendingSave, handleCloseFile, handleOpenWorkspace, workspaceRoot, tree]);
+  }, [
+    flushPendingSave,
+    handleCloseFile,
+    handleOpenWorkspace,
+    workspaceRoot,
+    tree,
+    isGitRepo,
+    getBranch,
+    parsedFrontmatter,
+    selectedFile,
+    showToast,
+  ]);
+
+  // Refresh git status after each save completes
+  useEffect(() => {
+    if (saveStatus === "saved" && isGitRepo) void refreshGitStatus();
+  }, [saveStatus, isGitRepo, refreshGitStatus]);
 
   const hasFrontmatter = Object.keys(parsedFrontmatter).length > 0;
+
+  async function handlePublishAwareFieldChange(key: string, value: unknown) {
+    await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
+    if (key === "draft" && value === false && isGitRepo) {
+      try {
+        const branch = await getBranch();
+        const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
+        setCommitDialog({ message: `Publish: ${title}`, branch });
+      } catch {
+        // git unavailable — ignore
+      }
+    }
+  }
 
   function handleOpenByPath(path: string) {
     const node = tree
@@ -162,6 +211,7 @@ function App() {
             visible={sidebarVisible}
             workspaceName={workspaceName}
             workspaceRoot={workspaceRoot}
+            gitStatusMap={gitStatusMap}
             onSelect={(node) => {
               void handleSelectFile(node);
               if (!node.isDirectory) pushRecent(node);
@@ -180,7 +230,7 @@ function App() {
               frontmatter={parsedFrontmatter}
               isOpen={propertiesOpen}
               onToggle={() => setPropertiesOpen((v) => !v)}
-              onFieldChange={handleFieldChange}
+              onFieldChange={handlePublishAwareFieldChange}
             />
           )}
           {selectedFile ? (
@@ -229,15 +279,24 @@ function App() {
         />
       )}
       {modal?.type === "new-file" && (
-        <InputModal
-          title="New file"
-          placeholder="filename"
-          confirmLabel="Create"
-          onConfirm={(name) => {
-            void handleNewFile(modal.dirPath, name);
+        <NewFileDialog
+          contentTypes={contentTypes}
+          onConfirm={(name, contentType) => {
+            void handleNewFile(modal.dirPath, name, contentType);
             setModal(null);
           }}
           onCancel={() => setModal(null)}
+        />
+      )}
+      {commitDialog && (
+        <CommitDialog
+          defaultMessage={commitDialog.message}
+          branch={commitDialog.branch}
+          onCommit={(message, push) => {
+            setCommitDialog(null);
+            void handleCommit(message, push).catch((err) => showToast(`Commit failed: ${err}`));
+          }}
+          onCancel={() => setCommitDialog(null)}
         />
       )}
     </div>
