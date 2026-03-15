@@ -24,7 +24,7 @@ declare module "@tiptap/core" {
   }
 }
 
-function collectMatches(doc: Node, term: string): Array<{ from: number; to: number }> {
+export function collectMatches(doc: Node, term: string): Array<{ from: number; to: number }> {
   if (!term) return [];
   const matches: Array<{ from: number; to: number }> = [];
   const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");

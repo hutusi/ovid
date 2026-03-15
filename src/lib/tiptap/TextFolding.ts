@@ -10,15 +10,16 @@ interface FoldState {
   decorations: DecorationSet;
 }
 
-interface HeadingRange {
+export interface HeadingRange {
   headingFrom: number;
   headingTo: number;
   contentFrom: number;
   contentTo: number;
+  level: number;
 }
 
 /** Collect top-level heading ranges: each heading + the blocks under it until the next heading of same/higher level. */
-function getHeadingRanges(doc: Node): HeadingRange[] {
+export function getHeadingRanges(doc: Node): HeadingRange[] {
   const headings: Array<{ pos: number; level: number; nodeSize: number }> = [];
   doc.forEach((node, pos) => {
     if (node.type.name === "heading") {
@@ -36,7 +37,9 @@ function getHeadingRanges(doc: Node): HeadingRange[] {
     }
     const contentFrom = h.pos + h.nodeSize;
     if (contentFrom >= contentTo) return [];
-    return [{ headingFrom: h.pos, headingTo: h.pos + h.nodeSize, contentFrom, contentTo }];
+    return [
+      { headingFrom: h.pos, headingTo: h.pos + h.nodeSize, contentFrom, contentTo, level: h.level },
+    ];
   });
 }
 
