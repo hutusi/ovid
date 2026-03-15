@@ -1,0 +1,13 @@
+do we need to add or update some tests?
+
+---
+
+check about the new code reviews by coderabbit on PR #14
+
+---
+
+think harder about how can improve the properities sidebar, make it elegant and user-friendly.
+
+---
+
+go ahead

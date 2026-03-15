@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "79207d9b7408",
+  "strategy": "manual-commit",
+  "branch": "remediation",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src/App.tsx",
+    "src/components/ContentTypeIcon.tsx",
+    "src/components/PropertiesPanel.css",
+    "src/components/PropertiesPanel.tsx",
+    "src/components/Sidebar.tsx",
+    "src/lib/sidebarUtils.test.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/79/207d9b7408/0/metadata.json",
+      "transcript": "/79/207d9b7408/0/full.jsonl",
+      "content_hash": "/79/207d9b7408/0/content_hash.txt",
+      "prompt": "/79/207d9b7408/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 76,
+    "cache_creation_tokens": 110838,
+    "cache_read_tokens": 4473969,
+    "output_tokens": 25327,
+    "api_call_count": 40
+  }
+}
