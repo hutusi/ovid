@@ -1,0 +1,5 @@
+let's think and plan about Remediation part in ROADMAP
+
+---
+
+start implementing, remember git commit after accomplish on each item.
