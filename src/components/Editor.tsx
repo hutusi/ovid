@@ -143,7 +143,7 @@ export function Editor({
   // Cmd+K — open link dialog when editor is focused
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || e.key !== "k") return;
+      if (!(e.metaKey || e.ctrlKey) || e.key?.toLowerCase() !== "k") return;
       if (!editor?.isFocused) return;
       e.preventDefault();
       const href = editor.getAttributes("link").href ?? "";
@@ -156,7 +156,7 @@ export function Editor({
   // Cmd+E — toggle inline code; intercept before WKWebView's "Use Selection for Find"
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || e.key !== "e") return;
+      if (!(e.metaKey || e.ctrlKey) || e.key?.toLowerCase() !== "e") return;
       if (!editor?.isFocused) return;
       e.preventDefault();
       editor.chain().focus().toggleCode().run();
@@ -167,6 +167,7 @@ export function Editor({
 
   // Insert / Format menu commands forwarded from the native menu bar
   useEffect(() => {
+    let mounted = true;
     let unlisten: (() => void) | undefined;
     listen<string>("menu-action", (event) => {
       if (!editor) return;
@@ -214,9 +215,16 @@ export function Editor({
           break;
       }
     }).then((fn) => {
-      unlisten = fn;
+      if (mounted) {
+        unlisten = fn;
+      } else {
+        fn();
+      }
     });
-    return () => unlisten?.();
+    return () => {
+      mounted = false;
+      unlisten?.();
+    };
   }, [editor]);
 
   return (

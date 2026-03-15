@@ -251,6 +251,7 @@ function App() {
 
   // Forward native menu events to the same handlers as keyboard shortcuts
   useEffect(() => {
+    let mounted = true;
     let unlisten: (() => void) | undefined;
     listen<string>("menu-action", (event) => {
       switch (event.payload) {
@@ -306,9 +307,16 @@ function App() {
           break;
       }
     }).then((fn) => {
-      unlisten = fn;
+      if (mounted) {
+        unlisten = fn;
+      } else {
+        fn();
+      }
     });
-    return () => unlisten?.();
+    return () => {
+      mounted = false;
+      unlisten?.();
+    };
   }, [
     workspaceRoot,
     tree,

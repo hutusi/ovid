@@ -18,19 +18,21 @@ export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDia
     inputRef.current?.select();
   }, []);
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
-      onCancel();
-    } else if (e.key === "Enter" && url.trim()) {
-      onApply(url.trim());
-    }
-  }
-
   return (
     <div className="modal-overlay">
       <button type="button" className="modal-backdrop" aria-label="Close" onClick={onCancel} />
-      <div role="dialog" aria-modal="true" className="modal link-dialog" onKeyDown={handleKeyDown}>
-        <p className="modal-title">Insert link</p>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="link-dialog-title"
+        className="modal link-dialog"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onCancel();
+        }}
+      >
+        <p id="link-dialog-title" className="modal-title">
+          Insert link
+        </p>
         <input
           ref={inputRef}
           type="url"
@@ -38,6 +40,9 @@ export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDia
           value={url}
           placeholder="https://"
           onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && url.trim()) onApply(url.trim());
+          }}
         />
         <div className="modal-actions">
           {initialHref && (
