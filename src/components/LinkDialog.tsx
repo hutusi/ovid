@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import "./InputModal.css";
-import "./LinkDialog.css";
+import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Input } from "./ui/input";
 
 interface LinkDialogProps {
   initialHref: string;
@@ -19,27 +20,23 @@ export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDia
   }, []);
 
   return (
-    <div className="modal-overlay">
-      <button type="button" className="modal-backdrop" aria-label="Close" onClick={onCancel} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="link-dialog-title"
-        className="modal link-dialog"
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.stopPropagation();
-            onCancel();
-          }
-        }}
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+    >
+      <DialogContent
+        className="w-[360px] max-w-[calc(100vw-48px)]"
+        onEscapeKeyDown={(e) => e.stopPropagation()}
       >
-        <p id="link-dialog-title" className="modal-title">
-          Insert link
-        </p>
-        <input
+        <DialogHeader>
+          <DialogTitle>Insert link</DialogTitle>
+        </DialogHeader>
+
+        <Input
           ref={inputRef}
           type="url"
-          className="modal-input"
           value={url}
           placeholder="https://"
           onChange={(e) => setUrl(e.target.value)}
@@ -47,25 +44,32 @@ export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDia
             if (e.key === "Enter" && url.trim()) onApply(url.trim());
           }}
         />
-        <div className="modal-actions">
+
+        <DialogFooter>
           {initialHref && (
-            <button type="button" className="modal-btn link-remove-btn" onClick={onRemove}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRemove}
+              className="mr-auto text-[var(--color-warning)] hover:bg-[var(--color-warning-light)] hover:text-[var(--color-warning)]"
+            >
               Remove
-            </button>
+            </Button>
           )}
-          <button type="button" className="modal-btn modal-cancel" onClick={onCancel}>
+          <Button variant="ghost" size="sm" onClick={onCancel}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="modal-btn modal-confirm"
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             disabled={!url.trim()}
             onClick={() => url.trim() && onApply(url.trim())}
+            className="border-primary text-primary hover:bg-primary/10"
           >
             Apply
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

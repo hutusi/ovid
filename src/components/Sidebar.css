@@ -60,42 +60,6 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.sidebar-filter-input {
-  flex: 1;
-  padding: 4px 24px 4px 8px;
-  font-size: 12px;
-  font-family: var(--font-ui);
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.sidebar-filter-input:focus {
-  border-color: var(--color-accent);
-}
-
-.sidebar-filter-input::placeholder {
-  color: var(--color-text-faint);
-}
-
-.sidebar-filter-clear {
-  position: absolute;
-  right: 14px;
-  font-size: 9px;
-  color: var(--color-text-faint);
-  padding: 2px 3px;
-  border-radius: 3px;
-  line-height: 1;
-  transition: color 0.15s;
-}
-
-.sidebar-filter-clear:hover {
-  color: var(--color-text);
-}
-
 .sidebar-header {
   display: flex;
   align-items: center;
@@ -146,22 +110,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.sidebar-action-btn {
-  font-size: 16px;
-  color: var(--color-text-faint);
-  line-height: 1;
-  padding: 2px 5px;
-  border-radius: 4px;
-  transition:
-    color 0.15s,
-    background 0.15s;
-}
-
-.sidebar-action-btn:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-light);
 }
 
 .sidebar-tree {
@@ -262,18 +210,6 @@
 /* ── Inline rename ───────────────────────────── */
 .sidebar-rename-row {
   padding: 3px 10px 3px 0;
-}
-
-.sidebar-rename-input {
-  width: 100%;
-  padding: 3px 6px;
-  font-size: 13.5px;
-  font-family: var(--font-ui);
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-accent);
-  border-radius: 4px;
-  outline: none;
 }
 
 /* ── Empty workspace state ───────────────────── */

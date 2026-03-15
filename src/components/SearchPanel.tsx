@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SearchResult } from "../lib/types";
 import "./SearchPanel.css";
+import { Input } from "./ui/input";
 
 interface SearchPanelProps {
   onOpenFile: (path: string) => void;
@@ -62,14 +63,14 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
   return (
     <div className="search-panel">
       <div className="search-panel-header">
-        <input
+        <Input
           ref={inputRef}
-          className="search-input"
           placeholder="Search in workspace…"
           value={query}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           aria-label="Search workspace"
+          className="h-7 text-[13px]"
         />
         <button
           type="button"

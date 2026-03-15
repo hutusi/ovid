@@ -1,10 +1,11 @@
+import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import { Folder, FolderOpen } from "lucide-react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { filterTree, needsPageDivider, rollupGitStatus, sortNodes } from "../lib/sidebarUtils";
-import { ContentTypeIcon } from "./ContentTypeIcon";
-import { FileContextMenu } from "./FileContextMenu";
-import "./Sidebar.css";
 import type { FileNode, GitStatus } from "../lib/types";
+import { ContentTypeIcon } from "./ContentTypeIcon";
+import "./Sidebar.css";
+import { Input } from "./ui/input";
 
 interface SidebarProps {
   tree: FileNode[];
@@ -36,7 +37,6 @@ interface FileItemProps {
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
   onCancelRename: () => void;
-  onContextMenu: (node: FileNode, x: number, y: number) => void;
 }
 
 function FileItem({
@@ -52,7 +52,6 @@ function FileItem({
   onDelete,
   onStartRename,
   onCancelRename,
-  onContextMenu,
 }: FileItemProps) {
   const [expanded, setExpanded] = useState(true);
   const isExpanded = forceExpand || expanded;
@@ -72,6 +71,18 @@ function FileItem({
     }
   }, [isRenaming, baseName]);
 
+  async function showDirContextMenu() {
+    const menu = await Menu.new({
+      items: [
+        await MenuItem.new({ text: "New file here", action: () => onNewFile(node.path) }),
+        await PredefinedMenuItem.new({ item: "Separator" }),
+        await MenuItem.new({ text: "Rename", action: () => onStartRename(node.path) }),
+        await MenuItem.new({ text: "Delete", action: () => onDelete(node) }),
+      ],
+    });
+    await menu.popup();
+  }
+
   if (node.isDirectory) {
     const DirIcon = isExpanded ? FolderOpen : Folder;
     const dirRollup = !isExpanded ? rollupGitStatus(node, gitStatusMap) : undefined;
@@ -83,7 +94,7 @@ function FileItem({
           style={{ paddingLeft: indent }}
           onContextMenu={(e) => {
             e.preventDefault();
-            onContextMenu(node, e.clientX, e.clientY);
+            showDirContextMenu();
           }}
         >
           <button type="button" className="sidebar-dir" onClick={() => setExpanded((v) => !v)}>
@@ -114,7 +125,6 @@ function FileItem({
                 onDelete={onDelete}
                 onStartRename={onStartRename}
                 onCancelRename={onCancelRename}
-                onContextMenu={onContextMenu}
               />
             </Fragment>
           ))}
@@ -127,9 +137,9 @@ function FileItem({
   if (isRenaming) {
     return (
       <div className="sidebar-rename-row" style={{ paddingLeft: indent }}>
-        <input
+        <Input
           ref={renameRef}
-          className="sidebar-rename-input"
+          className="h-7 text-[13.5px]"
           value={renameValue}
           onChange={(e) => setRenameValue(e.target.value)}
           onKeyDown={(e) => {
@@ -151,13 +161,23 @@ function FileItem({
   const displayName = node.title || baseName;
   const gitStatus = gitStatusMap.get(node.path);
 
+  async function showFileContextMenu() {
+    const menu = await Menu.new({
+      items: [
+        await MenuItem.new({ text: "Rename", action: () => onStartRename(node.path) }),
+        await MenuItem.new({ text: "Delete", action: () => onDelete(node) }),
+      ],
+    });
+    await menu.popup();
+  }
+
   return (
     <div
       role="none"
       className={`sidebar-file-row ${isSelected ? "selected" : ""}`}
       onContextMenu={(e) => {
         e.preventDefault();
-        onContextMenu(node, e.clientX, e.clientY);
+        showFileContextMenu();
       }}
     >
       <button
@@ -201,11 +221,6 @@ export function Sidebar({
   onStartRename,
   onCancelRename,
 }: SidebarProps) {
-  const [contextMenu, setContextMenu] = useState<{
-    node: FileNode;
-    x: number;
-    y: number;
-  } | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
@@ -263,14 +278,6 @@ export function Sidebar({
     window.addEventListener("mouseup", onMouseUp);
   }
 
-  function handleContextMenu(node: FileNode, x: number, y: number) {
-    setContextMenu({ node, x, y });
-  }
-
-  function handleContextMenuRename(node: FileNode) {
-    onStartRename(node.path);
-  }
-
   return (
     <div
       className={`sidebar ${visible ? "" : "hidden"}${isResizing ? " resizing" : ""}`}
@@ -299,26 +306,28 @@ export function Sidebar({
 
       {tree.length > 0 && (
         <div className="sidebar-filter">
-          <input
-            type="text"
-            className="sidebar-filter-input"
-            placeholder="Filter files…"
-            value={filterQuery}
-            onChange={(e) => setFilterQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setFilterQuery("");
-            }}
-          />
-          {filterQuery && (
-            <button
-              type="button"
-              className="sidebar-filter-clear"
-              aria-label="Clear filter"
-              onClick={() => setFilterQuery("")}
-            >
-              ✕
-            </button>
-          )}
+          <div className="relative flex-1">
+            <Input
+              type="text"
+              className="h-7 text-[12px] pr-6"
+              placeholder="Filter files…"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setFilterQuery("");
+              }}
+            />
+            {filterQuery && (
+              <button
+                type="button"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-[var(--color-text-faint)] p-0.5 rounded leading-none hover:text-[var(--color-text)]"
+                aria-label="Clear filter"
+                onClick={() => setFilterQuery("")}
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -347,23 +356,11 @@ export function Sidebar({
                 onDelete={onDelete}
                 onStartRename={onStartRename}
                 onCancelRename={onCancelRename}
-                onContextMenu={handleContextMenu}
               />
             </Fragment>
           ))
         )}
       </div>
-
-      {contextMenu && (
-        <FileContextMenu
-          node={contextMenu.node}
-          position={{ x: contextMenu.x, y: contextMenu.y }}
-          onNewFile={contextMenu.node.isDirectory ? onNewFile : undefined}
-          onRename={handleContextMenuRename}
-          onDelete={onDelete}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
 
       {/* biome-ignore lint/a11y/useSemanticElements: resize splitter widget requires div, not <hr> */}
       <div

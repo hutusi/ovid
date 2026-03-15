@@ -1,6 +1,7 @@
 .statusbar {
   height: var(--statusbar-height);
   background: var(--color-status-bg);
+  border-top: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -38,7 +39,7 @@
 
 .statusbar-file {
   font-size: 11.5px;
-  color: var(--color-status-text);
+  color: var(--color-text-muted);
   font-family: var(--font-ui);
 }
 
@@ -52,29 +53,6 @@
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.statusbar-theme-btn,
-.statusbar-mode-btn {
-  font-size: 13px;
-  color: var(--color-status-text);
-  line-height: 1;
-  padding: 2px 4px;
-  border-radius: 4px;
-  transition:
-    color 0.15s,
-    background 0.15s;
-  flex-shrink: 0;
-}
-
-.statusbar-theme-btn {
-  opacity: 0.7;
-}
-
-.statusbar-theme-btn:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-light);
-  opacity: 1;
 }
 
 .statusbar-session {
@@ -92,20 +70,5 @@
 
 .statusbar-session.goal-reached {
   color: var(--color-success);
-  opacity: 1;
-}
-
-.statusbar-mode-btn {
-  opacity: 0.5;
-}
-
-.statusbar-mode-btn:hover {
-  color: var(--color-text);
-  background: var(--color-bg-hover);
-  opacity: 0.8;
-}
-
-.statusbar-mode-btn.active {
-  color: var(--color-accent);
   opacity: 1;
 }

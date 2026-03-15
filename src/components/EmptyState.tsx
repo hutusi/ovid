@@ -1,5 +1,3 @@
-import "./EmptyState.css";
-
 const isMac = navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Mac");
 const modKey = isMac ? "⌘" : "Ctrl+";
 
@@ -24,17 +22,17 @@ export function EmptyState({
 }: EmptyStateProps) {
   if (workspaceOpen) {
     return (
-      <div className="empty-state">
-        <p className="empty-state-hint">Select a file to start writing</p>
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[var(--color-text-faint)] select-none">
+        <p className="text-[13px]">Select a file to start writing</p>
         {recentFiles.length > 0 && (
-          <div className="empty-state-recents">
-            <p className="empty-state-recents-label">Recent</p>
-            <ul className="empty-state-recents-list">
+          <div className="mt-4 text-center">
+            <p className="text-[10.5px] uppercase tracking-[0.06em] mb-2">Recent</p>
+            <ul className="list-none flex flex-col gap-0.5">
               {recentFiles.map((f) => (
                 <li key={f.path}>
                   <button
                     type="button"
-                    className="empty-state-recent-btn"
+                    className="text-[13px] text-[var(--color-text-muted)] px-2.5 py-[3px] rounded transition-colors hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text)] max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap"
                     onClick={() => onOpenRecent(f.path)}
                   >
                     {f.title || f.name.replace(/\.mdx?$/, "")}
@@ -49,13 +47,19 @@ export function EmptyState({
   }
 
   return (
-    <div className="empty-state">
-      <h2 className="empty-state-title">Ovid</h2>
-      <p className="empty-state-hint">A writing space for Amytis content</p>
-      <button type="button" className="empty-state-btn" onClick={onOpenWorkspace}>
+    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[var(--color-text-faint)] select-none">
+      <h2 className="font-[var(--font-editor)] text-[28px] font-normal text-[var(--color-text-muted)] tracking-[0.02em]">
+        Ovid
+      </h2>
+      <p className="text-[13px]">A writing space for Amytis content</p>
+      <button
+        type="button"
+        className="mt-1 text-[13px] text-[var(--color-accent)] border border-[var(--color-accent)] rounded-md px-4 py-1.5 transition-colors hover:bg-[var(--color-accent-light)]"
+        onClick={onOpenWorkspace}
+      >
         Open workspace
       </button>
-      <p className="empty-state-shortcut">{modKey}O to open a folder</p>
+      <p className="text-[11px] opacity-60">{modKey}O to open a folder</p>
     </div>
   );
 }

@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { ContentTypeIcon } from "./ContentTypeIcon";
 import "./PropertiesPanel.css";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { Separator } from "./ui/separator";
 
 interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
@@ -34,44 +38,20 @@ function TypeSelector({
   type: string | undefined;
   onChange: (t: string) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const selectRef = useRef<HTMLSelectElement>(null);
-
-  useEffect(() => {
-    if (editing) selectRef.current?.focus();
-  }, [editing]);
-
-  if (editing) {
-    return (
-      <select
-        ref={selectRef}
-        className="prop-type-select"
-        value={type ?? ""}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setEditing(false);
-        }}
-        onBlur={() => setEditing(false)}
-      >
-        {STANDARD_TYPES.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
   return (
-    <button
-      type="button"
-      className="prop-type-row"
-      title="Click to change type"
-      onClick={() => setEditing(true)}
-    >
-      <ContentTypeIcon type={type} size={14} className="prop-type-icon" />
-      <span className="prop-type-name">{type ?? "unknown"}</span>
-    </button>
+    <Select value={type ?? ""} onValueChange={onChange}>
+      <SelectTrigger className="prop-type-trigger h-auto border-none bg-transparent shadow-none p-1.5 gap-1.5 text-xs font-medium text-muted-foreground capitalize focus:ring-0 hover:bg-accent transition-colors rounded-md">
+        <ContentTypeIcon type={type} size={14} className="shrink-0 text-muted-foreground" />
+        <SelectValue placeholder="unknown" />
+      </SelectTrigger>
+      <SelectContent>
+        {STANDARD_TYPES.map((t) => (
+          <SelectItem key={t} value={t} className="capitalize text-xs">
+            {t}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -89,10 +69,10 @@ function DateField({ value, onSave }: { value: string; onSave: (v: string | null
 
   if (editing) {
     return (
-      <input
+      <Input
         ref={inputRef}
         type="date"
-        className="prop-date-input"
+        className="h-7 text-[12px] cursor-pointer"
         value={value}
         onChange={(e) => {
           onSave(e.target.value || null);
@@ -207,9 +187,9 @@ function EditableValue({
 
   if (editing) {
     return (
-      <input
+      <Input
         ref={inputRef}
-        className="prop-edit-input"
+        className="h-7 text-[13px] px-1.5"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -280,9 +260,9 @@ function AddFieldRow({ onAdd }: { onAdd: (key: string, value: string) => void })
 
   return (
     <div className="prop-add-row">
-      <input
+      <Input
         ref={keyRef}
-        className="prop-add-input"
+        className="h-7 text-xs"
         placeholder="field name"
         value={key}
         onChange={(e) => setKey(e.target.value)}
@@ -291,8 +271,8 @@ function AddFieldRow({ onAdd }: { onAdd: (key: string, value: string) => void })
           else if (e.key === "Enter") submit();
         }}
       />
-      <input
-        className="prop-add-input"
+      <Input
+        className="h-7 text-xs"
         placeholder="value"
         value={val}
         onChange={(e) => setVal(e.target.value)}
@@ -343,28 +323,28 @@ export function PropertiesPanel({
       <div className="properties-body">
         {title !== undefined && (
           <div className="prop-field">
-            <span className="prop-label">Title</span>
+            <Label className="prop-label">Title</Label>
             <EditableValue value={title} onSave={(v) => onFieldChange?.("title", v)} />
           </div>
         )}
 
         {slug && (
           <div className="prop-field">
-            <span className="prop-label">Slug</span>
+            <Label className="prop-label">Slug</Label>
             <span className="prop-slug">{slug}</span>
           </div>
         )}
 
         {date !== undefined && (
           <div className="prop-field">
-            <span className="prop-label">Date</span>
+            <Label className="prop-label">Date</Label>
             <DateField value={date} onSave={(v) => onFieldChange?.("date", v ?? "")} />
           </div>
         )}
 
         {tags !== undefined && (
           <div className="prop-field">
-            <span className="prop-label">Tags</span>
+            <Label className="prop-label">Tags</Label>
             <TagInput tags={tags} onSave={(v) => onFieldChange?.("tags", v)} />
           </div>
         )}
@@ -372,10 +352,10 @@ export function PropertiesPanel({
         {/* ── Custom fields ─────────────────────────── */}
         {customKeys.length > 0 && (
           <>
-            <div className="prop-divider" />
+            <Separator className="my-0" />
             {customKeys.map((key) => (
               <div key={key} className="prop-field">
-                <span className="prop-label">{key}</span>
+                <Label className="prop-label">{key}</Label>
                 <EditableValue value={frontmatter[key]} onSave={(v) => onFieldChange?.(key, v)} />
               </div>
             ))}

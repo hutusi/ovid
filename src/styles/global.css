@@ -1,3 +1,35 @@
+@import "tailwindcss";
+
+/* Dark mode: use data-theme="dark" attribute instead of .dark class */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Map shadcn/ui color tokens to Tailwind utility names */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-shadcn-accent: var(--accent);
+  --color-shadcn-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
 *,
 *::before,
 *::after {
@@ -22,8 +54,8 @@
   --color-accent: #6366f1;
   --color-accent-light: rgba(99, 102, 241, 0.12);
 
-  --color-status-bg: #18181b;
-  --color-status-text: #a1a1aa;
+  --color-status-bg: var(--color-bg-sidebar);
+  --color-status-text: var(--color-text-faint);
 
   --color-warning: #f59e0b;
   --color-warning-light: rgba(245, 158, 11, 0.12);
@@ -43,8 +75,37 @@
   --font-editor-size: 17px;
   --font-mono: "Fira Code", "JetBrains Mono", monospace;
 
+  /* Typography scale */
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 13.5px;
+
   --sidebar-width: 240px;
   --statusbar-height: 28px;
+
+  /* shadcn/ui variables — mapped to existing design tokens */
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
+  --card: var(--color-bg);
+  --card-foreground: var(--color-text);
+  --popover: var(--color-bg);
+  --popover-foreground: var(--color-text);
+  --primary: var(--color-accent);
+  --primary-foreground: #ffffff;
+  --secondary: var(--color-bg-selected);
+  --secondary-foreground: var(--color-text);
+  --muted: var(--color-bg-sidebar);
+  --muted-foreground: var(--color-text-muted);
+  --accent: var(--color-bg-hover);
+  --accent-foreground: var(--color-text);
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: var(--color-border);
+  --input: var(--color-border-strong);
+  --ring: var(--color-accent);
+  --radius: 6px;
 
   font-family: var(--font-ui);
   font-size: 14px;
@@ -94,6 +155,10 @@
   --color-syntax-meta: #fcd34d;
   --color-syntax-attr: #a78bfa;
   --color-syntax-number: #fb923c;
+
+  /* shadcn/ui dark overrides */
+  --destructive: #f87171;
+  --destructive-foreground: #ffffff;
 }
 
 html,

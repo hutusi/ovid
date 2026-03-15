@@ -17,27 +17,6 @@
   min-height: 44px;
 }
 
-.search-input {
-  flex: 1;
-  font-size: 13px;
-  font-family: var(--font-ui);
-  color: var(--color-text);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  padding: 5px 8px;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.search-input:focus {
-  border-color: var(--color-accent);
-}
-
-.search-input::placeholder {
-  color: var(--color-text-faint);
-}
-
 .search-close-btn {
   font-size: 11px;
   color: var(--color-text-faint);
