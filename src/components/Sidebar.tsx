@@ -14,6 +14,21 @@ import { FileContextMenu } from "./FileContextMenu";
 import "./Sidebar.css";
 import type { FileNode, GitStatus } from "../lib/types";
 
+const GIT_PRIORITY: GitStatus[] = ["staged", "modified", "untracked"];
+
+function rollupGitStatus(node: FileNode, map: Map<string, GitStatus>): GitStatus | undefined {
+  if (!node.isDirectory) return map.get(node.path);
+  let best: GitStatus | undefined;
+  for (const child of node.children ?? []) {
+    const childStatus = rollupGitStatus(child, map);
+    if (!childStatus) continue;
+    if (!best || GIT_PRIORITY.indexOf(childStatus) < GIT_PRIORITY.indexOf(best)) {
+      best = childStatus;
+    }
+  }
+  return best;
+}
+
 function ContentTypeIcon({ type }: { type: string | undefined }) {
   const props = { size: 13, className: "sidebar-file-icon" };
   switch (type) {
@@ -100,6 +115,7 @@ function FileItem({
 
   if (node.isDirectory) {
     const DirIcon = expanded ? FolderOpen : Folder;
+    const dirRollup = !expanded ? rollupGitStatus(node, gitStatusMap) : undefined;
     return (
       <div>
         <div
@@ -114,6 +130,12 @@ function FileItem({
           <button type="button" className="sidebar-dir" onClick={() => setExpanded((v) => !v)}>
             <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
             {node.name}
+            {dirRollup && (
+              <span
+                className={`git-dot git-dot-${dirRollup}`}
+                title={`${dirRollup} changes inside`}
+              />
+            )}
           </button>
         </div>
         {expanded &&
