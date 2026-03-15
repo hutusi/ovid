@@ -92,11 +92,14 @@ Press `Cmd+Shift+O` or click the workspace name in the sidebar header to open th
 The sidebar shows the full file tree of the current workspace, filtered to `.md` / `.mdx` files.
 
 - **Toggle** — `Cmd+\` hides/shows the sidebar; state is remembered across sessions
-- **Directory expand/collapse** — click a directory name or chevron to toggle; expanded state is persisted per workspace
+- **Resize** — drag the right border to resize between 180 px and 480 px; width is persisted across sessions
+- **Directory expand/collapse** — click a directory to toggle; folder icon changes between open/closed state
+- **Filter** — type in the filter input below the header to narrow the file list by filename or frontmatter `title` in real time; press `Esc` or click `✕` to clear
 - **Titles** — frontmatter `title` is shown instead of the filename where available
 - **Draft indicator** — files with `draft: true` are dimmed
-- **Content type badge** — files with a `type:` frontmatter field show a small badge (e.g. `post`, `note`) next to the title; absent when the field is not set
-- **Git status** — per-file `●` (modified), `+` (untracked), `S` (staged) markers appear when the workspace is a git repository
+- **Content type icons** — files show an icon based on their frontmatter `type:` field (`post`, `flow`, `series`, `book`, `page`, `note`); a generic file icon is used when the field is absent
+- **Git status** — per-file coloured dot appears when the workspace is a git repository (modified, staged, untracked); a rollup dot appears on a collapsed directory if any child has uncommitted changes
+- **Context menu** — right-click any file or directory to rename, delete, or create a new file inside that directory
 - **Workspace name** — click it to open the workspace switcher
 
 ---
@@ -117,7 +120,7 @@ Moves the file to the system Trash (not permanent delete). A confirmation dialog
 
 ### New folder
 
-Right-click any directory in the sidebar and choose **New folder** to create a subdirectory. Useful for organising Amytis content collections.
+Right-click any directory in the sidebar and choose **New file here** to create a file inside it. Subdirectories can be created the same way.
 
 ---
 
