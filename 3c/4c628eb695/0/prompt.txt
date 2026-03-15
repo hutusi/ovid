@@ -1,0 +1,9 @@
+Let's make some improvements. For the menu bar, I think the proper items should be: Ovid, File, Edit, Insert, Format, View, Window, and Help. What do you think? Please create a plan to refine the menu.
+
+---
+
+what is your opinion?
+
+---
+
+agree. go ahead.

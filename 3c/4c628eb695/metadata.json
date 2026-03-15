@@ -1,0 +1,28 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "3c4c628eb695",
+  "strategy": "manual-commit",
+  "branch": "remediation",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "README.md",
+    "src-tauri/src/lib.rs",
+    "src/App.tsx",
+    "src/components/Editor.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/3c/4c628eb695/0/metadata.json",
+      "transcript": "/3c/4c628eb695/0/full.jsonl",
+      "content_hash": "/3c/4c628eb695/0/content_hash.txt",
+      "prompt": "/3c/4c628eb695/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 25,
+    "cache_creation_tokens": 27177,
+    "cache_read_tokens": 2776091,
+    "output_tokens": 18982,
+    "api_call_count": 19
+  }
+}
