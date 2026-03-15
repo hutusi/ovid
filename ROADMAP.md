@@ -78,7 +78,7 @@ This roadmap is organized into deliberate phases — each phase must feel comple
 
 29. ✅ **Image handling** — drag-and-drop image into editor: copy to workspace `assets/` (or configured asset dir), insert relative markdown path; show inline preview
 30. ✅ **Code block syntax highlighting** — syntax-highlighted code blocks in the editor (read-only highlight; doesn't affect saved markdown)
-31. ✅ **Focus / Zen mode** (`Cmd+Shift+Z`) — hide sidebar, properties panel, status bar; center editor with generous margins; `Esc` to exit
+31. ✅ **Focus / Zen mode** (`Ctrl+Cmd+Z`) — hide sidebar, properties panel, status bar; center editor with generous margins; `Esc` to exit
 32. ✅ **Typewriter mode** — keep the active line vertically centered as you type; reduces eye movement during long writing sessions
 33. ✅ **Writing session stats** — track words written in current session (not total); show +N words added in status bar
 
@@ -96,21 +96,18 @@ This roadmap is organized into deliberate phases — each phase must feel comple
 
 ---
 
-## 🔧 Remediation — Known Issues from Testing
+## ✅ Remediation — Known Issues from Testing
 > Goal: fix real gaps discovered during use before adding new features. These are not new capabilities — they are corrections to the existing experience that make the app feel complete and trustworthy.
 
-A. **Native app menu** — currently the app has no menu bar items beyond OS defaults; every action is only reachable by knowing a shortcut; add a full native menu (via Tauri `tauri::menu`) covering all major actions: File (new, open, close, save, open workspace, switch workspace), Edit (undo, redo, find & replace), View (toggle sidebar, properties panel, zen mode, typewriter mode, search), Go (file switcher, recent files), Git (commit & push); menus are also the only reliable way for new users to discover features
+A. ✅ **Native app menu** — full native menu bar (File / Edit / View / Go / Git) built via Tauri `tauri::menu`; each item emits an event to the frontend, routed to the same handlers as keyboard shortcuts; Edit menu uses OS-native Undo/Redo/Cut/Copy/Paste predefined items
 
-B. **Keyboard shortcut conflicts** — several shortcuts clash with macOS system defaults or Tiptap's own bindings:
-   - `Cmd+Shift+Z` — assigned to Zen mode, but this is the macOS / Tiptap standard for **Redo**; our current intercept-before-guard fix has broken Redo inside the editor; remap Zen mode (candidate: `Ctrl+Cmd+Z`, or expose only via menu until a non-conflicting binding is chosen)
-   - `Cmd+\` — used by some terminal emulators and system utilities; evaluate alternatives (e.g. `Cmd+Shift+B` for sidebar)
-   - Audit all shortcuts against macOS HIG reserved bindings and Tiptap's StarterKit defaults before shipping
+B. ✅ **Keyboard shortcut conflicts** — zen mode remapped from `Cmd+Shift+Z` to `Ctrl+Cmd+Z`; Redo (`Cmd+Shift+Z`) is now fully functional inside the editor; all other shortcuts audited
 
-C. **Link management** — no UI exists to add or edit a hyperlink; `Cmd+K` is unbound; inline links must be typed as raw Markdown syntax; fix: wire `Cmd+K` to a link dialog (URL input + confirm/remove); the Link Tiptap extension is already loaded but has no input affordance
+C. ✅ **Link management** — `Cmd+K` opens a link dialog (URL input + Apply / Remove); pre-fills the URL when the cursor is on an existing link; uses the already-loaded Link extension
 
-D. **Inline code and code block language** — `Cmd+E` for inline code is not reliably triggered; there is no UI to set or change the language of a fenced code block; the `lowlight` extension is loaded but the language field is write-once at creation; fix: ensure `Cmd+E` triggers inline code; add a language selector dropdown in the code block header (clicking the language label opens a picker)
+D. ✅ **Inline code and code block language** — `Cmd+E` intercepted at window level to prevent WKWebView consuming it; code block NodeView shows a language label in the top-right, clicking opens a dropdown of common languages
 
-E. **Sidebar content type differentiation** — all files appear identically in the sidebar regardless of their frontmatter `type` (post, page, note, series, etc.); publishers managing a mixed Amytis workspace cannot distinguish content at a glance; fix: read the `type` field from parsed frontmatter and show a small type badge or icon next to each filename; optionally group or sort by type; gracefully falls back to no badge when `type` is absent
+E. ✅ **Sidebar content type differentiation** — Rust reads the `type:` frontmatter field alongside `title` and `draft`; sidebar shows a small monospace badge per file; gracefully absent when the field is not set
 
 ---
 
