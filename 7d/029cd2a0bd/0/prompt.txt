@@ -1,0 +1,21 @@
+I want rename this app to "Ovid", the TUI version rename to "Ovid TUI" or "Ovid CLI", what do you think?
+
+---
+
+or what do you think about the name of TUI version, do you have any other ideas?
+
+---
+
+OK, you are brilliant
+
+---
+
+Another question: it seems like we are putting a lot of effort into rendering Markdown elements. Why not use Tiptap Markdown or another Markdown component?
+
+---
+
+Let's take a look at image rendering. Currently, images in posts do not render. The app should support relative paths, root paths, and add CDN paths if a site CDN is configured. What do you think?
+
+---
+
+agree, go ahead.
