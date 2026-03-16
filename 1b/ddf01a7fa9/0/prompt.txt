@@ -1,0 +1,17 @@
+How do I insert or modify the images?
+
+---
+
+insert image from menu, and support to edit the existeing image. what do you think?
+
+---
+
+go ahead
+
+---
+
+When I click an image, please do not show the formatting popup. Also, please refine the src/alt edit bar to make it more elegant. What do you think?
+
+---
+
+The alt field doesn't seem wide enough. Would it be better to make the edit bar display like this: "![.....](........)" . what do you think?
