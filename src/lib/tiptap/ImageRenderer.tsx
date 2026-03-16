@@ -63,7 +63,7 @@ function ImageNodeView({ node, extension, selected, updateAttributes }: NodeView
           <div className="image-edit-field">
             <span className="image-edit-label">src</span>
             <input
-              className="image-edit-input"
+              className="image-edit-input image-edit-input--src"
               value={srcInput}
               onChange={(e) => updateSrc(e.target.value)}
               onBlur={() => updateAttributes({ src: srcRef.current })}
@@ -78,10 +78,11 @@ function ImageNodeView({ node, extension, selected, updateAttributes }: NodeView
               spellCheck={false}
             />
           </div>
-          <div className="image-edit-field">
+          <div className="image-edit-divider" aria-hidden="true" />
+          <div className="image-edit-field image-edit-field--alt">
             <span className="image-edit-label">alt</span>
             <input
-              className="image-edit-input"
+              className="image-edit-input image-edit-input--alt"
               value={altInput}
               onChange={(e) => updateAlt(e.target.value)}
               onBlur={() => updateAttributes({ alt: altRef.current })}

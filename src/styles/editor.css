@@ -430,51 +430,73 @@
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  min-width: 280px;
-  background: var(--color-surface-subtle);
+  min-width: 360px;
+  height: 32px;
+  background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
-  border-radius: 6px;
-  padding: 8px 10px;
+  border-radius: 7px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
   z-index: 20;
-  box-shadow: 0 4px 12px var(--shadow-tooltip);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.1),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 }
 
 .image-edit-field {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
+  flex: 2;
+  padding: 0 10px;
+  min-width: 0;
+  height: 100%;
+}
+
+.image-edit-field--alt {
+  flex: 1;
+}
+
+.image-edit-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--color-border);
+  flex-shrink: 0;
 }
 
 .image-edit-label {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 9px;
+  font-weight: 700;
   color: var(--color-fg-subtle);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  width: 22px;
+  letter-spacing: 0.09em;
   flex-shrink: 0;
+  user-select: none;
 }
 
 .image-edit-input {
   flex: 1;
-  height: 26px;
-  padding: 0 6px;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  background: transparent;
   font-size: 12px;
-  font-family: var(--font-mono, monospace);
-  color: var(--color-fg);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: 4px;
+  color: var(--color-fg-muted);
   outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.15s;
+  padding: 0;
+}
+
+.image-edit-input--src {
+  font-family: var(--font-mono, monospace);
+}
+
+.image-edit-input--alt {
+  font-family: var(--font-ui);
 }
 
 .image-edit-input:focus {
-  border-color: var(--color-accent);
+  color: var(--color-fg);
 }
 
 /* Link preview tooltip */

@@ -9,7 +9,14 @@ interface BubbleMenuProps {
 
 export function BubbleMenu({ editor, onLinkClick }: BubbleMenuProps) {
   return (
-    <TiptapBubbleMenu editor={editor}>
+    <TiptapBubbleMenu
+      editor={editor}
+      shouldShow={({ state }) => {
+        const sel = state.selection;
+        // Don't show for node selections (image clicks, table cells, etc.)
+        return !sel.empty && !("node" in sel);
+      }}
+    >
       <div className="bubble-menu" role="toolbar" aria-label="Formatting options">
         <button
           type="button"
