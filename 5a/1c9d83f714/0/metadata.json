@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "5a1c9d83f714",
+  "session_id": "50d7b24a-4d03-4a47-9c74-10e39e1df889",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-16T13:19:53.427715Z",
+  "branch": "images",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src-tauri/src/lib.rs",
+    "src-tauri/tauri.conf.json",
+    "src/lib/tiptap/ImageRenderer.tsx",
+    "src/components/Editor.tsx",
+    "src/App.tsx",
+    "src/lib/imageUtils.ts",
+    "src/components/PropertiesPanel.css",
+    "src/lib/imageUtils.test.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-sonnet-4-6",
+  "turn_id": "c967290f6f6a",
+  "checkpoint_transcript_start": 479,
+  "transcript_lines_at_start": 479,
+  "token_usage": {
+    "input_tokens": 27,
+    "cache_creation_tokens": 35818,
+    "cache_read_tokens": 3331670,
+    "output_tokens": 11757,
+    "api_call_count": 23
+  },
+  "session_metrics": {
+    "turn_count": 15
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-16T13:19:51.816801Z",
+    "agent_lines": 61,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 61,
+    "agent_percentage": 100
+  }
+}

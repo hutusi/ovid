@@ -1,0 +1,32 @@
+{
+  "cli_version": "0.5.0",
+  "checkpoint_id": "5a1c9d83f714",
+  "strategy": "manual-commit",
+  "branch": "images",
+  "checkpoints_count": 0,
+  "files_touched": [
+    "src-tauri/src/lib.rs",
+    "src-tauri/tauri.conf.json",
+    "src/App.tsx",
+    "src/components/Editor.tsx",
+    "src/components/PropertiesPanel.css",
+    "src/lib/imageUtils.test.ts",
+    "src/lib/imageUtils.ts",
+    "src/lib/tiptap/ImageRenderer.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/5a/1c9d83f714/0/metadata.json",
+      "transcript": "/5a/1c9d83f714/0/full.jsonl",
+      "content_hash": "/5a/1c9d83f714/0/content_hash.txt",
+      "prompt": "/5a/1c9d83f714/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 27,
+    "cache_creation_tokens": 35818,
+    "cache_read_tokens": 3331670,
+    "output_tokens": 11757,
+    "api_call_count": 23
+  }
+}
