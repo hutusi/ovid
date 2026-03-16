@@ -1,0 +1,5 @@
+when I first run Today's Flow, it prompts error: "failed to open today's flow: file already exist", the second time it create success.
+
+---
+
+and I don't need title, date, type, draft in the meta info, I only need "tags: []"
