@@ -32,6 +32,22 @@ const lowlight = createLowlight(common);
 
 const IMAGE_MIME = /^image\/(png|jpe?g|gif|webp|avif|svg\+xml)$/;
 
+async function pickAndInsertImage(
+  editor: ReturnType<typeof useEditor>,
+  filePath: string | undefined
+) {
+  if (!editor) return;
+  try {
+    const srcPath = await invoke<string | null>("pick_image_file");
+    if (!srcPath) return;
+    const relPath = await invoke<string>("save_asset", { srcPath, activeFilePath: filePath });
+    const fileName = (srcPath.split("/").pop() ?? "image").replace(/\.[^.]+$/, "");
+    editor.chain().focus().setImage({ src: relPath, alt: fileName }).run();
+  } catch (err) {
+    console.error("insert image failed:", err);
+  }
+}
+
 interface EditorProps {
   content?: string;
   filePath?: string;
@@ -263,6 +279,18 @@ export function Editor({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [editor]);
 
+  // Cmd+Shift+I — open file picker and insert image
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key?.toLowerCase() !== "i") return;
+      if (!editor?.isFocused) return;
+      e.preventDefault();
+      pickAndInsertImage(editor, filePath);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editor, filePath]);
+
   // Cmd+H — open / close find & replace bar
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -320,6 +348,9 @@ export function Editor({
           setLinkDialog({ href });
           break;
         }
+        case "insert-image":
+          pickAndInsertImage(editor, filePath);
+          break;
         case "insert-code-block":
           editor.chain().focus().toggleCodeBlock().run();
           break;
@@ -341,7 +372,7 @@ export function Editor({
       mounted = false;
       unlisten?.();
     };
-  }, [editor, linkDialog]);
+  }, [editor, linkDialog, filePath]);
 
   return (
     <div className="editor-wrapper">

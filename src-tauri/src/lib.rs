@@ -727,6 +727,27 @@ fn relative_path_from(from_dir: &Path, to: &Path) -> String {
 /// a path relative to the active markdown file (or `assets/<name>` as fallback).
 ///
 /// Note: unlike `read_file`/`write_file`, `src_path` is intentionally not
+/// Open a native file picker filtered to image types and return the chosen path.
+#[tauri::command]
+async fn pick_image_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
+    app.dialog()
+        .file()
+        .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"])
+        .pick_file(move |file| {
+            tx.send(file).ok();
+        });
+    let file = match rx.await.ok().flatten() {
+        Some(f) => f,
+        None => return Ok(None),
+    };
+    let path = match file {
+        tauri_plugin_dialog::FilePath::Path(p) => p.to_string_lossy().to_string(),
+        tauri_plugin_dialog::FilePath::Url(u) => u.path().to_string(),
+    };
+    Ok(Some(path))
+}
+
 /// validated against the workspace root — drag-and-drop sources originate from
 /// external locations (desktop, downloads, etc.). The destination is safely
 /// constrained to `<workspace>/assets/`.
@@ -882,6 +903,9 @@ pub fn run() {
                     &MenuItemBuilder::with_id("insert-link", "Link…")
                         .accelerator("CmdOrCtrl+K")
                         .build(app)?,
+                    &MenuItemBuilder::with_id("insert-image", "Image…")
+                        .accelerator("CmdOrCtrl+Shift+I")
+                        .build(app)?,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItemBuilder::with_id("insert-code-block", "Code Block").build(app)?,
                     &MenuItemBuilder::with_id("insert-table", "Table").build(app)?,
@@ -1008,6 +1032,7 @@ pub fn run() {
             get_git_branch,
             git_commit,
             save_asset,
+            pick_image_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
