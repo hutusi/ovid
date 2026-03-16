@@ -1082,6 +1082,49 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
+    // ── normalize_path ───────────────────────────────────────────────────────
+
+    #[test]
+    fn normalize_path_resolves_parent_components() {
+        assert_eq!(
+            normalize_path(Path::new("/a/b/../c")),
+            PathBuf::from("/a/c")
+        );
+    }
+
+    #[test]
+    fn normalize_path_removes_current_dir_components() {
+        assert_eq!(
+            normalize_path(Path::new("/a/./b/./c")),
+            PathBuf::from("/a/b/c")
+        );
+    }
+
+    #[test]
+    fn normalize_path_handles_multiple_parent_jumps() {
+        assert_eq!(
+            normalize_path(Path::new("/a/b/c/../../d")),
+            PathBuf::from("/a/d")
+        );
+    }
+
+    #[test]
+    fn normalize_path_plain_path_unchanged() {
+        assert_eq!(
+            normalize_path(Path::new("/a/b/c")),
+            PathBuf::from("/a/b/c")
+        );
+    }
+
+    #[test]
+    fn normalize_path_parent_cannot_escape_root() {
+        // Popping past the root stays at root on all platforms
+        assert_eq!(
+            normalize_path(Path::new("/a/../../etc/passwd")),
+            PathBuf::from("/etc/passwd")
+        );
+    }
+
     // ── extract_quoted_string ────────────────────────────────────────────────
 
     #[test]

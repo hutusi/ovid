@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
+  createTodayFlowFrontmatter,
   createTypedFrontmatter,
   joinFrontmatter,
   parseFrontmatter,
@@ -160,5 +161,37 @@ describe("createTypedFrontmatter", () => {
   it("includes a date field in YYYY-MM-DD format", () => {
     const result = createTypedFrontmatter("my-post", "post");
     expect(result).toMatch(/date: \d{4}-\d{2}-\d{2}/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createTodayFlowFrontmatter
+// ---------------------------------------------------------------------------
+
+describe("createTodayFlowFrontmatter", () => {
+  it("produces valid fenced frontmatter", () => {
+    const result = createTodayFlowFrontmatter();
+    expect(result.startsWith("---\n")).toBe(true);
+    expect(result.endsWith("---\n")).toBe(true);
+  });
+
+  it("contains only tags: []", () => {
+    const result = createTodayFlowFrontmatter();
+    expect(result).toContain("tags: []");
+  });
+
+  it("does not include title, date, type, or draft fields", () => {
+    const result = createTodayFlowFrontmatter();
+    expect(result).not.toMatch(/\btitle:/);
+    expect(result).not.toMatch(/\bdate:/);
+    expect(result).not.toMatch(/\btype:/);
+    expect(result).not.toMatch(/\bdraft:/);
+  });
+
+  it("parses to an empty tags array via parseYamlFrontmatter", () => {
+    const result = createTodayFlowFrontmatter();
+    const parsed = parseYamlFrontmatter(result);
+    expect(parsed.tags).toEqual([]);
+    expect(Object.keys(parsed)).toEqual(["tags"]);
   });
 });
