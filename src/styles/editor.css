@@ -430,53 +430,31 @@
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  min-width: 360px;
-  height: 32px;
+  min-width: 380px;
+  height: 30px;
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
   border-radius: 7px;
   display: flex;
   align-items: center;
+  padding: 0 10px;
+  gap: 1px;
   z-index: 20;
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.1),
     0 1px 4px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
 }
 
-.image-edit-field {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex: 2;
-  padding: 0 10px;
-  min-width: 0;
-  height: 100%;
-}
-
-.image-edit-field--alt {
-  flex: 1;
-}
-
-.image-edit-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--color-border);
-  flex-shrink: 0;
-}
-
-.image-edit-label {
-  font-size: 9px;
-  font-weight: 700;
+.image-edit-syntax {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
   color: var(--color-fg-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
   flex-shrink: 0;
   user-select: none;
+  opacity: 0.6;
 }
 
 .image-edit-input {
-  flex: 1;
   min-width: 0;
   height: 100%;
   border: none;
@@ -484,15 +462,22 @@
   font-size: 12px;
   color: var(--color-fg-muted);
   outline: none;
-  padding: 0;
-}
-
-.image-edit-input--src {
-  font-family: var(--font-mono, monospace);
+  padding: 0 3px;
 }
 
 .image-edit-input--alt {
+  flex: 1;
   font-family: var(--font-ui);
+}
+
+.image-edit-input--src {
+  flex: 2;
+  font-family: var(--font-mono, monospace);
+}
+
+.image-edit-input::placeholder {
+  color: var(--color-fg-subtle);
+  opacity: 0.5;
 }
 
 .image-edit-input:focus {
