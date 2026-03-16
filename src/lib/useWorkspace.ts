@@ -122,16 +122,14 @@ export function useWorkspace({
     const filePath = `${dirPath}/${day}.md`;
     try {
       await invoke("ensure_dir", { path: dirPath });
-      const updated = await refreshTree();
-      const existing = findNode(updated, filePath);
-      if (existing) {
-        await handleSelectFile(existing);
-        return;
+      try {
+        await invoke("create_file", { path: filePath, content: createTodayFlowFrontmatter() });
+      } catch (err) {
+        if (!String(err).includes("already exists")) throw err;
       }
-      await invoke("create_file", { path: filePath, content: createTodayFlowFrontmatter() });
-      const refreshed = await refreshTree();
-      const newNode = findNode(refreshed, filePath);
-      if (newNode) await handleSelectFile(newNode);
+      const updated = await refreshTree();
+      const node = findNode(updated, filePath);
+      if (node) await handleSelectFile(node);
     } catch (err) {
       console.error("Failed to open today's flow:", err);
       showToast(`Failed to open today's flow: ${err}`);

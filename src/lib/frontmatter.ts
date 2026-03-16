@@ -48,8 +48,7 @@ export function createTypedFrontmatter(slug: string, type: string): string {
 }
 
 export function createTodayFlowFrontmatter(): string {
-  const today = new Date().toISOString().slice(0, 10);
-  return `---\ntitle: "${today}"\ndate: ${today}\ntype: flow\ndraft: true\n---\n`;
+  return `---\ntags: []\n---\n`;
 }
 
 export function parseYamlFrontmatter(raw: string): ParsedFrontmatter {
