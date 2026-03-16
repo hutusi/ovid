@@ -245,8 +245,10 @@ async fn open_workspace_at_path(
     let tree = walk_dir(&tree_root);
     let (asset_root, cdn_base) = derive_workspace_meta(&root, is_amytis_workspace);
 
-    // Narrow the asset protocol scope to this workspace's asset root
-    let _ = app.asset_protocol_scope().allow_directory(&asset_root, true);
+    // Grant asset protocol access to the entire workspace root so that both
+    // root-relative paths (resolved inside public/) and relative paths
+    // (resolved anywhere within the workspace) can be served.
+    let _ = app.asset_protocol_scope().allow_directory(&root, true);
 
     Ok(Some(WorkspaceResult {
         name,
@@ -298,8 +300,10 @@ async fn open_workspace(
     let tree = walk_dir(&tree_root);
     let (asset_root, cdn_base) = derive_workspace_meta(&root, is_amytis_workspace);
 
-    // Narrow the asset protocol scope to this workspace's asset root
-    let _ = app.asset_protocol_scope().allow_directory(&asset_root, true);
+    // Grant asset protocol access to the entire workspace root so that both
+    // root-relative paths (resolved inside public/) and relative paths
+    // (resolved anywhere within the workspace) can be served.
+    let _ = app.asset_protocol_scope().allow_directory(&root, true);
 
     Ok(Some(WorkspaceResult {
         name,
