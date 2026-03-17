@@ -84,3 +84,7 @@ These entry points now surface picker failures, but the existing drop handler st
 As per coding guidelines, "Display user-visible errors via the toast system (showToast in App.tsx); never use console.error for user-facing failures".
 
 Also applies to: 288-298, 357-359
+
+---
+
+/commit
