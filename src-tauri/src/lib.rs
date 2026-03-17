@@ -208,14 +208,12 @@ fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
 /// Compute the asset-serving root and CDN base for a workspace.
 /// `asset_root` is `<workspace>/public/` when that directory exists (static-site
 /// convention), falling back to the workspace root itself.
-fn derive_workspace_meta(root: &Path, is_amytis_workspace: bool) -> (PathBuf, Option<String>) {
+/// `cdn_base` is read from `site.config.ts` whenever that file exists,
+/// regardless of whether the full Amytis structure (content/ dir) is present.
+fn derive_workspace_meta(root: &Path) -> (PathBuf, Option<String>) {
     let pub_dir = root.join("public");
     let asset_root = if pub_dir.is_dir() { pub_dir } else { root.to_path_buf() };
-    let cdn_base = if is_amytis_workspace {
-        parse_cdn_base(&root.join("site.config.ts"))
-    } else {
-        None
-    };
+    let cdn_base = parse_cdn_base(&root.join("site.config.ts"));
     (asset_root, cdn_base)
 }
 
@@ -243,7 +241,7 @@ async fn open_workspace_at_path(
 
     let is_amytis_workspace = root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = walk_dir(&tree_root);
-    let (asset_root, cdn_base) = derive_workspace_meta(&root, is_amytis_workspace);
+    let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
     // Grant asset protocol access to the entire workspace root so that both
     // root-relative paths (resolved inside public/) and relative paths
@@ -298,7 +296,7 @@ async fn open_workspace(
 
     let is_amytis_workspace = root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = walk_dir(&tree_root);
-    let (asset_root, cdn_base) = derive_workspace_meta(&root, is_amytis_workspace);
+    let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
     // Grant asset protocol access to the entire workspace root so that both
     // root-relative paths (resolved inside public/) and relative paths
@@ -485,8 +483,22 @@ fn parse_cdn_base(config_path: &Path) -> Option<String> {
     use std::io::{BufRead, BufReader};
     let file = std::fs::File::open(config_path).ok()?;
     let reader = BufReader::new(file);
+    let mut in_block_comment = false;
     for line in reader.lines().flatten() {
         let trimmed = line.trim();
+        // Track /* ... */ block comments that may span multiple lines
+        if in_block_comment {
+            if trimmed.contains("*/") {
+                in_block_comment = false;
+            }
+            continue;
+        }
+        if trimmed.starts_with("/*") {
+            if !trimmed.contains("*/") {
+                in_block_comment = true;
+            }
+            continue;
+        }
         if trimmed.starts_with("//") || trimmed.starts_with('*') {
             continue;
         }
@@ -1215,7 +1227,7 @@ mod tests {
     fn derive_workspace_meta_uses_public_dir_when_present() {
         let dir = TempDir::new().unwrap();
         fs::create_dir(dir.path().join("public")).unwrap();
-        let (asset_root, cdn_base) = derive_workspace_meta(dir.path(), false);
+        let (asset_root, cdn_base) = derive_workspace_meta(dir.path());
         assert_eq!(asset_root, dir.path().join("public"));
         assert_eq!(cdn_base, None);
     }
@@ -1223,32 +1235,38 @@ mod tests {
     #[test]
     fn derive_workspace_meta_falls_back_to_workspace_root() {
         let dir = TempDir::new().unwrap();
-        let (asset_root, cdn_base) = derive_workspace_meta(dir.path(), false);
+        let (asset_root, cdn_base) = derive_workspace_meta(dir.path());
         assert_eq!(asset_root, dir.path().to_path_buf());
         assert_eq!(cdn_base, None);
     }
 
     #[test]
-    fn derive_workspace_meta_extracts_cdn_base_for_amytis() {
+    fn derive_workspace_meta_extracts_cdn_base_when_config_present() {
         let dir = TempDir::new().unwrap();
         fs::write(
             dir.path().join("site.config.ts"),
             "export const config = {\n  cdnBase: 'https://cdn.example.com',\n};\n",
         )
         .unwrap();
-        let (_, cdn_base) = derive_workspace_meta(dir.path(), true);
+        let (_, cdn_base) = derive_workspace_meta(dir.path());
         assert_eq!(cdn_base, Some("https://cdn.example.com".to_string()));
     }
 
     #[test]
-    fn derive_workspace_meta_ignores_cdn_for_non_amytis() {
+    fn derive_workspace_meta_no_cdn_without_config() {
         let dir = TempDir::new().unwrap();
-        fs::write(
-            dir.path().join("site.config.ts"),
-            "export const config = { cdnBase: 'https://cdn.example.com' };",
-        )
-        .unwrap();
-        let (_, cdn_base) = derive_workspace_meta(dir.path(), false);
+        // No site.config.ts — cdn_base must be None regardless of workspace type
+        let (_, cdn_base) = derive_workspace_meta(dir.path());
         assert_eq!(cdn_base, None);
+    }
+
+    #[test]
+    fn parse_cdn_base_skips_multi_line_block_comments() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "/* This config has no CDN\n  cdnBase: 'https://cdn.example.com'\n*/\nexport const config = {};\n",
+        );
+        assert_eq!(parse_cdn_base(&path), None);
     }
 }

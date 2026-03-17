@@ -357,7 +357,9 @@ function App() {
 
   const hasFrontmatter = Object.keys(parsedFrontmatter).length > 0;
   const coverImagePath =
-    parsedFrontmatter.coverImage !== undefined ? String(parsedFrontmatter.coverImage) : undefined;
+    parsedFrontmatter.coverImage != null && parsedFrontmatter.coverImage !== ""
+      ? String(parsedFrontmatter.coverImage)
+      : undefined;
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
@@ -434,6 +436,7 @@ function App() {
                 spellCheck={prefs.spellCheck}
                 onWordCount={setWordCount}
                 onChange={handleEditorChange}
+                onError={showToast}
               />
             </ErrorBoundary>
           ) : (

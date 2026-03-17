@@ -34,17 +34,21 @@ const IMAGE_MIME = /^image\/(png|jpe?g|gif|webp|avif|svg\+xml)$/;
 
 async function pickAndInsertImage(
   editor: ReturnType<typeof useEditor>,
-  filePath: string | undefined
+  filePath: string | undefined,
+  onError?: (msg: string) => void
 ) {
   if (!editor) return;
   try {
     const srcPath = await invoke<string | null>("pick_image_file");
     if (!srcPath) return;
     const relPath = await invoke<string>("save_asset", { srcPath, activeFilePath: filePath });
-    const fileName = (srcPath.split("/").pop() ?? "image").replace(/\.[^.]+$/, "");
+    // Split on both / and \ to handle Windows paths correctly
+    const fileName = (srcPath.split(/[/\\]/).pop() ?? "image").replace(/\.[^.]+$/, "");
     editor.chain().focus().setImage({ src: relPath, alt: fileName }).run();
   } catch (err) {
-    console.error("insert image failed:", err);
+    const msg = `Failed to insert image: ${err instanceof Error ? err.message : err}`;
+    if (onError) onError(msg);
+    else console.error(msg);
   }
 }
 
@@ -57,6 +61,7 @@ interface EditorProps {
   spellCheck?: boolean;
   onWordCount?: (count: number) => void;
   onChange?: (markdown: string) => void;
+  onError?: (msg: string) => void;
 }
 
 export function Editor({
@@ -68,6 +73,7 @@ export function Editor({
   spellCheck = true,
   onWordCount,
   onChange,
+  onError,
 }: EditorProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const typewriterRef = useRef(typewriterMode);
@@ -285,11 +291,11 @@ export function Editor({
       if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key?.toLowerCase() !== "i") return;
       if (!editor?.isFocused) return;
       e.preventDefault();
-      pickAndInsertImage(editor, filePath);
+      pickAndInsertImage(editor, filePath, onError);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editor, filePath]);
+  }, [editor, filePath, onError]);
 
   // Cmd+H — open / close find & replace bar
   useEffect(() => {
@@ -349,7 +355,7 @@ export function Editor({
           break;
         }
         case "insert-image":
-          pickAndInsertImage(editor, filePath);
+          pickAndInsertImage(editor, filePath, onError);
           break;
         case "insert-code-block":
           editor.chain().focus().toggleCodeBlock().run();
@@ -372,7 +378,7 @@ export function Editor({
       mounted = false;
       unlisten?.();
     };
-  }, [editor, linkDialog, filePath]);
+  }, [editor, linkDialog, filePath, onError]);
 
   return (
     <div className="editor-wrapper">
