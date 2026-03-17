@@ -1,0 +1,86 @@
+How do I insert or modify the images?
+
+---
+
+insert image from menu, and support to edit the existeing image. what do you think?
+
+---
+
+go ahead
+
+---
+
+When I click an image, please do not show the formatting popup. Also, please refine the src/alt edit bar to make it more elegant. What do you think?
+
+---
+
+The alt field doesn't seem wide enough. Would it be better to make the edit bar display like this: "![.....](........)" . what do you think?
+
+---
+
+check about the new code reviews by coderabbit on PR #20
+
+---
+
+check about 3 new code reviews by coderabbit on PR #20: 1) src-tauri/src/lib.rs
+Comment on lines +95 to +98
+    asset_root: String,
+    tree: Vec<FileNode>,
+    is_amytis_workspace: bool,
+    cdn_base: Option<String>,
+@coderabbitai
+coderabbitai bot
+25 minutes ago
+⚠️ Potential issue | 🟠 Major
+
+Normalize the new path contract before the frontend resolver consumes it.
+
+asset_root is serialized with native separators here, and FileNode.path already comes across the same way. resolveImageSrc in src/lib/imageUtils.ts:12-46 derives the parent directory with lastIndexOf("/"), so on Windows a path like C:\site\content\post.md collapses to "." and relative images / cover previews resolve from the wrong place.
+
+Also applies to: 255-258, 310-313  2) src-tauri/src/lib.rs
+Comment on lines +246 to +249
+    // Grant asset protocol access to the entire workspace root so that both
+    // root-relative paths (resolved inside public/) and relative paths
+    // (resolved anywhere within the workspace) can be served.
+    let _ = app.asset_protocol_scope().allow_directory(&root, true);
+@coderabbitai
+coderabbitai bot
+26 minutes ago
+⚠️ Potential issue | 🟠 Major
+
+🧩 Analysis chain
+Handle asset scope setup errors and avoid persistent scope accumulation across workspace switches.
+
+The allow_directory calls at lines 246–249 and 301–304 discard their Result with let _, so setup failures degrade silently rather than rejecting the workspace open. Additionally, each workspace switch calls allow_directory without revoking the previous scope—if Tauri persists these allowances, files from workspace A remain accessible when workspace B is open via relative image paths.  3) src/components/Editor.tsx
+Comment on lines +35 to +53
+async function pickAndInsertImage(
+  editor: ReturnType<typeof useEditor>,
+  filePath: string | undefined,
+  onError?: (msg: string) => void
+) {
+  if (!editor) return;
+  try {
+    const srcPath = await invoke<string | null>("pick_image_file");
+    if (!srcPath) return;
+    const relPath = await invoke<string>("save_asset", { srcPath, activeFilePath: filePath });
+    // Split on both / and \ to handle Windows paths correctly
+    const fileName = (srcPath.split(/[/\\]/).pop() ?? "image").replace(/\.[^.]+$/, "");
+    editor.chain().focus().setImage({ src: relPath, alt: fileName }).run();
+  } catch (err) {
+    const msg = `Failed to insert image: ${err instanceof Error ? err.message : err}`;
+    if (onError) onError(msg);
+    else console.error(msg);
+  }
+}
+@coderabbitai
+coderabbitai bot
+26 minutes ago
+⚠️ Potential issue | 🟡 Minor
+
+Reuse onError for dropped-image failures too.
+
+These entry points now surface picker failures, but the existing drop handler still only console.errors rejected save_asset calls, so drag-and-drop image insertion remains a silent no-op when the copy fails. Wire the same callback through that branch so both image-insertion paths fail consistently.
+
+As per coding guidelines, "Display user-visible errors via the toast system (showToast in App.tsx); never use console.error for user-facing failures".
+
+Also applies to: 288-298, 357-359
