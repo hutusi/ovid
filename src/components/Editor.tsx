@@ -173,7 +173,9 @@ export function Editor({
         ).then((results) => {
           const saved = results.flatMap((r) => {
             if (r.status === "fulfilled") return [r.value];
-            onError?.(`Failed to drop image: ${r.reason}`);
+            const msg = `Failed to drop image: ${r.reason}`;
+            if (onError) onError(msg);
+            else console.error(msg);
             return [];
           });
           if (saved.length === 0) return;
