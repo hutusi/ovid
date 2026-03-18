@@ -21,6 +21,7 @@ import { ImageRenderer } from "../lib/tiptap/ImageRenderer";
 import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
 import { TextFolding } from "../lib/tiptap/TextFolding";
+import { normalizeTaskLists } from "../lib/tiptap/taskLists";
 import { BubbleMenu } from "./BubbleMenu";
 import { CodeBlockView } from "./CodeBlockView";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -93,6 +94,10 @@ export function Editor({
           return ReactNodeViewRenderer(CodeBlockView);
         },
       }).configure({ lowlight }),
+      TaskList,
+      TaskItem.configure({
+        nested: true,
+      }),
       Markdown.configure({
         transformPastedText: true,
         transformCopiedText: true,
@@ -124,10 +129,6 @@ export function Editor({
       }).configure({
         openOnClick: false,
         HTMLAttributes: { rel: "noopener noreferrer" },
-      }),
-      TaskList,
-      TaskItem.configure({
-        nested: true,
       }),
       ImageRenderer.configure({ filePath, assetRoot, cdnBase }),
       Table.configure({ resizable: true }),
@@ -231,6 +232,16 @@ export function Editor({
       // view not yet mounted — initial value is set via editorProps in useEditor
     }
   }, [editor, spellCheck]);
+
+  // Some Markdown inputs still parse task syntax as plain bullet items
+  // with a leading "[ ]" or "[x]" text token. Normalize that once on load
+  // so opened files render as real task lists with interactive checkboxes.
+  useEffect(() => {
+    if (!editor) return;
+    const normalized = normalizeTaskLists(editor.getJSON());
+    if (JSON.stringify(normalized) === JSON.stringify(editor.getJSON())) return;
+    editor.commands.setContent(normalized, false);
+  }, [editor]);
 
   // Click on the ](url) hint from InlineEditMode → open link dialog
   // Use scrollRef instead of editor.view.dom to avoid accessing the view before it's mounted
