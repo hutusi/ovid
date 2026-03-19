@@ -238,8 +238,11 @@ export function Editor({
   // so opened files render as real task lists with interactive checkboxes.
   useEffect(() => {
     if (!editor) return;
-    const normalized = normalizeTaskLists(editor.getJSON());
-    if (JSON.stringify(normalized) === JSON.stringify(editor.getJSON())) return;
+    const original = editor.getJSON();
+    const originalStr = JSON.stringify(original);
+    const normalized = normalizeTaskLists(original);
+    const normalizedStr = JSON.stringify(normalized);
+    if (normalizedStr === originalStr) return;
     editor.commands.setContent(normalized, { emitUpdate: false });
   }, [editor]);
 
