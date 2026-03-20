@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import StarterKit from "@tiptap/starter-kit";
 import { Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
-import { shouldUnwrapBlockOnBackspace } from "./ListBackspace";
+import { applyBackspaceAction, getBackspaceAction, ListBackspace } from "./ListBackspace";
 
 function createEditor(content: Record<string, unknown>) {
   return new Editor({
@@ -45,7 +45,7 @@ describe("ListBackspace", () => {
     const betaStart = 12;
     editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, betaStart)));
 
-    expect(shouldUnwrapBlockOnBackspace(editor.state)).toBe("listItem");
+    expect(getBackspaceAction(editor.state)).toEqual({ type: "liftListItem" });
 
     editor.destroy();
   });
@@ -76,7 +76,7 @@ describe("ListBackspace", () => {
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, middleOfAlpha))
     );
 
-    expect(shouldUnwrapBlockOnBackspace(editor.state)).toBeNull();
+    expect(getBackspaceAction(editor.state)).toBeNull();
 
     editor.destroy();
   });
@@ -102,7 +102,7 @@ describe("ListBackspace", () => {
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, emptyItemStart))
     );
 
-    expect(shouldUnwrapBlockOnBackspace(editor.state)).toBeNull();
+    expect(getBackspaceAction(editor.state)).toBeNull();
 
     editor.destroy();
   });
@@ -128,7 +128,7 @@ describe("ListBackspace", () => {
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, quoteStart))
     );
 
-    expect(shouldUnwrapBlockOnBackspace(editor.state)).toBe("blockquote");
+    expect(getBackspaceAction(editor.state)).toEqual({ type: "liftBlockquote" });
 
     editor.destroy();
   });
@@ -149,7 +149,99 @@ describe("ListBackspace", () => {
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, emptyQuoteStart))
     );
 
-    expect(shouldUnwrapBlockOnBackspace(editor.state)).toBeNull();
+    expect(getBackspaceAction(editor.state)).toBeNull();
+
+    editor.destroy();
+  });
+
+  it("detects heading unwrap at text start", () => {
+    const editor = createEditor({
+      type: "doc",
+      content: [
+        {
+          type: "heading",
+          attrs: { level: 3 },
+          content: [{ type: "text", text: "Title" }],
+        },
+      ],
+    });
+
+    const headingStart = 1;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, headingStart))
+    );
+
+    expect(getBackspaceAction(editor.state)).toEqual({ type: "unwrapHeading" });
+
+    editor.destroy();
+  });
+
+  it("unwraps headings directly to paragraphs", () => {
+    const editor = new Editor({
+      extensions: [StarterKit, ListBackspace],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 3 },
+            content: [{ type: "text", text: "Title" }],
+          },
+        ],
+      },
+    });
+
+    const headingStart = 1;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, headingStart))
+    );
+
+    expect(applyBackspaceAction(editor)).toBe(true);
+
+    expect(editor.getJSON()).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Title" }],
+        },
+      ],
+    });
+
+    editor.destroy();
+  });
+
+  it("also unwraps h1 to a paragraph", () => {
+    const editor = new Editor({
+      extensions: [StarterKit, ListBackspace],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "heading",
+            attrs: { level: 1 },
+            content: [{ type: "text", text: "Title" }],
+          },
+        ],
+      },
+    });
+
+    const headingStart = 1;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, headingStart))
+    );
+
+    expect(applyBackspaceAction(editor)).toBe(true);
+
+    expect(editor.getJSON()).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Title" }],
+        },
+      ],
+    });
 
     editor.destroy();
   });

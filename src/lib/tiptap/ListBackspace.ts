@@ -1,7 +1,12 @@
-import { Extension } from "@tiptap/core";
+import { Extension, type Editor } from "@tiptap/core";
 import type { EditorState } from "@tiptap/pm/state";
 
-export function shouldUnwrapBlockOnBackspace(state: EditorState): "listItem" | "blockquote" | null {
+export type BackspaceAction =
+  | { type: "liftListItem" }
+  | { type: "liftBlockquote" }
+  | { type: "unwrapHeading" };
+
+export function getBackspaceAction(state: EditorState): BackspaceAction | null {
   const { selection } = state;
 
   if (!selection.empty) {
@@ -9,7 +14,7 @@ export function shouldUnwrapBlockOnBackspace(state: EditorState): "listItem" | "
   }
 
   const { $from } = selection;
-  if ($from.parent.type.name !== "paragraph" || $from.parentOffset !== 0) {
+  if ($from.parentOffset !== 0) {
     return null;
   }
 
@@ -17,19 +22,44 @@ export function shouldUnwrapBlockOnBackspace(state: EditorState): "listItem" | "
     return null;
   }
 
+  if ($from.parent.type.name === "heading") {
+    return { type: "unwrapHeading" };
+  }
+
+  if ($from.parent.type.name !== "paragraph") {
+    return null;
+  }
+
   for (let depth = $from.depth - 1; depth >= 0; depth--) {
     const node = $from.node(depth);
 
     if (node.type.name === "listItem") {
-      return $from.index(depth) === 0 ? "listItem" : null;
+      return $from.index(depth) === 0 ? { type: "liftListItem" } : null;
     }
 
     if (node.type.name === "blockquote") {
-      return "blockquote";
+      return { type: "liftBlockquote" };
     }
   }
 
   return null;
+}
+
+export function applyBackspaceAction(editor: Editor): boolean {
+  const action = getBackspaceAction(editor.state);
+  if (!action) {
+    return false;
+  }
+
+  if (action.type === "liftListItem") {
+    return editor.commands.liftListItem("listItem");
+  }
+
+  if (action.type === "liftBlockquote") {
+    return editor.commands.lift("blockquote");
+  }
+
+  return editor.commands.setParagraph();
 }
 
 export const ListBackspace = Extension.create({
@@ -38,17 +68,7 @@ export const ListBackspace = Extension.create({
   addKeyboardShortcuts() {
     return {
       Backspace: () => {
-        const { state, commands } = this.editor;
-        const target = shouldUnwrapBlockOnBackspace(state);
-        if (!target) {
-          return false;
-        }
-
-        if (target === "listItem") {
-          return commands.liftListItem("listItem");
-        }
-
-        return commands.lift("blockquote");
+        return applyBackspaceAction(this.editor);
       },
     };
   },
