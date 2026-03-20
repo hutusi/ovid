@@ -339,6 +339,48 @@ describe("ListBackspace", () => {
     editor.destroy();
   });
 
+  it("detects empty code block unwrap at text start", () => {
+    const editor = createEditor({
+      type: "doc",
+      content: [
+        {
+          type: "codeBlock",
+          content: [],
+        },
+      ],
+    });
+
+    const codeStart = 1;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, codeStart))
+    );
+
+    expect(getBackspaceAction(editor.state)).toEqual({ type: "unwrapEmptyCodeBlock" });
+
+    editor.destroy();
+  });
+
+  it("preserves non-empty code blocks at text start", () => {
+    const editor = createEditor({
+      type: "doc",
+      content: [
+        {
+          type: "codeBlock",
+          content: [{ type: "text", text: "const x = 1;" }],
+        },
+      ],
+    });
+
+    const codeStart = 1;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, codeStart))
+    );
+
+    expect(getBackspaceAction(editor.state)).toEqual({ type: "preserveCodeBlock" });
+
+    editor.destroy();
+  });
+
   it("unwraps headings directly to paragraphs", () => {
     const editor = new Editor({
       extensions: [StarterKit, ListBackspace],
@@ -402,6 +444,75 @@ describe("ListBackspace", () => {
         {
           type: "paragraph",
           content: [{ type: "text", text: "Title" }],
+        },
+      ],
+    });
+
+    editor.destroy();
+  });
+
+  it("unwraps empty code blocks to paragraphs", () => {
+    const editor = new Editor({
+      extensions: [StarterKit, ListBackspace],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "codeBlock",
+            content: [],
+          },
+        ],
+      },
+    });
+
+    const codeStart = 1;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, codeStart))
+    );
+
+    expect(applyBackspaceAction(editor)).toBe(true);
+    expect(editor.getJSON()).toEqual({
+      type: "doc",
+      content: [{ type: "paragraph" }],
+    });
+
+    editor.destroy();
+  });
+
+  it("consumes backspace at the start of non-empty code blocks without merging", () => {
+    const editor = new Editor({
+      extensions: [StarterKit, ListBackspace],
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "intro" }],
+          },
+          {
+            type: "codeBlock",
+            content: [{ type: "text", text: "const x = 1;" }],
+          },
+        ],
+      },
+    });
+
+    const codeStart = findNthNodeStart(editor, "codeBlock");
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, codeStart))
+    );
+
+    expect(applyBackspaceAction(editor)).toBe(true);
+    expect(editor.getJSON()).toMatchObject({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "intro" }],
+        },
+        {
+          type: "codeBlock",
+          content: [{ type: "text", text: "const x = 1;" }],
         },
       ],
     });

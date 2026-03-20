@@ -4,7 +4,9 @@ import type { EditorState } from "@tiptap/pm/state";
 export type BackspaceAction =
   | { type: "liftListItem"; itemType: "listItem" | "taskItem" }
   | { type: "liftBlockquote" }
-  | { type: "unwrapHeading" };
+  | { type: "unwrapHeading" }
+  | { type: "unwrapEmptyCodeBlock" }
+  | { type: "preserveCodeBlock" };
 
 export function getBackspaceAction(state: EditorState): BackspaceAction | null {
   const { selection } = state;
@@ -19,6 +21,14 @@ export function getBackspaceAction(state: EditorState): BackspaceAction | null {
   }
 
   const isEmptyTextblock = $from.parent.content.size === 0;
+
+  if ($from.parent.type.name === "codeBlock") {
+    if (isEmptyTextblock) {
+      return { type: "unwrapEmptyCodeBlock" };
+    }
+
+    return { type: "preserveCodeBlock" };
+  }
 
   if ($from.parent.type.name === "heading") {
     if (isEmptyTextblock) {
@@ -67,6 +77,14 @@ export function applyBackspaceAction(editor: Editor): boolean {
 
   if (action.type === "liftBlockquote") {
     return editor.commands.lift("blockquote");
+  }
+
+  if (action.type === "unwrapEmptyCodeBlock") {
+    return editor.commands.clearNodes();
+  }
+
+  if (action.type === "preserveCodeBlock") {
+    return true;
   }
 
   return editor.commands.setParagraph();
