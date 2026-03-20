@@ -1,4 +1,4 @@
-import { Extension, type Editor } from "@tiptap/core";
+import { type Editor, Extension } from "@tiptap/core";
 import type { EditorState } from "@tiptap/pm/state";
 
 export type BackspaceAction =

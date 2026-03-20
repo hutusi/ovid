@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
-import StarterKit from "@tiptap/starter-kit";
 import { type AnyExtension, Editor } from "@tiptap/core";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TextSelection } from "@tiptap/pm/state";
+import StarterKit from "@tiptap/starter-kit";
 import { applyBackspaceAction, getBackspaceAction, ListBackspace } from "./ListBackspace";
 
 function createEditor(content: Record<string, unknown>, extensions: AnyExtension[] = [StarterKit]) {
@@ -69,9 +69,14 @@ describe("ListBackspace", () => {
     });
 
     const betaStart = 12;
-    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, betaStart)));
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(editor.state.doc, betaStart))
+    );
 
-    expect(getBackspaceAction(editor.state)).toEqual({ type: "liftListItem", itemType: "listItem" });
+    expect(getBackspaceAction(editor.state)).toEqual({
+      type: "liftListItem",
+      itemType: "listItem",
+    });
 
     editor.destroy();
   });
@@ -128,7 +133,10 @@ describe("ListBackspace", () => {
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, emptyItemStart))
     );
 
-    expect(getBackspaceAction(editor.state)).toEqual({ type: "liftListItem", itemType: "listItem" });
+    expect(getBackspaceAction(editor.state)).toEqual({
+      type: "liftListItem",
+      itemType: "listItem",
+    });
 
     editor.destroy();
   });
@@ -163,7 +171,10 @@ describe("ListBackspace", () => {
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, taskStart))
     );
 
-    expect(getBackspaceAction(editor.state)).toEqual({ type: "liftListItem", itemType: "taskItem" });
+    expect(getBackspaceAction(editor.state)).toEqual({
+      type: "liftListItem",
+      itemType: "taskItem",
+    });
 
     editor.destroy();
   });
@@ -193,7 +204,10 @@ describe("ListBackspace", () => {
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, taskStart))
     );
 
-    expect(getBackspaceAction(editor.state)).toEqual({ type: "liftListItem", itemType: "taskItem" });
+    expect(getBackspaceAction(editor.state)).toEqual({
+      type: "liftListItem",
+      itemType: "taskItem",
+    });
 
     editor.destroy();
   });
@@ -312,7 +326,10 @@ describe("ListBackspace", () => {
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, itemStart))
     );
 
-    expect(getBackspaceAction(editor.state)).toEqual({ type: "liftListItem", itemType: "listItem" });
+    expect(getBackspaceAction(editor.state)).toEqual({
+      type: "liftListItem",
+      itemType: "listItem",
+    });
 
     editor.destroy();
   });
@@ -403,7 +420,7 @@ describe("ListBackspace", () => {
 
     expect(applyBackspaceAction(editor)).toBe(true);
 
-    expect(editor.getJSON()).toEqual({
+    expect(editor.getJSON() as Record<string, unknown>).toEqual({
       type: "doc",
       content: [
         {
@@ -438,7 +455,7 @@ describe("ListBackspace", () => {
 
     expect(applyBackspaceAction(editor)).toBe(true);
 
-    expect(editor.getJSON()).toEqual({
+    expect(editor.getJSON() as Record<string, unknown>).toEqual({
       type: "doc",
       content: [
         {
@@ -471,7 +488,7 @@ describe("ListBackspace", () => {
     );
 
     expect(applyBackspaceAction(editor)).toBe(true);
-    expect(editor.getJSON()).toEqual({
+    expect(editor.getJSON() as Record<string, unknown>).toEqual({
       type: "doc",
       content: [{ type: "paragraph" }],
     });
@@ -503,7 +520,7 @@ describe("ListBackspace", () => {
     );
 
     expect(applyBackspaceAction(editor)).toBe(true);
-    expect(editor.getJSON()).toMatchObject({
+    expect(editor.getJSON() as Record<string, unknown>).toMatchObject({
       type: "doc",
       content: [
         {
@@ -555,7 +572,7 @@ describe("ListBackspace", () => {
 
     expect(applyBackspaceAction(editor)).toBe(true);
 
-    expect(editor.getJSON()).toEqual({
+    expect(editor.getJSON() as Record<string, unknown>).toEqual({
       type: "doc",
       content: [
         {

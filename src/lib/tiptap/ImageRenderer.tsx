@@ -1,8 +1,8 @@
 import Image from "@tiptap/extension-image";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-import { defaultMarkdownSerializer, type MarkdownSerializerState } from "prosemirror-markdown";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
+import { defaultMarkdownSerializer, type MarkdownSerializerState } from "prosemirror-markdown";
 import { useEffect, useRef, useState } from "react";
 import { resolveImageSrc } from "../imageUtils";
 
