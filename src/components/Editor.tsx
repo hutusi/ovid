@@ -17,6 +17,7 @@ import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState } from "react";
 import { Markdown } from "tiptap-markdown";
 import { FindReplace } from "../lib/tiptap/FindReplace";
+import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
 import { ImageRenderer } from "../lib/tiptap/ImageRenderer";
 import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
@@ -138,6 +139,7 @@ export function Editor({
       Mathematics,
       LinkPreview,
       FindReplace,
+      ActiveHeadingIndicator,
       TextFolding,
       InlineEditMode,
     ],
