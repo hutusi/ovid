@@ -1,4 +1,6 @@
 import Image from "@tiptap/extension-image";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { defaultMarkdownSerializer, type MarkdownSerializerState } from "prosemirror-markdown";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper, ReactNodeViewRenderer } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
@@ -53,7 +55,7 @@ function ImageNodeView({ node, extension, selected, updateAttributes }: NodeView
 
   return (
     <NodeViewWrapper
-      as="span"
+      as="div"
       contentEditable={false}
       className={`image-node-wrapper${selected ? " image-selected" : ""}`}
     >
@@ -113,6 +115,22 @@ export const ImageRenderer = Image.extend<ImageRendererOptions>({
       filePath: undefined,
       assetRoot: undefined,
       cdnBase: undefined,
+    };
+  },
+  addStorage() {
+    return {
+      markdown: {
+        serialize(...args: [MarkdownSerializerState, ProseMirrorNode, ProseMirrorNode, number]) {
+          const [state, node, parent, index] = args;
+          defaultMarkdownSerializer.nodes.image(state, node, parent, index);
+          if (!node.type.spec.inline) {
+            state.closeBlock(node);
+          }
+        },
+        parse: {
+          // handled by markdown-it
+        },
+      },
     };
   },
   addNodeView() {

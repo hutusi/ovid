@@ -489,16 +489,18 @@
 /* ── Image node ─────────────────────────────────────────────────────────── */
 
 .image-node-wrapper {
-  display: inline-block;
+  display: block;
   position: relative;
-  vertical-align: top;
   max-width: 100%;
+  width: fit-content;
+  margin: 1em 0;
 }
 
 .image-node-wrapper img {
   display: block;
   max-width: 100%;
   border-radius: 4px;
+  margin: 0;
   transition: outline 0.1s;
 }
 
