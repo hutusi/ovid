@@ -52,6 +52,36 @@
   margin-bottom: 0.35em;
 }
 
+.ProseMirror .is-active-heading {
+  position: relative;
+}
+
+.ProseMirror .is-active-heading::before {
+  position: absolute;
+  right: calc(100% + 12px);
+  top: 0.18em;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-fg-subtle);
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.ProseMirror .is-active-heading[data-heading-level="1"]::before {
+  content: "H1";
+}
+
+.ProseMirror .is-active-heading[data-heading-level="2"]::before {
+  content: "H2";
+}
+
+.ProseMirror .is-active-heading[data-heading-level="3"]::before {
+  content: "H3";
+}
+
 /* First heading at top — no extra top margin */
 .ProseMirror > h1:first-child,
 .ProseMirror > h2:first-child,
@@ -459,16 +489,18 @@
 /* ── Image node ─────────────────────────────────────────────────────────── */
 
 .image-node-wrapper {
-  display: inline-block;
+  display: block;
   position: relative;
-  vertical-align: top;
   max-width: 100%;
+  width: fit-content;
+  margin: 1em 0;
 }
 
 .image-node-wrapper img {
   display: block;
   max-width: 100%;
   border-radius: 4px;
+  margin: 0;
   transition: outline 0.1s;
 }
 
@@ -551,4 +583,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .ProseMirror .is-active-heading::before {
+    right: auto;
+    left: 0;
+    top: -1.05em;
+  }
 }

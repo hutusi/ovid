@@ -16,10 +16,12 @@ import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useEffect, useRef, useState } from "react";
 import { Markdown } from "tiptap-markdown";
+import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
 import { FindReplace } from "../lib/tiptap/FindReplace";
 import { ImageRenderer } from "../lib/tiptap/ImageRenderer";
 import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
+import { ListBackspace } from "../lib/tiptap/ListBackspace";
 import { TextFolding } from "../lib/tiptap/TextFolding";
 import { normalizeTaskLists } from "../lib/tiptap/taskLists";
 import { BubbleMenu } from "./BubbleMenu";
@@ -138,6 +140,8 @@ export function Editor({
       Mathematics,
       LinkPreview,
       FindReplace,
+      ActiveHeadingIndicator,
+      ListBackspace,
       TextFolding,
       InlineEditMode,
     ],
