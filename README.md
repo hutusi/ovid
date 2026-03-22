@@ -161,6 +161,15 @@ Select text and press `Cmd+E` to wrap it in backticks as inline code. Press agai
 
 Fenced code blocks are rendered with syntax highlighting via `lowlight`. A language label appears in the top-right corner of each block — click it to open a dropdown and select a language. Highlighting and the label are display-only; the saved markdown is unchanged.
 
+### Structural backspace
+
+At the start of structural blocks, `Backspace` removes the current block treatment before it starts merging content into the previous block:
+
+- **Bullet / numbered / task list items** — non-empty items unwrap from the list; empty items also unwrap instead of merging into the previous item
+- **Blockquotes** — unwrap one quote level at a time
+- **Headings** — convert directly back to a paragraph
+- **Code blocks** — empty blocks convert back to a paragraph; non-empty blocks stay intact and do not merge into the previous block
+
 ### Image drag-and-drop
 
 Drag one or more image files from Finder (or Explorer) into the editor. Ovid:

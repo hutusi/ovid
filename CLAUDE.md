@@ -66,6 +66,8 @@ Three-zone layout managed by `src/App.tsx`:
 - `TextFolding.ts` — Heading-level fold/unfold via chevron widgets; `getHeadingRanges` exported for testing
 - `InlineEditMode.ts` — Shows `[` and `](url)` decorations around links when cursor is inside one; URL hint is clickable
 - `LinkPreview.ts` — Hover tooltip showing link URL
+- `ActiveHeadingIndicator.ts` — Decorates the active heading with its current `H1` / `H2` / `H3` level while editing
+- `ListBackspace.ts` — Intercepts start-of-text `Backspace` for structural blocks so lists, task lists, blockquotes, headings, and code blocks unwrap predictably instead of merging backward
 
 **`src/styles/`**
 - `global.css` — Tailwind `@theme` block (single source of truth for design tokens + utility classes); `[data-theme="dark"]` overrides; `:root` for non-theme constants (font sizes, layout, shadows)
