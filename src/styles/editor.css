@@ -355,6 +355,34 @@
   font-weight: bold;
 }
 
+/* ── Footnotes ───────────────────────────────── */
+.ProseMirror .footnote-reference {
+  font-size: 0.78em;
+  vertical-align: super;
+  line-height: 1;
+  color: var(--color-accent);
+  letter-spacing: 0.01em;
+}
+
+.ProseMirror .footnote-definition {
+  position: relative;
+  padding-left: 2.2em;
+  color: var(--color-fg-muted);
+}
+
+.ProseMirror .footnote-definition::before {
+  content: attr(data-footnote-id);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.6em;
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+  line-height: 2.1;
+  color: var(--color-fg-subtle);
+  text-align: right;
+}
+
 /* ── Typora-style inline syntax reveal ─────────── */
 .inline-syntax {
   font-family: var(--font-mono);
