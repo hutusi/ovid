@@ -4,7 +4,7 @@ import type { FileNode, RecentFile } from "./types";
 export type { RecentFile };
 
 const MAX_RECENT = 10;
-const STORAGE_KEY = "ovid:recentFiles";
+export const STORAGE_KEY = "ovid:recentFiles";
 
 function loadRecent(workspaceRoot: string): RecentFile[] {
   try {
@@ -21,6 +21,32 @@ function saveRecent(workspaceRoot: string, files: RecentFile[]): void {
   } catch {
     // localStorage quota exceeded — silently ignore
   }
+}
+
+function rewriteRecentPaths(files: RecentFile[], oldPath: string, newPath: string): RecentFile[] {
+  return files.map((file) => {
+    if (file.path === oldPath) return { ...file, path: newPath };
+    if (file.path.startsWith(`${oldPath}/`)) {
+      return { ...file, path: `${newPath}${file.path.slice(oldPath.length)}` };
+    }
+    return file;
+  });
+}
+
+function filterRemovedRecentPaths(files: RecentFile[], removedPath: string): RecentFile[] {
+  return files.filter(
+    (file) => file.path !== removedPath && !file.path.startsWith(`${removedPath}/`)
+  );
+}
+
+export function syncRecentRename(workspaceRoot: string, oldPath: string, newPath: string): void {
+  const next = rewriteRecentPaths(loadRecent(workspaceRoot), oldPath, newPath);
+  saveRecent(workspaceRoot, next);
+}
+
+export function syncRecentDelete(workspaceRoot: string, removedPath: string): void {
+  const next = filterRemovedRecentPaths(loadRecent(workspaceRoot), removedPath);
+  saveRecent(workspaceRoot, next);
 }
 
 export function useRecentFiles(workspaceRoot: string | null) {

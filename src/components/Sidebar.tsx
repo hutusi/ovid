@@ -117,6 +117,7 @@ function FileItem({
           <button
             type="button"
             className="sidebar-dir"
+            aria-expanded={expanded}
             onClick={() => onToggleExpand(node.path, depth)}
           >
             <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />

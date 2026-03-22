@@ -95,7 +95,9 @@ describe("flattenTree", () => {
       ]),
     ];
 
-    const [flat] = flattenTree(tree);
+    const flattened = flattenTree(tree);
+    expect(flattened).toHaveLength(1);
+    const [flat] = flattened;
     expect(flat.displayName).toBe("Hello Post");
     expect(flat.relativePath).toBe("posts/hello");
     expect(flat.node.path).toBe("/workspace/posts/hello/index.md");
