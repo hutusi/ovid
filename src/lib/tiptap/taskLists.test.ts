@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { normalizeTaskLists } from "./taskLists";
+import { getTypedTaskPrefixLength, normalizeTaskLists } from "./taskLists";
 
 describe("normalizeTaskLists", () => {
   it("converts bullet lists with task prefixes into task lists", () => {
@@ -234,6 +234,65 @@ describe("normalizeTaskLists", () => {
         },
       ],
     });
+  });
+
+  it("converts empty task bullet items into empty task list items", () => {
+    const doc = {
+      type: "doc",
+      content: [
+        {
+          type: "bulletList",
+          content: [
+            {
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: "[ ] " }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(normalizeTaskLists(doc)).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: { checked: false },
+              content: [{ type: "paragraph", content: [] }],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("detects the typed task prefix length for live conversion", () => {
+    expect(
+      getTypedTaskPrefixLength({
+        type: "paragraph",
+        content: [{ type: "text", text: "[ ] " }],
+      })
+    ).toBe(4);
+    expect(
+      getTypedTaskPrefixLength({
+        type: "paragraph",
+        content: [{ type: "text", text: "[x] " }],
+      })
+    ).toBe(4);
+    expect(
+      getTypedTaskPrefixLength({
+        type: "paragraph",
+        content: [{ type: "text", text: "plain bullet" }],
+      })
+    ).toBeNull();
   });
 
   it("preserves inline marks after removing the task prefix", () => {

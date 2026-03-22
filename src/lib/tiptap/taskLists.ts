@@ -53,6 +53,12 @@ function convertTaskListItem(node: JSONContent): JSONContent {
   };
 }
 
+export function getTypedTaskPrefixLength(content: JSONContent | undefined): number | null {
+  if (content?.type !== "paragraph") return null;
+  const match = getLeadingText(content).match(TASK_PREFIX);
+  return match ? match[0].length : null;
+}
+
 export function normalizeTaskLists(content: JSONContent): JSONContent {
   const children = content.content?.map(normalizeTaskLists);
   const normalized = children ? { ...content, content: children } : content;

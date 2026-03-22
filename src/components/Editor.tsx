@@ -23,7 +23,7 @@ import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
 import { ListBackspace } from "../lib/tiptap/ListBackspace";
 import { TextFolding } from "../lib/tiptap/TextFolding";
-import { normalizeTaskLists } from "../lib/tiptap/taskLists";
+import { getTypedTaskPrefixLength, normalizeTaskLists } from "../lib/tiptap/taskLists";
 import { BubbleMenu } from "./BubbleMenu";
 import { CodeBlockView } from "./CodeBlockView";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -205,6 +205,28 @@ export function Editor({
       },
     },
     onUpdate({ editor }) {
+      const { selection } = editor.state;
+      const currentBlock =
+        selection.$from.parent.type.name === "paragraph" ? selection.$from.parent : null;
+      const taskPrefixLength = getTypedTaskPrefixLength(currentBlock?.toJSON());
+      let insideBulletList = false;
+      for (let depth = selection.$from.depth; depth >= 0; depth--) {
+        if (selection.$from.node(depth).type.name === "bulletList") {
+          insideBulletList = true;
+          break;
+        }
+      }
+
+      if (taskPrefixLength !== null && insideBulletList) {
+        const original = editor.getJSON();
+        const normalized = normalizeTaskLists(original);
+        if (JSON.stringify(normalized) !== JSON.stringify(original)) {
+          const targetPos = Math.max(1, selection.from - taskPrefixLength);
+          editor.commands.setContent(normalized, { emitUpdate: false });
+          editor.commands.setTextSelection(targetPos);
+        }
+      }
+
       // biome-ignore lint/suspicious/noExplicitAny: tiptap-markdown storage has no public type
       const markdown = (editor.storage as any).markdown.getMarkdown() as string;
       onChange?.(markdown);
