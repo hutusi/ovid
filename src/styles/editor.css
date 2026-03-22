@@ -52,6 +52,30 @@
   margin-bottom: 0.35em;
 }
 
+.ProseMirror h4 {
+  font-size: 1.05em;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 1.2em;
+  margin-bottom: 0.3em;
+}
+
+.ProseMirror h5 {
+  font-size: 0.95em;
+  font-weight: 600;
+  line-height: 1.45;
+  margin-top: 1.15em;
+  margin-bottom: 0.28em;
+}
+
+.ProseMirror h6 {
+  font-size: 0.9em;
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: 1.1em;
+  margin-bottom: 0.25em;
+}
+
 .ProseMirror .is-active-heading {
   position: relative;
 }
@@ -82,10 +106,25 @@
   content: "H3";
 }
 
+.ProseMirror .is-active-heading[data-heading-level="4"]::before {
+  content: "H4";
+}
+
+.ProseMirror .is-active-heading[data-heading-level="5"]::before {
+  content: "H5";
+}
+
+.ProseMirror .is-active-heading[data-heading-level="6"]::before {
+  content: "H6";
+}
+
 /* First heading at top — no extra top margin */
 .ProseMirror > h1:first-child,
 .ProseMirror > h2:first-child,
-.ProseMirror > h3:first-child {
+.ProseMirror > h3:first-child,
+.ProseMirror > h4:first-child,
+.ProseMirror > h5:first-child,
+.ProseMirror > h6:first-child {
   margin-top: 0;
 }
 
@@ -314,6 +353,34 @@
 
 .hljs-strong {
   font-weight: bold;
+}
+
+/* ── Footnotes ───────────────────────────────── */
+.ProseMirror .footnote-reference {
+  font-size: 0.78em;
+  vertical-align: super;
+  line-height: 1;
+  color: var(--color-accent);
+  letter-spacing: 0.01em;
+}
+
+.ProseMirror .footnote-definition {
+  position: relative;
+  padding-left: 2.2em;
+  color: var(--color-fg-muted);
+}
+
+.ProseMirror .footnote-definition::before {
+  content: attr(data-footnote-id);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.6em;
+  font-family: var(--font-mono);
+  font-size: 0.72em;
+  line-height: 2.1;
+  color: var(--color-fg-subtle);
+  text-align: right;
 }
 
 /* ── Typora-style inline syntax reveal ─────────── */

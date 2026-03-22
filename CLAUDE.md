@@ -18,7 +18,7 @@ bun run tauri build      # Build distributable app
 bun run validate         # Type-check + lint + test (run before committing)
 bun run lint             # Biome check
 bun run lint:fix         # Biome auto-fix
-bun run test             # Vitest unit tests
+bun run test             # Bun unit tests
 bun tsc --noEmit         # Type-check without emitting
 ```
 
@@ -49,7 +49,7 @@ Three-zone layout managed by `src/App.tsx`:
 - `SearchPanel.tsx` — Full-text search panel (replaces sidebar); queries run in Rust
 - `FileSwitcher.tsx` — `Cmd+P` command palette; wraps `cmdk`
 - `CommitDialog.tsx`, `LinkDialog.tsx`, `WorkspaceSwitcher.tsx` — Plain-CSS modal dialogs
-- `FontSettings.tsx`, `CodeBlockView.tsx` — Custom CSS-positioned panels (no Portal)
+- `FontSettings.tsx`, `CodeBlockView.tsx` — Custom CSS-positioned panels (no Portal); code blocks support copy and custom language labels
 - `ErrorBoundary.tsx` — React error boundary wrapping the editor; surfaces render errors instead of blank screen
 - `Modal.css` — Shared plain-CSS primitives for all modal dialogs (overlay, panel, buttons, inputs, badge, checkbox label)
 - `ui/command.tsx` — Thin wrapper around `cmdk` for the file switcher; styled with design tokens
@@ -66,6 +66,9 @@ Three-zone layout managed by `src/App.tsx`:
 - `TextFolding.ts` — Heading-level fold/unfold via chevron widgets; `getHeadingRanges` exported for testing
 - `InlineEditMode.ts` — Shows `[` and `](url)` decorations around links when cursor is inside one; URL hint is clickable
 - `LinkPreview.ts` — Hover tooltip showing link URL
+- `ActiveHeadingIndicator.ts` — Decorates the active heading with its current `H1`-`H6` level while editing
+- `Footnotes.ts` — Decorates raw Markdown footnote references and definition paragraphs so footnotes remain readable without adding custom document nodes
+- `ListBackspace.ts` — Intercepts start-of-text `Backspace` for structural blocks so lists, task lists, blockquotes, headings, and code blocks unwrap predictably instead of merging backward
 
 **`src/styles/`**
 - `global.css` — Tailwind `@theme` block (single source of truth for design tokens + utility classes); `[data-theme="dark"]` overrides; `:root` for non-theme constants (font sizes, layout, shadows)

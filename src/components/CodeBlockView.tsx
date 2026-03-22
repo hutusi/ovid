@@ -1,34 +1,20 @@
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
+import {
+  CODE_BLOCK_LANGUAGES,
+  isPresetCodeBlockLanguage,
+  normalizeCodeBlockLanguage,
+} from "../lib/codeBlockLanguages";
 import "./CodeBlockView.css";
-
-const LANGUAGES = [
-  "bash",
-  "c",
-  "cpp",
-  "css",
-  "go",
-  "html",
-  "java",
-  "javascript",
-  "json",
-  "markdown",
-  "python",
-  "ruby",
-  "rust",
-  "shell",
-  "sql",
-  "swift",
-  "typescript",
-  "xml",
-  "yaml",
-];
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const [open, setOpen] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [customLanguage, setCustomLanguage] = useState("");
   const language = (node.attrs.language as string | null) ?? "";
   const barRef = useRef<HTMLDivElement>(null);
+  const customInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -48,9 +34,34 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    setCustomLanguage(isPresetCodeBlockLanguage(language) ? "" : language);
+    window.setTimeout(() => customInputRef.current?.focus(), 0);
+  }, [open, language]);
+
+  useEffect(() => {
+    if (copyState === "idle") return;
+    const timeout = window.setTimeout(() => setCopyState("idle"), 1600);
+    return () => window.clearTimeout(timeout);
+  }, [copyState]);
+
   function selectLang(lang: string | null) {
     updateAttributes({ language: lang });
     setOpen(false);
+  }
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(node.textContent);
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+  }
+
+  function submitCustomLanguage() {
+    selectLang(normalizeCodeBlockLanguage(customLanguage));
   }
 
   return (
@@ -65,30 +76,65 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
         >
           {language || "plain"}
         </button>
+        <button
+          type="button"
+          className={`code-block-copy-btn${copyState !== "idle" ? ` is-${copyState}` : ""}`}
+          title={copyState === "copied" ? "Copied" : "Copy code"}
+          onClick={() => {
+            void handleCopy();
+          }}
+        >
+          {copyState === "copied" ? "copied" : copyState === "error" ? "failed" : "copy"}
+        </button>
 
         {open && (
-          <div className="code-block-lang-picker" role="listbox" aria-label="Select language">
+          <div className="code-block-lang-picker">
             <button
               type="button"
-              role="option"
-              aria-selected={!language}
               className={`code-block-lang-option${!language ? " active" : ""}`}
               onClick={() => selectLang(null)}
             >
               plain
             </button>
-            {LANGUAGES.map((lang) => (
+            {CODE_BLOCK_LANGUAGES.map((lang) => (
               <button
                 key={lang}
                 type="button"
-                role="option"
-                aria-selected={language === lang}
                 className={`code-block-lang-option${language === lang ? " active" : ""}`}
                 onClick={() => selectLang(lang)}
               >
                 {lang}
               </button>
             ))}
+            <div className="code-block-custom-language">
+              <label className="code-block-custom-label" htmlFor="code-block-custom-language">
+                Custom language
+              </label>
+              <div className="code-block-custom-row">
+                <input
+                  id="code-block-custom-language"
+                  ref={customInputRef}
+                  type="text"
+                  className="code-block-custom-input"
+                  placeholder="mermaid, toml, tsx"
+                  value={customLanguage}
+                  onChange={(e) => setCustomLanguage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      submitCustomLanguage();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="code-block-custom-apply"
+                  onClick={() => submitCustomLanguage()}
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

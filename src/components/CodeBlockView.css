@@ -14,12 +14,19 @@
 .code-block-lang-bar {
   position: relative;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   background: var(--color-surface-subtle);
   border: 1px solid var(--color-border);
   border-bottom: none;
   border-radius: 6px 6px 0 0;
   padding: 4px 10px;
+}
+
+.code-block-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .code-block-lang-btn {
@@ -41,13 +48,40 @@
   background: var(--color-surface-hover);
 }
 
+.code-block-copy-btn {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-fg-subtle);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition:
+    color 0.15s,
+    background 0.15s;
+}
+
+.code-block-copy-btn:hover {
+  color: var(--color-fg);
+  background: var(--color-surface-hover);
+}
+
+.code-block-copy-btn.is-copied {
+  color: var(--color-accent);
+}
+
+.code-block-copy-btn.is-error {
+  color: var(--color-danger);
+}
+
 /* ── Language picker panel ────────────────────── */
 .code-block-lang-picker {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
   z-index: 50;
-  width: 200px;
+  width: 248px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 6px;
@@ -83,4 +117,56 @@
 .code-block-lang-option.active {
   background: var(--color-accent-subtle);
   color: var(--color-accent);
+}
+
+.code-block-custom-language {
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--color-border);
+  margin-top: 6px;
+  padding-top: 8px;
+}
+
+.code-block-custom-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--color-fg-subtle);
+}
+
+.code-block-custom-row {
+  display: flex;
+  gap: 6px;
+}
+
+.code-block-custom-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-fg);
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  outline: none;
+}
+
+.code-block-custom-input:focus {
+  border-color: var(--color-accent);
+}
+
+.code-block-custom-apply {
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--color-fg);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.code-block-custom-apply:hover {
+  background: var(--color-surface-active);
 }

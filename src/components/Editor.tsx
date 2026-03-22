@@ -18,12 +18,13 @@ import { useEffect, useRef, useState } from "react";
 import { Markdown } from "tiptap-markdown";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
 import { FindReplace } from "../lib/tiptap/FindReplace";
+import { Footnotes } from "../lib/tiptap/Footnotes";
 import { ImageRenderer } from "../lib/tiptap/ImageRenderer";
 import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
 import { ListBackspace } from "../lib/tiptap/ListBackspace";
 import { TextFolding } from "../lib/tiptap/TextFolding";
-import { normalizeTaskLists } from "../lib/tiptap/taskLists";
+import { getTaskListTypingNormalization, normalizeTaskLists } from "../lib/tiptap/taskLists";
 import { BubbleMenu } from "./BubbleMenu";
 import { CodeBlockView } from "./CodeBlockView";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -140,6 +141,7 @@ export function Editor({
       Mathematics,
       LinkPreview,
       FindReplace,
+      Footnotes,
       ActiveHeadingIndicator,
       ListBackspace,
       TextFolding,
@@ -205,6 +207,26 @@ export function Editor({
       },
     },
     onUpdate({ editor }) {
+      const { selection } = editor.state;
+      const currentBlock =
+        selection.$from.parent.type.name === "paragraph" ? selection.$from : null;
+      const ancestorNodeNames = [];
+      for (let depth = selection.$from.depth; depth >= 0; depth--) {
+        ancestorNodeNames.push(selection.$from.node(depth).type.name);
+      }
+
+      const typingNormalization = getTaskListTypingNormalization(
+        editor.getJSON(),
+        currentBlock?.parent.toJSON(),
+        selection.from,
+        ancestorNodeNames
+      );
+
+      if (typingNormalization) {
+        editor.commands.setContent(typingNormalization.normalized, { emitUpdate: false });
+        editor.commands.setTextSelection(typingNormalization.targetPos);
+      }
+
       // biome-ignore lint/suspicious/noExplicitAny: tiptap-markdown storage has no public type
       const markdown = (editor.storage as any).markdown.getMarkdown() as string;
       onChange?.(markdown);
@@ -364,6 +386,15 @@ export function Editor({
           break;
         case "format-heading-3":
           editor.chain().focus().toggleHeading({ level: 3 }).run();
+          break;
+        case "format-heading-4":
+          editor.chain().focus().toggleHeading({ level: 4 }).run();
+          break;
+        case "format-heading-5":
+          editor.chain().focus().toggleHeading({ level: 5 }).run();
+          break;
+        case "format-heading-6":
+          editor.chain().focus().toggleHeading({ level: 6 }).run();
           break;
         case "format-blockquote":
           editor.chain().focus().toggleBlockquote().run();

@@ -111,4 +111,29 @@ describe("getHeadingRanges", () => {
     expect(range.headingFrom).toBe(0);
     expect(range.headingTo).toBe(d.child(0).nodeSize); // heading node size
   });
+
+  it("handles deeper heading levels when computing fold ranges", () => {
+    const d = doc(
+      h(3, "Section"),
+      p("intro"),
+      h(4, "Detail"),
+      p("detail body"),
+      h(6, "Fine print"),
+      p("fine print body"),
+      h(3, "Next section"),
+      p("outro")
+    );
+    const ranges = getHeadingRanges(d);
+    expect(ranges).toHaveLength(4);
+
+    const nextSectionPos = childPos(d, 6);
+    expect(ranges[0].level).toBe(3);
+    expect(ranges[0].contentTo).toBe(nextSectionPos);
+    expect(ranges[1].level).toBe(4);
+    expect(ranges[1].contentTo).toBe(nextSectionPos);
+    expect(ranges[2].level).toBe(6);
+    expect(ranges[2].contentTo).toBe(nextSectionPos);
+    expect(ranges[3].level).toBe(3);
+    expect(ranges[3].contentTo).toBe(d.content.size);
+  });
 });
