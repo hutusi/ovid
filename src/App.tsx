@@ -11,8 +11,8 @@ import { SearchPanel } from "./components/SearchPanel";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
+import { findNodeByPath, loadLastRecentFilePath } from "./lib/appRestore";
 import { resolveImageSrc } from "./lib/imageUtils";
-import type { FileNode } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
@@ -31,33 +31,6 @@ type CommitDialogState = { message: string; branch: string } | null;
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
-const RECENT_FILES_KEY = "ovid:recentFiles";
-
-function loadLastRecentFilePath(workspaceRoot: string): string | null {
-  const candidates = [workspaceRoot, `${workspaceRoot}/content`];
-  for (const candidate of candidates) {
-    try {
-      const raw = localStorage.getItem(`${RECENT_FILES_KEY}:${candidate}`);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as Array<{ path?: string }>;
-      const path = parsed[0]?.path ?? null;
-      if (path) return path;
-    } catch {
-      // Ignore malformed or inaccessible storage entries and try the next key.
-    }
-  }
-  return null;
-}
-
-function findNodeByPath(nodes: FileNode[], path: string): FileNode | undefined {
-  for (const node of nodes) {
-    if (node.path === path) return node;
-    if (node.isDirectory) {
-      const found = findNodeByPath(node.children ?? [], path);
-      if (found) return found;
-    }
-  }
-}
 
 function App() {
   const { resolvedTheme, setPreference } = useTheme();
@@ -154,7 +127,10 @@ function App() {
     )
       return;
     autoReopenAttempted.current = true;
-    pendingAutoOpenPath.current = loadLastRecentFilePath(recentWorkspaces[0].rootPath);
+    pendingAutoOpenPath.current = loadLastRecentFilePath(
+      recentWorkspaces[0].rootPath,
+      localStorage
+    );
     void openWorkspaceAtPath(recentWorkspaces[0].rootPath);
   }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath]);
 

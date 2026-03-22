@@ -2,6 +2,13 @@ import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import { Folder, FolderOpen } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
+  buildExpandedStorageKey,
+  findAncestorPaths,
+  getNodeExpanded,
+  seedExpandedPaths,
+  shouldDefaultExpand,
+} from "../lib/sidebarExpansion";
+import {
   collapseIndexNodes,
   filterTree,
   needsPageDivider,
@@ -227,38 +234,9 @@ function FileItem({
 }
 
 const SIDEBAR_WIDTH_KEY = "ovid:sidebarWidth";
-const SIDEBAR_EXPANDED_KEY = "ovid:sidebarExpanded";
 const SIDEBAR_MIN = 180;
 const SIDEBAR_MAX = 480;
 const SIDEBAR_DEFAULT = 240;
-
-function buildExpandedStorageKey(workspaceKey: string | null | undefined): string {
-  return workspaceKey ? `${SIDEBAR_EXPANDED_KEY}:${workspaceKey}` : SIDEBAR_EXPANDED_KEY;
-}
-
-function shouldDefaultExpand(depth: number): boolean {
-  return depth < 2;
-}
-
-function findAncestorPaths(nodes: FileNode[], selectedPath: string | null): Set<string> {
-  const ancestors = new Set<string>();
-  if (!selectedPath) return ancestors;
-
-  function visit(node: FileNode, lineage: string[]): boolean {
-    if (node.path === selectedPath) {
-      for (const path of lineage) ancestors.add(path);
-      return true;
-    }
-    if (!node.isDirectory) return false;
-    const nextLineage = [...lineage, node.path];
-    return (node.children ?? []).some((child) => visit(child, nextLineage));
-  }
-
-  for (const node of nodes) {
-    if (visit(node, [])) break;
-  }
-  return ancestors;
-}
 
 export function Sidebar({
   tree,
@@ -333,23 +311,11 @@ export function Sidebar({
 
   useEffect(() => {
     if (selectedAncestorPaths.size === 0) return;
-    setExpandedPaths((current) => {
-      let changed = false;
-      const next = { ...current };
-      for (const path of selectedAncestorPaths) {
-        if (next[path] === undefined) {
-          next[path] = true;
-          changed = true;
-        }
-      }
-      return changed ? next : current;
-    });
+    setExpandedPaths((current) => seedExpandedPaths(current, selectedAncestorPaths));
   }, [selectedAncestorPaths]);
 
   function isNodeExpanded(node: FileNode, depth: number): boolean {
-    const persisted = expandedPaths[node.path];
-    if (persisted !== undefined) return persisted;
-    return shouldDefaultExpand(depth);
+    return getNodeExpanded(node.path, depth, expandedPaths);
   }
 
   function handleToggleExpand(path: string, depth: number) {
