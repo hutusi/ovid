@@ -12,6 +12,7 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { resolveImageSrc } from "./lib/imageUtils";
+import type { FileNode } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
@@ -30,6 +31,33 @@ type CommitDialogState = { message: string; branch: string } | null;
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
+const RECENT_FILES_KEY = "ovid:recentFiles";
+
+function loadLastRecentFilePath(workspaceRoot: string): string | null {
+  const candidates = [workspaceRoot, `${workspaceRoot}/content`];
+  for (const candidate of candidates) {
+    try {
+      const raw = localStorage.getItem(`${RECENT_FILES_KEY}:${candidate}`);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as Array<{ path?: string }>;
+      const path = parsed[0]?.path ?? null;
+      if (path) return path;
+    } catch {
+      // Ignore malformed or inaccessible storage entries and try the next key.
+    }
+  }
+  return null;
+}
+
+function findNodeByPath(nodes: FileNode[], path: string): FileNode | undefined {
+  for (const node of nodes) {
+    if (node.path === path) return node;
+    if (node.isDirectory) {
+      const found = findNodeByPath(node.children ?? [], path);
+      if (found) return found;
+    }
+  }
+}
 
 function App() {
   const { resolvedTheme, setPreference } = useTheme();
@@ -47,6 +75,7 @@ function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [commitDialog, setCommitDialog] = useState<CommitDialogState>(null);
   const [coverImageVisible, setCoverImageVisible] = useState(false);
+  const pendingAutoOpenPath = useRef<string | null>(null);
 
   const { toasts, showToast } = useToast();
   const { prefs, updatePrefs } = useEditorPreferences();
@@ -125,8 +154,19 @@ function App() {
     )
       return;
     autoReopenAttempted.current = true;
+    pendingAutoOpenPath.current = loadLastRecentFilePath(recentWorkspaces[0].rootPath);
     void openWorkspaceAtPath(recentWorkspaces[0].rootPath);
   }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath]);
+
+  useEffect(() => {
+    const path = pendingAutoOpenPath.current;
+    if (!path || tree.length === 0 || selectedFile) return;
+    const node = findNodeByPath(tree, path);
+    pendingAutoOpenPath.current = null;
+    if (!node || node.isDirectory) return;
+    void handleSelectFile(node);
+    pushRecent(node);
+  }, [tree, selectedFile, handleSelectFile, pushRecent]);
 
   // Reset per-file UI state when switching files (selectedFile is the trigger, not used in body)
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedFile is the intended trigger
