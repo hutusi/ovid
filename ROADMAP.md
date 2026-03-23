@@ -68,8 +68,12 @@ This roadmap is organized into deliberate phases — each phase must feel comple
 24. ✅ **Workspace validation** — on open, detect `site.config.ts`; parse content type schema if available; warn if workspace doesn't look like an Amytis project
 25. ✅ **Content type templates** — if `site.config.ts` defines content types (e.g. `post`, `page`, `note`), offer type selection when creating new files; pre-fill frontmatter fields accordingly
 26. ✅ **Git status indicators** — show per-file dirty/staged/untracked markers in sidebar; requires `git` on PATH; gracefully no-ops if not a git repo
-27. ✅ **Commit & push** (`Cmd+Shift+G`) — simple commit dialog: auto-filled message (`Update: <title>`), branch name shown; push toggle; runs via Rust `git` subprocess
+27. ✅ **Commit & push** (`Cmd+Shift+G`) — selective commit dialog with changed-file review, auto-filled message (`Update: <title>`), branch name shown, push toggle; runs via Rust `git` subprocess
 28. ✅ **Draft → publish flow** — one-click to toggle `draft: true/false` in properties panel with a clear "Publish" affordance; auto-commits if git integration is active
+29. ✅ **Dedicated Git menu** — native `Git` menu for commit, switch branch, new branch, push, pull, fetch, open remote, and copy remote URL
+30. ✅ **Branch workflows** — searchable local branch switcher, in-app branch creation, status-bar branch pill, workspace reload after successful branch changes
+31. ✅ **Remote awareness** — detect current upstream/remote, show ahead/behind state in branch UI and status-bar tooltip, open remote in browser, copy remote URL
+32. ✅ **Upstream setup on first push** — in-app push falls back to `git push -u <remote> <branch>` when the current branch has no upstream; branch switcher surfaces a `Push + Track` action
 
 ---
 
@@ -128,3 +132,16 @@ H. ✅ **Dialog accessibility** — shared `useFocusTrap` hook across all modals
 45. ✅ **Typora-style inline editing** — when cursor enters a link, the raw Markdown syntax (`[text](url)`) is revealed in-place for editing; click `](url)` hint or `Cmd+K` to edit URL
 46. ✅ **Smart URL paste** — when a URL is pasted with text selected, wrap it as `[selected text](url)` instead of replacing the selection
 47. ✅ **Paste as plain text** (`Cmd+Shift+V`) — strip rich formatting on paste; prevents stale spans from external sources bleeding into the document
+
+---
+
+## Phase 9 — Git Workflow Completion
+> Goal: make the current Git features feel like one coherent daily workflow without turning Ovid into a full Git client. 🖊 📢
+
+48. ⏳ **Unified Git status surface** — a compact Git panel or palette that brings together branch, upstream, ahead/behind, remote, and the most-used actions in one place
+49. ⏳ **More visible sync state** — promote ahead/behind and upstream status from tooltip/modal context into a clearer always-visible indicator when it matters
+50. ⏳ **Multi-remote support** — handle repositories with more than one useful remote instead of assuming the current upstream or first remote is always correct
+51. ⏳ **Remote branch checkout** — allow switching to or creating tracking branches from remote refs, not just local branches
+52. ⏳ **Branch maintenance** — add safe branch rename/delete flows with clear guardrails around current branch and unmerged work
+53. ⏳ **Git rejection/conflict UX** — improve the app-level handling of non-fast-forward push failures, pull conflicts, and other common Git rejections without attempting full conflict editing
+54. ⏸️ **Deferred host-specific integrations** — keep GitHub/GitLab auth, PR workflows, and conflict editors out of scope unless the core Git workflow proves insufficient
