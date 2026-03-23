@@ -43,6 +43,7 @@ export function CommitDialog({
     else if (
       e.key === "Enter" &&
       (e.metaKey || e.ctrlKey) &&
+      e.target === textareaRef.current &&
       message.trim() &&
       selectedPaths.length > 0
     ) {
@@ -125,7 +126,6 @@ export function CommitDialog({
           placeholder="Commit message"
           rows={3}
           onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
         />
 
         <label className="modal-checkbox-label">

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 
@@ -13,15 +13,11 @@ export function NewBranchDialog({ currentBranch, onConfirm, onCancel }: NewBranc
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLDivElement>();
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
       e.stopPropagation();
       onCancel();
-    } else if (e.key === "Enter" && branchName.trim()) {
+    } else if (e.key === "Enter" && e.target === inputRef.current && branchName.trim()) {
       e.preventDefault();
       onConfirm(branchName.trim());
     }

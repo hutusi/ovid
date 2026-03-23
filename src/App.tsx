@@ -16,7 +16,7 @@ import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { findNodeByPath, loadLastRecentFilePath } from "./lib/appRestore";
 import { getGitBranchTitle, getPushSuccessMessage } from "./lib/gitUi";
 import { resolveImageSrc } from "./lib/imageUtils";
-import type { GitBranch, GitCommitChange } from "./lib/types";
+import type { GitBranch, GitCommitChange, GitRemoteInfo } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
@@ -32,7 +32,7 @@ import "./App.css";
 
 type ModalState = { type: "new-file"; dirPath: string; contentType?: string } | null;
 type CommitDialogState = { message: string; branch: string; changes: GitCommitChange[] } | null;
-type BranchSwitcherState = { branches: GitBranch[] } | null;
+type BranchSwitcherState = { branches: GitBranch[]; remoteInfo: GitRemoteInfo } | null;
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
@@ -171,9 +171,7 @@ function App() {
         showToast("No local branches found");
         return;
       }
-      // Keep the latest remote state in the modal even if status refresh has not run yet.
-      void remote;
-      setBranchSwitcher({ branches });
+      setBranchSwitcher({ branches, remoteInfo: remote });
     } catch {
       showToast("Failed to load branches");
     }
@@ -743,14 +741,14 @@ function App() {
       {branchSwitcher && (
         <BranchSwitcher
           branches={branchSwitcher.branches}
-          remoteInfo={remoteInfo}
+          remoteInfo={branchSwitcher.remoteInfo}
           onSelect={(branch) => void switchBranch(branch)}
           onCreateBranch={() => {
             setBranchSwitcher(null);
             setNewBranchDialogOpen(true);
           }}
           onPushAndTrack={
-            !remoteInfo.upstream && remoteInfo.remoteName
+            !branchSwitcher.remoteInfo.upstream && branchSwitcher.remoteInfo.remoteName
               ? () => void runGitAction("push", handlePush, "Pushed and set upstream")
               : undefined
           }

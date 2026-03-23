@@ -981,7 +981,11 @@ fn git_commit(
     }
     run_git(&git_root, &commit_args)?;
     if push {
-        run_git(&git_root, &["push"])?;
+        let remote = get_git_remote_info_inner(&git_root)?;
+        let branch = get_current_branch_inner(&git_root)?;
+        let args = git_push_args(&remote, &branch)?;
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        run_git(&git_root, &arg_refs)?;
     }
     Ok(())
 }
