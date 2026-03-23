@@ -269,7 +269,41 @@ When the workspace is a git repository, per-file status markers appear in the si
 
 ### Commit & push (`Cmd+Shift+G`)
 
-Opens the commit dialog. The commit message is pre-filled as `Update: <title>`. Edit the message, optionally enable push, and confirm. Requires `git` on `PATH`.
+Opens the commit dialog. The commit message is pre-filled as `Update: <title>`, the current branch is shown, and changed files can be included or excluded before confirming. You can optionally enable push in the same dialog. Requires `git` on `PATH`.
+
+### Git menu
+
+Ovid includes a native **Git** menu for the daily actions that make sense inside a writing app:
+
+- **Commit Changes…**
+- **Switch Branch…**
+- **New Branch…**
+- **Push**
+- **Pull**
+- **Fetch**
+- **Open Remote**
+- **Copy Remote URL**
+
+### Branch workflows
+
+The current branch appears as a pill in the status bar. Click it to open the branch switcher, which lets you:
+
+- search local branches
+- switch branches
+- create a new branch
+- see upstream / ahead-behind state
+- open the current remote
+- copy the current remote URL
+
+After a successful branch switch or branch creation, Ovid reloads the workspace so the tree and editor match the checked-out branch.
+
+### Remote awareness
+
+When a branch tracks an upstream, Ovid shows that relationship in the branch UI and in the status-bar branch tooltip. If the branch has a remote but no upstream yet, the UI makes that clear instead of failing silently.
+
+### First push on a new branch
+
+If you push a newly created branch that does not yet have an upstream, Ovid automatically falls back to `git push -u <remote> <branch>`. The branch switcher also exposes this explicitly as **Push + Track** when appropriate.
 
 ### Publish flow
 

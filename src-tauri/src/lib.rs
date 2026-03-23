@@ -667,6 +667,33 @@ struct GitFileStatus {
     status: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCommitChange {
+    path: String,
+    display_path: String,
+    status: String,
+    staged: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitBranch {
+    name: String,
+    upstream: Option<String>,
+    ahead_behind: Option<String>,
+    is_current: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitRemoteInfo {
+    remote_name: Option<String>,
+    remote_url: Option<String>,
+    upstream: Option<String>,
+    ahead_behind: Option<String>,
+}
+
 /// Run a git subcommand rooted at `root`. Returns stdout on success or an
 /// error string (stderr) on failure. Returns an empty string if git is not
 /// found, so callers can treat a missing git as a graceful no-op.
@@ -684,86 +711,329 @@ fn run_git(root: &str, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-#[tauri::command]
-fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>, String> {
+fn resolve_git_root(state: State<'_, WorkspaceState>) -> Result<Option<String>, String> {
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
     let root = match root_guard.as_ref() {
         Some(r) => r.clone(),
-        None => return Ok(Vec::new()),
+        None => return Ok(None),
     };
     drop(root_guard);
-    let root_str = root.to_string_lossy().to_string();
 
-    // Find the git repo root (may differ from tree_root if content/ is a subdir)
-    let git_root = match run_git(&root_str, &["rev-parse", "--show-toplevel"]) {
-        Ok(s) => s.trim().to_string(),
-        Err(_) => return Ok(Vec::new()), // not a git repo or git not found
-    };
+    Ok(
+        run_git(&root.to_string_lossy(), &["rev-parse", "--show-toplevel"])
+            .ok()
+            .map(|s| s.trim().to_string()),
+    )
+}
 
-    let porcelain = match run_git(&git_root, &["status", "--porcelain"]) {
-        Ok(s) => s,
-        Err(_) => return Ok(Vec::new()),
-    };
+fn parse_git_status(git_root: &str) -> Result<Vec<GitCommitChange>, String> {
+    let porcelain = run_git(git_root, &["status", "--porcelain"])?;
+    let mut changes = Vec::new();
 
-    let mut statuses = Vec::new();
     for line in porcelain.lines() {
         if line.len() < 4 {
             continue;
         }
         let xy = &line[..2];
         let path_part = line[3..].trim();
-        // Handle renames: "R old -> new" — take the destination
         let file_path = if path_part.contains(" -> ") {
             path_part.split(" -> ").nth(1).unwrap_or(path_part)
         } else {
             path_part
         };
-        let abs_path = PathBuf::from(&git_root).join(file_path).to_string_lossy().into_owned();
+        let index_status = xy.chars().next().unwrap_or(' ');
+        let worktree_status = xy.chars().nth(1).unwrap_or(' ');
+        let staged = index_status != ' ' && index_status != '?';
         let status = if xy.starts_with('?') {
             "untracked"
-        } else if xy.chars().next().map(|c| c != ' ').unwrap_or(false) {
+        } else if index_status == 'D' || worktree_status == 'D' {
+            "deleted"
+        } else if index_status == 'R' || worktree_status == 'R' {
+            "renamed"
+        } else if index_status == 'A' {
+            "added"
+        } else if staged {
             "staged"
         } else {
             "modified"
         };
-        statuses.push(GitFileStatus { path: abs_path, status: status.to_string() });
+
+        changes.push(GitCommitChange {
+            path: PathBuf::from(git_root).join(file_path).to_string_lossy().into_owned(),
+            display_path: file_path.to_string(),
+            status: status.to_string(),
+            staged,
+        });
     }
-    Ok(statuses)
+
+    Ok(changes)
+}
+
+fn parse_git_branches(git_root: &str) -> Result<Vec<GitBranch>, String> {
+    let refs = run_git(
+        git_root,
+        &[
+            "for-each-ref",
+            "--format=%(refname:short)\t%(upstream:short)\t%(upstream:trackshort)\t%(HEAD)",
+            "refs/heads",
+        ],
+    )?;
+
+    Ok(parse_git_branch_lines(&refs))
+}
+
+fn parse_git_branch_lines(refs: &str) -> Vec<GitBranch> {
+    let mut branches = Vec::new();
+    for line in refs.lines() {
+        let mut parts = line.split('\t');
+        let name = parts.next().unwrap_or("").trim();
+        if name.is_empty() {
+            continue;
+        }
+        let upstream = parts.next().map(str::trim).filter(|s| !s.is_empty());
+        let ahead_behind = parts.next().map(str::trim).filter(|s| !s.is_empty());
+        let head = parts.next().unwrap_or("").trim();
+        branches.push(GitBranch {
+            name: name.to_string(),
+            upstream: upstream.map(ToString::to_string),
+            ahead_behind: ahead_behind.map(ToString::to_string),
+            is_current: head == "*",
+        });
+    }
+
+    branches.sort_by(|a, b| {
+        b.is_current
+            .cmp(&a.is_current)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    branches
+}
+
+fn parse_remote_name(upstream: &str) -> Option<String> {
+    upstream.split('/').next().map(str::trim).filter(|s| !s.is_empty()).map(ToString::to_string)
+}
+
+fn get_primary_remote_name(git_root: &str, branches: &[GitBranch]) -> Option<String> {
+    if let Some(name) = branches
+        .iter()
+        .find(|branch| branch.is_current)
+        .and_then(|branch| branch.upstream.as_deref())
+        .and_then(parse_remote_name)
+    {
+        return Some(name);
+    }
+
+    run_git(git_root, &["remote"])
+        .ok()
+        .and_then(|output| output.lines().map(str::trim).find(|line| !line.is_empty()).map(ToString::to_string))
+}
+
+fn normalize_remote_url(url: &str) -> Option<String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return Some(trimmed.trim_end_matches(".git").to_string());
+    }
+    if let Some(rest) = trimmed.strip_prefix("git@") {
+        let (host, path) = rest.split_once(':')?;
+        return Some(format!("https://{}/{}", host, path.trim_end_matches(".git")));
+    }
+    if let Some(rest) = trimmed.strip_prefix("ssh://git@") {
+        let (host, path) = rest.split_once('/')?;
+        return Some(format!("https://{}/{}", host, path.trim_end_matches(".git")));
+    }
+    None
+}
+
+fn get_git_remote_info_inner(git_root: &str) -> Result<GitRemoteInfo, String> {
+    let branches = parse_git_branches(git_root)?;
+    let current = branches.iter().find(|branch| branch.is_current);
+    let remote_name = get_primary_remote_name(git_root, &branches);
+    let remote_url = match remote_name.as_deref() {
+        Some(name) => run_git(git_root, &["remote", "get-url", name])
+            .ok()
+            .map(|url| url.trim().to_string())
+            .filter(|url| !url.is_empty()),
+        None => None,
+    };
+
+    Ok(GitRemoteInfo {
+        remote_name,
+        remote_url,
+        upstream: current.and_then(|branch| branch.upstream.clone()),
+        ahead_behind: current.and_then(|branch| branch.ahead_behind.clone()),
+    })
+}
+
+fn get_current_branch_inner(git_root: &str) -> Result<String, String> {
+    run_git(git_root, &["rev-parse", "--abbrev-ref", "HEAD"]).map(|s| s.trim().to_string())
+}
+
+fn git_push_args(remote: &GitRemoteInfo, current_branch: &str) -> Result<Vec<String>, String> {
+    if remote.upstream.is_some() {
+        return Ok(vec!["push".to_string()]);
+    }
+
+    let remote_name = remote
+        .remote_name
+        .clone()
+        .ok_or("no remote configured".to_string())?;
+    if current_branch.trim().is_empty() {
+        return Err("could not determine current branch".to_string());
+    }
+    Ok(vec![
+        "push".to_string(),
+        "-u".to_string(),
+        remote_name,
+        current_branch.to_string(),
+    ])
+}
+
+#[tauri::command]
+fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>, String> {
+    let git_root = match resolve_git_root(state)? {
+        Some(root) => root,
+        None => return Ok(Vec::new()),
+    };
+
+    Ok(parse_git_status(&git_root)?
+        .into_iter()
+        .map(|change| GitFileStatus {
+            path: change.path,
+            status: if change.status == "untracked" {
+                "untracked".to_string()
+            } else if change.staged {
+                "staged".to_string()
+            } else {
+                "modified".to_string()
+            },
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn get_git_commit_changes(state: State<'_, WorkspaceState>) -> Result<Vec<GitCommitChange>, String> {
+    let git_root = match resolve_git_root(state)? {
+        Some(root) => root,
+        None => return Ok(Vec::new()),
+    };
+    parse_git_status(&git_root)
 }
 
 #[tauri::command]
 fn get_git_branch(state: State<'_, WorkspaceState>) -> Result<String, String> {
-    let root_guard = match state.tree_root.lock() {
-        Ok(g) => g,
-        Err(_) => return Ok(String::new()),
+    let Some(git_root) = resolve_git_root(state)? else {
+        return Ok(String::new());
     };
-    let root = match root_guard.as_ref() {
-        Some(r) => r.clone(),
-        None => return Ok(String::new()),
+    Ok(get_current_branch_inner(&git_root).unwrap_or_default())
+}
+
+#[tauri::command]
+fn get_git_branches(state: State<'_, WorkspaceState>) -> Result<Vec<GitBranch>, String> {
+    let Some(git_root) = resolve_git_root(state)? else {
+        return Ok(Vec::new());
     };
-    drop(root_guard);
-    Ok(
-        run_git(&root.to_string_lossy(), &["rev-parse", "--abbrev-ref", "HEAD"])
-            .map(|s| s.trim().to_string())
-            .unwrap_or_default(),
-    )
+    parse_git_branches(&git_root)
+}
+
+#[tauri::command]
+fn get_git_remote_info(state: State<'_, WorkspaceState>) -> Result<GitRemoteInfo, String> {
+    let Some(git_root) = resolve_git_root(state)? else {
+        return Ok(GitRemoteInfo {
+            remote_name: None,
+            remote_url: None,
+            upstream: None,
+            ahead_behind: None,
+        });
+    };
+    get_git_remote_info_inner(&git_root)
+}
+
+fn run_repo_git(state: State<'_, WorkspaceState>, args: &[&str]) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    run_git(&git_root, args)?;
+    Ok(())
 }
 
 #[tauri::command]
 fn git_commit(
     message: String,
     push: bool,
+    paths: Vec<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
-    drop(root_guard);
-    let root_str = root.to_string_lossy().to_string();
-    run_git(&root_str, &["add", "-A"])?;
-    run_git(&root_str, &["commit", "-m", &message])?;
-    if push {
-        run_git(&root_str, &["push"])?;
+    if paths.is_empty() {
+        return Err("select at least one file to commit".to_string());
     }
+
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let mut add_args: Vec<&str> = vec!["add", "-A", "--"];
+    for path in &paths {
+        add_args.push(path.as_str());
+    }
+    run_git(&git_root, &add_args)?;
+
+    let mut commit_args: Vec<&str> = vec!["commit", "-m", &message, "--"];
+    for path in &paths {
+        commit_args.push(path.as_str());
+    }
+    run_git(&git_root, &commit_args)?;
+    if push {
+        run_git(&git_root, &["push"])?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn git_push(state: State<'_, WorkspaceState>) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let remote = get_git_remote_info_inner(&git_root)?;
+    let branch = get_current_branch_inner(&git_root)?;
+    let args = git_push_args(&remote, &branch)?;
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    run_git(&git_root, &arg_refs)?;
+    Ok(())
+}
+
+#[tauri::command]
+fn git_pull(state: State<'_, WorkspaceState>) -> Result<(), String> {
+    run_repo_git(state, &["pull", "--ff-only"])
+}
+
+#[tauri::command]
+fn git_fetch(state: State<'_, WorkspaceState>) -> Result<(), String> {
+    run_repo_git(state, &["fetch"])
+}
+
+#[tauri::command]
+fn git_switch_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    run_git(&git_root, &["switch", &branch])?;
+    Ok(())
+}
+
+#[tauri::command]
+fn git_create_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+    let name = branch.trim();
+    if name.is_empty() {
+        return Err("branch name cannot be empty".to_string());
+    }
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    run_git(&git_root, &["switch", "-c", name])?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_git_remote(app: tauri::AppHandle, state: State<'_, WorkspaceState>) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let info = get_git_remote_info_inner(&git_root)?;
+    let remote_url = info.remote_url.ok_or("no remote configured")?;
+    let open_url = normalize_remote_url(&remote_url).ok_or("remote URL cannot be opened")?;
+    app.opener()
+        .open_url(&open_url, None::<&str>)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -932,10 +1202,24 @@ pub fn run() {
                     &MenuItemBuilder::with_id("close-file", "Close File")
                         .accelerator("CmdOrCtrl+W")
                         .build(app)?,
-                    &PredefinedMenuItem::separator(app)?,
-                    &MenuItemBuilder::with_id("commit-push", "Commit & Push…")
+                ])
+                .build()?;
+
+            // ── Git ───────────────────────────────────────────────────────────
+            let git_menu = SubmenuBuilder::new(app, "Git")
+                .items(&[
+                    &MenuItemBuilder::with_id("git-commit", "Commit Changes…")
                         .accelerator("CmdOrCtrl+Shift+G")
                         .build(app)?,
+                    &MenuItemBuilder::with_id("git-switch-branch", "Switch Branch…").build(app)?,
+                    &MenuItemBuilder::with_id("git-new-branch", "New Branch…").build(app)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &MenuItemBuilder::with_id("git-open-remote", "Open Remote").build(app)?,
+                    &MenuItemBuilder::with_id("git-copy-remote-url", "Copy Remote URL").build(app)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &MenuItemBuilder::with_id("git-push", "Push").build(app)?,
+                    &MenuItemBuilder::with_id("git-pull", "Pull").build(app)?,
+                    &MenuItemBuilder::with_id("git-fetch", "Fetch").build(app)?,
                 ])
                 .build()?;
 
@@ -1045,6 +1329,7 @@ pub fn run() {
                 &[
                     &ovid_menu,
                     &file_menu,
+                    &git_menu,
                     &edit_menu,
                     &insert_menu,
                     &format_menu,
@@ -1096,8 +1381,17 @@ pub fn run() {
             search_workspace,
             get_content_types,
             get_git_status,
+            get_git_commit_changes,
             get_git_branch,
+            get_git_branches,
+            get_git_remote_info,
             git_commit,
+            git_push,
+            git_pull,
+            git_fetch,
+            git_switch_branch,
+            git_create_branch,
+            open_git_remote,
             save_asset,
             pick_image_file,
         ])
@@ -1366,5 +1660,111 @@ mod tests {
             "/* This config has no CDN\n  cdnBase: 'https://cdn.example.com'\n*/\nexport const config = {};\n",
         );
         assert_eq!(parse_cdn_base(&path), None);
+    }
+
+    // ── git helpers ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_git_branch_lines_marks_current_branch_and_sorts_it_first() {
+        let branches = parse_git_branch_lines(
+            "feature/test\torigin/feature/test\t>\t \nmain\torigin/main\t<>\t*\n",
+        );
+
+        assert_eq!(branches.len(), 2);
+        assert_eq!(branches[0].name, "main");
+        assert!(branches[0].is_current);
+        assert_eq!(branches[0].upstream.as_deref(), Some("origin/main"));
+        assert_eq!(branches[0].ahead_behind.as_deref(), Some("<>"));
+        assert_eq!(branches[1].name, "feature/test");
+        assert!(!branches[1].is_current);
+    }
+
+    #[test]
+    fn parse_remote_name_extracts_remote_prefix() {
+        assert_eq!(
+            parse_remote_name("origin/feature/test"),
+            Some("origin".to_string())
+        );
+    }
+
+    #[test]
+    fn normalize_remote_url_handles_https_and_ssh_forms() {
+        assert_eq!(
+            normalize_remote_url("https://github.com/hutusi/ovid-codex.git"),
+            Some("https://github.com/hutusi/ovid-codex".to_string())
+        );
+        assert_eq!(
+            normalize_remote_url("git@github.com:hutusi/ovid-codex.git"),
+            Some("https://github.com/hutusi/ovid-codex".to_string())
+        );
+        assert_eq!(
+            normalize_remote_url("ssh://git@github.com/hutusi/ovid-codex.git"),
+            Some("https://github.com/hutusi/ovid-codex".to_string())
+        );
+    }
+
+    #[test]
+    fn get_primary_remote_name_prefers_current_branch_upstream() {
+        let branches = vec![
+            GitBranch {
+                name: "main".to_string(),
+                upstream: Some("origin/main".to_string()),
+                ahead_behind: None,
+                is_current: true,
+            },
+            GitBranch {
+                name: "feature/test".to_string(),
+                upstream: Some("backup/feature/test".to_string()),
+                ahead_behind: None,
+                is_current: false,
+            },
+        ];
+
+        assert_eq!(
+            get_primary_remote_name("/definitely/not/a/repo", &branches),
+            Some("origin".to_string())
+        );
+    }
+
+    #[test]
+    fn git_push_args_uses_plain_push_when_upstream_exists() {
+        let remote = GitRemoteInfo {
+            remote_name: Some("origin".to_string()),
+            remote_url: Some("https://github.com/hutusi/ovid-codex.git".to_string()),
+            upstream: Some("origin/main".to_string()),
+            ahead_behind: None,
+        };
+
+        assert_eq!(git_push_args(&remote, "main").unwrap(), vec!["push"]);
+    }
+
+    #[test]
+    fn git_push_args_sets_upstream_for_new_branch() {
+        let remote = GitRemoteInfo {
+            remote_name: Some("origin".to_string()),
+            remote_url: Some("https://github.com/hutusi/ovid-codex.git".to_string()),
+            upstream: None,
+            ahead_behind: None,
+        };
+
+        assert_eq!(
+            git_push_args(&remote, "feature/test").unwrap(),
+            vec!["push", "-u", "origin", "feature/test"]
+        );
+    }
+
+    #[test]
+    fn git_push_args_errors_when_no_remote_exists() {
+        let remote = GitRemoteInfo {
+            remote_name: None,
+            remote_url: None,
+            upstream: None,
+            ahead_behind: None,
+        };
+
+        assert_eq!(
+            git_push_args(&remote, "feature/test"),
+            Err("no remote configured".to_string())
+        );
     }
 }

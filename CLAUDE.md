@@ -176,4 +176,4 @@ When compressing conversation history, preserve in priority order:
 
 ## Roadmap
 
-See [ROADMAP.md](./ROADMAP.md) for the full phased plan. Features are organized into 8 phases; complete each phase before starting the next. Phases 1–8 are complete.
+See [ROADMAP.md](./ROADMAP.md) for the full phased plan. Features are organized into deliberate phases; complete the current phase before starting the next. Earlier phases are complete, and newer phases may be added as the roadmap evolves.

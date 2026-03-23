@@ -18,6 +18,9 @@ interface StatusBarProps {
   fontFamily: FontFamily;
   fontSize: FontSize;
   spellCheck: boolean;
+  gitBranch: string | null;
+  gitBranchTitle?: string;
+  onOpenBranches: () => void;
   onToggleTheme: () => void;
   onToggleZen: () => void;
   onToggleTypewriter: () => void;
@@ -39,6 +42,9 @@ export function StatusBar({
   fontFamily,
   fontSize,
   spellCheck,
+  gitBranch,
+  gitBranchTitle,
+  onOpenBranches,
   onToggleTheme,
   onToggleZen,
   onToggleTypewriter,
@@ -82,6 +88,16 @@ export function StatusBar({
           </span>
         )}
         <span className="statusbar-words">{wordCount > 0 ? `${wordCount} words` : ""}</span>
+        {gitBranch && (
+          <button
+            type="button"
+            className="statusbar-branch"
+            onClick={onOpenBranches}
+            title={gitBranchTitle ?? `Current branch: ${gitBranch}`}
+          >
+            {gitBranch}
+          </button>
+        )}
         <button
           type="button"
           className={`text-[13px] leading-none px-1 py-0.5 rounded transition-colors shrink-0 ${typewriterMode ? "text-accent opacity-100" : "text-fg-subtle opacity-60 hover:text-fg hover:bg-surface-hover hover:opacity-100"}`}
