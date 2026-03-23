@@ -24,8 +24,11 @@ function saveRecent(workspaceRoot: string, files: RecentFile[]): void {
 }
 
 function rewriteRecentPaths(files: RecentFile[], oldPath: string, newPath: string): RecentFile[] {
+  const newName = newPath.split("/").pop();
   return files.map((file) => {
-    if (file.path === oldPath) return { ...file, path: newPath };
+    if (file.path === oldPath) {
+      return { ...file, path: newPath, name: newName ?? file.name };
+    }
     if (file.path.startsWith(`${oldPath}/`)) {
       return { ...file, path: `${newPath}${file.path.slice(oldPath.length)}` };
     }
