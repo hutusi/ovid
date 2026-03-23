@@ -1,20 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { GitBranch } from "../lib/types";
+import type { GitBranch, GitRemoteInfo } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 import "./WorkspaceSwitcher.css";
 
 interface BranchSwitcherProps {
   branches: GitBranch[];
+  remoteInfo: GitRemoteInfo;
   onSelect: (branch: string) => void;
   onCreateBranch: () => void;
+  onOpenRemote: () => void;
+  onCopyRemoteUrl: () => void;
   onClose: () => void;
 }
 
 export function BranchSwitcher({
   branches,
+  remoteInfo,
   onSelect,
   onCreateBranch,
+  onOpenRemote,
+  onCopyRemoteUrl,
   onClose,
 }: BranchSwitcherProps) {
   const [query, setQuery] = useState("");
@@ -56,6 +62,30 @@ export function BranchSwitcher({
         onKeyDown={handleKeyDown}
       >
         <p className="modal-title">Switch branch</p>
+
+        {(remoteInfo.upstream || remoteInfo.remoteName || remoteInfo.remoteUrl) && (
+          <div className="modal-branch-row">
+            <span className="modal-branch-label">Remote</span>
+            <div className="modal-inline-actions">
+              <span className="modal-selection-count">
+                {remoteInfo.upstream ??
+                  (remoteInfo.remoteName
+                    ? `${remoteInfo.remoteName}${remoteInfo.aheadBehind ? ` ${remoteInfo.aheadBehind}` : ""}`
+                    : "No upstream")}
+              </span>
+              {remoteInfo.remoteUrl && (
+                <>
+                  <button type="button" className="modal-inline-btn" onClick={onOpenRemote}>
+                    Open
+                  </button>
+                  <button type="button" className="modal-inline-btn" onClick={onCopyRemoteUrl}>
+                    Copy URL
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         <input
           ref={inputRef}

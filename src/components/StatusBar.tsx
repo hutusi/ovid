@@ -19,6 +19,7 @@ interface StatusBarProps {
   fontSize: FontSize;
   spellCheck: boolean;
   gitBranch: string | null;
+  gitBranchTitle?: string;
   onOpenBranches: () => void;
   onToggleTheme: () => void;
   onToggleZen: () => void;
@@ -42,6 +43,7 @@ export function StatusBar({
   fontSize,
   spellCheck,
   gitBranch,
+  gitBranchTitle,
   onOpenBranches,
   onToggleTheme,
   onToggleZen,
@@ -91,7 +93,7 @@ export function StatusBar({
             type="button"
             className="statusbar-branch"
             onClick={onOpenBranches}
-            title={`Current branch: ${gitBranch}`}
+            title={gitBranchTitle ?? `Current branch: ${gitBranch}`}
           >
             {gitBranch}
           </button>

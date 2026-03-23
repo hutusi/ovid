@@ -110,6 +110,7 @@ function App() {
     gitStatusMap,
     isGitRepo,
     currentBranch,
+    remoteInfo,
     refreshGitStatus,
     handleCommit,
     handlePush,
@@ -117,9 +118,11 @@ function App() {
     handleFetch,
     handleSwitchBranch,
     handleCreateBranch,
+    handleOpenRemote,
     getCommitChanges,
     getBranch,
     getBranches,
+    getRemoteInfo,
   } = useGit(workspaceRoot);
   const contentTypes = useContentTypes(workspaceRoot, isAmytisWorkspace);
 
@@ -160,16 +163,40 @@ function App() {
 
   const openBranchSwitcher = useCallback(async () => {
     try {
-      const branches = await getBranches();
+      const [branches, remote] = await Promise.all([getBranches(), getRemoteInfo()]);
       if (branches.length === 0) {
         showToast("No local branches found");
         return;
       }
+      // Keep the latest remote state in the modal even if status refresh has not run yet.
+      void remote;
       setBranchSwitcher({ branches });
     } catch {
       showToast("Failed to load branches");
     }
-  }, [getBranches, showToast]);
+  }, [getBranches, getRemoteInfo, showToast]);
+
+  const copyRemoteUrl = useCallback(async () => {
+    if (!remoteInfo.remoteUrl) {
+      showToast("No remote URL configured");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(remoteInfo.remoteUrl);
+      showToast("Copied remote URL");
+    } catch {
+      showToast("Failed to copy remote URL");
+    }
+  }, [remoteInfo.remoteUrl, showToast]);
+
+  const openRemote = useCallback(async () => {
+    try {
+      await handleOpenRemote();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      showToast(`Open remote failed: ${message}`);
+    }
+  }, [handleOpenRemote, showToast]);
 
   const switchBranch = useCallback(
     async (branch: string) => {
@@ -467,6 +494,16 @@ function App() {
             void runGitAction("push", handlePush, "Pushed to remote");
           }
           break;
+        case "git-open-remote":
+          if (!hasBlockingOverlay && isGitRepo) {
+            void openRemote();
+          }
+          break;
+        case "git-copy-remote-url":
+          if (!hasBlockingOverlay && isGitRepo) {
+            void copyRemoteUrl();
+          }
+          break;
         case "git-pull":
           if (!hasBlockingOverlay && isGitRepo) {
             void runGitAction("pull", handlePull, "Pulled latest changes");
@@ -501,6 +538,8 @@ function App() {
     isGitRepo,
     openCommitDialog,
     openBranchSwitcher,
+    openRemote,
+    copyRemoteUrl,
     runGitAction,
     handlePush,
     handlePull,
@@ -632,6 +671,17 @@ function App() {
         fontSize={prefs.fontSize}
         spellCheck={prefs.spellCheck}
         gitBranch={isGitRepo ? currentBranch : null}
+        gitBranchTitle={
+          isGitRepo
+            ? [
+                `Current branch: ${currentBranch}`,
+                remoteInfo.upstream ? `Upstream: ${remoteInfo.upstream}` : "No upstream configured",
+                remoteInfo.aheadBehind ? `Tracking: ${remoteInfo.aheadBehind}` : null,
+              ]
+                .filter(Boolean)
+                .join("\n")
+            : undefined
+        }
         onOpenBranches={() => void openBranchSwitcher()}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
         onToggleZen={() => setZenMode((v) => !v)}
@@ -699,11 +749,14 @@ function App() {
       {branchSwitcher && (
         <BranchSwitcher
           branches={branchSwitcher.branches}
+          remoteInfo={remoteInfo}
           onSelect={(branch) => void switchBranch(branch)}
           onCreateBranch={() => {
             setBranchSwitcher(null);
             setNewBranchDialogOpen(true);
           }}
+          onOpenRemote={() => void openRemote()}
+          onCopyRemoteUrl={() => void copyRemoteUrl()}
           onClose={() => setBranchSwitcher(null)}
         />
       )}

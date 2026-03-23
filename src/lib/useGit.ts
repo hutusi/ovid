@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
-import type { GitBranch, GitCommitChange, GitStatus } from "./types";
+import type { GitBranch, GitCommitChange, GitRemoteInfo, GitStatus } from "./types";
 
 interface GitFileStatus {
   path: string;
@@ -11,12 +11,19 @@ export function useGit(workspaceRoot: string | null) {
   const [gitStatusMap, setGitStatusMap] = useState<Map<string, GitStatus>>(new Map());
   const [isGitRepo, setIsGitRepo] = useState(false);
   const [currentBranch, setCurrentBranch] = useState("");
+  const [remoteInfo, setRemoteInfo] = useState<GitRemoteInfo>({
+    remoteName: null,
+    remoteUrl: null,
+    upstream: null,
+    aheadBehind: null,
+  });
 
   const refreshGitStatus = useCallback(async () => {
     if (!workspaceRoot) {
       setGitStatusMap(new Map());
       setIsGitRepo(false);
       setCurrentBranch("");
+      setRemoteInfo({ remoteName: null, remoteUrl: null, upstream: null, aheadBehind: null });
       return;
     }
     try {
@@ -26,15 +33,21 @@ export function useGit(workspaceRoot: string | null) {
       setIsGitRepo(inRepo);
       setCurrentBranch(branch);
       if (inRepo) {
-        const statuses = await invoke<GitFileStatus[]>("get_git_status");
+        const [statuses, remote] = await Promise.all([
+          invoke<GitFileStatus[]>("get_git_status"),
+          invoke<GitRemoteInfo>("get_git_remote_info"),
+        ]);
         setGitStatusMap(new Map(statuses.map((s) => [s.path, s.status as GitStatus])));
+        setRemoteInfo(remote);
       } else {
         setGitStatusMap(new Map());
+        setRemoteInfo({ remoteName: null, remoteUrl: null, upstream: null, aheadBehind: null });
       }
     } catch {
       setIsGitRepo(false);
       setGitStatusMap(new Map());
       setCurrentBranch("");
+      setRemoteInfo({ remoteName: null, remoteUrl: null, upstream: null, aheadBehind: null });
     }
   }, [workspaceRoot]);
 
@@ -52,6 +65,10 @@ export function useGit(workspaceRoot: string | null) {
 
   async function getBranches(): Promise<GitBranch[]> {
     return invoke<GitBranch[]>("get_git_branches");
+  }
+
+  async function getRemoteInfo(): Promise<GitRemoteInfo> {
+    return invoke<GitRemoteInfo>("get_git_remote_info");
   }
 
   async function handlePush(): Promise<void> {
@@ -94,6 +111,10 @@ export function useGit(workspaceRoot: string | null) {
     }
   }
 
+  async function handleOpenRemote(): Promise<void> {
+    await invoke("open_git_remote");
+  }
+
   async function handleCommit(message: string, paths: string[], push: boolean): Promise<void> {
     try {
       await invoke("git_commit", { message, push, paths });
@@ -106,6 +127,7 @@ export function useGit(workspaceRoot: string | null) {
     gitStatusMap,
     isGitRepo,
     currentBranch,
+    remoteInfo,
     refreshGitStatus,
     handleCommit,
     handlePush,
@@ -113,8 +135,10 @@ export function useGit(workspaceRoot: string | null) {
     handleFetch,
     handleSwitchBranch,
     handleCreateBranch,
+    handleOpenRemote,
     getCommitChanges,
     getBranch,
     getBranches,
+    getRemoteInfo,
   };
 }

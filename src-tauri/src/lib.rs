@@ -685,6 +685,15 @@ struct GitBranch {
     is_current: bool,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitRemoteInfo {
+    remote_name: Option<String>,
+    remote_url: Option<String>,
+    upstream: Option<String>,
+    ahead_behind: Option<String>,
+}
+
 /// Run a git subcommand rooted at `root`. Returns stdout on success or an
 /// error string (stderr) on failure. Returns an empty string if git is not
 /// found, so callers can treat a missing git as a graceful no-op.
@@ -796,6 +805,64 @@ fn parse_git_branches(git_root: &str) -> Result<Vec<GitBranch>, String> {
     Ok(branches)
 }
 
+fn parse_remote_name(upstream: &str) -> Option<String> {
+    upstream.split('/').next().map(str::trim).filter(|s| !s.is_empty()).map(ToString::to_string)
+}
+
+fn get_primary_remote_name(git_root: &str, branches: &[GitBranch]) -> Option<String> {
+    if let Some(name) = branches
+        .iter()
+        .find(|branch| branch.is_current)
+        .and_then(|branch| branch.upstream.as_deref())
+        .and_then(parse_remote_name)
+    {
+        return Some(name);
+    }
+
+    run_git(git_root, &["remote"])
+        .ok()
+        .and_then(|output| output.lines().map(str::trim).find(|line| !line.is_empty()).map(ToString::to_string))
+}
+
+fn normalize_remote_url(url: &str) -> Option<String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        return Some(trimmed.trim_end_matches(".git").to_string());
+    }
+    if let Some(rest) = trimmed.strip_prefix("git@") {
+        let (host, path) = rest.split_once(':')?;
+        return Some(format!("https://{}/{}", host, path.trim_end_matches(".git")));
+    }
+    if let Some(rest) = trimmed.strip_prefix("ssh://git@") {
+        let (host, path) = rest.split_once('/')?;
+        return Some(format!("https://{}/{}", host, path.trim_end_matches(".git")));
+    }
+    None
+}
+
+fn get_git_remote_info_inner(git_root: &str) -> Result<GitRemoteInfo, String> {
+    let branches = parse_git_branches(git_root)?;
+    let current = branches.iter().find(|branch| branch.is_current);
+    let remote_name = get_primary_remote_name(git_root, &branches);
+    let remote_url = match remote_name.as_deref() {
+        Some(name) => run_git(git_root, &["remote", "get-url", name])
+            .ok()
+            .map(|url| url.trim().to_string())
+            .filter(|url| !url.is_empty()),
+        None => None,
+    };
+
+    Ok(GitRemoteInfo {
+        remote_name,
+        remote_url,
+        upstream: current.and_then(|branch| branch.upstream.clone()),
+        ahead_behind: current.and_then(|branch| branch.ahead_behind.clone()),
+    })
+}
+
 #[tauri::command]
 fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>, String> {
     let git_root = match resolve_git_root(state)? {
@@ -843,6 +910,19 @@ fn get_git_branches(state: State<'_, WorkspaceState>) -> Result<Vec<GitBranch>, 
         return Ok(Vec::new());
     };
     parse_git_branches(&git_root)
+}
+
+#[tauri::command]
+fn get_git_remote_info(state: State<'_, WorkspaceState>) -> Result<GitRemoteInfo, String> {
+    let Some(git_root) = resolve_git_root(state)? else {
+        return Ok(GitRemoteInfo {
+            remote_name: None,
+            remote_url: None,
+            upstream: None,
+            ahead_behind: None,
+        });
+    };
+    get_git_remote_info_inner(&git_root)
 }
 
 fn run_repo_git(state: State<'_, WorkspaceState>, args: &[&str]) -> Result<(), String> {
@@ -910,6 +990,18 @@ fn git_create_branch(branch: String, state: State<'_, WorkspaceState>) -> Result
     }
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
     run_git(&git_root, &["switch", "-c", name])?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_git_remote(app: tauri::AppHandle, state: State<'_, WorkspaceState>) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let info = get_git_remote_info_inner(&git_root)?;
+    let remote_url = info.remote_url.ok_or("no remote configured")?;
+    let open_url = normalize_remote_url(&remote_url).ok_or("remote URL cannot be opened")?;
+    app.opener()
+        .open_url(&open_url, None::<&str>)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -1090,6 +1182,9 @@ pub fn run() {
                     &MenuItemBuilder::with_id("git-switch-branch", "Switch Branch…").build(app)?,
                     &MenuItemBuilder::with_id("git-new-branch", "New Branch…").build(app)?,
                     &PredefinedMenuItem::separator(app)?,
+                    &MenuItemBuilder::with_id("git-open-remote", "Open Remote").build(app)?,
+                    &MenuItemBuilder::with_id("git-copy-remote-url", "Copy Remote URL").build(app)?,
+                    &PredefinedMenuItem::separator(app)?,
                     &MenuItemBuilder::with_id("git-push", "Push").build(app)?,
                     &MenuItemBuilder::with_id("git-pull", "Pull").build(app)?,
                     &MenuItemBuilder::with_id("git-fetch", "Fetch").build(app)?,
@@ -1257,12 +1352,14 @@ pub fn run() {
             get_git_commit_changes,
             get_git_branch,
             get_git_branches,
+            get_git_remote_info,
             git_commit,
             git_push,
             git_pull,
             git_fetch,
             git_switch_branch,
             git_create_branch,
+            open_git_remote,
             save_asset,
             pick_image_file,
         ])

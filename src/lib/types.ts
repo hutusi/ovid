@@ -49,6 +49,13 @@ export interface GitBranch {
   isCurrent: boolean;
 }
 
+export interface GitRemoteInfo {
+  remoteName: string | null;
+  remoteUrl: string | null;
+  upstream: string | null;
+  aheadBehind: string | null;
+}
+
 export interface SearchMatch {
   lineNumber: number;
   lineContent: string;
