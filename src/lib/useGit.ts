@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
-import type { GitStatus } from "./types";
+import type { GitCommitChange, GitStatus } from "./types";
 
 interface GitFileStatus {
   path: string;
@@ -38,17 +38,21 @@ export function useGit(workspaceRoot: string | null) {
     void refreshGitStatus();
   }, [refreshGitStatus]);
 
-  async function handleCommit(message: string, push: boolean): Promise<void> {
-    try {
-      await invoke("git_commit", { message, push });
-    } finally {
-      void refreshGitStatus();
-    }
+  async function getCommitChanges(): Promise<GitCommitChange[]> {
+    return invoke<GitCommitChange[]>("get_git_commit_changes");
   }
 
   async function getBranch(): Promise<string> {
     return invoke<string>("get_git_branch");
   }
 
-  return { gitStatusMap, isGitRepo, refreshGitStatus, handleCommit, getBranch };
+  async function handleCommit(message: string, paths: string[], push: boolean): Promise<void> {
+    try {
+      await invoke("git_commit", { message, push, paths });
+    } finally {
+      void refreshGitStatus();
+    }
+  }
+
+  return { gitStatusMap, isGitRepo, refreshGitStatus, handleCommit, getCommitChanges, getBranch };
 }

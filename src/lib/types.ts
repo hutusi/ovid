@@ -35,6 +35,13 @@ export interface RecentWorkspace {
 
 export type GitStatus = "modified" | "staged" | "untracked";
 
+export interface GitCommitChange {
+  path: string;
+  displayPath: string;
+  status: "modified" | "staged" | "untracked" | "added" | "deleted" | "renamed";
+  staged: boolean;
+}
+
 export interface SearchMatch {
   lineNumber: number;
   lineContent: string;

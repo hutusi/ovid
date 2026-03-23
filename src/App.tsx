@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CommitDialog } from "./components/CommitDialog";
 import { Editor } from "./components/Editor";
 import { EmptyState } from "./components/EmptyState";
@@ -13,6 +13,7 @@ import { StatusBar } from "./components/StatusBar";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { findNodeByPath, loadLastRecentFilePath } from "./lib/appRestore";
 import { resolveImageSrc } from "./lib/imageUtils";
+import type { GitCommitChange } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
@@ -27,7 +28,7 @@ import "./styles/global.css";
 import "./App.css";
 
 type ModalState = { type: "new-file"; dirPath: string; contentType?: string } | null;
-type CommitDialogState = { message: string; branch: string } | null;
+type CommitDialogState = { message: string; branch: string; changes: GitCommitChange[] } | null;
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
@@ -100,9 +101,25 @@ function App() {
 
   const { recentFiles, pushRecent, resetRecent } = useRecentFiles(workspaceRoot);
   const { recentWorkspaces, pushRecentWorkspace } = useRecentWorkspaces();
-  const { gitStatusMap, isGitRepo, refreshGitStatus, handleCommit, getBranch } =
+  const { gitStatusMap, isGitRepo, refreshGitStatus, handleCommit, getCommitChanges, getBranch } =
     useGit(workspaceRoot);
   const contentTypes = useContentTypes(workspaceRoot, isAmytisWorkspace);
+
+  const openCommitDialog = useCallback(
+    async (message: string) => {
+      try {
+        const [branch, changes] = await Promise.all([getBranch(), getCommitChanges()]);
+        if (changes.length === 0) {
+          showToast("No git changes to commit");
+          return;
+        }
+        setCommitDialog({ message, branch, changes });
+      } catch {
+        showToast("Failed to load git changes");
+      }
+    },
+    [getBranch, getCommitChanges, showToast]
+  );
 
   // Sync recent files list when workspace changes
   useEffect(() => {
@@ -221,12 +238,8 @@ function App() {
         case "G":
           if (e.shiftKey && isGitRepo) {
             e.preventDefault();
-            void getBranch()
-              .then((branch) => {
-                const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
-                setCommitDialog({ message: `Update: ${title}`, branch });
-              })
-              .catch(() => showToast("Failed to get git branch"));
+            const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
+            void openCommitDialog(`Update: ${title}`);
           }
           break;
         case "p":
@@ -264,10 +277,9 @@ function App() {
     workspaceRoot,
     tree,
     isGitRepo,
-    getBranch,
+    openCommitDialog,
     parsedFrontmatter,
     selectedFile,
-    showToast,
     zenMode,
     modal,
     commitDialog,
@@ -343,12 +355,8 @@ function App() {
           break;
         case "commit-push":
           if (!hasBlockingOverlay && isGitRepo) {
-            void getBranch()
-              .then((branch) => {
-                const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
-                setCommitDialog({ message: `Update: ${title}`, branch });
-              })
-              .catch(() => showToast("Failed to get git branch"));
+            const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
+            void openCommitDialog(`Update: ${title}`);
           }
           break;
       }
@@ -371,10 +379,9 @@ function App() {
     workspaceRoot,
     tree,
     isGitRepo,
-    getBranch,
+    openCommitDialog,
     parsedFrontmatter,
     selectedFile,
-    showToast,
     flushPendingSave,
     handleCloseFile,
     handleOpenWorkspace,
@@ -393,9 +400,8 @@ function App() {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
     if (key === "draft" && value === false && isGitRepo) {
       try {
-        const branch = await getBranch();
         const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
-        setCommitDialog({ message: `Publish: ${title}`, branch });
+        await openCommitDialog(`Publish: ${title}`);
       } catch {
         // git unavailable — ignore
       }
@@ -553,9 +559,10 @@ function App() {
         <CommitDialog
           defaultMessage={commitDialog.message}
           branch={commitDialog.branch}
-          onCommit={(message, push) => {
+          changes={commitDialog.changes}
+          onCommit={(message, selectedPaths, push) => {
             void flushPendingSave()
-              .then(() => handleCommit(message, push))
+              .then(() => handleCommit(message, selectedPaths, push))
               .then(() => setCommitDialog(null))
               .catch((err) => showToast(`Commit failed: ${err}`));
           }}

@@ -667,6 +667,15 @@ struct GitFileStatus {
     status: String,
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GitCommitChange {
+    path: String,
+    display_path: String,
+    status: String,
+    staged: bool,
+}
+
 /// Run a git subcommand rooted at `root`. Returns stdout on success or an
 /// error string (stderr) on failure. Returns an empty string if git is not
 /// found, so callers can treat a missing git as a graceful no-op.
@@ -684,85 +693,130 @@ fn run_git(root: &str, args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-#[tauri::command]
-fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>, String> {
+fn resolve_git_root(state: State<'_, WorkspaceState>) -> Result<Option<String>, String> {
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
     let root = match root_guard.as_ref() {
         Some(r) => r.clone(),
-        None => return Ok(Vec::new()),
+        None => return Ok(None),
     };
     drop(root_guard);
-    let root_str = root.to_string_lossy().to_string();
 
-    // Find the git repo root (may differ from tree_root if content/ is a subdir)
-    let git_root = match run_git(&root_str, &["rev-parse", "--show-toplevel"]) {
-        Ok(s) => s.trim().to_string(),
-        Err(_) => return Ok(Vec::new()), // not a git repo or git not found
-    };
+    Ok(
+        run_git(&root.to_string_lossy(), &["rev-parse", "--show-toplevel"])
+            .ok()
+            .map(|s| s.trim().to_string()),
+    )
+}
 
-    let porcelain = match run_git(&git_root, &["status", "--porcelain"]) {
-        Ok(s) => s,
-        Err(_) => return Ok(Vec::new()),
-    };
+fn parse_git_status(git_root: &str) -> Result<Vec<GitCommitChange>, String> {
+    let porcelain = run_git(git_root, &["status", "--porcelain"])?;
+    let mut changes = Vec::new();
 
-    let mut statuses = Vec::new();
     for line in porcelain.lines() {
         if line.len() < 4 {
             continue;
         }
         let xy = &line[..2];
         let path_part = line[3..].trim();
-        // Handle renames: "R old -> new" — take the destination
         let file_path = if path_part.contains(" -> ") {
             path_part.split(" -> ").nth(1).unwrap_or(path_part)
         } else {
             path_part
         };
-        let abs_path = PathBuf::from(&git_root).join(file_path).to_string_lossy().into_owned();
+        let index_status = xy.chars().next().unwrap_or(' ');
+        let worktree_status = xy.chars().nth(1).unwrap_or(' ');
+        let staged = index_status != ' ' && index_status != '?';
         let status = if xy.starts_with('?') {
             "untracked"
-        } else if xy.chars().next().map(|c| c != ' ').unwrap_or(false) {
+        } else if index_status == 'D' || worktree_status == 'D' {
+            "deleted"
+        } else if index_status == 'R' || worktree_status == 'R' {
+            "renamed"
+        } else if index_status == 'A' {
+            "added"
+        } else if staged {
             "staged"
         } else {
             "modified"
         };
-        statuses.push(GitFileStatus { path: abs_path, status: status.to_string() });
+
+        changes.push(GitCommitChange {
+            path: PathBuf::from(git_root).join(file_path).to_string_lossy().into_owned(),
+            display_path: file_path.to_string(),
+            status: status.to_string(),
+            staged,
+        });
     }
-    Ok(statuses)
+
+    Ok(changes)
+}
+
+#[tauri::command]
+fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>, String> {
+    let git_root = match resolve_git_root(state)? {
+        Some(root) => root,
+        None => return Ok(Vec::new()),
+    };
+
+    Ok(parse_git_status(&git_root)?
+        .into_iter()
+        .map(|change| GitFileStatus {
+            path: change.path,
+            status: if change.status == "untracked" {
+                "untracked".to_string()
+            } else if change.staged {
+                "staged".to_string()
+            } else {
+                "modified".to_string()
+            },
+        })
+        .collect())
+}
+
+#[tauri::command]
+fn get_git_commit_changes(state: State<'_, WorkspaceState>) -> Result<Vec<GitCommitChange>, String> {
+    let git_root = match resolve_git_root(state)? {
+        Some(root) => root,
+        None => return Ok(Vec::new()),
+    };
+    parse_git_status(&git_root)
 }
 
 #[tauri::command]
 fn get_git_branch(state: State<'_, WorkspaceState>) -> Result<String, String> {
-    let root_guard = match state.tree_root.lock() {
-        Ok(g) => g,
-        Err(_) => return Ok(String::new()),
+    let Some(git_root) = resolve_git_root(state)? else {
+        return Ok(String::new());
     };
-    let root = match root_guard.as_ref() {
-        Some(r) => r.clone(),
-        None => return Ok(String::new()),
-    };
-    drop(root_guard);
-    Ok(
-        run_git(&root.to_string_lossy(), &["rev-parse", "--abbrev-ref", "HEAD"])
-            .map(|s| s.trim().to_string())
-            .unwrap_or_default(),
-    )
+    Ok(run_git(&git_root, &["rev-parse", "--abbrev-ref", "HEAD"])
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default())
 }
 
 #[tauri::command]
 fn git_commit(
     message: String,
     push: bool,
+    paths: Vec<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
-    drop(root_guard);
-    let root_str = root.to_string_lossy().to_string();
-    run_git(&root_str, &["add", "-A"])?;
-    run_git(&root_str, &["commit", "-m", &message])?;
+    if paths.is_empty() {
+        return Err("select at least one file to commit".to_string());
+    }
+
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let mut add_args: Vec<&str> = vec!["add", "-A", "--"];
+    for path in &paths {
+        add_args.push(path.as_str());
+    }
+    run_git(&git_root, &add_args)?;
+
+    let mut commit_args: Vec<&str> = vec!["commit", "-m", &message, "--"];
+    for path in &paths {
+        commit_args.push(path.as_str());
+    }
+    run_git(&git_root, &commit_args)?;
     if push {
-        run_git(&root_str, &["push"])?;
+        run_git(&git_root, &["push"])?;
     }
     Ok(())
 }
@@ -1096,6 +1150,7 @@ pub fn run() {
             search_workspace,
             get_content_types,
             get_git_status,
+            get_git_commit_changes,
             get_git_branch,
             git_commit,
             save_asset,
