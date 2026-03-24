@@ -2334,7 +2334,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ovid-app"
+name = "ovid"
 version = "0.1.0"
 dependencies = [
  "serde",

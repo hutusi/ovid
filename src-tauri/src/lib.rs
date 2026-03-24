@@ -1466,12 +1466,12 @@ pub fn run() {
                 "help-docs" => {
                     let _ = handle
                         .opener()
-                        .open_url("https://github.com/hutusi/ovid-app", None::<&str>);
+                        .open_url("https://github.com/hutusi/ovid", None::<&str>);
                 }
                 "help-issues" => {
                     let _ = handle
                         .opener()
-                        .open_url("https://github.com/hutusi/ovid-app/issues", None::<&str>);
+                        .open_url("https://github.com/hutusi/ovid/issues", None::<&str>);
                 }
                 id => {
                     if let Some(window) = handle.get_webview_window("main") {

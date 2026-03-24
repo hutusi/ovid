@@ -1,4 +1,4 @@
-# Ovid App
+# Ovid
 
 A minimalist desktop editor for [Amytis](https://github.com/hutusi/amytis) content workspaces. Purpose-built for content creators who want a calm, keyboard-first writing environment without leaving their workspace.
 
@@ -57,11 +57,12 @@ All major actions are accessible from the native menu bar, making features disco
 | Menu | Items |
 |---|---|
 | **Ovid** | About Ovid, Hide, Quit (standard macOS app menu) |
-| **File** | New File, Open Workspace, Switch Workspace, Save, Close File, Commit & Push |
+| **File** | New, Today's Flow, Open Workspace…, Switch Workspace…, Save, Close File |
 | **Edit** | Undo, Redo, Cut, Copy, Paste, Select All, Find in Workspace, Open Quickly |
-| **Insert** | Link…, Code Block, Horizontal Rule |
+| **Insert** | Link…, Image…, Code Block, Table, Horizontal Rule |
 | **Format** | Bold, Italic, Strikethrough, Inline Code, Heading 1-6, Blockquote, Bullet List, Numbered List, Task List |
 | **View** | Toggle Sidebar, Toggle Properties Panel, Zen Mode, Typewriter Mode, Toggle Spell Check |
+| **Git** | Commit Changes…, Switch Branch…, New Branch…, Open Remote, Copy Remote URL, Push, Pull, Fetch |
 | **Window** | Minimize, Zoom (standard macOS window menu) |
 | **Help** | Ovid Documentation, Report an Issue… |
 
