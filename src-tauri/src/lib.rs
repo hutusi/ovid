@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::menu::{MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{Emitter, Manager, State};
-use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 // Holds workspace paths so file commands can validate against them.
 struct WorkspaceState {
@@ -171,9 +171,7 @@ fn validate_new_path(workspace_root: &Path, requested: &str) -> Result<PathBuf, 
     let canonical_root =
         std::fs::canonicalize(workspace_root).map_err(|e| format!("workspace root: {e}"))?;
     let new_path = PathBuf::from(requested);
-    let parent = new_path
-        .parent()
-        .ok_or("path has no parent directory")?;
+    let parent = new_path.parent().ok_or("path has no parent directory")?;
     let canonical_parent =
         std::fs::canonicalize(parent).map_err(|e| format!("invalid parent path: {e}"))?;
     if !canonical_parent.starts_with(&canonical_root) {
@@ -219,7 +217,11 @@ fn to_slash(path: &Path) -> String {
 /// regardless of whether the full Amytis structure (content/ dir) is present.
 fn derive_workspace_meta(root: &Path) -> (PathBuf, Option<String>) {
     let pub_dir = root.join("public");
-    let asset_root = if pub_dir.is_dir() { pub_dir } else { root.to_path_buf() };
+    let asset_root = if pub_dir.is_dir() {
+        pub_dir
+    } else {
+        root.to_path_buf()
+    };
     let cdn_base = parse_cdn_base(&root.join("site.config.ts"));
     (asset_root, cdn_base)
 }
@@ -241,12 +243,17 @@ async fn open_workspace_at_path(
         .unwrap_or_else(|| root.to_string_lossy().to_string());
 
     let content_dir = root.join("content");
-    let tree_root = if content_dir.is_dir() { content_dir } else { root.clone() };
+    let tree_root = if content_dir.is_dir() {
+        content_dir
+    } else {
+        root.clone()
+    };
 
     *state.tree_root.lock().map_err(|e| e.to_string())? = Some(tree_root.clone());
     *state.workspace_root.lock().map_err(|e| e.to_string())? = Some(root.clone());
 
-    let is_amytis_workspace = root.join("site.config.ts").is_file() && root.join("content").is_dir();
+    let is_amytis_workspace =
+        root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = walk_dir(&tree_root);
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
@@ -303,7 +310,8 @@ async fn open_workspace(
     *state.tree_root.lock().map_err(|e| e.to_string())? = Some(tree_root.clone());
     *state.workspace_root.lock().map_err(|e| e.to_string())? = Some(root.clone());
 
-    let is_amytis_workspace = root.join("site.config.ts").is_file() && root.join("content").is_dir();
+    let is_amytis_workspace =
+        root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = walk_dir(&tree_root);
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
@@ -345,7 +353,11 @@ fn read_file(path: String, state: State<'_, WorkspaceState>) -> Result<String, S
 }
 
 #[tauri::command]
-fn write_file(path: String, content: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+fn write_file(
+    path: String,
+    content: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
@@ -353,7 +365,11 @@ fn write_file(path: String, content: String, state: State<'_, WorkspaceState>) -
 }
 
 #[tauri::command]
-fn create_file(path: String, content: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+fn create_file(
+    path: String,
+    content: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let new_path = validate_new_path(root, &path)?;
@@ -364,7 +380,11 @@ fn create_file(path: String, content: String, state: State<'_, WorkspaceState>) 
 }
 
 #[tauri::command]
-fn rename_file(old_path: String, new_path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+fn rename_file(
+    old_path: String,
+    new_path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical_old = validate_path(root, &old_path)?;
@@ -405,7 +425,10 @@ fn search_dir(path: &Path, query: &str) -> Vec<SearchResult> {
         if entry_path.is_dir() {
             results.extend(search_dir(&entry_path, query));
         } else {
-            let ext = entry_path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            let ext = entry_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("");
             if ext != "md" && ext != "mdx" {
                 continue;
             }
@@ -441,7 +464,10 @@ fn search_dir(path: &Path, query: &str) -> Vec<SearchResult> {
 }
 
 #[tauri::command]
-fn search_workspace(query: String, state: State<'_, WorkspaceState>) -> Result<Vec<SearchResult>, String> {
+fn search_workspace(
+    query: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<SearchResult>, String> {
     if query.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -470,7 +496,9 @@ fn normalize_path(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in path.components() {
         match component {
-            Component::ParentDir => { out.pop(); }
+            Component::ParentDir => {
+                out.pop();
+            }
             Component::CurDir => {}
             c => out.push(c),
         }
@@ -485,7 +513,8 @@ fn ensure_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), Stri
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
     drop(root_guard);
-    let canonical_root = std::fs::canonicalize(&root).map_err(|e| format!("workspace root: {e}"))?;
+    let canonical_root =
+        std::fs::canonicalize(&root).map_err(|e| format!("workspace root: {e}"))?;
     let new_path = normalize_path(Path::new(&path));
     if !new_path.is_absolute() {
         return Err("path must be absolute".to_string());
@@ -557,7 +586,9 @@ fn parse_cdn_base(config_path: &Path) -> Option<String> {
                 .or_else(|| strip_quote_pair(trimmed, key, '\''));
             if let Some(rest) = after_key {
                 let rest = rest.trim_start();
-                let Some(rest) = rest.strip_prefix(':') else { continue };
+                let Some(rest) = rest.strip_prefix(':') else {
+                    continue;
+                };
                 if let Some(url) = extract_quoted_string(rest) {
                     if url.starts_with("http://") || url.starts_with("https://") {
                         return Some(url);
@@ -706,7 +737,11 @@ fn run_git(root: &str, args: &[&str]) -> Result<String, String> {
         .map_err(|_| "git not found".to_string())?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() { "git command failed".to_string() } else { stderr });
+        return Err(if stderr.is_empty() {
+            "git command failed".to_string()
+        } else {
+            stderr
+        });
     }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
@@ -755,29 +790,30 @@ fn validate_git_commit_path(workspace_root: &Path, requested: &str) -> Result<St
     Ok(requested.to_string())
 }
 
-fn parse_git_status(git_root: &str) -> Result<Vec<GitCommitChange>, String> {
-    let porcelain = run_git(git_root, &["status", "--porcelain"])?;
+fn parse_git_status_output(git_root: &str, porcelain: &str) -> Vec<GitCommitChange> {
     let mut changes = Vec::new();
+    let mut records = porcelain.split('\0').filter(|record| !record.is_empty());
 
-    for line in porcelain.lines() {
-        if line.len() < 4 {
+    while let Some(record) = records.next() {
+        if record.len() < 4 {
             continue;
         }
-        let xy = &line[..2];
-        let path_part = line[3..].trim();
-        let file_path = if path_part.contains(" -> ") {
-            path_part.split(" -> ").nth(1).unwrap_or(path_part)
+        let xy = &record[..2];
+        let path_part = &record[3..];
+        let index_status = xy.chars().next().unwrap_or(' ');
+        let worktree_status = xy.chars().nth(1).unwrap_or(' ');
+        let file_path = if matches!(index_status, 'R' | 'C') || matches!(worktree_status, 'R' | 'C')
+        {
+            records.next().unwrap_or(path_part)
         } else {
             path_part
         };
-        let index_status = xy.chars().next().unwrap_or(' ');
-        let worktree_status = xy.chars().nth(1).unwrap_or(' ');
         let staged = index_status != ' ' && index_status != '?';
         let status = if xy.starts_with('?') {
             "untracked"
         } else if index_status == 'D' || worktree_status == 'D' {
             "deleted"
-        } else if index_status == 'R' || worktree_status == 'R' {
+        } else if matches!(index_status, 'R' | 'C') || matches!(worktree_status, 'R' | 'C') {
             "renamed"
         } else if index_status == 'A' {
             "added"
@@ -788,14 +824,22 @@ fn parse_git_status(git_root: &str) -> Result<Vec<GitCommitChange>, String> {
         };
 
         changes.push(GitCommitChange {
-            path: PathBuf::from(git_root).join(file_path).to_string_lossy().into_owned(),
+            path: PathBuf::from(git_root)
+                .join(file_path)
+                .to_string_lossy()
+                .into_owned(),
             display_path: file_path.to_string(),
             status: status.to_string(),
             staged,
         });
     }
 
-    Ok(changes)
+    changes
+}
+
+fn parse_git_status(git_root: &str) -> Result<Vec<GitCommitChange>, String> {
+    let porcelain = run_git(git_root, &["status", "--porcelain=v1", "-z"])?;
+    Ok(parse_git_status_output(git_root, &porcelain))
 }
 
 fn parse_git_branches(git_root: &str) -> Result<Vec<GitBranch>, String> {
@@ -839,7 +883,12 @@ fn parse_git_branch_lines(refs: &str) -> Vec<GitBranch> {
 }
 
 fn parse_remote_name(upstream: &str) -> Option<String> {
-    upstream.split('/').next().map(str::trim).filter(|s| !s.is_empty()).map(ToString::to_string)
+    upstream
+        .split('/')
+        .next()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToString::to_string)
 }
 
 fn get_primary_remote_name(git_root: &str, branches: &[GitBranch]) -> Option<String> {
@@ -852,9 +901,13 @@ fn get_primary_remote_name(git_root: &str, branches: &[GitBranch]) -> Option<Str
         return Some(name);
     }
 
-    run_git(git_root, &["remote"])
-        .ok()
-        .and_then(|output| output.lines().map(str::trim).find(|line| !line.is_empty()).map(ToString::to_string))
+    run_git(git_root, &["remote"]).ok().and_then(|output| {
+        output
+            .lines()
+            .map(str::trim)
+            .find(|line| !line.is_empty())
+            .map(ToString::to_string)
+    })
 }
 
 fn normalize_remote_url(url: &str) -> Option<String> {
@@ -863,15 +916,34 @@ fn normalize_remote_url(url: &str) -> Option<String> {
         return None;
     }
     if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
-        return Some(trimmed.trim_end_matches(".git").to_string());
+        let (scheme, rest) = trimmed.split_once("://")?;
+        let (authority, path) = rest.split_once('/').unwrap_or((rest, ""));
+        let sanitized_authority = authority
+            .rsplit_once('@')
+            .map(|(_, host)| host)
+            .unwrap_or(authority);
+        let sanitized = if path.is_empty() {
+            format!("{scheme}://{sanitized_authority}")
+        } else {
+            format!("{scheme}://{sanitized_authority}/{path}")
+        };
+        return Some(sanitized.trim_end_matches(".git").to_string());
     }
     if let Some(rest) = trimmed.strip_prefix("git@") {
         let (host, path) = rest.split_once(':')?;
-        return Some(format!("https://{}/{}", host, path.trim_end_matches(".git")));
+        return Some(format!(
+            "https://{}/{}",
+            host,
+            path.trim_end_matches(".git")
+        ));
     }
     if let Some(rest) = trimmed.strip_prefix("ssh://git@") {
         let (host, path) = rest.split_once('/')?;
-        return Some(format!("https://{}/{}", host, path.trim_end_matches(".git")));
+        return Some(format!(
+            "https://{}/{}",
+            host,
+            path.trim_end_matches(".git")
+        ));
     }
     None
 }
@@ -883,7 +955,7 @@ fn get_git_remote_info_inner(git_root: &str) -> Result<GitRemoteInfo, String> {
     let remote_url = match remote_name.as_deref() {
         Some(name) => run_git(git_root, &["remote", "get-url", name])
             .ok()
-            .map(|url| url.trim().to_string())
+            .and_then(|url| normalize_remote_url(url.trim()))
             .filter(|url| !url.is_empty()),
         None => None,
     };
@@ -943,7 +1015,9 @@ fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>
 }
 
 #[tauri::command]
-fn get_git_commit_changes(state: State<'_, WorkspaceState>) -> Result<Vec<GitCommitChange>, String> {
+fn get_git_commit_changes(
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<GitCommitChange>, String> {
     let git_root = match resolve_git_root(state)? {
         Some(root) => root,
         None => return Ok(Vec::new()),
@@ -1068,9 +1142,8 @@ fn open_git_remote(app: tauri::AppHandle, state: State<'_, WorkspaceState>) -> R
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
     let info = get_git_remote_info_inner(&git_root)?;
     let remote_url = info.remote_url.ok_or("no remote configured")?;
-    let open_url = normalize_remote_url(&remote_url).ok_or("remote URL cannot be opened")?;
     app.opener()
-        .open_url(&open_url, None::<&str>)
+        .open_url(&remote_url, None::<&str>)
         .map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -1079,7 +1152,11 @@ fn open_git_remote(app: tauri::AppHandle, state: State<'_, WorkspaceState>) -> R
 fn relative_path_from(from_dir: &Path, to: &Path) -> String {
     let from: Vec<_> = from_dir.components().collect();
     let to_c: Vec<_> = to.components().collect();
-    let common = from.iter().zip(to_c.iter()).take_while(|(a, b)| a == b).count();
+    let common = from
+        .iter()
+        .zip(to_c.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
     let mut rel = PathBuf::new();
     for _ in common..from.len() {
         rel.push("..");
@@ -1100,7 +1177,10 @@ async fn pick_image_file(app: tauri::AppHandle) -> Result<Option<String>, String
     let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
     app.dialog()
         .file()
-        .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"])
+        .add_filter(
+            "Images",
+            &["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"],
+        )
         .pick_file(move |file| {
             tx.send(file).ok();
         });
@@ -1253,7 +1333,8 @@ pub fn run() {
                     &MenuItemBuilder::with_id("git-new-branch", "New Branch…").build(app)?,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItemBuilder::with_id("git-open-remote", "Open Remote").build(app)?,
-                    &MenuItemBuilder::with_id("git-copy-remote-url", "Copy Remote URL").build(app)?,
+                    &MenuItemBuilder::with_id("git-copy-remote-url", "Copy Remote URL")
+                        .build(app)?,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItemBuilder::with_id("git-push", "Push").build(app)?,
                     &MenuItemBuilder::with_id("git-pull", "Pull").build(app)?,
@@ -1381,24 +1462,20 @@ pub fn run() {
             // Help links are resolved in Rust; everything else is forwarded to
             // the frontend as a "menu-action" event.
             let handle = app.handle().clone();
-            app.on_menu_event(move |_app, event| {
-                match event.id().as_ref() {
-                    "help-docs" => {
-                        let _ = handle.opener().open_url(
-                            "https://github.com/hutusi/ovid-app",
-                            None::<&str>,
-                        );
-                    }
-                    "help-issues" => {
-                        let _ = handle.opener().open_url(
-                            "https://github.com/hutusi/ovid-app/issues",
-                            None::<&str>,
-                        );
-                    }
-                    id => {
-                        if let Some(window) = handle.get_webview_window("main") {
-                            let _ = window.emit("menu-action", id);
-                        }
+            app.on_menu_event(move |_app, event| match event.id().as_ref() {
+                "help-docs" => {
+                    let _ = handle
+                        .opener()
+                        .open_url("https://github.com/hutusi/ovid-app", None::<&str>);
+                }
+                "help-issues" => {
+                    let _ = handle
+                        .opener()
+                        .open_url("https://github.com/hutusi/ovid-app/issues", None::<&str>);
+                }
+                id => {
+                    if let Some(window) = handle.get_webview_window("main") {
+                        let _ = window.emit("menu-action", id);
                     }
                 }
             });
@@ -1473,10 +1550,7 @@ mod tests {
 
     #[test]
     fn normalize_path_plain_path_unchanged() {
-        assert_eq!(
-            normalize_path(Path::new("/a/b/c")),
-            PathBuf::from("/a/b/c")
-        );
+        assert_eq!(normalize_path(Path::new("/a/b/c")), PathBuf::from("/a/b/c"));
     }
 
     #[test]
@@ -1648,7 +1722,10 @@ mod tests {
 
     #[test]
     fn parse_cdn_base_missing_file_returns_none() {
-        assert_eq!(parse_cdn_base(Path::new("/nonexistent/site.config.ts")), None);
+        assert_eq!(
+            parse_cdn_base(Path::new("/nonexistent/site.config.ts")),
+            None
+        );
     }
 
     // ── derive_workspace_meta ────────────────────────────────────────────────
@@ -1732,6 +1809,10 @@ mod tests {
             Some("https://github.com/hutusi/ovid-codex".to_string())
         );
         assert_eq!(
+            normalize_remote_url("https://user:token@github.com/hutusi/ovid-codex.git"),
+            Some("https://github.com/hutusi/ovid-codex".to_string())
+        );
+        assert_eq!(
             normalize_remote_url("git@github.com:hutusi/ovid-codex.git"),
             Some("https://github.com/hutusi/ovid-codex".to_string())
         );
@@ -1739,6 +1820,33 @@ mod tests {
             normalize_remote_url("ssh://git@github.com/hutusi/ovid-codex.git"),
             Some("https://github.com/hutusi/ovid-codex".to_string())
         );
+    }
+
+    #[test]
+    fn parse_git_status_output_uses_destination_path_for_renames() {
+        let git_root = "/repo";
+        let changes = parse_git_status_output(git_root, "R  notes/old.md\0notes/new.md\0");
+
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].display_path, "notes/new.md");
+        assert_eq!(changes[0].status, "renamed");
+        assert_eq!(
+            changes[0].path,
+            PathBuf::from(git_root)
+                .join("notes/new.md")
+                .to_string_lossy()
+                .into_owned()
+        );
+    }
+
+    #[test]
+    fn parse_git_status_output_preserves_arrow_in_normal_filenames() {
+        let git_root = "/repo";
+        let changes = parse_git_status_output(git_root, " M notes/A -> B.md\0");
+
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].display_path, "notes/A -> B.md");
+        assert_eq!(changes[0].status, "modified");
     }
 
     #[test]
