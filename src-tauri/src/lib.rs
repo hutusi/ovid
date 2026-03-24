@@ -1448,11 +1448,11 @@ pub fn run() {
                 &[
                     &ovid_menu,
                     &file_menu,
-                    &git_menu,
                     &edit_menu,
                     &insert_menu,
                     &format_menu,
                     &view_menu,
+                    &git_menu,
                     &window_menu,
                     &help_menu,
                 ],

@@ -103,7 +103,7 @@ This roadmap is organized into deliberate phases — each phase must feel comple
 ## ✅ Remediation — Known Issues from Testing
 > Goal: fix real gaps discovered during use before adding new features.
 
-A. ✅ **Native app menu** — full native menu bar (File / Edit / Insert / Format / View / Window / Help); menu actions route to the editor and app-level handlers; Edit uses OS-native Undo/Redo/Cut/Copy/Paste
+A. ✅ **Native app menu** — full native menu bar (File / Edit / Insert / Format / View / Git / Window / Help); menu actions route to the editor and app-level handlers; Edit uses OS-native Undo/Redo/Cut/Copy/Paste
 
 B. ✅ **Keyboard shortcut conflicts** — zen mode remapped to `Ctrl+Cmd+Z`; Redo (`Cmd+Shift+Z`) now works correctly inside the editor
 
