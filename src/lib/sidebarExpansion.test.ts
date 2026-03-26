@@ -3,8 +3,10 @@ import {
   buildExpandedStorageKey,
   findAncestorPaths,
   getNodeExpanded,
+  parseExpandedPaths,
   seedExpandedPaths,
   shouldDefaultExpand,
+  shouldRevealSelectedAncestors,
 } from "./sidebarExpansion";
 import type { FileNode } from "./types";
 
@@ -39,14 +41,40 @@ describe("buildExpandedStorageKey", () => {
 });
 
 describe("shouldDefaultExpand", () => {
-  it("expands shallow folders by default", () => {
+  it("expands only top-level folders by default", () => {
     expect(shouldDefaultExpand(0)).toBe(true);
-    expect(shouldDefaultExpand(1)).toBe(true);
+    expect(shouldDefaultExpand(1)).toBe(false);
   });
 
   it("collapses deeper folders by default", () => {
     expect(shouldDefaultExpand(2)).toBe(false);
     expect(shouldDefaultExpand(3)).toBe(false);
+  });
+});
+
+describe("parseExpandedPaths", () => {
+  it("returns empty state when nothing has been saved", () => {
+    expect(parseExpandedPaths(null)).toEqual({
+      expandedPaths: {},
+      hasStoredExpandedState: false,
+    });
+  });
+
+  it("returns empty state for malformed storage", () => {
+    expect(parseExpandedPaths("{not json")).toEqual({
+      expandedPaths: {},
+      hasStoredExpandedState: false,
+    });
+  });
+
+  it("restores saved expanded paths and marks the workspace as having stored state", () => {
+    expect(parseExpandedPaths('{"/workspace/posts":true,"/workspace/flows":false}')).toEqual({
+      expandedPaths: {
+        "/workspace/posts": true,
+        "/workspace/flows": false,
+      },
+      hasStoredExpandedState: true,
+    });
   });
 });
 
@@ -82,6 +110,20 @@ describe("seedExpandedPaths", () => {
   });
 });
 
+describe("shouldRevealSelectedAncestors", () => {
+  it("does not reveal ancestors for a fresh workspace with no saved state", () => {
+    expect(shouldRevealSelectedAncestors({}, false)).toBe(false);
+  });
+
+  it("reveals ancestors when the workspace has saved sidebar state", () => {
+    expect(shouldRevealSelectedAncestors({}, true)).toBe(true);
+  });
+
+  it("reveals ancestors after the user has made expansion choices in this session", () => {
+    expect(shouldRevealSelectedAncestors({ "/workspace/posts": false }, false)).toBe(true);
+  });
+});
+
 describe("getNodeExpanded", () => {
   it("uses explicit persisted state when present", () => {
     expect(getNodeExpanded("/workspace/posts", 0, { "/workspace/posts": false })).toBe(false);
@@ -89,6 +131,6 @@ describe("getNodeExpanded", () => {
 
   it("falls back to default depth-based expansion", () => {
     expect(getNodeExpanded("/workspace/posts", 0, {})).toBe(true);
-    expect(getNodeExpanded("/workspace/posts/2024", 2, {})).toBe(false);
+    expect(getNodeExpanded("/workspace/posts/2024", 1, {})).toBe(false);
   });
 });

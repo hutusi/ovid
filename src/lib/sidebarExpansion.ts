@@ -7,7 +7,31 @@ export function buildExpandedStorageKey(workspaceKey: string | null | undefined)
 }
 
 export function shouldDefaultExpand(depth: number): boolean {
-  return depth < 2;
+  return depth < 1;
+}
+
+export function parseExpandedPaths(stored: string | null): {
+  expandedPaths: Record<string, boolean>;
+  hasStoredExpandedState: boolean;
+} {
+  if (!stored) {
+    return { expandedPaths: {}, hasStoredExpandedState: false };
+  }
+
+  try {
+    const parsed = JSON.parse(stored);
+    if (typeof parsed !== "object" || !parsed) {
+      return { expandedPaths: {}, hasStoredExpandedState: false };
+    }
+
+    const expandedPaths = parsed as Record<string, boolean>;
+    return {
+      expandedPaths,
+      hasStoredExpandedState: Object.keys(expandedPaths).length > 0,
+    };
+  } catch {
+    return { expandedPaths: {}, hasStoredExpandedState: false };
+  }
 }
 
 export function findAncestorPaths(nodes: FileNode[], selectedPath: string | null): Set<string> {
@@ -43,6 +67,13 @@ export function seedExpandedPaths(
     }
   }
   return changed ? next : expandedPaths;
+}
+
+export function shouldRevealSelectedAncestors(
+  expandedPaths: Record<string, boolean>,
+  hasStoredExpandedState: boolean
+): boolean {
+  return hasStoredExpandedState || Object.keys(expandedPaths).length > 0;
 }
 
 export function getNodeExpanded(

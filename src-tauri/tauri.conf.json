@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ovid-app",
+  "productName": "Ovid",
   "version": "0.1.0",
-  "identifier": "com.hutusi.ovid-app",
+  "identifier": "com.hutusi.ovid",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
