@@ -1,4 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BranchSwitcher } from "./components/BranchSwitcher";
 import { CommitDialog } from "./components/CommitDialog";
@@ -42,6 +43,7 @@ type BranchSwitcherState = { branches: GitBranch[]; remoteInfo: GitRemoteInfo } 
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
+const AUTO_FETCH_COOLDOWN_MS = 60_000;
 
 function App() {
   const { resolvedTheme, setPreference } = useTheme();
@@ -63,6 +65,7 @@ function App() {
   const [gitSyncPopoverOpen, setGitSyncPopoverOpen] = useState(false);
   const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
+  const lastAutoFetchAtRef = useRef(0);
 
   const { toasts, showToast } = useToast();
   const { prefs, updatePrefs } = useEditorPreferences();
@@ -428,6 +431,45 @@ function App() {
   useEffect(() => {
     if (saveStatus === "saved" && isGitRepo) void refreshGitStatus();
   }, [saveStatus, isGitRepo, refreshGitStatus]);
+
+  // Refresh remote-tracking refs when the window regains focus so ahead/behind stays current.
+  useEffect(() => {
+    if (!workspaceRoot || !isGitRepo) return;
+
+    let mounted = true;
+    let unlisten: (() => void) | undefined;
+
+    async function maybeFetchRemoteStatus() {
+      const now = Date.now();
+      if (now - lastAutoFetchAtRef.current < AUTO_FETCH_COOLDOWN_MS) {
+        return;
+      }
+      lastAutoFetchAtRef.current = now;
+
+      try {
+        await handleFetch();
+      } catch {
+        // Keep auto-fetch silent. Manual fetch/pull/push surfaces errors explicitly.
+      }
+    }
+
+    void getCurrentWindow()
+      .onFocusChanged(({ payload: focused }) => {
+        if (!mounted || !focused) return;
+        void maybeFetchRemoteStatus();
+      })
+      .then((dispose) => {
+        unlisten = dispose;
+      })
+      .catch(() => {
+        // If focus listeners are unavailable, Git status still updates via manual actions.
+      });
+
+    return () => {
+      mounted = false;
+      unlisten?.();
+    };
+  }, [workspaceRoot, isGitRepo, handleFetch]);
 
   // Forward native menu events to the same handlers as keyboard shortcuts
   useEffect(() => {
