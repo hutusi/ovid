@@ -21,7 +21,7 @@ interface StatusBarProps {
   gitBranch: string | null;
   gitBranchTitle?: string;
   gitSyncLabel?: string | null;
-  onOpenGit: () => void;
+  onOpenBranches: () => void;
   onToggleTheme: () => void;
   onToggleZen: () => void;
   onToggleTypewriter: () => void;
@@ -46,7 +46,7 @@ export function StatusBar({
   gitBranch,
   gitBranchTitle,
   gitSyncLabel,
-  onOpenGit,
+  onOpenBranches,
   onToggleTheme,
   onToggleZen,
   onToggleTypewriter,
@@ -95,7 +95,7 @@ export function StatusBar({
             <button
               type="button"
               className="statusbar-branch"
-              onClick={onOpenGit}
+              onClick={onOpenBranches}
               title={gitBranchTitle ?? `Current branch: ${gitBranch}`}
             >
               {gitBranch}
@@ -104,7 +104,7 @@ export function StatusBar({
               <button
                 type="button"
                 className="statusbar-git-sync"
-                onClick={onOpenGit}
+                onClick={onOpenBranches}
                 title={gitBranchTitle ?? gitSyncLabel}
               >
                 {gitSyncLabel}

@@ -6,7 +6,6 @@ import { Editor } from "./components/Editor";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FileSwitcher } from "./components/FileSwitcher";
-import { GitPanel } from "./components/GitPanel";
 import { NewBranchDialog } from "./components/NewBranchDialog";
 import { NewFileDialog } from "./components/NewFileDialog";
 import { PropertiesPanel } from "./components/PropertiesPanel";
@@ -53,7 +52,6 @@ function App() {
   const [workspaceSwitcherOpen, setWorkspaceSwitcherOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [commitDialog, setCommitDialog] = useState<CommitDialogState>(null);
-  const [gitPanelOpen, setGitPanelOpen] = useState(false);
   const [branchSwitcher, setBranchSwitcher] = useState<BranchSwitcherState>(null);
   const [newBranchDialogOpen, setNewBranchDialogOpen] = useState(false);
   const [coverImageVisible, setCoverImageVisible] = useState(false);
@@ -219,7 +217,6 @@ function App() {
       try {
         await flushPendingSave();
         await handleSwitchBranch(branch);
-        setGitPanelOpen(false);
         setBranchSwitcher(null);
         setNewBranchDialogOpen(false);
         await reloadWorkspaceAfterGitChange();
@@ -237,7 +234,6 @@ function App() {
       try {
         await flushPendingSave();
         await handleCreateBranch(branch);
-        setGitPanelOpen(false);
         setNewBranchDialogOpen(false);
         setBranchSwitcher(null);
         await reloadWorkspaceAfterGitChange();
@@ -315,7 +311,6 @@ function App() {
         zenMode &&
         !modal &&
         !commitDialog &&
-        !gitPanelOpen &&
         !switcherOpen &&
         !branchSwitcher &&
         !newBranchDialogOpen &&
@@ -415,7 +410,6 @@ function App() {
     zenMode,
     modal,
     commitDialog,
-    gitPanelOpen,
     switcherOpen,
     branchSwitcher,
     newBranchDialogOpen,
@@ -435,7 +429,6 @@ function App() {
       const hasBlockingOverlay =
         modal !== null ||
         commitDialog !== null ||
-        gitPanelOpen ||
         switcherOpen ||
         branchSwitcher !== null ||
         newBranchDialogOpen ||
@@ -502,7 +495,7 @@ function App() {
           break;
         case "git-switch-branch":
           if (!hasBlockingOverlay && isGitRepo) {
-            setGitPanelOpen(true);
+            void openBranchSwitcher();
           }
           break;
         case "git-new-branch":
@@ -550,7 +543,6 @@ function App() {
   }, [
     modal,
     commitDialog,
-    gitPanelOpen,
     switcherOpen,
     branchSwitcher,
     newBranchDialogOpen,
@@ -559,6 +551,7 @@ function App() {
     tree,
     isGitRepo,
     openCommitDialog,
+    openBranchSwitcher,
     openRemote,
     copyRemoteUrl,
     runGitAction,
@@ -624,6 +617,8 @@ function App() {
             visible={sidebarVisible}
             workspaceName={workspaceName}
             gitStatusMap={gitStatusMap}
+            gitBranch={isGitRepo ? currentBranch : null}
+            gitRemoteInfo={isGitRepo ? remoteInfo : undefined}
             onSelect={(node) => {
               void handleSelectFile(node);
               if (!node.isDirectory) pushRecent(node);
@@ -635,6 +630,15 @@ function App() {
             onDelete={handleDelete}
             onStartRename={setRenamingPath}
             onCancelRename={() => setRenamingPath(null)}
+            onGitCommit={() => {
+              const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
+              void openCommitDialog(`Update: ${title}`);
+            }}
+            onGitPush={() => void runGitAction("push", () => handlePush(), pushSuccessMessage)}
+            onGitPull={() => void runGitAction("pull", handlePull, "Pulled latest changes")}
+            onGitFetch={() => void runGitAction("fetch", handleFetch, "Fetched remote updates")}
+            onGitOpenRemote={() => void openRemote()}
+            onGitCopyRemoteUrl={() => void copyRemoteUrl()}
           />
         )}
         <div className="editor-column">
@@ -696,7 +700,7 @@ function App() {
         gitBranch={isGitRepo ? currentBranch : null}
         gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo) : undefined}
         gitSyncLabel={gitSyncLabel}
-        onOpenGit={() => setGitPanelOpen(true)}
+        onOpenBranches={() => void openBranchSwitcher()}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
         onToggleZen={() => setZenMode((v) => !v)}
         onToggleTypewriter={() => setTypewriterMode((v) => !v)}
@@ -758,33 +762,6 @@ function App() {
               .catch((err) => showToast(`Commit failed: ${err}`));
           }}
           onCancel={() => setCommitDialog(null)}
-        />
-      )}
-      {gitPanelOpen && isGitRepo && (
-        <GitPanel
-          branch={currentBranch}
-          remoteInfo={remoteInfo}
-          onCommit={() => {
-            setGitPanelOpen(false);
-            const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
-            void openCommitDialog(`Update: ${title}`);
-          }}
-          onPush={(remoteName) =>
-            void runGitAction("push", () => handlePush(remoteName), pushSuccessMessage)
-          }
-          onPull={() => void runGitAction("pull", handlePull, "Pulled latest changes")}
-          onFetch={() => void runGitAction("fetch", handleFetch, "Fetched remote updates")}
-          onSwitchBranch={() => {
-            setGitPanelOpen(false);
-            void openBranchSwitcher();
-          }}
-          onNewBranch={() => {
-            setGitPanelOpen(false);
-            setNewBranchDialogOpen(true);
-          }}
-          onOpenRemote={(remoteName) => void openRemote(remoteName)}
-          onCopyRemoteUrl={(remoteName) => void copyRemoteUrl(remoteName)}
-          onClose={() => setGitPanelOpen(false)}
         />
       )}
       {branchSwitcher && (

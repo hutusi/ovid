@@ -210,25 +210,6 @@
   color: var(--color-fg-muted);
 }
 
-.modal-badge-accent {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-  background: var(--color-accent-subtle);
-}
-
-.modal-info-grid {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 8px 10px;
-  align-items: start;
-}
-
-.modal-action-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
 .modal-commit-list {
   list-style: none;
   margin: 0;
