@@ -1,7 +1,9 @@
+import type { GitSyncPopoverState } from "../lib/gitUi";
 import type { SaveStatus } from "../lib/types";
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
 import type { ResolvedTheme } from "../lib/useTheme";
 import { FontSettingsButton } from "./FontSettings";
+import { GitSyncPopover } from "./GitSyncPopover";
 import "./StatusBar.css";
 
 export type { SaveStatus };
@@ -21,7 +23,13 @@ interface StatusBarProps {
   gitBranch: string | null;
   gitBranchTitle?: string;
   gitSyncLabel?: string | null;
+  gitSyncTitle?: string;
+  gitSyncPopover?: GitSyncPopoverState | null;
+  gitSyncPopoverOpen?: boolean;
   onOpenBranches: () => void;
+  onOpenGitSync: () => void;
+  onCloseGitSync: () => void;
+  onGitSyncAction: () => void;
   onToggleTheme: () => void;
   onToggleZen: () => void;
   onToggleTypewriter: () => void;
@@ -46,7 +54,13 @@ export function StatusBar({
   gitBranch,
   gitBranchTitle,
   gitSyncLabel,
+  gitSyncTitle,
+  gitSyncPopover,
+  gitSyncPopoverOpen = false,
   onOpenBranches,
+  onOpenGitSync,
+  onCloseGitSync,
+  onGitSyncAction,
   onToggleTheme,
   onToggleZen,
   onToggleTypewriter,
@@ -101,14 +115,24 @@ export function StatusBar({
               {gitBranch}
             </button>
             {gitSyncLabel && (
-              <button
-                type="button"
-                className="statusbar-git-sync"
-                onClick={onOpenBranches}
-                title={gitBranchTitle ?? gitSyncLabel}
-              >
-                {gitSyncLabel}
-              </button>
+              <div className="statusbar-git-sync-wrap">
+                <button
+                  type="button"
+                  className="statusbar-git-sync"
+                  onClick={onOpenGitSync}
+                  title={gitSyncTitle ?? gitSyncLabel}
+                  aria-expanded={gitSyncPopoverOpen}
+                >
+                  {gitSyncLabel}
+                </button>
+                {gitSyncPopoverOpen && gitSyncPopover && (
+                  <GitSyncPopover
+                    state={gitSyncPopover}
+                    onClose={onCloseGitSync}
+                    onAction={gitSyncPopover.actionLabel ? onGitSyncAction : undefined}
+                  />
+                )}
+              </div>
             )}
           </div>
         )}

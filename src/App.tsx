@@ -14,7 +14,12 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { findNodeByPath, loadLastRecentFilePath } from "./lib/appRestore";
-import { getGitBranchTitle, getGitSyncLabel, getPushSuccessMessage } from "./lib/gitUi";
+import {
+  getGitBranchTitle,
+  getGitSyncLabel,
+  getGitSyncPopoverState,
+  getPushSuccessMessage,
+} from "./lib/gitUi";
 import { resolveImageSrc } from "./lib/imageUtils";
 import type { GitBranch, GitCommitChange, GitRemoteInfo } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
@@ -54,6 +59,7 @@ function App() {
   const [commitDialog, setCommitDialog] = useState<CommitDialogState>(null);
   const [branchSwitcher, setBranchSwitcher] = useState<BranchSwitcherState>(null);
   const [newBranchDialogOpen, setNewBranchDialogOpen] = useState(false);
+  const [gitSyncPopoverOpen, setGitSyncPopoverOpen] = useState(false);
   const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
 
@@ -166,6 +172,7 @@ function App() {
 
   const openBranchSwitcher = useCallback(async () => {
     try {
+      setGitSyncPopoverOpen(false);
       const [branches, remote] = await Promise.all([getBranches(), getRemoteInfo()]);
       if (branches.length === 0) {
         showToast("No local branches found");
@@ -602,6 +609,24 @@ function App() {
 
   const sessionWordsAdded = sessionBaseline !== null ? Math.max(0, wordCount - sessionBaseline) : 0;
   const gitSyncLabel = isGitRepo ? getGitSyncLabel(remoteInfo) : null;
+  const gitSyncPopover = isGitRepo ? getGitSyncPopoverState(remoteInfo) : null;
+
+  async function handleGitSyncAction() {
+    if (!gitSyncPopover?.actionKind) return;
+    setGitSyncPopoverOpen(false);
+    if (gitSyncPopover.actionKind === "pull") {
+      await runGitAction("pull", () => handlePull(), "Pulled latest changes");
+      return;
+    }
+    await runGitAction(
+      "push",
+      () =>
+        gitSyncPopover.actionKind === "push-track" && remoteInfo.remoteName
+          ? handlePush(remoteInfo.remoteName)
+          : handlePush(),
+      getPushSuccessMessage(remoteInfo)
+    );
+  }
 
   return (
     <div className="app" data-zen={zenMode ? "true" : undefined}>
@@ -689,7 +714,13 @@ function App() {
         gitBranch={isGitRepo ? currentBranch : null}
         gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo) : undefined}
         gitSyncLabel={gitSyncLabel}
+        gitSyncTitle={gitSyncPopover?.description}
+        gitSyncPopover={gitSyncPopover}
+        gitSyncPopoverOpen={gitSyncPopoverOpen}
         onOpenBranches={() => void openBranchSwitcher()}
+        onOpenGitSync={() => setGitSyncPopoverOpen((open) => !open)}
+        onCloseGitSync={() => setGitSyncPopoverOpen(false)}
+        onGitSyncAction={() => void handleGitSyncAction()}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
         onToggleZen={() => setZenMode((v) => !v)}
         onToggleTypewriter={() => setTypewriterMode((v) => !v)}

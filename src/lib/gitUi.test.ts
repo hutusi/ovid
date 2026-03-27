@@ -3,6 +3,7 @@ import {
   getGitBranchTitle,
   getGitSyncDescription,
   getGitSyncLabel,
+  getGitSyncPopoverState,
   getPushSuccessMessage,
   getRemoteSummary,
 } from "./gitUi";
@@ -116,5 +117,47 @@ describe("getGitBranchTitle", () => {
         makeRemoteInfo({ remotes: [makeRemote("origin"), makeRemote("publish")] })
       )
     ).toBe("Current branch: feature/test\nNo upstream configured\nRemotes: origin, publish");
+  });
+});
+
+describe("getGitSyncPopoverState", () => {
+  it("builds a push action for ahead branches", () => {
+    expect(
+      getGitSyncPopoverState(makeRemoteInfo({ upstream: "origin/main", aheadBehind: ">" }))
+    ).toEqual({
+      label: "Ahead",
+      title: "Ahead",
+      tracking: "origin/main",
+      description: "Your branch is ahead of origin/main.",
+      actionKind: "push",
+      actionLabel: "Push",
+    });
+  });
+
+  it("builds a push-track action when no upstream is configured", () => {
+    expect(getGitSyncPopoverState(makeRemoteInfo({ remoteName: "origin" }))).toEqual({
+      label: "No upstream",
+      title: "No upstream",
+      tracking: "origin",
+      description:
+        "This branch is not tracking a remote branch yet. Push once to start tracking origin.",
+      actionKind: "push-track",
+      actionLabel: "Push + Track",
+    });
+  });
+
+  it("returns explanation-only state for ambiguous remotes", () => {
+    expect(
+      getGitSyncPopoverState(
+        makeRemoteInfo({ remotes: [makeRemote("origin"), makeRemote("publish")] })
+      )
+    ).toEqual({
+      label: "Choose remote",
+      title: "Choose remote",
+      tracking: "origin, publish",
+      description: "Multiple remotes are configured and no push target is selected yet.",
+      actionKind: null,
+      actionLabel: null,
+    });
   });
 });

@@ -1,5 +1,16 @@
 import type { GitRemoteInfo } from "./types";
 
+export type GitSyncActionKind = "push" | "pull" | "push-track";
+
+export interface GitSyncPopoverState {
+  label: string;
+  title: string;
+  tracking: string;
+  description: string;
+  actionKind: GitSyncActionKind | null;
+  actionLabel: string | null;
+}
+
 export function getPushSuccessMessage(remoteInfo: GitRemoteInfo): string {
   return !remoteInfo.upstream && remoteInfo.remoteName
     ? "Pushed and set upstream"
@@ -58,4 +69,73 @@ export function getGitBranchTitle(branch: string, remoteInfo: GitRemoteInfo): st
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+export function getGitSyncPopoverState(remoteInfo: GitRemoteInfo): GitSyncPopoverState | null {
+  const label = getGitSyncLabel(remoteInfo);
+  if (!label) return null;
+
+  if (remoteInfo.upstream && remoteInfo.aheadBehind === ">") {
+    return {
+      label,
+      title: "Ahead",
+      tracking: remoteInfo.upstream,
+      description: `Your branch is ahead of ${remoteInfo.upstream}.`,
+      actionKind: "push",
+      actionLabel: "Push",
+    };
+  }
+
+  if (remoteInfo.upstream && remoteInfo.aheadBehind === "<") {
+    return {
+      label,
+      title: "Behind",
+      tracking: remoteInfo.upstream,
+      description: `Your branch is behind ${remoteInfo.upstream}.`,
+      actionKind: "pull",
+      actionLabel: "Pull",
+    };
+  }
+
+  if (remoteInfo.upstream && remoteInfo.aheadBehind === "<>") {
+    return {
+      label,
+      title: "Diverged",
+      tracking: remoteInfo.upstream,
+      description: `Your branch and ${remoteInfo.upstream} both have new commits.`,
+      actionKind: null,
+      actionLabel: null,
+    };
+  }
+
+  if (!remoteInfo.upstream && remoteInfo.remoteName) {
+    return {
+      label,
+      title: "No upstream",
+      tracking: remoteInfo.remoteName,
+      description: `This branch is not tracking a remote branch yet. Push once to start tracking ${remoteInfo.remoteName}.`,
+      actionKind: "push-track",
+      actionLabel: "Push + Track",
+    };
+  }
+
+  if (!remoteInfo.upstream && !remoteInfo.remoteName && remoteInfo.remotes.length > 1) {
+    return {
+      label,
+      title: "Choose remote",
+      tracking: remoteInfo.remotes.map((remote) => remote.name).join(", "),
+      description: "Multiple remotes are configured and no push target is selected yet.",
+      actionKind: null,
+      actionLabel: null,
+    };
+  }
+
+  return {
+    label,
+    title: label,
+    tracking: getRemoteSummary(remoteInfo),
+    description: getGitSyncDescription(remoteInfo),
+    actionKind: null,
+    actionLabel: null,
+  };
 }
