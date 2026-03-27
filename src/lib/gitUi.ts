@@ -18,12 +18,12 @@ export function getPushSuccessMessage(remoteInfo: GitRemoteInfo): string {
 }
 
 export function getGitSyncLabel(remoteInfo: GitRemoteInfo): string | null {
-  if (remoteInfo.aheadBehind === ">") return "Ahead";
-  if (remoteInfo.aheadBehind === "<") return "Behind";
-  if (remoteInfo.aheadBehind === "<>") return "Diverged";
-  if (!remoteInfo.upstream && remoteInfo.remoteName) return "No upstream";
+  if (remoteInfo.aheadBehind === ">") return "ahead";
+  if (remoteInfo.aheadBehind === "<") return "behind";
+  if (remoteInfo.aheadBehind === "<>") return "diverged";
+  if (!remoteInfo.upstream && remoteInfo.remoteName) return "no upstream";
   if (!remoteInfo.upstream && !remoteInfo.remoteName && remoteInfo.remotes.length > 1) {
-    return "Choose remote";
+    return "choose remote";
   }
   return null;
 }
@@ -78,7 +78,7 @@ export function getGitSyncPopoverState(remoteInfo: GitRemoteInfo): GitSyncPopove
   if (remoteInfo.upstream && remoteInfo.aheadBehind === ">") {
     return {
       label,
-      title: "Ahead",
+      title: "ahead",
       tracking: remoteInfo.upstream,
       description: `Your branch is ahead of ${remoteInfo.upstream}.`,
       actionKind: "push",
@@ -89,7 +89,7 @@ export function getGitSyncPopoverState(remoteInfo: GitRemoteInfo): GitSyncPopove
   if (remoteInfo.upstream && remoteInfo.aheadBehind === "<") {
     return {
       label,
-      title: "Behind",
+      title: "behind",
       tracking: remoteInfo.upstream,
       description: `Your branch is behind ${remoteInfo.upstream}.`,
       actionKind: "pull",
@@ -100,7 +100,7 @@ export function getGitSyncPopoverState(remoteInfo: GitRemoteInfo): GitSyncPopove
   if (remoteInfo.upstream && remoteInfo.aheadBehind === "<>") {
     return {
       label,
-      title: "Diverged",
+      title: "diverged",
       tracking: remoteInfo.upstream,
       description: `Your branch and ${remoteInfo.upstream} both have new commits.`,
       actionKind: null,
@@ -111,7 +111,7 @@ export function getGitSyncPopoverState(remoteInfo: GitRemoteInfo): GitSyncPopove
   if (!remoteInfo.upstream && remoteInfo.remoteName) {
     return {
       label,
-      title: "No upstream",
+      title: "no upstream",
       tracking: remoteInfo.remoteName,
       description: `This branch is not tracking a remote branch yet. Push once to start tracking ${remoteInfo.remoteName}.`,
       actionKind: "push-track",
@@ -122,7 +122,7 @@ export function getGitSyncPopoverState(remoteInfo: GitRemoteInfo): GitSyncPopove
   if (!remoteInfo.upstream && !remoteInfo.remoteName && remoteInfo.remotes.length > 1) {
     return {
       label,
-      title: "Choose remote",
+      title: "choose remote",
       tracking: remoteInfo.remotes.map((remote) => remote.name).join(", "),
       description: "Multiple remotes are configured and no push target is selected yet.",
       actionKind: null,

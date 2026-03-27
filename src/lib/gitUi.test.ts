@@ -65,21 +65,21 @@ describe("getRemoteSummary", () => {
 describe("getGitSyncLabel", () => {
   it("labels ahead and behind states", () => {
     expect(getGitSyncLabel(makeRemoteInfo({ upstream: "origin/main", aheadBehind: ">" }))).toBe(
-      "Ahead"
+      "ahead"
     );
     expect(getGitSyncLabel(makeRemoteInfo({ upstream: "origin/main", aheadBehind: "<" }))).toBe(
-      "Behind"
+      "behind"
     );
   });
 
   it("flags missing upstream when a push remote exists", () => {
-    expect(getGitSyncLabel(makeRemoteInfo({ remoteName: "origin" }))).toBe("No upstream");
+    expect(getGitSyncLabel(makeRemoteInfo({ remoteName: "origin" }))).toBe("no upstream");
   });
 
   it("flags ambiguous remotes when none is preferred", () => {
     expect(
       getGitSyncLabel(makeRemoteInfo({ remotes: [makeRemote("origin"), makeRemote("publish")] }))
-    ).toBe("Choose remote");
+    ).toBe("choose remote");
   });
 });
 
@@ -125,8 +125,8 @@ describe("getGitSyncPopoverState", () => {
     expect(
       getGitSyncPopoverState(makeRemoteInfo({ upstream: "origin/main", aheadBehind: ">" }))
     ).toEqual({
-      label: "Ahead",
-      title: "Ahead",
+      label: "ahead",
+      title: "ahead",
       tracking: "origin/main",
       description: "Your branch is ahead of origin/main.",
       actionKind: "push",
@@ -136,8 +136,8 @@ describe("getGitSyncPopoverState", () => {
 
   it("builds a push-track action when no upstream is configured", () => {
     expect(getGitSyncPopoverState(makeRemoteInfo({ remoteName: "origin" }))).toEqual({
-      label: "No upstream",
-      title: "No upstream",
+      label: "no upstream",
+      title: "no upstream",
       tracking: "origin",
       description:
         "This branch is not tracking a remote branch yet. Push once to start tracking origin.",
@@ -152,8 +152,8 @@ describe("getGitSyncPopoverState", () => {
         makeRemoteInfo({ remotes: [makeRemote("origin"), makeRemote("publish")] })
       )
     ).toEqual({
-      label: "Choose remote",
-      title: "Choose remote",
+      label: "choose remote",
+      title: "choose remote",
       tracking: "origin, publish",
       description: "Multiple remotes are configured and no push target is selected yet.",
       actionKind: null,
