@@ -741,6 +741,8 @@ fn run_git(root: &str, args: &[&str]) -> Result<String, String> {
     cmd_args.extend_from_slice(args);
     let output = std::process::Command::new("git")
         .args(&cmd_args)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "Never")
         .output()
         .map_err(|_| "git not found".to_string())?;
     if !output.status.success() {
