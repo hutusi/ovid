@@ -1131,14 +1131,18 @@ fn get_git_remote_info(state: State<'_, WorkspaceState>) -> Result<GitRemoteInfo
     get_git_remote_info_inner(&git_root)
 }
 
-fn run_repo_git(state: State<'_, WorkspaceState>, args: &[&str]) -> Result<(), String> {
-    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
-    run_git(&git_root, args)?;
-    Ok(())
+async fn run_blocking_git<T, F>(task: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(task)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn git_commit(
+async fn git_commit(
     message: String,
     push: bool,
     paths: Vec<String>,
@@ -1154,64 +1158,90 @@ fn git_commit(
         .iter()
         .map(|path| validate_git_commit_path(&workspace_root, path))
         .collect::<Result<Vec<_>, _>>()?;
-    let mut add_args: Vec<&str> = vec!["add", "-A", "--"];
-    for path in &validated_paths {
-        add_args.push(path.as_str());
-    }
-    run_git(&git_root, &add_args)?;
+    run_blocking_git(move || {
+        let mut add_args: Vec<&str> = vec!["add", "-A", "--"];
+        for path in &validated_paths {
+            add_args.push(path.as_str());
+        }
+        run_git(&git_root, &add_args)?;
 
-    let mut commit_args: Vec<&str> = vec!["commit", "-m", &message, "--"];
-    for path in &validated_paths {
-        commit_args.push(path.as_str());
-    }
-    run_git(&git_root, &commit_args)?;
-    if push {
+        let mut commit_args: Vec<&str> = vec!["commit", "-m", &message, "--"];
+        for path in &validated_paths {
+            commit_args.push(path.as_str());
+        }
+        run_git(&git_root, &commit_args)?;
+        if push {
+            let remote = get_git_remote_info_inner(&git_root)?;
+            let branch = get_current_branch_inner(&git_root)?;
+            let args = git_push_args(&remote, &branch, None)?;
+            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            run_git(&git_root, &arg_refs)?;
+        }
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn git_push(
+    remote_name: Option<String>,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    run_blocking_git(move || {
         let remote = get_git_remote_info_inner(&git_root)?;
         let branch = get_current_branch_inner(&git_root)?;
-        let args = git_push_args(&remote, &branch, None)?;
+        let args = git_push_args(&remote, &branch, remote_name.as_deref())?;
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
         run_git(&git_root, &arg_refs)?;
-    }
-    Ok(())
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-fn git_push(remote_name: Option<String>, state: State<'_, WorkspaceState>) -> Result<(), String> {
+async fn git_pull(state: State<'_, WorkspaceState>) -> Result<(), String> {
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
-    let remote = get_git_remote_info_inner(&git_root)?;
-    let branch = get_current_branch_inner(&git_root)?;
-    let args = git_push_args(&remote, &branch, remote_name.as_deref())?;
-    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    run_git(&git_root, &arg_refs)?;
-    Ok(())
+    run_blocking_git(move || {
+        run_git(&git_root, &["pull", "--ff-only"])?;
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-fn git_pull(state: State<'_, WorkspaceState>) -> Result<(), String> {
-    run_repo_git(state, &["pull", "--ff-only"])
-}
-
-#[tauri::command]
-fn git_fetch(state: State<'_, WorkspaceState>) -> Result<(), String> {
-    run_repo_git(state, &["fetch"])
-}
-
-#[tauri::command]
-fn git_switch_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+async fn git_fetch(state: State<'_, WorkspaceState>) -> Result<(), String> {
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
-    run_git(&git_root, &["switch", "--", &branch])?;
-    Ok(())
+    run_blocking_git(move || {
+        run_git(&git_root, &["fetch"])?;
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
-fn git_create_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+async fn git_switch_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    run_blocking_git(move || {
+        run_git(&git_root, &["switch", "--", &branch])?;
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn git_create_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
     let name = branch.trim();
     if name.is_empty() {
         return Err("branch name cannot be empty".to_string());
     }
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
-    run_git(&git_root, &["switch", "-c", "--", name])?;
-    Ok(())
+    let branch_name = name.to_string();
+    run_blocking_git(move || {
+        run_git(&git_root, &["switch", "-c", "--", &branch_name])?;
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
