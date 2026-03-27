@@ -617,8 +617,6 @@ function App() {
             visible={sidebarVisible}
             workspaceName={workspaceName}
             gitStatusMap={gitStatusMap}
-            gitBranch={isGitRepo ? currentBranch : null}
-            gitRemoteInfo={isGitRepo ? remoteInfo : undefined}
             onSelect={(node) => {
               void handleSelectFile(node);
               if (!node.isDirectory) pushRecent(node);
@@ -630,15 +628,6 @@ function App() {
             onDelete={handleDelete}
             onStartRename={setRenamingPath}
             onCancelRename={() => setRenamingPath(null)}
-            onGitCommit={() => {
-              const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
-              void openCommitDialog(`Update: ${title}`);
-            }}
-            onGitPush={() => void runGitAction("push", () => handlePush(), pushSuccessMessage)}
-            onGitPull={() => void runGitAction("pull", handlePull, "Pulled latest changes")}
-            onGitFetch={() => void runGitAction("fetch", handleFetch, "Fetched remote updates")}
-            onGitOpenRemote={() => void openRemote()}
-            onGitCopyRemoteUrl={() => void copyRemoteUrl()}
           />
         )}
         <div className="editor-column">

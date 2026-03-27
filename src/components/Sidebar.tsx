@@ -17,9 +17,8 @@ import {
   rollupGitStatus,
   sortNodes,
 } from "../lib/sidebarUtils";
-import type { FileNode, GitRemoteInfo, GitStatus } from "../lib/types";
+import type { FileNode, GitStatus } from "../lib/types";
 import { ContentTypeIcon } from "./ContentTypeIcon";
-import { SidebarGitSection } from "./SidebarGitSection";
 import "./Sidebar.css";
 import { Input } from "./ui/input";
 
@@ -31,8 +30,6 @@ interface SidebarProps {
   visible: boolean;
   workspaceName: string | null;
   gitStatusMap: Map<string, GitStatus>;
-  gitBranch?: string | null;
-  gitRemoteInfo?: GitRemoteInfo;
   onSelect: (node: FileNode) => void;
   onOpenWorkspace: () => void;
   onOpenSwitcher: () => void;
@@ -41,12 +38,6 @@ interface SidebarProps {
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
   onCancelRename: () => void;
-  onGitCommit?: () => void;
-  onGitPush?: () => void;
-  onGitPull?: () => void;
-  onGitFetch?: () => void;
-  onGitOpenRemote?: () => void;
-  onGitCopyRemoteUrl?: () => void;
 }
 
 interface FileItemProps {
@@ -258,8 +249,6 @@ export function Sidebar({
   visible,
   workspaceName,
   gitStatusMap,
-  gitBranch,
-  gitRemoteInfo,
   onSelect,
   onOpenWorkspace,
   onOpenSwitcher,
@@ -268,12 +257,6 @@ export function Sidebar({
   onDelete,
   onStartRename,
   onCancelRename,
-  onGitCommit,
-  onGitPush,
-  onGitPull,
-  onGitFetch,
-  onGitOpenRemote,
-  onGitCopyRemoteUrl,
 }: SidebarProps) {
   const [filterQuery, setFilterQuery] = useState("");
   const visibleTree = useMemo(() => collapseIndexNodes(tree), [tree]);
@@ -427,26 +410,6 @@ export function Sidebar({
           </div>
         </div>
       )}
-
-      {gitBranch &&
-        gitRemoteInfo &&
-        onGitCommit &&
-        onGitPush &&
-        onGitPull &&
-        onGitFetch &&
-        onGitOpenRemote &&
-        onGitCopyRemoteUrl && (
-          <SidebarGitSection
-            branch={gitBranch}
-            remoteInfo={gitRemoteInfo}
-            onCommit={onGitCommit}
-            onPush={onGitPush}
-            onPull={onGitPull}
-            onFetch={onGitFetch}
-            onOpenRemote={onGitOpenRemote}
-            onCopyRemoteUrl={onGitCopyRemoteUrl}
-          />
-        )}
 
       <div className="sidebar-tree">
         {visibleTree.length === 0 ? (
