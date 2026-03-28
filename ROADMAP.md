@@ -138,9 +138,9 @@ H. ✅ **Dialog accessibility** — shared `useFocusTrap` hook across all modals
 ## Phase 9 — Git Workflow Completion
 > Goal: make the current Git features feel like one coherent daily workflow without turning Ovid into a full Git client. 🖊 📢
 
-48. ⏳ **Multi-remote support** — reshape the Git model around explicit remotes and tracking targets instead of assuming the current upstream or first remote is always correct
-49. ⏳ **Unified Git status surface** — add a compact Git panel or palette that brings together branch, upstream, ahead/behind, remote, and the most-used actions in one place
-50. ⏳ **More visible sync state** — make ahead/behind and upstream status clearly visible when it matters instead of hiding it in tooltips or branch dialogs
+48. ✅ **Multi-remote support** — model Git around explicit remotes and tracking targets, with remote-aware push/open/copy flows instead of assuming the current upstream or first remote is always correct
+49. ✅ **Unified Git status surface** — split Git into clearer surfaces: branch switching stays on the branch control, local changes open the commit flow, and sync state opens its own focused status window instead of routing everything through one generic Git popup
+50. ✅ **More visible sync state** — surface branch sync state directly in the status bar with ahead/behind/diverged labels and a dedicated sync dialog, plus automatic refresh on window focus so remote changes show up without a manual fetch
 51. ⏳ **Git rejection/conflict UX** — improve the app-level handling of non-fast-forward push failures, pull conflicts, and other common Git rejections without attempting full conflict editing
 52. ⏳ **Remote branch checkout** — allow switching to or creating tracking branches from remote refs, not just local branches
 53. ⏳ **Branch maintenance** — add safe branch rename/delete flows with clear guardrails around current branch and unmerged work
