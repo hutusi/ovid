@@ -135,6 +135,7 @@ export function StatusBar({
                 className="statusbar-git-sync"
                 onClick={onOpenGitSync}
                 title={gitSyncTitle ?? gitSyncLabel}
+                aria-haspopup="dialog"
                 aria-expanded={gitSyncPopoverOpen}
               >
                 <GitSyncStatusIcon label={gitSyncLabel} />

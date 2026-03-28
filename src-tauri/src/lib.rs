@@ -800,6 +800,32 @@ fn validate_git_commit_path(workspace_root: &Path, requested: &str) -> Result<St
     Ok(requested.to_string())
 }
 
+fn validate_git_commit_selection(
+    git_root: &Path,
+    workspace_root: &Path,
+    requested: &str,
+) -> Result<String, String> {
+    validate_git_commit_path(git_root, requested)?;
+
+    let git_root_canonical =
+        std::fs::canonicalize(git_root).map_err(|e| format!("git root: {e}"))?;
+    let workspace_root_canonical =
+        std::fs::canonicalize(workspace_root).map_err(|e| format!("workspace root: {e}"))?;
+    let candidate = git_root_canonical.join(requested);
+
+    let target = if candidate.exists() {
+        std::fs::canonicalize(&candidate).map_err(|e| format!("commit path: {e}"))?
+    } else {
+        normalize_path(&candidate)
+    };
+
+    if !target.starts_with(&workspace_root_canonical) {
+        return Err("path is outside the opened workspace".to_string());
+    }
+
+    Ok(requested.to_string())
+}
+
 fn parse_git_status_output(git_root: &str, porcelain: &str) -> Vec<GitCommitChange> {
     let mut changes = Vec::new();
     let mut records = porcelain.split('\0').filter(|record| !record.is_empty());
@@ -1160,7 +1186,7 @@ async fn git_commit(
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
     let validated_paths = paths
         .iter()
-        .map(|path| validate_git_commit_path(&workspace_root, path))
+        .map(|path| validate_git_commit_selection(Path::new(&git_root), &workspace_root, path))
         .collect::<Result<Vec<_>, _>>()?;
     run_blocking_git(move || {
         let mut add_args: Vec<&str> = vec!["add", "-A", "--"];
@@ -1175,11 +1201,17 @@ async fn git_commit(
         }
         run_git(&git_root, &commit_args)?;
         if push {
-            let remote = get_git_remote_info_inner(&git_root)?;
-            let branch = get_current_branch_inner(&git_root)?;
-            let args = git_push_args(&remote, &branch, None)?;
-            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-            run_git(&git_root, &arg_refs)?;
+            let push_result = (|| -> Result<(), String> {
+                let remote = get_git_remote_info_inner(&git_root)?;
+                let branch = get_current_branch_inner(&git_root)?;
+                let args = git_push_args(&remote, &branch, None)?;
+                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+                run_git(&git_root, &arg_refs)?;
+                Ok(())
+            })();
+            if let Err(err) = push_result {
+                return Err(format!("commit created, but push failed: {err}"));
+            }
         }
         Ok(())
     })
@@ -2056,6 +2088,24 @@ mod tests {
 
         assert_eq!(
             validate_git_commit_path(dir.path(), "../outside.md"),
+            Err("path is outside the opened workspace".to_string())
+        );
+    }
+
+    #[test]
+    fn validate_git_commit_selection_rejects_paths_outside_nested_workspace() {
+        let dir = TempDir::new().unwrap();
+        let git_root = dir.path();
+        let workspace_root = git_root.join("apps").join("blog");
+        let outside_file = git_root.join("apps").join("admin").join("draft.md");
+
+        fs::create_dir_all(workspace_root.join("posts")).unwrap();
+        fs::create_dir_all(outside_file.parent().unwrap()).unwrap();
+        fs::write(workspace_root.join("posts").join("entry.md"), "# blog").unwrap();
+        fs::write(&outside_file, "# admin").unwrap();
+
+        assert_eq!(
+            validate_git_commit_selection(git_root, &workspace_root, "apps/admin/draft.md"),
             Err("path is outside the opened workspace".to_string())
         );
     }

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import type { GitSyncPopoverState } from "../lib/gitUi";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
@@ -12,18 +11,12 @@ interface GitSyncPopoverProps {
 export function GitSyncPopover({ state, onClose, onAction }: GitSyncPopoverProps) {
   const dialogRef = useFocusTrap<HTMLDivElement>();
 
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
+  function handleDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      onClose();
     }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [onClose]);
+  }
 
   return (
     <div className="modal-overlay" role="presentation">
@@ -34,6 +27,7 @@ export function GitSyncPopover({ state, onClose, onAction }: GitSyncPopoverProps
         role="dialog"
         aria-modal="true"
         aria-label="Git sync status"
+        onKeyDown={handleDialogKeyDown}
       >
         <div className="git-sync-popover-header">
           <p className="modal-title">Sync status</p>
