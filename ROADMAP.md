@@ -141,7 +141,7 @@ H. ✅ **Dialog accessibility** — shared `useFocusTrap` hook across all modals
 48. ✅ **Multi-remote support** — model Git around explicit remotes and tracking targets, with remote-aware push/open/copy flows instead of assuming the current upstream or first remote is always correct
 49. ✅ **Unified Git status surface** — split Git into clearer surfaces: branch switching stays on the branch control, local changes open the commit flow, and sync state opens its own focused status window instead of routing everything through one generic Git popup
 50. ✅ **More visible sync state** — surface branch sync state directly in the status bar with ahead/behind/diverged labels and a dedicated sync dialog, plus automatic refresh on window focus so remote changes show up without a manual fetch
-51. ⏳ **Git rejection/conflict UX** — improve the app-level handling of non-fast-forward push failures, pull conflicts, and other common Git rejections without attempting full conflict editing
-52. ⏳ **Remote branch checkout** — allow switching to or creating tracking branches from remote refs, not just local branches
-53. ⏳ **Branch maintenance** — add safe branch rename/delete flows with clear guardrails around current branch and unmerged work
+51. ✅ **Git rejection/conflict UX** — classify the most common push/pull failures into clearer app-level messages, keep commit-succeeded/push-failed states distinct, and avoid surfacing raw Git stderr for routine rejections
+52. ✅ **Remote branch checkout** — allow switching to or creating local tracking branches from remote refs directly in the branch switcher, while filtering out refs already covered by existing local tracking branches
+53. ✅ **Branch maintenance** — add local branch rename/delete flows with current-branch and unmerged-work guardrails, then tuck those actions behind a quieter overflow control so switching stays primary
 54. ⏸️ **Deferred host-specific integrations** — keep GitHub/GitLab auth, PR workflows, and conflict editors out of scope unless the core Git workflow proves insufficient
