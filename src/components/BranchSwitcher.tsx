@@ -116,7 +116,9 @@ export function BranchSwitcher({
   }
 
   function handleActionMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    const items = actionMenuItemRefs.current.filter(Boolean);
+    const items = actionMenuItemRefs.current.filter(
+      (item): item is HTMLButtonElement => !!item && item.isConnected
+    );
     if (items.length === 0) return;
 
     const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
