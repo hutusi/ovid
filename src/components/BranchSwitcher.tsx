@@ -35,6 +35,7 @@ export function BranchSwitcher({
   onClose,
 }: BranchSwitcherProps) {
   const [query, setQuery] = useState("");
+  const [actionMenuBranch, setActionMenuBranch] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLDivElement>();
 
@@ -85,6 +86,10 @@ export function BranchSwitcher({
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
       e.stopPropagation();
+      if (actionMenuBranch) {
+        setActionMenuBranch(null);
+        return;
+      }
       onClose();
       return;
     }
@@ -208,34 +213,73 @@ export function BranchSwitcher({
               <button
                 type="button"
                 className="ws-item-button"
-                onClick={() => onSelect(branch.name)}
+                onClick={() => {
+                  setActionMenuBranch(null);
+                  onSelect(branch.name);
+                }}
               >
-                <span className="ws-item-name">{branch.name}</span>
+                <div className="ws-item-header">
+                  <span className="ws-item-name">{branch.name}</span>
+                  <div className="ws-item-controls">
+                    {branch.isCurrent && (
+                      <span className="ws-item-badge ws-item-badge--inline">current</span>
+                    )}
+                    <button
+                      type="button"
+                      className={`ws-overflow-btn${actionMenuBranch === branch.name ? " is-open" : ""}`}
+                      aria-label={`Branch actions for ${branch.name}`}
+                      aria-haspopup="menu"
+                      aria-expanded={actionMenuBranch === branch.name}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setActionMenuBranch((current) =>
+                          current === branch.name ? null : branch.name
+                        );
+                      }}
+                    >
+                      ⋯
+                    </button>
+                  </div>
+                </div>
                 <span className="ws-item-path">
                   {branch.upstream
                     ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
                     : "No upstream"}
                 </span>
-                {branch.isCurrent && <span className="ws-item-badge">current</span>}
               </button>
-              <div className="modal-inline-actions ws-inline-actions">
-                <button
-                  type="button"
-                  className="modal-inline-btn"
-                  onClick={() => onRenameBranch(branch.name)}
+              {actionMenuBranch === branch.name && (
+                <div
+                  className="ws-actions-menu"
+                  role="menu"
+                  aria-label={`Actions for ${branch.name}`}
                 >
-                  Rename
-                </button>
-                {!branch.isCurrent && (
                   <button
                     type="button"
-                    className="modal-inline-btn"
-                    onClick={() => onDeleteBranch(branch.name)}
+                    className="ws-actions-menu-btn"
+                    role="menuitem"
+                    onClick={() => {
+                      setActionMenuBranch(null);
+                      onRenameBranch(branch.name);
+                    }}
                   >
-                    Delete
+                    Rename
                   </button>
-                )}
-              </div>
+                  {!branch.isCurrent && (
+                    <button
+                      type="button"
+                      className="ws-actions-menu-btn ws-actions-menu-btn--danger"
+                      role="menuitem"
+                      onClick={() => {
+                        setActionMenuBranch(null);
+                        onDeleteBranch(branch.name);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
           {filteredBranches.length === 0 && filteredRemoteBranches.length === 0 && (
