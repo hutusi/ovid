@@ -49,6 +49,12 @@ export interface GitBranch {
   isCurrent: boolean;
 }
 
+export interface GitRemoteBranch {
+  name: string;
+  remoteName: string;
+  remoteRef: string;
+}
+
 export interface GitRemote {
   name: string;
   url: string | null;

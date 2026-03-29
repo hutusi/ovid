@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getRemoteSummary } from "../lib/gitUi";
-import type { GitBranch, GitRemote, GitRemoteInfo } from "../lib/types";
+import type { GitBranch, GitRemote, GitRemoteBranch, GitRemoteInfo } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 import "./WorkspaceSwitcher.css";
 
 interface BranchSwitcherProps {
   branches: GitBranch[];
+  remoteBranches: GitRemoteBranch[];
   remoteInfo: GitRemoteInfo;
   onSelect: (branch: string) => void;
+  onSelectRemoteBranch: (remoteRef: string) => void;
   onCreateBranch: () => void;
   onPushAndTrack?: (remoteName: string) => void;
   onOpenRemote: (remoteName?: string) => void;
@@ -18,8 +20,10 @@ interface BranchSwitcherProps {
 
 export function BranchSwitcher({
   branches,
+  remoteBranches,
   remoteInfo,
   onSelect,
+  onSelectRemoteBranch,
   onCreateBranch,
   onPushAndTrack,
   onOpenRemote,
@@ -40,6 +44,16 @@ export function BranchSwitcher({
     return branches.filter((branch) => branch.name.toLowerCase().includes(normalized));
   }, [branches, query]);
 
+  const filteredRemoteBranches = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return remoteBranches;
+    return remoteBranches.filter(
+      (branch) =>
+        branch.name.toLowerCase().includes(normalized) ||
+        branch.remoteRef.toLowerCase().includes(normalized)
+    );
+  }, [query, remoteBranches]);
+
   function getRemoteMeta(remote: GitRemote): string {
     if (remoteInfo.upstream?.startsWith(`${remote.name}/`)) {
       return `${remoteInfo.upstream}${remoteInfo.aheadBehind ? ` ${remoteInfo.aheadBehind}` : ""}`;
@@ -59,6 +73,11 @@ export function BranchSwitcher({
     if (e.key === "Enter" && filteredBranches.length > 0) {
       e.preventDefault();
       onSelect(filteredBranches[0].name);
+      return;
+    }
+    if (e.key === "Enter" && filteredRemoteBranches.length > 0) {
+      e.preventDefault();
+      onSelectRemoteBranch(filteredRemoteBranches[0].remoteRef);
     }
   }
 
@@ -179,8 +198,37 @@ export function BranchSwitcher({
               {branch.isCurrent && <span className="ws-item-badge">current</span>}
             </button>
           ))}
-          {filteredBranches.length === 0 && <p className="ws-empty">No branches match.</p>}
+          {filteredBranches.length === 0 && filteredRemoteBranches.length === 0 && (
+            <p className="ws-empty">No branches match.</p>
+          )}
         </div>
+
+        {remoteBranches.length > 0 && (
+          <>
+            <div className="modal-branch-row">
+              <span className="modal-branch-label">Remote branches</span>
+            </div>
+            <fieldset className="ws-list ws-list--group">
+              <legend className="ws-list-legend">Remote branches</legend>
+              {filteredRemoteBranches.map((branch) => (
+                <button
+                  key={branch.remoteRef}
+                  type="button"
+                  className="ws-item"
+                  onClick={() => onSelectRemoteBranch(branch.remoteRef)}
+                >
+                  <span className="ws-item-name">{branch.name}</span>
+                  <span className="ws-item-path">
+                    {branch.remoteRef} · creates or switches tracking branch
+                  </span>
+                </button>
+              ))}
+              {filteredRemoteBranches.length === 0 && (
+                <p className="ws-empty">No remote branches match.</p>
+              )}
+            </fieldset>
+          </>
+        )}
 
         <div className="modal-actions">
           <button type="button" className="modal-btn modal-btn-cancel" onClick={onCreateBranch}>

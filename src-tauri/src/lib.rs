@@ -718,6 +718,14 @@ struct GitBranch {
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+struct GitRemoteBranch {
+    name: String,
+    remote_name: String,
+    remote_ref: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct GitRemote {
     name: String,
     url: Option<String>,
@@ -918,6 +926,44 @@ fn parse_git_branch_lines(refs: &str) -> Vec<GitBranch> {
     branches
 }
 
+fn parse_git_remote_branch_lines(refs: &str) -> Vec<GitRemoteBranch> {
+    let mut branches = Vec::new();
+    for line in refs.lines() {
+        let remote_ref = line.trim();
+        if remote_ref.is_empty() || remote_ref.ends_with("/HEAD") {
+            continue;
+        }
+        let Some((remote_name, branch_name)) = remote_ref.split_once('/') else {
+            continue;
+        };
+        if branch_name.trim().is_empty() {
+            continue;
+        }
+        branches.push(GitRemoteBranch {
+            name: branch_name.to_string(),
+            remote_name: remote_name.to_string(),
+            remote_ref: remote_ref.to_string(),
+        });
+    }
+
+    branches.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then_with(|| a.remote_name.cmp(&b.remote_name))
+    });
+    branches
+}
+
+fn parse_git_remote_branches(git_root: &str) -> Result<Vec<GitRemoteBranch>, String> {
+    let refs = run_git(
+        git_root,
+        &["for-each-ref", "--format=%(refname:short)", "refs/remotes"],
+    )?;
+
+    Ok(parse_git_remote_branch_lines(&refs))
+}
+
 fn parse_remote_name(upstream: &str) -> Option<String> {
     upstream
         .split('/')
@@ -1098,6 +1144,23 @@ fn git_create_branch_args(branch_name: &str) -> Vec<String> {
     vec!["switch".to_string(), "-c".to_string(), branch_name.to_string()]
 }
 
+fn git_checkout_remote_branch_args(remote_ref: &str) -> Result<Vec<String>, String> {
+    let trimmed = remote_ref.trim();
+    let Some((_, branch_name)) = trimmed.split_once('/') else {
+        return Err("remote branch must include a remote name".to_string());
+    };
+    if branch_name.trim().is_empty() {
+        return Err("remote branch name cannot be empty".to_string());
+    }
+    Ok(vec![
+        "switch".to_string(),
+        "-c".to_string(),
+        branch_name.to_string(),
+        "--track".to_string(),
+        trimmed.to_string(),
+    ])
+}
+
 fn is_git_transport_error(stderr: &str) -> bool {
     let lower = stderr.to_lowercase();
     lower.contains("authentication failed")
@@ -1187,6 +1250,14 @@ fn get_git_branches(state: State<'_, WorkspaceState>) -> Result<Vec<GitBranch>, 
         return Ok(Vec::new());
     };
     parse_git_branches(&git_root)
+}
+
+#[tauri::command]
+fn get_git_remote_branches(state: State<'_, WorkspaceState>) -> Result<Vec<GitRemoteBranch>, String> {
+    let Some(git_root) = resolve_git_root(state)? else {
+        return Ok(Vec::new());
+    };
+    parse_git_remote_branches(&git_root)
 }
 
 #[tauri::command]
@@ -1317,6 +1388,48 @@ async fn git_create_branch(branch: String, state: State<'_, WorkspaceState>) -> 
     let branch_name = name.to_string();
     run_blocking_git(move || {
         let args = git_create_branch_args(&branch_name);
+        let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+        run_git(&git_root, &arg_refs)?;
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn git_checkout_remote_branch(
+    remote_ref: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let remote_ref = remote_ref.trim().to_string();
+    if remote_ref.is_empty() {
+        return Err("remote branch cannot be empty".to_string());
+    }
+    let remote_branches = parse_git_remote_branches(&git_root)?;
+    if !remote_branches.iter().any(|branch| branch.remote_ref == remote_ref) {
+        return Err("remote branch is unavailable".to_string());
+    }
+
+    run_blocking_git(move || {
+        let branches = parse_git_branches(&git_root)?;
+        if let Some(existing) = branches
+            .iter()
+            .find(|branch| branch.upstream.as_deref() == Some(remote_ref.as_str()))
+        {
+            run_git(&git_root, &["switch", "--", &existing.name])?;
+            return Ok(());
+        }
+
+        let Some((_, branch_name)) = remote_ref.split_once('/') else {
+            return Err("remote branch must include a remote name".to_string());
+        };
+        if branches.iter().any(|branch| branch.name == branch_name) {
+            return Err(format!(
+                "local branch `{branch_name}` already exists; switch to it or rename it first"
+            ));
+        }
+
+        let args = git_checkout_remote_branch_args(&remote_ref)?;
         let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
         run_git(&git_root, &arg_refs)?;
         Ok(())
@@ -1705,6 +1818,7 @@ pub fn run() {
             get_git_commit_changes,
             get_git_branch,
             get_git_branches,
+            get_git_remote_branches,
             get_git_remote_info,
             git_commit,
             git_push,
@@ -1712,6 +1826,7 @@ pub fn run() {
             git_fetch,
             git_switch_branch,
             git_create_branch,
+            git_checkout_remote_branch,
             open_git_remote,
             save_asset,
             pick_image_file,
@@ -1809,6 +1924,20 @@ mod tests {
         assert_eq!(
             git_create_branch_args("test"),
             vec!["switch".to_string(), "-c".to_string(), "test".to_string()]
+        );
+    }
+
+    #[test]
+    fn git_checkout_remote_branch_args_track_remote_ref() {
+        assert_eq!(
+            git_checkout_remote_branch_args("origin/feature/test").unwrap(),
+            vec![
+                "switch".to_string(),
+                "-c".to_string(),
+                "feature/test".to_string(),
+                "--track".to_string(),
+                "origin/feature/test".to_string()
+            ]
         );
     }
 
@@ -2006,6 +2135,18 @@ mod tests {
         assert_eq!(branches[0].ahead_behind.as_deref(), Some("<>"));
         assert_eq!(branches[1].name, "feature/test");
         assert!(!branches[1].is_current);
+    }
+
+    #[test]
+    fn parse_git_remote_branch_lines_skips_head_and_sorts_by_name() {
+        let branches = parse_git_remote_branch_lines(
+            "origin/HEAD\norigin/main\nupstream/feature/test\norigin/feature/a\n",
+        );
+
+        assert_eq!(branches.len(), 3);
+        assert_eq!(branches[0].remote_ref, "origin/feature/a");
+        assert_eq!(branches[1].remote_ref, "upstream/feature/test");
+        assert_eq!(branches[2].remote_ref, "origin/main");
     }
 
     #[test]

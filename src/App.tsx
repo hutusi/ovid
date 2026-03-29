@@ -25,7 +25,7 @@ import {
   getPushSuccessMessage,
 } from "./lib/gitUi";
 import { resolveImageSrc } from "./lib/imageUtils";
-import type { GitBranch, GitCommitChange, GitRemoteInfo } from "./lib/types";
+import type { GitBranch, GitCommitChange, GitRemoteBranch, GitRemoteInfo } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
@@ -41,7 +41,11 @@ import "./App.css";
 
 type ModalState = { type: "new-file"; dirPath: string; contentType?: string } | null;
 type CommitDialogState = { message: string; branch: string; changes: GitCommitChange[] } | null;
-type BranchSwitcherState = { branches: GitBranch[]; remoteInfo: GitRemoteInfo } | null;
+type BranchSwitcherState = {
+  branches: GitBranch[];
+  remoteBranches: GitRemoteBranch[];
+  remoteInfo: GitRemoteInfo;
+} | null;
 
 function formatGitActionError(action: "push" | "pull" | "fetch", message: string): string {
   const normalized = message.trim();
@@ -148,10 +152,12 @@ function App() {
     handleFetch,
     handleSwitchBranch,
     handleCreateBranch,
+    handleCheckoutRemoteBranch,
     handleOpenRemote,
     getCommitChanges,
     getBranch,
     getBranches,
+    getRemoteBranches,
     getRemoteInfo,
   } = useGit(workspaceRoot);
   const contentTypes = useContentTypes(workspaceRoot, isAmytisWorkspace);
@@ -196,16 +202,20 @@ function App() {
   const openBranchSwitcher = useCallback(async () => {
     try {
       setGitSyncPopoverOpen(false);
-      const [branches, remote] = await Promise.all([getBranches(), getRemoteInfo()]);
+      const [branches, remoteBranches, remote] = await Promise.all([
+        getBranches(),
+        getRemoteBranches(),
+        getRemoteInfo(),
+      ]);
       if (branches.length === 0) {
         showToast("No local branches found");
         return;
       }
-      setBranchSwitcher({ branches, remoteInfo: remote });
+      setBranchSwitcher({ branches, remoteBranches, remoteInfo: remote });
     } catch {
       showToast("Failed to load branches");
     }
-  }, [getBranches, getRemoteInfo, showToast]);
+  }, [getBranches, getRemoteBranches, getRemoteInfo, showToast]);
 
   const copyRemoteUrl = useCallback(
     async (remoteName?: string) => {
@@ -274,6 +284,24 @@ function App() {
       }
     },
     [flushPendingSave, handleCreateBranch, reloadWorkspaceAfterGitChange, showToast]
+  );
+
+  const checkoutRemoteBranch = useCallback(
+    async (remoteRef: string) => {
+      const branchName = remoteRef.split("/").slice(1).join("/");
+      try {
+        await flushPendingSave();
+        await handleCheckoutRemoteBranch(remoteRef);
+        setBranchSwitcher(null);
+        setNewBranchDialogOpen(false);
+        await reloadWorkspaceAfterGitChange();
+        showToast(`Checked out ${branchName || remoteRef}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        showToast(`Checkout branch failed: ${message}`);
+      }
+    },
+    [flushPendingSave, handleCheckoutRemoteBranch, reloadWorkspaceAfterGitChange, showToast]
   );
 
   // Sync recent files list when workspace changes
@@ -862,8 +890,10 @@ function App() {
       {branchSwitcher && (
         <BranchSwitcher
           branches={branchSwitcher.branches}
+          remoteBranches={branchSwitcher.remoteBranches}
           remoteInfo={branchSwitcher.remoteInfo}
           onSelect={(branch) => void switchBranch(branch)}
+          onSelectRemoteBranch={(remoteRef) => void checkoutRemoteBranch(remoteRef)}
           onCreateBranch={() => {
             setBranchSwitcher(null);
             setNewBranchDialogOpen(true);
