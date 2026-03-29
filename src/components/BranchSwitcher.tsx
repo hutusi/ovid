@@ -45,7 +45,6 @@ export function BranchSwitcher({
   }, []);
 
   useEffect(() => {
-    actionMenuItemRefs.current = [];
     if (!actionMenuBranch) return;
     queueMicrotask(() => {
       actionMenuItemRefs.current[0]?.focus();
@@ -102,12 +101,15 @@ export function BranchSwitcher({
       onClose();
       return;
     }
-    if (e.key === "Enter" && filteredBranches.length > 0) {
+    if (e.key !== "Enter" || e.target !== inputRef.current) {
+      return;
+    }
+    if (filteredBranches.length > 0) {
       e.preventDefault();
       onSelect(filteredBranches[0].name);
       return;
     }
-    if (e.key === "Enter" && filteredRemoteBranches.length > 0) {
+    if (filteredRemoteBranches.length > 0) {
       e.preventDefault();
       onSelectRemoteBranch(filteredRemoteBranches[0].remoteRef);
     }
