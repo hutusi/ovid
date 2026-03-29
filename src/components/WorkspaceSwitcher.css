@@ -57,15 +57,20 @@
 .ws-item-header {
   width: 100%;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
 
 .ws-item-controls {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+}
+
+.ws-item-header .ws-item-button {
+  flex: 1;
+  min-width: 0;
 }
 
 .ws-item:hover {

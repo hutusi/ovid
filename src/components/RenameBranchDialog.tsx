@@ -22,7 +22,12 @@ export function RenameBranchDialog({ branch, onConfirm, onCancel }: RenameBranch
     if (e.key === "Escape") {
       e.stopPropagation();
       onCancel();
-    } else if (e.key === "Enter" && e.target === inputRef.current && branchName.trim()) {
+    } else if (
+      e.key === "Enter" &&
+      e.target === inputRef.current &&
+      branchName.trim() &&
+      branchName.trim() !== branch
+    ) {
       e.preventDefault();
       onConfirm(branchName.trim());
     }

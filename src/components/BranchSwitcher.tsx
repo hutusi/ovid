@@ -38,10 +38,19 @@ export function BranchSwitcher({
   const [actionMenuBranch, setActionMenuBranch] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLDivElement>();
+  const actionMenuItemRefs = useRef<HTMLButtonElement[]>([]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    actionMenuItemRefs.current = [];
+    if (!actionMenuBranch) return;
+    queueMicrotask(() => {
+      actionMenuItemRefs.current[0]?.focus();
+    });
+  }, [actionMenuBranch]);
 
   const filteredBranches = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -101,6 +110,40 @@ export function BranchSwitcher({
     if (e.key === "Enter" && filteredRemoteBranches.length > 0) {
       e.preventDefault();
       onSelectRemoteBranch(filteredRemoteBranches[0].remoteRef);
+    }
+  }
+
+  function handleActionMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const items = actionMenuItemRefs.current.filter(Boolean);
+    if (items.length === 0) return;
+
+    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % items.length : 0;
+      items[nextIndex]?.focus();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const nextIndex = currentIndex >= 0 ? (currentIndex - 1 + items.length) % items.length : 0;
+      items[nextIndex]?.focus();
+      return;
+    }
+    if (e.key === "Home") {
+      e.preventDefault();
+      items[0]?.focus();
+      return;
+    }
+    if (e.key === "End") {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      setActionMenuBranch(null);
     }
   }
 
@@ -210,51 +253,55 @@ export function BranchSwitcher({
               key={branch.name}
               className={`ws-item ws-item--static${branch.isCurrent ? " ws-item--active" : ""}`}
             >
-              <button
-                type="button"
-                className="ws-item-button"
-                onClick={() => {
-                  setActionMenuBranch(null);
-                  onSelect(branch.name);
-                }}
-              >
-                <div className="ws-item-header">
+              <div className="ws-item-header">
+                <button
+                  type="button"
+                  className="ws-item-button"
+                  onClick={() => {
+                    setActionMenuBranch(null);
+                    onSelect(branch.name);
+                  }}
+                >
                   <span className="ws-item-name">{branch.name}</span>
-                  <div className="ws-item-controls">
-                    {branch.isCurrent && (
-                      <span className="ws-item-badge ws-item-badge--inline">current</span>
-                    )}
-                    <button
-                      type="button"
-                      className={`ws-overflow-btn${actionMenuBranch === branch.name ? " is-open" : ""}`}
-                      aria-label={`Branch actions for ${branch.name}`}
-                      aria-haspopup="menu"
-                      aria-expanded={actionMenuBranch === branch.name}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setActionMenuBranch((current) =>
-                          current === branch.name ? null : branch.name
-                        );
-                      }}
-                    >
-                      ⋯
-                    </button>
-                  </div>
+                  <span className="ws-item-path">
+                    {branch.upstream
+                      ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
+                      : "No upstream"}
+                  </span>
+                </button>
+                <div className="ws-item-controls">
+                  {branch.isCurrent && (
+                    <span className="ws-item-badge ws-item-badge--inline">current</span>
+                  )}
+                  <button
+                    type="button"
+                    className={`ws-overflow-btn${actionMenuBranch === branch.name ? " is-open" : ""}`}
+                    aria-label={`Branch actions for ${branch.name}`}
+                    aria-haspopup="menu"
+                    aria-expanded={actionMenuBranch === branch.name}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setActionMenuBranch((current) =>
+                        current === branch.name ? null : branch.name
+                      );
+                    }}
+                  >
+                    ⋯
+                  </button>
                 </div>
-                <span className="ws-item-path">
-                  {branch.upstream
-                    ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
-                    : "No upstream"}
-                </span>
-              </button>
+              </div>
               {actionMenuBranch === branch.name && (
                 <div
                   className="ws-actions-menu"
                   role="menu"
                   aria-label={`Actions for ${branch.name}`}
+                  onKeyDown={handleActionMenuKeyDown}
                 >
                   <button
+                    ref={(node) => {
+                      if (node) actionMenuItemRefs.current[0] = node;
+                    }}
                     type="button"
                     className="ws-actions-menu-btn"
                     role="menuitem"
@@ -267,6 +314,9 @@ export function BranchSwitcher({
                   </button>
                   {!branch.isCurrent && (
                     <button
+                      ref={(node) => {
+                        if (node) actionMenuItemRefs.current[1] = node;
+                      }}
                       type="button"
                       className="ws-actions-menu-btn ws-actions-menu-btn--danger"
                       role="menuitem"
@@ -307,9 +357,6 @@ export function BranchSwitcher({
                   </span>
                 </button>
               ))}
-              {filteredRemoteBranches.length === 0 && (
-                <p className="ws-empty">No remote branches match.</p>
-              )}
             </fieldset>
           </>
         )}
