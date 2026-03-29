@@ -12,6 +12,8 @@ interface BranchSwitcherProps {
   onSelect: (branch: string) => void;
   onSelectRemoteBranch: (remoteRef: string) => void;
   onCreateBranch: () => void;
+  onRenameBranch: (branch: string) => void;
+  onDeleteBranch: (branch: string) => void;
   onPushAndTrack?: (remoteName: string) => void;
   onOpenRemote: (remoteName?: string) => void;
   onCopyRemoteUrl: (remoteName?: string) => void;
@@ -25,6 +27,8 @@ export function BranchSwitcher({
   onSelect,
   onSelectRemoteBranch,
   onCreateBranch,
+  onRenameBranch,
+  onDeleteBranch,
   onPushAndTrack,
   onOpenRemote,
   onCopyRemoteUrl,
@@ -197,20 +201,42 @@ export function BranchSwitcher({
 
         <div className="ws-list">
           {filteredBranches.map((branch) => (
-            <button
+            <div
               key={branch.name}
-              type="button"
-              className={`ws-item${branch.isCurrent ? " ws-item--active" : ""}`}
-              onClick={() => onSelect(branch.name)}
+              className={`ws-item ws-item--static${branch.isCurrent ? " ws-item--active" : ""}`}
             >
-              <span className="ws-item-name">{branch.name}</span>
-              <span className="ws-item-path">
-                {branch.upstream
-                  ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
-                  : "No upstream"}
-              </span>
-              {branch.isCurrent && <span className="ws-item-badge">current</span>}
-            </button>
+              <button
+                type="button"
+                className="ws-item-button"
+                onClick={() => onSelect(branch.name)}
+              >
+                <span className="ws-item-name">{branch.name}</span>
+                <span className="ws-item-path">
+                  {branch.upstream
+                    ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
+                    : "No upstream"}
+                </span>
+                {branch.isCurrent && <span className="ws-item-badge">current</span>}
+              </button>
+              <div className="modal-inline-actions ws-inline-actions">
+                <button
+                  type="button"
+                  className="modal-inline-btn"
+                  onClick={() => onRenameBranch(branch.name)}
+                >
+                  Rename
+                </button>
+                {!branch.isCurrent && (
+                  <button
+                    type="button"
+                    className="modal-inline-btn"
+                    onClick={() => onDeleteBranch(branch.name)}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            </div>
           ))}
           {filteredBranches.length === 0 && filteredRemoteBranches.length === 0 && (
             <p className="ws-empty">No branches match.</p>

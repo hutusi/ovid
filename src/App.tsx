@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BranchSwitcher } from "./components/BranchSwitcher";
 import { CommitDialog } from "./components/CommitDialog";
+import { DeleteBranchDialog } from "./components/DeleteBranchDialog";
 import { Editor } from "./components/Editor";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -11,6 +12,7 @@ import { GitSyncPopover } from "./components/GitSyncPopover";
 import { NewBranchDialog } from "./components/NewBranchDialog";
 import { NewFileDialog } from "./components/NewFileDialog";
 import { PropertiesPanel } from "./components/PropertiesPanel";
+import { RenameBranchDialog } from "./components/RenameBranchDialog";
 import { SearchPanel } from "./components/SearchPanel";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
@@ -46,6 +48,8 @@ type BranchSwitcherState = {
   remoteBranches: GitRemoteBranch[];
   remoteInfo: GitRemoteInfo;
 } | null;
+type RenameBranchDialogState = { branch: string } | null;
+type DeleteBranchDialogState = { branch: string } | null;
 
 function formatGitActionError(action: "push" | "pull" | "fetch", message: string): string {
   const normalized = message.trim();
@@ -84,6 +88,8 @@ function App() {
   const [commitDialog, setCommitDialog] = useState<CommitDialogState>(null);
   const [branchSwitcher, setBranchSwitcher] = useState<BranchSwitcherState>(null);
   const [newBranchDialogOpen, setNewBranchDialogOpen] = useState(false);
+  const [renameBranchDialog, setRenameBranchDialog] = useState<RenameBranchDialogState>(null);
+  const [deleteBranchDialog, setDeleteBranchDialog] = useState<DeleteBranchDialogState>(null);
   const [gitSyncPopoverOpen, setGitSyncPopoverOpen] = useState(false);
   const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
@@ -153,6 +159,8 @@ function App() {
     handleSwitchBranch,
     handleCreateBranch,
     handleCheckoutRemoteBranch,
+    handleRenameBranch,
+    handleDeleteBranch,
     handleOpenRemote,
     getCommitChanges,
     getBranch,
@@ -200,22 +208,44 @@ function App() {
   }, [openWorkspaceAtPath, workspaceRootPath]);
 
   const openBranchSwitcher = useCallback(async () => {
-    try {
-      setGitSyncPopoverOpen(false);
+    async function loadBranchSwitcherState(): Promise<BranchSwitcherState> {
       const [branches, remoteBranches, remote] = await Promise.all([
         getBranches(),
         getRemoteBranches(),
         getRemoteInfo(),
       ]);
       if (branches.length === 0) {
+        return null;
+      }
+      return { branches, remoteBranches, remoteInfo: remote };
+    }
+
+    try {
+      setGitSyncPopoverOpen(false);
+      const nextState = await loadBranchSwitcherState();
+      if (!nextState) {
         showToast("No local branches found");
         return;
       }
-      setBranchSwitcher({ branches, remoteBranches, remoteInfo: remote });
+      setBranchSwitcher(nextState);
     } catch {
       showToast("Failed to load branches");
     }
   }, [getBranches, getRemoteBranches, getRemoteInfo, showToast]);
+
+  const refreshBranchSwitcher = useCallback(async () => {
+    if (!branchSwitcher) return;
+    try {
+      const [branches, remoteBranches, remote] = await Promise.all([
+        getBranches(),
+        getRemoteBranches(),
+        getRemoteInfo(),
+      ]);
+      setBranchSwitcher({ branches, remoteBranches, remoteInfo: remote });
+    } catch {
+      showToast("Failed to refresh branches");
+    }
+  }, [branchSwitcher, getBranches, getRemoteBranches, getRemoteInfo, showToast]);
 
   const copyRemoteUrl = useCallback(
     async (remoteName?: string) => {
@@ -304,6 +334,38 @@ function App() {
     [flushPendingSave, handleCheckoutRemoteBranch, reloadWorkspaceAfterGitChange, showToast]
   );
 
+  const renameBranch = useCallback(
+    async (oldBranch: string, newBranch: string) => {
+      try {
+        await flushPendingSave();
+        await handleRenameBranch(oldBranch, newBranch);
+        setRenameBranchDialog(null);
+        await refreshBranchSwitcher();
+        showToast(`Renamed ${oldBranch} to ${newBranch}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        showToast(`Rename branch failed: ${message}`);
+      }
+    },
+    [flushPendingSave, handleRenameBranch, refreshBranchSwitcher, showToast]
+  );
+
+  const deleteBranch = useCallback(
+    async (branch: string) => {
+      try {
+        await flushPendingSave();
+        await handleDeleteBranch(branch);
+        setDeleteBranchDialog(null);
+        await refreshBranchSwitcher();
+        showToast(`Deleted ${branch}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        showToast(`Delete branch failed: ${message}`);
+      }
+    },
+    [flushPendingSave, handleDeleteBranch, refreshBranchSwitcher, showToast]
+  );
+
   // Sync recent files list when workspace changes
   useEffect(() => {
     if (workspaceRoot) resetRecent(workspaceRoot);
@@ -372,6 +434,8 @@ function App() {
         !switcherOpen &&
         !branchSwitcher &&
         !newBranchDialogOpen &&
+        !renameBranchDialog &&
+        !deleteBranchDialog &&
         !workspaceSwitcherOpen
       ) {
         setZenMode(false);
@@ -471,6 +535,8 @@ function App() {
     switcherOpen,
     branchSwitcher,
     newBranchDialogOpen,
+    renameBranchDialog,
+    deleteBranchDialog,
     workspaceSwitcherOpen,
   ]);
 
@@ -534,6 +600,8 @@ function App() {
         switcherOpen ||
         branchSwitcher !== null ||
         newBranchDialogOpen ||
+        renameBranchDialog !== null ||
+        deleteBranchDialog !== null ||
         workspaceSwitcherOpen;
       switch (event.payload) {
         case "new-post":
@@ -648,6 +716,8 @@ function App() {
     switcherOpen,
     branchSwitcher,
     newBranchDialogOpen,
+    renameBranchDialog,
+    deleteBranchDialog,
     workspaceSwitcherOpen,
     workspaceRoot,
     tree,
@@ -898,12 +968,18 @@ function App() {
             setBranchSwitcher(null);
             setNewBranchDialogOpen(true);
           }}
+          onRenameBranch={(branch) => setRenameBranchDialog({ branch })}
+          onDeleteBranch={(branch) => setDeleteBranchDialog({ branch })}
           onPushAndTrack={(remoteName) =>
             void runGitAction("push", () => handlePush(remoteName), "Pushed and set upstream")
           }
           onOpenRemote={(remoteName) => void openRemote(remoteName)}
           onCopyRemoteUrl={(remoteName) => void copyRemoteUrl(remoteName)}
-          onClose={() => setBranchSwitcher(null)}
+          onClose={() => {
+            setBranchSwitcher(null);
+            setRenameBranchDialog(null);
+            setDeleteBranchDialog(null);
+          }}
         />
       )}
       {newBranchDialogOpen && (
@@ -911,6 +987,20 @@ function App() {
           currentBranch={currentBranch}
           onConfirm={(branch) => void createBranch(branch)}
           onCancel={() => setNewBranchDialogOpen(false)}
+        />
+      )}
+      {renameBranchDialog && (
+        <RenameBranchDialog
+          branch={renameBranchDialog.branch}
+          onConfirm={(branch) => void renameBranch(renameBranchDialog.branch, branch)}
+          onCancel={() => setRenameBranchDialog(null)}
+        />
+      )}
+      {deleteBranchDialog && (
+        <DeleteBranchDialog
+          branch={deleteBranchDialog.branch}
+          onConfirm={() => void deleteBranch(deleteBranchDialog.branch)}
+          onCancel={() => setDeleteBranchDialog(null)}
         />
       )}
     </div>

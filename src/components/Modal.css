@@ -46,6 +46,13 @@
   margin: 0;
 }
 
+.modal-copy {
+  font-size: 13px;
+  color: var(--color-fg-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
 /* ── Input / Textarea ─────────────────────────── */
 .modal-input,
 .modal-textarea {

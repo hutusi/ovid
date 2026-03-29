@@ -148,6 +148,22 @@ export function useGit(workspaceRoot: string | null) {
     }
   }
 
+  async function handleRenameBranch(oldBranch: string, newBranch: string): Promise<void> {
+    try {
+      await invoke("git_rename_branch", { oldBranch, newBranch });
+    } finally {
+      void refreshGitStatus();
+    }
+  }
+
+  async function handleDeleteBranch(branch: string): Promise<void> {
+    try {
+      await invoke("git_delete_branch", { branch });
+    } finally {
+      void refreshGitStatus();
+    }
+  }
+
   async function handleOpenRemote(remoteName?: string): Promise<void> {
     await invoke("open_git_remote", remoteName ? { remoteName } : undefined);
   }
@@ -173,6 +189,8 @@ export function useGit(workspaceRoot: string | null) {
     handleSwitchBranch,
     handleCreateBranch,
     handleCheckoutRemoteBranch,
+    handleRenameBranch,
+    handleDeleteBranch,
     handleOpenRemote,
     getCommitChanges,
     getBranch,

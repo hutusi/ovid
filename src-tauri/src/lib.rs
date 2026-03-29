@@ -1144,6 +1144,19 @@ fn git_create_branch_args(branch_name: &str) -> Vec<String> {
     vec!["switch".to_string(), "-c".to_string(), branch_name.to_string()]
 }
 
+fn git_rename_branch_args(old_branch: &str, new_branch: &str) -> Vec<String> {
+    vec![
+        "branch".to_string(),
+        "-m".to_string(),
+        old_branch.to_string(),
+        new_branch.to_string(),
+    ]
+}
+
+fn git_delete_branch_args(branch_name: &str) -> Vec<String> {
+    vec!["branch".to_string(), "-d".to_string(), branch_name.to_string()]
+}
+
 fn git_checkout_remote_branch_args(remote_ref: &str) -> Result<Vec<String>, String> {
     let trimmed = remote_ref.trim();
     let Some((_, branch_name)) = trimmed.split_once('/') else {
@@ -1159,6 +1172,35 @@ fn git_checkout_remote_branch_args(remote_ref: &str) -> Result<Vec<String>, Stri
         "--track".to_string(),
         trimmed.to_string(),
     ])
+}
+
+fn validate_git_branch_rename(old_branch: &str, new_branch: &str) -> Result<(String, String), String> {
+    let old_branch = old_branch.trim();
+    let new_branch = new_branch.trim();
+    if old_branch.is_empty() {
+        return Err("branch name cannot be empty".to_string());
+    }
+    if new_branch.is_empty() {
+        return Err("new branch name cannot be empty".to_string());
+    }
+    if old_branch == new_branch {
+        return Err("branch name is unchanged".to_string());
+    }
+    Ok((old_branch.to_string(), new_branch.to_string()))
+}
+
+fn validate_git_branch_delete(branches: &[GitBranch], branch_name: &str) -> Result<String, String> {
+    let branch_name = branch_name.trim();
+    if branch_name.is_empty() {
+        return Err("branch name cannot be empty".to_string());
+    }
+    let Some(branch) = branches.iter().find(|branch| branch.name == branch_name) else {
+        return Err("branch is unavailable".to_string());
+    };
+    if branch.is_current {
+        return Err("cannot delete the current branch".to_string());
+    }
+    Ok(branch_name.to_string())
 }
 
 fn is_git_transport_error(stderr: &str) -> bool {
@@ -1199,6 +1241,14 @@ fn classify_git_pull_error(stderr: &str) -> String {
     }
     if is_git_transport_error(stderr) {
         return "Pull failed because the remote could not be reached or authorized.".to_string();
+    }
+    stderr.to_string()
+}
+
+fn classify_git_branch_delete_error(stderr: &str) -> String {
+    let lower = stderr.to_lowercase();
+    if lower.contains("not fully merged") {
+        return "Delete stopped because the branch has unmerged commits. Merge it first or use Git CLI to force delete.".to_string();
     }
     stderr.to_string()
 }
@@ -1390,6 +1440,37 @@ async fn git_create_branch(branch: String, state: State<'_, WorkspaceState>) -> 
         let args = git_create_branch_args(&branch_name);
         let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
         run_git(&git_root, &arg_refs)?;
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn git_rename_branch(
+    old_branch: String,
+    new_branch: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let (old_branch, new_branch) = validate_git_branch_rename(&old_branch, &new_branch)?;
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    run_blocking_git(move || {
+        let args = git_rename_branch_args(&old_branch, &new_branch);
+        let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+        run_git(&git_root, &arg_refs)?;
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn git_delete_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    run_blocking_git(move || {
+        let branches = parse_git_branches(&git_root)?;
+        let branch_name = validate_git_branch_delete(&branches, &branch)?;
+        let args = git_delete_branch_args(&branch_name);
+        let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+        run_git(&git_root, &arg_refs).map_err(|err| classify_git_branch_delete_error(&err))?;
         Ok(())
     })
     .await
@@ -1826,6 +1907,8 @@ pub fn run() {
             git_fetch,
             git_switch_branch,
             git_create_branch,
+            git_rename_branch,
+            git_delete_branch,
             git_checkout_remote_branch,
             open_git_remote,
             save_asset,
@@ -1928,6 +2011,27 @@ mod tests {
     }
 
     #[test]
+    fn git_rename_branch_args_use_branch_move() {
+        assert_eq!(
+            git_rename_branch_args("main", "renamed-main"),
+            vec![
+                "branch".to_string(),
+                "-m".to_string(),
+                "main".to_string(),
+                "renamed-main".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn git_delete_branch_args_use_safe_delete() {
+        assert_eq!(
+            git_delete_branch_args("feature/test"),
+            vec!["branch".to_string(), "-d".to_string(), "feature/test".to_string()]
+        );
+    }
+
+    #[test]
     fn git_checkout_remote_branch_args_track_remote_ref() {
         assert_eq!(
             git_checkout_remote_branch_args("origin/feature/test").unwrap(),
@@ -1938,6 +2042,41 @@ mod tests {
                 "--track".to_string(),
                 "origin/feature/test".to_string()
             ]
+        );
+    }
+
+    #[test]
+    fn validate_git_branch_rename_rejects_unchanged_name() {
+        assert_eq!(
+            validate_git_branch_rename("main", "main"),
+            Err("branch name is unchanged".to_string())
+        );
+    }
+
+    #[test]
+    fn validate_git_branch_delete_rejects_current_branch() {
+        let branches = vec![
+            GitBranch {
+                name: "main".to_string(),
+                upstream: Some("origin/main".to_string()),
+                ahead_behind: None,
+                is_current: true,
+            },
+            GitBranch {
+                name: "feature/test".to_string(),
+                upstream: Some("origin/feature/test".to_string()),
+                ahead_behind: None,
+                is_current: false,
+            },
+        ];
+
+        assert_eq!(
+            validate_git_branch_delete(&branches, "main"),
+            Err("cannot delete the current branch".to_string())
+        );
+        assert_eq!(
+            validate_git_branch_delete(&branches, "feature/test"),
+            Ok("feature/test".to_string())
         );
     }
 
@@ -2351,6 +2490,15 @@ mod tests {
         assert_eq!(
             classify_git_pull_error(stderr),
             "Pull stopped because of conflicts. Resolve them in Git, then refresh."
+        );
+    }
+
+    #[test]
+    fn classify_git_branch_delete_error_detects_unmerged_branch() {
+        let stderr = "error: The branch 'feature/test' is not fully merged.";
+        assert_eq!(
+            classify_git_branch_delete_error(stderr),
+            "Delete stopped because the branch has unmerged commits. Merge it first or use Git CLI to force delete."
         );
     }
 

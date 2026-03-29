@@ -41,6 +41,19 @@
   border: none;
 }
 
+.ws-item-button {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
 .ws-item:hover {
   background: var(--color-surface-hover);
 }
