@@ -347,7 +347,9 @@ export function BranchSwitcher({
               <span className="modal-branch-label">Remote branches</span>
             </div>
             <fieldset className="ws-list ws-list--group">
-              <legend className="ws-list-legend">Remote branches</legend>
+              <legend className="ws-list-legend" aria-hidden="true">
+                Remote branches
+              </legend>
               {filteredRemoteBranches.map((branch) => (
                 <button
                   key={branch.remoteRef}
