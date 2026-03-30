@@ -1,6 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
-import type { GitBranch, GitCommitChange, GitRemoteInfo, GitStatus } from "./types";
+import type {
+  GitBranch,
+  GitCommitChange,
+  GitRemoteBranch,
+  GitRemoteInfo,
+  GitStatus,
+} from "./types";
 
 interface GitFileStatus {
   path: string;
@@ -86,6 +92,10 @@ export function useGit(workspaceRoot: string | null) {
     return invoke<GitBranch[]>("get_git_branches");
   }
 
+  async function getRemoteBranches(): Promise<GitRemoteBranch[]> {
+    return invoke<GitRemoteBranch[]>("get_git_remote_branches");
+  }
+
   async function getRemoteInfo(): Promise<GitRemoteInfo> {
     return invoke<GitRemoteInfo>("get_git_remote_info");
   }
@@ -130,6 +140,30 @@ export function useGit(workspaceRoot: string | null) {
     }
   }
 
+  async function handleCheckoutRemoteBranch(remoteRef: string): Promise<void> {
+    try {
+      await invoke("git_checkout_remote_branch", { remoteRef });
+    } finally {
+      void refreshGitStatus();
+    }
+  }
+
+  async function handleRenameBranch(oldBranch: string, newBranch: string): Promise<void> {
+    try {
+      await invoke("git_rename_branch", { oldBranch, newBranch });
+    } finally {
+      void refreshGitStatus();
+    }
+  }
+
+  async function handleDeleteBranch(branch: string): Promise<void> {
+    try {
+      await invoke("git_delete_branch", { branch });
+    } finally {
+      void refreshGitStatus();
+    }
+  }
+
   async function handleOpenRemote(remoteName?: string): Promise<void> {
     await invoke("open_git_remote", remoteName ? { remoteName } : undefined);
   }
@@ -154,10 +188,14 @@ export function useGit(workspaceRoot: string | null) {
     handleFetch,
     handleSwitchBranch,
     handleCreateBranch,
+    handleCheckoutRemoteBranch,
+    handleRenameBranch,
+    handleDeleteBranch,
     handleOpenRemote,
     getCommitChanges,
     getBranch,
     getBranches,
+    getRemoteBranches,
     getRemoteInfo,
   };
 }

@@ -718,6 +718,14 @@ struct GitBranch {
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+struct GitRemoteBranch {
+    name: String,
+    remote_name: String,
+    remote_ref: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct GitRemote {
     name: String,
     url: Option<String>,
@@ -918,6 +926,44 @@ fn parse_git_branch_lines(refs: &str) -> Vec<GitBranch> {
     branches
 }
 
+fn parse_git_remote_branch_lines(refs: &str) -> Vec<GitRemoteBranch> {
+    let mut branches = Vec::new();
+    for line in refs.lines() {
+        let remote_ref = line.trim();
+        if remote_ref.is_empty() || remote_ref.ends_with("/HEAD") {
+            continue;
+        }
+        let Some((remote_name, branch_name)) = remote_ref.split_once('/') else {
+            continue;
+        };
+        if branch_name.trim().is_empty() {
+            continue;
+        }
+        branches.push(GitRemoteBranch {
+            name: branch_name.to_string(),
+            remote_name: remote_name.to_string(),
+            remote_ref: remote_ref.to_string(),
+        });
+    }
+
+    branches.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then_with(|| a.remote_name.cmp(&b.remote_name))
+    });
+    branches
+}
+
+fn parse_git_remote_branches(git_root: &str) -> Result<Vec<GitRemoteBranch>, String> {
+    let refs = run_git(
+        git_root,
+        &["for-each-ref", "--format=%(refname:short)", "refs/remotes"],
+    )?;
+
+    Ok(parse_git_remote_branch_lines(&refs))
+}
+
 fn parse_remote_name(upstream: &str) -> Option<String> {
     upstream
         .split('/')
@@ -1098,6 +1144,115 @@ fn git_create_branch_args(branch_name: &str) -> Vec<String> {
     vec!["switch".to_string(), "-c".to_string(), branch_name.to_string()]
 }
 
+fn git_rename_branch_args(old_branch: &str, new_branch: &str) -> Vec<String> {
+    vec![
+        "branch".to_string(),
+        "-m".to_string(),
+        old_branch.to_string(),
+        new_branch.to_string(),
+    ]
+}
+
+fn git_delete_branch_args(branch_name: &str) -> Vec<String> {
+    vec!["branch".to_string(), "-d".to_string(), branch_name.to_string()]
+}
+
+fn git_checkout_remote_branch_args(remote_ref: &str) -> Result<Vec<String>, String> {
+    let trimmed = remote_ref.trim();
+    let Some((_, branch_name)) = trimmed.split_once('/') else {
+        return Err("remote branch must include a remote name".to_string());
+    };
+    if branch_name.trim().is_empty() {
+        return Err("remote branch name cannot be empty".to_string());
+    }
+    Ok(vec![
+        "switch".to_string(),
+        "-c".to_string(),
+        branch_name.to_string(),
+        "--track".to_string(),
+        trimmed.to_string(),
+    ])
+}
+
+fn validate_git_branch_rename(old_branch: &str, new_branch: &str) -> Result<(String, String), String> {
+    let old_branch = old_branch.trim();
+    let new_branch = new_branch.trim();
+    if old_branch.is_empty() {
+        return Err("branch name cannot be empty".to_string());
+    }
+    if new_branch.is_empty() {
+        return Err("new branch name cannot be empty".to_string());
+    }
+    if old_branch == new_branch {
+        return Err("branch name is unchanged".to_string());
+    }
+    Ok((old_branch.to_string(), new_branch.to_string()))
+}
+
+fn validate_git_branch_delete(branches: &[GitBranch], branch_name: &str) -> Result<String, String> {
+    let branch_name = branch_name.trim();
+    if branch_name.is_empty() {
+        return Err("branch name cannot be empty".to_string());
+    }
+    let Some(branch) = branches.iter().find(|branch| branch.name == branch_name) else {
+        return Err("branch is unavailable".to_string());
+    };
+    if branch.is_current {
+        return Err("cannot delete the current branch".to_string());
+    }
+    Ok(branch_name.to_string())
+}
+
+fn is_git_transport_error(stderr: &str) -> bool {
+    let lower = stderr.to_lowercase();
+    lower.contains("authentication failed")
+        || lower.contains("could not read username")
+        || lower.contains("permission denied")
+        || lower.contains("repository not found")
+        || lower.contains("could not resolve host")
+        || lower.contains("failed to connect")
+        || lower.contains("connection timed out")
+}
+
+fn classify_git_push_error(stderr: &str) -> String {
+    let lower = stderr.to_lowercase();
+    if lower.contains("non-fast-forward")
+        || lower.contains("[rejected]")
+        || lower.contains("fetch first")
+    {
+        return "Push rejected. Remote has new commits. Pull or fetch first.".to_string();
+    }
+    if is_git_transport_error(stderr) {
+        return "Push failed because the remote could not be reached or authorized.".to_string();
+    }
+    stderr.to_string()
+}
+
+fn classify_git_pull_error(stderr: &str) -> String {
+    let lower = stderr.to_lowercase();
+    if lower.contains("not possible to fast-forward") || lower.contains("cannot fast-forward") {
+        return "Pull stopped because the branch cannot be fast-forwarded. Resolve it in Git, then refresh.".to_string();
+    }
+    if lower.contains("would be overwritten by merge") || lower.contains("local changes") {
+        return "Pull blocked by local changes. Commit, stash, or discard changes first.".to_string();
+    }
+    if lower.contains("conflict") {
+        return "Pull stopped because of conflicts. Resolve them in Git, then refresh.".to_string();
+    }
+    if is_git_transport_error(stderr) {
+        return "Pull failed because the remote could not be reached or authorized.".to_string();
+    }
+    stderr.to_string()
+}
+
+fn classify_git_branch_delete_error(stderr: &str) -> String {
+    let lower = stderr.to_lowercase();
+    if lower.contains("not fully merged") {
+        return "Delete stopped because the branch has unmerged commits. Merge it first or use Git CLI to force delete.".to_string();
+    }
+    stderr.to_string()
+}
+
 #[tauri::command]
 fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>, String> {
     let git_root = match resolve_git_root(state)? {
@@ -1145,6 +1300,14 @@ fn get_git_branches(state: State<'_, WorkspaceState>) -> Result<Vec<GitBranch>, 
         return Ok(Vec::new());
     };
     parse_git_branches(&git_root)
+}
+
+#[tauri::command]
+fn get_git_remote_branches(state: State<'_, WorkspaceState>) -> Result<Vec<GitRemoteBranch>, String> {
+    let Some(git_root) = resolve_git_root(state)? else {
+        return Ok(Vec::new());
+    };
+    parse_git_remote_branches(&git_root)
 }
 
 #[tauri::command]
@@ -1206,7 +1369,7 @@ async fn git_commit(
                 let branch = get_current_branch_inner(&git_root)?;
                 let args = git_push_args(&remote, &branch, None)?;
                 let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                run_git(&git_root, &arg_refs)?;
+                run_git(&git_root, &arg_refs).map_err(|err| classify_git_push_error(&err))?;
                 Ok(())
             })();
             if let Err(err) = push_result {
@@ -1229,7 +1392,7 @@ async fn git_push(
         let branch = get_current_branch_inner(&git_root)?;
         let args = git_push_args(&remote, &branch, remote_name.as_deref())?;
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        run_git(&git_root, &arg_refs)?;
+        run_git(&git_root, &arg_refs).map_err(|err| classify_git_push_error(&err))?;
         Ok(())
     })
     .await
@@ -1239,7 +1402,7 @@ async fn git_push(
 async fn git_pull(state: State<'_, WorkspaceState>) -> Result<(), String> {
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
     run_blocking_git(move || {
-        run_git(&git_root, &["pull", "--ff-only"])?;
+        run_git(&git_root, &["pull", "--ff-only"]).map_err(|err| classify_git_pull_error(&err))?;
         Ok(())
     })
     .await
@@ -1275,6 +1438,79 @@ async fn git_create_branch(branch: String, state: State<'_, WorkspaceState>) -> 
     let branch_name = name.to_string();
     run_blocking_git(move || {
         let args = git_create_branch_args(&branch_name);
+        let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+        run_git(&git_root, &arg_refs)?;
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn git_rename_branch(
+    old_branch: String,
+    new_branch: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let (old_branch, new_branch) = validate_git_branch_rename(&old_branch, &new_branch)?;
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    run_blocking_git(move || {
+        let args = git_rename_branch_args(&old_branch, &new_branch);
+        let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+        run_git(&git_root, &arg_refs)?;
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn git_delete_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    run_blocking_git(move || {
+        let branches = parse_git_branches(&git_root)?;
+        let branch_name = validate_git_branch_delete(&branches, &branch)?;
+        let args = git_delete_branch_args(&branch_name);
+        let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
+        run_git(&git_root, &arg_refs).map_err(|err| classify_git_branch_delete_error(&err))?;
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn git_checkout_remote_branch(
+    remote_ref: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let remote_ref = remote_ref.trim().to_string();
+    if remote_ref.is_empty() {
+        return Err("remote branch cannot be empty".to_string());
+    }
+    let remote_branches = parse_git_remote_branches(&git_root)?;
+    if !remote_branches.iter().any(|branch| branch.remote_ref == remote_ref) {
+        return Err("remote branch is unavailable".to_string());
+    }
+
+    run_blocking_git(move || {
+        let branches = parse_git_branches(&git_root)?;
+        if let Some(existing) = branches
+            .iter()
+            .find(|branch| branch.upstream.as_deref() == Some(remote_ref.as_str()))
+        {
+            run_git(&git_root, &["switch", "--", &existing.name])?;
+            return Ok(());
+        }
+
+        let Some((_, branch_name)) = remote_ref.split_once('/') else {
+            return Err("remote branch must include a remote name".to_string());
+        };
+        if branches.iter().any(|branch| branch.name == branch_name) {
+            return Err(format!(
+                "local branch `{branch_name}` already exists; switch to it or rename it first"
+            ));
+        }
+
+        let args = git_checkout_remote_branch_args(&remote_ref)?;
         let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
         run_git(&git_root, &arg_refs)?;
         Ok(())
@@ -1663,6 +1899,7 @@ pub fn run() {
             get_git_commit_changes,
             get_git_branch,
             get_git_branches,
+            get_git_remote_branches,
             get_git_remote_info,
             git_commit,
             git_push,
@@ -1670,6 +1907,9 @@ pub fn run() {
             git_fetch,
             git_switch_branch,
             git_create_branch,
+            git_rename_branch,
+            git_delete_branch,
+            git_checkout_remote_branch,
             open_git_remote,
             save_asset,
             pick_image_file,
@@ -1767,6 +2007,76 @@ mod tests {
         assert_eq!(
             git_create_branch_args("test"),
             vec!["switch".to_string(), "-c".to_string(), "test".to_string()]
+        );
+    }
+
+    #[test]
+    fn git_rename_branch_args_use_branch_move() {
+        assert_eq!(
+            git_rename_branch_args("main", "renamed-main"),
+            vec![
+                "branch".to_string(),
+                "-m".to_string(),
+                "main".to_string(),
+                "renamed-main".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn git_delete_branch_args_use_safe_delete() {
+        assert_eq!(
+            git_delete_branch_args("feature/test"),
+            vec!["branch".to_string(), "-d".to_string(), "feature/test".to_string()]
+        );
+    }
+
+    #[test]
+    fn git_checkout_remote_branch_args_track_remote_ref() {
+        assert_eq!(
+            git_checkout_remote_branch_args("origin/feature/test").unwrap(),
+            vec![
+                "switch".to_string(),
+                "-c".to_string(),
+                "feature/test".to_string(),
+                "--track".to_string(),
+                "origin/feature/test".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn validate_git_branch_rename_rejects_unchanged_name() {
+        assert_eq!(
+            validate_git_branch_rename("main", "main"),
+            Err("branch name is unchanged".to_string())
+        );
+    }
+
+    #[test]
+    fn validate_git_branch_delete_rejects_current_branch() {
+        let branches = vec![
+            GitBranch {
+                name: "main".to_string(),
+                upstream: Some("origin/main".to_string()),
+                ahead_behind: None,
+                is_current: true,
+            },
+            GitBranch {
+                name: "feature/test".to_string(),
+                upstream: Some("origin/feature/test".to_string()),
+                ahead_behind: None,
+                is_current: false,
+            },
+        ];
+
+        assert_eq!(
+            validate_git_branch_delete(&branches, "main"),
+            Err("cannot delete the current branch".to_string())
+        );
+        assert_eq!(
+            validate_git_branch_delete(&branches, "feature/test"),
+            Ok("feature/test".to_string())
         );
     }
 
@@ -1967,6 +2277,18 @@ mod tests {
     }
 
     #[test]
+    fn parse_git_remote_branch_lines_skips_head_and_sorts_by_name() {
+        let branches = parse_git_remote_branch_lines(
+            "origin/HEAD\norigin/main\nupstream/feature/test\norigin/feature/a\n",
+        );
+
+        assert_eq!(branches.len(), 3);
+        assert_eq!(branches[0].remote_ref, "origin/feature/a");
+        assert_eq!(branches[1].remote_ref, "upstream/feature/test");
+        assert_eq!(branches[2].remote_ref, "origin/main");
+    }
+
+    #[test]
     fn parse_remote_name_extracts_remote_prefix() {
         assert_eq!(
             parse_remote_name("origin/feature/test"),
@@ -2124,6 +2446,60 @@ mod tests {
         };
 
         assert_eq!(git_push_args(&remote, "main", None).unwrap(), vec!["push"]);
+    }
+
+    #[test]
+    fn classify_git_push_error_detects_non_fast_forward() {
+        let stderr = "! [rejected] main -> main (non-fast-forward)\nerror: failed to push some refs";
+        assert_eq!(
+            classify_git_push_error(stderr),
+            "Push rejected. Remote has new commits. Pull or fetch first."
+        );
+    }
+
+    #[test]
+    fn classify_git_push_error_detects_transport_failure() {
+        let stderr = "fatal: Authentication failed for 'https://github.com/hutusi/ovid.git/'";
+        assert_eq!(
+            classify_git_push_error(stderr),
+            "Push failed because the remote could not be reached or authorized."
+        );
+    }
+
+    #[test]
+    fn classify_git_pull_error_detects_fast_forward_stop() {
+        let stderr = "fatal: Not possible to fast-forward, aborting.";
+        assert_eq!(
+            classify_git_pull_error(stderr),
+            "Pull stopped because the branch cannot be fast-forwarded. Resolve it in Git, then refresh."
+        );
+    }
+
+    #[test]
+    fn classify_git_pull_error_detects_local_changes_blocking_pull() {
+        let stderr = "error: Your local changes to the following files would be overwritten by merge:";
+        assert_eq!(
+            classify_git_pull_error(stderr),
+            "Pull blocked by local changes. Commit, stash, or discard changes first."
+        );
+    }
+
+    #[test]
+    fn classify_git_pull_error_detects_conflicts() {
+        let stderr = "CONFLICT (content): Merge conflict in notes/draft.md";
+        assert_eq!(
+            classify_git_pull_error(stderr),
+            "Pull stopped because of conflicts. Resolve them in Git, then refresh."
+        );
+    }
+
+    #[test]
+    fn classify_git_branch_delete_error_detects_unmerged_branch() {
+        let stderr = "error: The branch 'feature/test' is not fully merged.";
+        assert_eq!(
+            classify_git_branch_delete_error(stderr),
+            "Delete stopped because the branch has unmerged commits. Merge it first or use Git CLI to force delete."
+        );
     }
 
     #[test]

@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getRemoteSummary } from "../lib/gitUi";
-import type { GitBranch, GitRemote, GitRemoteInfo } from "../lib/types";
+import type { GitBranch, GitRemote, GitRemoteBranch, GitRemoteInfo } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 import "./WorkspaceSwitcher.css";
 
 interface BranchSwitcherProps {
   branches: GitBranch[];
+  remoteBranches: GitRemoteBranch[];
   remoteInfo: GitRemoteInfo;
   onSelect: (branch: string) => void;
+  onSelectRemoteBranch: (remoteRef: string) => void;
   onCreateBranch: () => void;
+  onRenameBranch: (branch: string) => void;
+  onDeleteBranch: (branch: string) => void;
   onPushAndTrack?: (remoteName: string) => void;
   onOpenRemote: (remoteName?: string) => void;
   onCopyRemoteUrl: (remoteName?: string) => void;
@@ -18,27 +22,64 @@ interface BranchSwitcherProps {
 
 export function BranchSwitcher({
   branches,
+  remoteBranches,
   remoteInfo,
   onSelect,
+  onSelectRemoteBranch,
   onCreateBranch,
+  onRenameBranch,
+  onDeleteBranch,
   onPushAndTrack,
   onOpenRemote,
   onCopyRemoteUrl,
   onClose,
 }: BranchSwitcherProps) {
   const [query, setQuery] = useState("");
+  const [actionMenuBranch, setActionMenuBranch] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLDivElement>();
+  const actionMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    if (!actionMenuBranch) return;
+    queueMicrotask(() => {
+      actionMenuItemRefs.current[0]?.focus();
+    });
+  }, [actionMenuBranch]);
 
   const filteredBranches = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return branches;
     return branches.filter((branch) => branch.name.toLowerCase().includes(normalized));
   }, [branches, query]);
+
+  const trackedRemoteRefs = useMemo(
+    () =>
+      new Set(
+        branches
+          .map((branch) => branch.upstream)
+          .filter((upstream): upstream is string => !!upstream)
+      ),
+    [branches]
+  );
+
+  const filteredRemoteBranches = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return remoteBranches.filter((branch) => {
+      if (trackedRemoteRefs.has(branch.remoteRef)) {
+        return false;
+      }
+      if (!normalized) return true;
+      return (
+        branch.name.toLowerCase().includes(normalized) ||
+        branch.remoteRef.toLowerCase().includes(normalized)
+      );
+    });
+  }, [query, remoteBranches, trackedRemoteRefs]);
 
   function getRemoteMeta(remote: GitRemote): string {
     if (remoteInfo.upstream?.startsWith(`${remote.name}/`)) {
@@ -53,12 +94,60 @@ export function BranchSwitcher({
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
       e.stopPropagation();
+      if (actionMenuBranch) {
+        setActionMenuBranch(null);
+        return;
+      }
       onClose();
       return;
     }
-    if (e.key === "Enter" && filteredBranches.length > 0) {
+    if (e.key !== "Enter" || e.target !== inputRef.current) {
+      return;
+    }
+    if (filteredBranches.length > 0) {
       e.preventDefault();
       onSelect(filteredBranches[0].name);
+      return;
+    }
+    if (filteredRemoteBranches.length > 0) {
+      e.preventDefault();
+      onSelectRemoteBranch(filteredRemoteBranches[0].remoteRef);
+    }
+  }
+
+  function handleActionMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const items = actionMenuItemRefs.current.filter(
+      (item): item is HTMLButtonElement => !!item && item.isConnected
+    );
+    if (items.length === 0) return;
+
+    const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % items.length : 0;
+      items[nextIndex]?.focus();
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const nextIndex = currentIndex >= 0 ? (currentIndex - 1 + items.length) % items.length : 0;
+      items[nextIndex]?.focus();
+      return;
+    }
+    if (e.key === "Home") {
+      e.preventDefault();
+      items[0]?.focus();
+      return;
+    }
+    if (e.key === "End") {
+      e.preventDefault();
+      items[items.length - 1]?.focus();
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      setActionMenuBranch(null);
     }
   }
 
@@ -164,23 +253,119 @@ export function BranchSwitcher({
 
         <div className="ws-list">
           {filteredBranches.map((branch) => (
-            <button
+            <div
               key={branch.name}
-              type="button"
-              className={`ws-item${branch.isCurrent ? " ws-item--active" : ""}`}
-              onClick={() => onSelect(branch.name)}
+              className={`ws-item ws-item--static${branch.isCurrent ? " ws-item--active" : ""}`}
             >
-              <span className="ws-item-name">{branch.name}</span>
-              <span className="ws-item-path">
-                {branch.upstream
-                  ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
-                  : "No upstream"}
-              </span>
-              {branch.isCurrent && <span className="ws-item-badge">current</span>}
-            </button>
+              <div className="ws-item-header">
+                <button
+                  type="button"
+                  className="ws-item-button"
+                  onClick={() => {
+                    setActionMenuBranch(null);
+                    onSelect(branch.name);
+                  }}
+                >
+                  <span className="ws-item-name">{branch.name}</span>
+                  <span className="ws-item-path">
+                    {branch.upstream
+                      ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
+                      : "No upstream"}
+                  </span>
+                </button>
+                <div className="ws-item-controls">
+                  {branch.isCurrent && (
+                    <span className="ws-item-badge ws-item-badge--inline">current</span>
+                  )}
+                  <button
+                    type="button"
+                    className={`ws-overflow-btn${actionMenuBranch === branch.name ? " is-open" : ""}`}
+                    aria-label={`Branch actions for ${branch.name}`}
+                    aria-haspopup="menu"
+                    aria-expanded={actionMenuBranch === branch.name}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setActionMenuBranch((current) =>
+                        current === branch.name ? null : branch.name
+                      );
+                    }}
+                  >
+                    ⋯
+                  </button>
+                </div>
+              </div>
+              {actionMenuBranch === branch.name && (
+                <div
+                  className="ws-actions-menu"
+                  role="menu"
+                  aria-label={`Actions for ${branch.name}`}
+                  onKeyDown={handleActionMenuKeyDown}
+                >
+                  <button
+                    ref={(node) => {
+                      actionMenuItemRefs.current[0] = node;
+                    }}
+                    type="button"
+                    className="ws-actions-menu-btn"
+                    role="menuitem"
+                    onClick={() => {
+                      setActionMenuBranch(null);
+                      onRenameBranch(branch.name);
+                    }}
+                  >
+                    Rename
+                  </button>
+                  {!branch.isCurrent && (
+                    <button
+                      ref={(node) => {
+                        actionMenuItemRefs.current[1] = node;
+                      }}
+                      type="button"
+                      className="ws-actions-menu-btn ws-actions-menu-btn--danger"
+                      role="menuitem"
+                      onClick={() => {
+                        setActionMenuBranch(null);
+                        onDeleteBranch(branch.name);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
-          {filteredBranches.length === 0 && <p className="ws-empty">No branches match.</p>}
+          {filteredBranches.length === 0 && filteredRemoteBranches.length === 0 && (
+            <p className="ws-empty">No branches match.</p>
+          )}
         </div>
+
+        {filteredRemoteBranches.length > 0 && (
+          <>
+            <div className="modal-branch-row">
+              <span className="modal-branch-label">Remote branches</span>
+            </div>
+            <fieldset className="ws-list ws-list--group">
+              <legend className="ws-list-legend" aria-hidden="true">
+                Remote branches
+              </legend>
+              {filteredRemoteBranches.map((branch) => (
+                <button
+                  key={branch.remoteRef}
+                  type="button"
+                  className="ws-item"
+                  onClick={() => onSelectRemoteBranch(branch.remoteRef)}
+                >
+                  <span className="ws-item-name">{branch.name}</span>
+                  <span className="ws-item-path">
+                    {branch.remoteRef} · creates or switches tracking branch
+                  </span>
+                </button>
+              ))}
+            </fieldset>
+          </>
+        )}
 
         <div className="modal-actions">
           <button type="button" className="modal-btn modal-btn-cancel" onClick={onCreateBranch}>
