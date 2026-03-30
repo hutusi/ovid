@@ -1,7 +1,9 @@
 use serde::Serialize;
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::{Instant, SystemTime};
 use tauri::menu::{MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
@@ -11,6 +13,16 @@ use tauri_plugin_opener::OpenerExt;
 struct WorkspaceState {
     tree_root: Mutex<Option<PathBuf>>,
     workspace_root: Mutex<Option<PathBuf>>,
+    frontmatter_cache: Mutex<HashMap<PathBuf, CachedFrontmatter>>,
+}
+
+#[derive(Clone)]
+struct CachedFrontmatter {
+    modified: Option<SystemTime>,
+    len: u64,
+    title: Option<String>,
+    draft: Option<bool>,
+    content_type: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -83,6 +95,40 @@ fn read_frontmatter_meta(path: &Path) -> (Option<String>, Option<bool>, Option<S
     (title, draft, content_type)
 }
 
+fn read_frontmatter_meta_cached(
+    path: &Path,
+    cache: &mut HashMap<PathBuf, CachedFrontmatter>,
+) -> (Option<String>, Option<bool>, Option<String>) {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return read_frontmatter_meta(path);
+    };
+    let modified = metadata.modified().ok();
+    let len = metadata.len();
+
+    if let Some(cached) = cache.get(path) {
+        if cached.modified == modified && cached.len == len {
+            return (
+                cached.title.clone(),
+                cached.draft,
+                cached.content_type.clone(),
+            );
+        }
+    }
+
+    let (title, draft, content_type) = read_frontmatter_meta(path);
+    cache.insert(
+        path.to_path_buf(),
+        CachedFrontmatter {
+            modified,
+            len,
+            title: title.clone(),
+            draft,
+            content_type: content_type.clone(),
+        },
+    );
+    (title, draft, content_type)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WorkspaceResult {
@@ -98,7 +144,29 @@ struct WorkspaceResult {
     cdn_base: Option<String>,
 }
 
-fn walk_dir(path: &Path) -> Vec<FileNode> {
+fn perf_logging_enabled() -> bool {
+    cfg!(debug_assertions) || std::env::var_os("OVID_PERF").is_some()
+}
+
+fn log_perf(command: &str, elapsed: std::time::Duration, details: &[(&str, String)]) {
+    if !perf_logging_enabled() {
+        return;
+    }
+
+    let mut message = format!("[perf] {command} took {}ms", elapsed.as_millis());
+    if !details.is_empty() {
+        let suffix = details
+            .iter()
+            .map(|(key, value)| format!("{key}={value}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        message.push(' ');
+        message.push_str(&suffix);
+    }
+    eprintln!("{message}");
+}
+
+fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec<FileNode> {
     let Ok(entries) = std::fs::read_dir(path) else {
         return Vec::new();
     };
@@ -116,8 +184,12 @@ fn walk_dir(path: &Path) -> Vec<FileNode> {
             continue;
         }
 
-        if entry_path.is_dir() {
-            let children = walk_dir(&entry_path);
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+
+        if file_type.is_dir() {
+            let children = walk_dir(&entry_path, cache);
             if !children.is_empty() {
                 nodes.push(FileNode {
                     name,
@@ -136,7 +208,7 @@ fn walk_dir(path: &Path) -> Vec<FileNode> {
                 .and_then(|e| e.to_str())
                 .unwrap_or("");
             if ext == "md" || ext == "mdx" {
-                let (title, draft, content_type) = read_frontmatter_meta(&entry_path);
+                let (title, draft, content_type) = read_frontmatter_meta_cached(&entry_path, cache);
                 nodes.push(FileNode {
                     name,
                     path: entry_path.to_string_lossy().to_string(),
@@ -232,8 +304,14 @@ async fn open_workspace_at_path(
     app: tauri::AppHandle,
     state: State<'_, WorkspaceState>,
 ) -> Result<Option<WorkspaceResult>, String> {
+    let started = Instant::now();
     let root = PathBuf::from(&path);
     if !root.is_dir() {
+        log_perf(
+            "open_workspace_at_path",
+            started.elapsed(),
+            &[("result", "missing".to_string())],
+        );
         return Ok(None);
     }
 
@@ -254,7 +332,10 @@ async fn open_workspace_at_path(
 
     let is_amytis_workspace =
         root.join("site.config.ts").is_file() && root.join("content").is_dir();
-    let tree = walk_dir(&tree_root);
+    let tree = {
+        let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
+        walk_dir(&tree_root, &mut cache)
+    };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
     // Grant asset protocol access to the entire workspace root so that both
@@ -264,7 +345,7 @@ async fn open_workspace_at_path(
         eprintln!("Failed to grant asset protocol access for {root:?}: {e}");
     }
 
-    Ok(Some(WorkspaceResult {
+    let result = WorkspaceResult {
         name,
         root_path: to_slash(&root),
         tree_root: to_slash(&tree_root),
@@ -272,7 +353,18 @@ async fn open_workspace_at_path(
         tree,
         is_amytis_workspace,
         cdn_base,
-    }))
+    };
+    log_perf(
+        "open_workspace_at_path",
+        started.elapsed(),
+        &[
+            ("treeRoot", result.tree_root.clone()),
+            ("nodes", result.tree.len().to_string()),
+            ("amytis", result.is_amytis_workspace.to_string()),
+        ],
+    );
+
+    Ok(Some(result))
 }
 
 #[tauri::command]
@@ -280,13 +372,21 @@ async fn open_workspace(
     app: tauri::AppHandle,
     state: State<'_, WorkspaceState>,
 ) -> Result<Option<WorkspaceResult>, String> {
+    let started = Instant::now();
     let (tx, rx) = tokio::sync::oneshot::channel::<Option<tauri_plugin_dialog::FilePath>>();
     app.dialog().file().pick_folder(move |folder| {
         tx.send(folder).ok();
     });
     let folder = match rx.await.ok().flatten() {
         Some(f) => f,
-        None => return Ok(None),
+        None => {
+            log_perf(
+                "open_workspace",
+                started.elapsed(),
+                &[("result", "cancelled".to_string())],
+            );
+            return Ok(None);
+        }
     };
     let root: PathBuf = match folder {
         tauri_plugin_dialog::FilePath::Path(p) => p,
@@ -312,7 +412,10 @@ async fn open_workspace(
 
     let is_amytis_workspace =
         root.join("site.config.ts").is_file() && root.join("content").is_dir();
-    let tree = walk_dir(&tree_root);
+    let tree = {
+        let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
+        walk_dir(&tree_root, &mut cache)
+    };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
     // Grant asset protocol access to the entire workspace root so that both
@@ -326,7 +429,7 @@ async fn open_workspace(
         eprintln!("Failed to grant asset protocol access for {root:?}: {e}");
     }
 
-    Ok(Some(WorkspaceResult {
+    let result = WorkspaceResult {
         name,
         root_path: to_slash(&root),
         tree_root: to_slash(&tree_root),
@@ -334,14 +437,40 @@ async fn open_workspace(
         tree,
         is_amytis_workspace,
         cdn_base,
-    }))
+    };
+    log_perf(
+        "open_workspace",
+        started.elapsed(),
+        &[
+            ("treeRoot", result.tree_root.clone()),
+            ("nodes", result.tree.len().to_string()),
+            ("amytis", result.is_amytis_workspace.to_string()),
+        ],
+    );
+
+    Ok(Some(result))
 }
 
 #[tauri::command]
 fn list_workspace(state: State<'_, WorkspaceState>) -> Result<Vec<FileNode>, String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    Ok(walk_dir(root))
+    let started = Instant::now();
+    let root = {
+        let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+        root_guard.as_ref().ok_or("no workspace open")?.clone()
+    };
+    let tree = {
+        let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
+        walk_dir(&root, &mut cache)
+    };
+    log_perf(
+        "list_workspace",
+        started.elapsed(),
+        &[
+            ("treeRoot", to_slash(&root)),
+            ("nodes", tree.len().to_string()),
+        ],
+    );
+    Ok(tree)
 }
 
 #[tauri::command]
@@ -468,7 +597,13 @@ fn search_workspace(
     query: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<Vec<SearchResult>, String> {
+    let started = Instant::now();
     if query.trim().is_empty() {
+        log_perf(
+            "search_workspace",
+            started.elapsed(),
+            &[("query", "empty".to_string()), ("results", "0".to_string())],
+        );
         return Ok(Vec::new());
     }
     // Clone root before releasing the lock so the mutex is not held during search
@@ -476,7 +611,22 @@ fn search_workspace(
         let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
         root_guard.as_ref().ok_or("no workspace open")?.clone()
     };
-    Ok(search_dir(&root, query.trim()))
+    let results = search_dir(&root, query.trim());
+    let file_count = results.len();
+    let match_count = results
+        .iter()
+        .map(|result| result.matches.len())
+        .sum::<usize>();
+    log_perf(
+        "search_workspace",
+        started.elapsed(),
+        &[
+            ("query", query.trim().to_string()),
+            ("files", file_count.to_string()),
+            ("matches", match_count.to_string()),
+        ],
+    );
+    Ok(results)
 }
 
 #[tauri::command]
@@ -1023,8 +1173,8 @@ fn get_preferred_remote_name(
         return Some(name);
     }
 
-    if let Some(name) = get_git_config_value(git_root, "remote.pushDefault")
-        .filter(|name| is_known_remote(name))
+    if let Some(name) =
+        get_git_config_value(git_root, "remote.pushDefault").filter(|name| is_known_remote(name))
     {
         return Some(name);
     }
@@ -1114,7 +1264,11 @@ fn git_push_args(
     }
 
     if let Some(name) = explicit_remote_name {
-        if !remote.remotes.iter().any(|configured| configured.name == name) {
+        if !remote
+            .remotes
+            .iter()
+            .any(|configured| configured.name == name)
+        {
             return Err("selected remote is no longer configured".to_string());
         }
     }
@@ -1141,7 +1295,11 @@ fn git_push_args(
 }
 
 fn git_create_branch_args(branch_name: &str) -> Vec<String> {
-    vec!["switch".to_string(), "-c".to_string(), branch_name.to_string()]
+    vec![
+        "switch".to_string(),
+        "-c".to_string(),
+        branch_name.to_string(),
+    ]
 }
 
 fn git_rename_branch_args(old_branch: &str, new_branch: &str) -> Vec<String> {
@@ -1154,7 +1312,11 @@ fn git_rename_branch_args(old_branch: &str, new_branch: &str) -> Vec<String> {
 }
 
 fn git_delete_branch_args(branch_name: &str) -> Vec<String> {
-    vec!["branch".to_string(), "-d".to_string(), branch_name.to_string()]
+    vec![
+        "branch".to_string(),
+        "-d".to_string(),
+        branch_name.to_string(),
+    ]
 }
 
 fn git_checkout_remote_branch_args(remote_ref: &str) -> Result<Vec<String>, String> {
@@ -1174,7 +1336,10 @@ fn git_checkout_remote_branch_args(remote_ref: &str) -> Result<Vec<String>, Stri
     ])
 }
 
-fn validate_git_branch_rename(old_branch: &str, new_branch: &str) -> Result<(String, String), String> {
+fn validate_git_branch_rename(
+    old_branch: &str,
+    new_branch: &str,
+) -> Result<(String, String), String> {
     let old_branch = old_branch.trim();
     let new_branch = new_branch.trim();
     if old_branch.is_empty() {
@@ -1234,7 +1399,8 @@ fn classify_git_pull_error(stderr: &str) -> String {
         return "Pull stopped because the branch cannot be fast-forwarded. Resolve it in Git, then refresh.".to_string();
     }
     if lower.contains("would be overwritten by merge") || lower.contains("local changes") {
-        return "Pull blocked by local changes. Commit, stash, or discard changes first.".to_string();
+        return "Pull blocked by local changes. Commit, stash, or discard changes first."
+            .to_string();
     }
     if lower.contains("conflict") {
         return "Pull stopped because of conflicts. Resolve them in Git, then refresh.".to_string();
@@ -1303,7 +1469,9 @@ fn get_git_branches(state: State<'_, WorkspaceState>) -> Result<Vec<GitBranch>, 
 }
 
 #[tauri::command]
-fn get_git_remote_branches(state: State<'_, WorkspaceState>) -> Result<Vec<GitRemoteBranch>, String> {
+fn get_git_remote_branches(
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<GitRemoteBranch>, String> {
     let Some(git_root) = resolve_git_root(state)? else {
         return Ok(Vec::new());
     };
@@ -1487,7 +1655,10 @@ async fn git_checkout_remote_branch(
         return Err("remote branch cannot be empty".to_string());
     }
     let remote_branches = parse_git_remote_branches(&git_root)?;
-    if !remote_branches.iter().any(|branch| branch.remote_ref == remote_ref) {
+    if !remote_branches
+        .iter()
+        .any(|branch| branch.remote_ref == remote_ref)
+    {
         return Err("remote branch is unavailable".to_string());
     }
 
@@ -1669,6 +1840,7 @@ pub fn run() {
         .manage(WorkspaceState {
             tree_root: Mutex::new(None),
             workspace_root: Mutex::new(None),
+            frontmatter_cache: Mutex::new(HashMap::new()),
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -1924,6 +2096,7 @@ pub fn run() {
 mod tests {
     use super::*;
     use std::fs;
+    use std::time::Instant;
     use tempfile::TempDir;
 
     // ── normalize_path ───────────────────────────────────────────────────────
@@ -2027,7 +2200,11 @@ mod tests {
     fn git_delete_branch_args_use_safe_delete() {
         assert_eq!(
             git_delete_branch_args("feature/test"),
-            vec!["branch".to_string(), "-d".to_string(), "feature/test".to_string()]
+            vec![
+                "branch".to_string(),
+                "-d".to_string(),
+                "feature/test".to_string()
+            ]
         );
     }
 
@@ -2108,6 +2285,39 @@ mod tests {
         let path = dir.path().join("site.config.ts");
         fs::write(&path, content).unwrap();
         path
+    }
+
+    fn write_markdown_file(path: &Path, title: &str, body: &str) {
+        let content = format!("---\ntitle: \"{title}\"\ntype: note\n---\n\n{body}\n");
+        fs::write(path, content).unwrap();
+    }
+
+    fn create_large_workspace_fixture(
+        dir_count: usize,
+        files_per_dir: usize,
+        match_every: usize,
+    ) -> TempDir {
+        let dir = TempDir::new().unwrap();
+        let content_root = dir.path().join("content");
+        fs::create_dir_all(&content_root).unwrap();
+
+        for dir_index in 0..dir_count {
+            let section_dir = content_root.join(format!("section-{dir_index:03}"));
+            fs::create_dir_all(&section_dir).unwrap();
+
+            for file_index in 0..files_per_dir {
+                let path = section_dir.join(format!("entry-{file_index:03}.md"));
+                let title = format!("Entry {dir_index}-{file_index}");
+                let body = if (dir_index * files_per_dir + file_index) % match_every == 0 {
+                    "alpha needle beta gamma"
+                } else {
+                    "ordinary workspace content"
+                };
+                write_markdown_file(&path, &title, body);
+            }
+        }
+
+        dir
     }
 
     #[test]
@@ -2257,6 +2467,73 @@ mod tests {
             "/* This config has no CDN\n  cdnBase: 'https://cdn.example.com'\n*/\nexport const config = {};\n",
         );
         assert_eq!(parse_cdn_base(&path), None);
+    }
+
+    #[test]
+    #[ignore = "profiling helper for large synthetic workspaces"]
+    fn perf_walk_dir_large_workspace_fixture() {
+        let dir = create_large_workspace_fixture(40, 80, 7);
+        let mut cache = HashMap::new();
+
+        let first_started = Instant::now();
+        let first_tree = walk_dir(&dir.path().join("content"), &mut cache);
+        let first_elapsed = first_started.elapsed();
+
+        let second_started = Instant::now();
+        let second_tree = walk_dir(&dir.path().join("content"), &mut cache);
+        let second_elapsed = second_started.elapsed();
+
+        let top_level_dirs = first_tree.iter().filter(|node| node.is_directory).count();
+        assert_eq!(top_level_dirs, 40);
+        assert_eq!(second_tree.len(), first_tree.len());
+        eprintln!(
+            "[perf-test] walk_dir fixture dirs=40 files_per_dir=80 top_level={} first={}ms second={}ms",
+            top_level_dirs,
+            first_elapsed.as_millis(),
+            second_elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    #[ignore = "profiling helper for large synthetic workspaces"]
+    fn perf_search_dir_large_workspace_fixture() {
+        let dir = create_large_workspace_fixture(40, 80, 5);
+        let started = Instant::now();
+        let results = search_dir(&dir.path().join("content"), "needle");
+        let elapsed = started.elapsed();
+
+        let file_count = results.len();
+        let match_count = results
+            .iter()
+            .map(|result| result.matches.len())
+            .sum::<usize>();
+        assert_eq!(file_count, 640);
+        assert_eq!(match_count, 640);
+        eprintln!(
+            "[perf-test] search_dir fixture dirs=40 files_per_dir=80 matched_files={} matched_lines={} elapsed={}ms",
+            file_count,
+            match_count,
+            elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    fn read_frontmatter_meta_cached_refreshes_when_file_changes() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("entry.md");
+        let mut cache = HashMap::new();
+
+        write_markdown_file(&path, "First", "short body");
+        let initial = read_frontmatter_meta_cached(&path, &mut cache);
+        assert_eq!(initial.0.as_deref(), Some("First"));
+
+        write_markdown_file(
+            &path,
+            "Second title",
+            "body with more bytes to change the file size",
+        );
+        let updated = read_frontmatter_meta_cached(&path, &mut cache);
+        assert_eq!(updated.0.as_deref(), Some("Second title"));
     }
 
     // ── git helpers ─────────────────────────────────────────────────────────
@@ -2450,7 +2727,8 @@ mod tests {
 
     #[test]
     fn classify_git_push_error_detects_non_fast_forward() {
-        let stderr = "! [rejected] main -> main (non-fast-forward)\nerror: failed to push some refs";
+        let stderr =
+            "! [rejected] main -> main (non-fast-forward)\nerror: failed to push some refs";
         assert_eq!(
             classify_git_push_error(stderr),
             "Push rejected. Remote has new commits. Pull or fetch first."
@@ -2477,7 +2755,8 @@ mod tests {
 
     #[test]
     fn classify_git_pull_error_detects_local_changes_blocking_pull() {
-        let stderr = "error: Your local changes to the following files would be overwritten by merge:";
+        let stderr =
+            "error: Your local changes to the following files would be overwritten by merge:";
         assert_eq!(
             classify_git_pull_error(stderr),
             "Pull blocked by local changes. Commit, stash, or discard changes first."

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { measureAsync } from "../lib/perf";
 import type { SearchResult } from "../lib/types";
 import "./SearchPanel.css";
 import { Input } from "./ui/input";
@@ -37,7 +38,12 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
     }
     setSearching(true);
     try {
-      const res = await invoke<SearchResult[]>("search_workspace", { query: q.trim() });
+      const query = q.trim();
+      const res = await measureAsync(
+        "search_workspace.invoke",
+        () => invoke<SearchResult[]>("search_workspace", { query }),
+        { query }
+      );
       setResults(res);
     } catch (err) {
       console.error("Search failed:", err);

@@ -6,6 +6,7 @@ import {
   createTodayFlowFrontmatter,
   createTypedFrontmatter,
 } from "./frontmatter";
+import { measureAsync } from "./perf";
 import type { FileNode } from "./types";
 import { syncRecentDelete, syncRecentRename } from "./useRecentFiles";
 
@@ -61,7 +62,9 @@ export function useWorkspace({
 
   const refreshTree = useCallback(async (): Promise<FileNode[]> => {
     try {
-      const updated = await invoke<FileNode[]>("list_workspace");
+      const updated = await measureAsync("list_workspace.invoke", () =>
+        invoke<FileNode[]>("list_workspace")
+      );
       setTree(updated);
       return updated;
     } catch (err) {
@@ -91,7 +94,11 @@ export function useWorkspace({
     async (path: string) => {
       await flushPendingSave();
       try {
-        const result = await invoke<WorkspaceResult | null>("open_workspace_at_path", { path });
+        const result = await measureAsync(
+          "open_workspace_at_path.invoke",
+          () => invoke<WorkspaceResult | null>("open_workspace_at_path", { path }),
+          { path }
+        );
         if (result) applyWorkspaceResult(result);
         else showToast("Could not open workspace — path may no longer be valid.");
       } catch (err) {
@@ -105,7 +112,9 @@ export function useWorkspace({
   const handleOpenWorkspace = useCallback(async () => {
     await flushPendingSave();
     try {
-      const result = await invoke<WorkspaceResult | null>("open_workspace");
+      const result = await measureAsync("open_workspace.invoke", () =>
+        invoke<WorkspaceResult | null>("open_workspace")
+      );
       if (result) applyWorkspaceResult(result);
     } catch (err) {
       console.error("Failed to open workspace:", err);
