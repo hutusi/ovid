@@ -16,7 +16,7 @@ import {
   filterTree,
   needsPageDivider,
   rollupGitStatus,
-  sortNodes,
+  sortTree,
 } from "../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../lib/types";
 import { ContentTypeIcon } from "./ContentTypeIcon";
@@ -134,7 +134,7 @@ function FileItem({
           </button>
         </div>
         {expanded &&
-          sortNodes(node.children ?? []).map((child, idx, sorted) => (
+          (node.children ?? []).map((child, idx, sorted) => (
             <Fragment key={child.path}>
               {needsPageDivider(sorted, idx) && <div className="sidebar-section-divider" />}
               <FileItem
@@ -313,7 +313,7 @@ export function Sidebar({
     () =>
       measureSync(
         "sidebar.renderedNodes",
-        () => sortNodes(filterQuery ? filterTree(visibleTree, filterQuery) : visibleTree),
+        () => sortTree(filterQuery ? filterTree(visibleTree, filterQuery) : visibleTree),
         {
           treeNodes: visibleTree.length,
           filterLength: filterQuery.length,
