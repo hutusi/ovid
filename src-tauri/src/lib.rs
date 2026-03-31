@@ -108,13 +108,15 @@ fn read_frontmatter_meta(path: &Path) -> (Option<String>, Option<bool>, Option<S
     };
     let mut reader = BufReader::new(file);
     let mut frontmatter = String::new();
+    let mut frontmatter_line_count = 0;
     loop {
         let mut line = String::new();
         if reader.read_line(&mut line).unwrap_or(0) == 0 {
             break;
         }
         frontmatter.push_str(&line);
-        if frontmatter.lines().count() > 1 && line.trim() == "---" {
+        frontmatter_line_count += 1;
+        if frontmatter_line_count > 1 && line.trim() == "---" {
             break;
         }
     }
