@@ -685,6 +685,9 @@ fn search_workspace(
     };
     let query_lower = query.trim().to_lowercase();
     let results = {
+        // Keep cache lock ordering consistent: search_cache first, then
+        // frontmatter_cache. If this path ever changes, preserve that order to
+        // avoid introducing deadlocks across future cache-aware search/tree code.
         let mut cache = state.search_cache.lock().map_err(|e| e.to_string())?;
         let frontmatter_cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
         search_dir(&root, &query_lower, &mut cache, &frontmatter_cache)
