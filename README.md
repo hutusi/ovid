@@ -235,7 +235,7 @@ The last 10 opened files per workspace are tracked and shown at the top of the f
 
 ### Full-text search (`Cmd+Shift+F`)
 
-Replaces the sidebar with a search panel. Queries run in Rust across the entire workspace. Results show the filename and matching line with context; the match is highlighted. Click any result to open the file. Frontmatter content is included in the search.
+Replaces the sidebar with a search panel. The shortcut works even when the editor is focused. Queries run in Rust across the entire workspace. Results show the filename and matching line with context; the match is highlighted. Click any result to open the file. Frontmatter content is included in the search.
 
 ---
 
