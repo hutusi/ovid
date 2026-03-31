@@ -14,6 +14,7 @@ struct WorkspaceState {
     tree_root: Mutex<Option<PathBuf>>,
     workspace_root: Mutex<Option<PathBuf>>,
     frontmatter_cache: Mutex<HashMap<PathBuf, CachedFrontmatter>>,
+    search_cache: Mutex<HashMap<PathBuf, CachedSearchFile>>,
 }
 
 #[derive(Clone)]
@@ -23,6 +24,14 @@ struct CachedFrontmatter {
     title: Option<String>,
     draft: Option<bool>,
     content_type: Option<String>,
+}
+
+#[derive(Clone)]
+struct CachedSearchFile {
+    modified: Option<SystemTime>,
+    len: u64,
+    title: Option<String>,
+    lines: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -129,6 +138,32 @@ fn read_frontmatter_meta_cached(
     (title, draft, content_type)
 }
 
+fn load_search_file_cached(
+    path: &Path,
+    cache: &mut HashMap<PathBuf, CachedSearchFile>,
+) -> Option<CachedSearchFile> {
+    let metadata = std::fs::metadata(path).ok()?;
+    let modified = metadata.modified().ok();
+    let len = metadata.len();
+
+    if let Some(cached) = cache.get(path) {
+        if cached.modified == modified && cached.len == len {
+            return Some(cached.clone());
+        }
+    }
+
+    let content = std::fs::read_to_string(path).ok()?;
+    let (title, _, _) = read_frontmatter_meta(path);
+    let entry = CachedSearchFile {
+        modified,
+        len,
+        title,
+        lines: content.lines().map(|line| line.to_string()).collect(),
+    };
+    cache.insert(path.to_path_buf(), entry.clone());
+    Some(entry)
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WorkspaceResult {
@@ -142,6 +177,13 @@ struct WorkspaceResult {
     tree: Vec<FileNode>,
     is_amytis_workspace: bool,
     cdn_base: Option<String>,
+}
+
+fn is_markdown_path(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|ext| ext.to_str()),
+        Some("md") | Some("mdx")
+    )
 }
 
 fn perf_logging_enabled() -> bool {
@@ -533,7 +575,11 @@ fn trash_file(path: String, state: State<'_, WorkspaceState>) -> Result<(), Stri
 }
 
 /// Search all markdown files under `path` for lines containing `query` (case-insensitive).
-fn search_dir(path: &Path, query: &str) -> Vec<SearchResult> {
+fn search_dir(
+    path: &Path,
+    query: &str,
+    cache: &mut HashMap<PathBuf, CachedSearchFile>,
+) -> Vec<SearchResult> {
     let Ok(entries) = std::fs::read_dir(path) else {
         return Vec::new();
     };
@@ -552,21 +598,18 @@ fn search_dir(path: &Path, query: &str) -> Vec<SearchResult> {
             continue;
         }
         if entry_path.is_dir() {
-            results.extend(search_dir(&entry_path, query));
+            results.extend(search_dir(&entry_path, query, cache));
         } else {
-            let ext = entry_path
-                .extension()
-                .and_then(|e| e.to_str())
-                .unwrap_or("");
-            if ext != "md" && ext != "mdx" {
+            if !is_markdown_path(&entry_path) {
                 continue;
             }
-            let Ok(content) = std::fs::read_to_string(&entry_path) else {
+            let Some(file) = load_search_file_cached(&entry_path, cache) else {
                 continue;
             };
             let q = query.to_lowercase();
-            let matches: Vec<SearchMatch> = content
-                .lines()
+            let matches: Vec<SearchMatch> = file
+                .lines
+                .iter()
                 .enumerate()
                 .filter_map(|(i, line)| {
                     if line.to_lowercase().contains(&q) {
@@ -580,10 +623,9 @@ fn search_dir(path: &Path, query: &str) -> Vec<SearchResult> {
                 })
                 .collect();
             if !matches.is_empty() {
-                let (title, _, _) = read_frontmatter_meta(&entry_path);
                 results.push(SearchResult {
                     path: entry_path.to_string_lossy().to_string(),
-                    title,
+                    title: file.title.clone(),
                     matches,
                 });
             }
@@ -611,7 +653,10 @@ fn search_workspace(
         let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
         root_guard.as_ref().ok_or("no workspace open")?.clone()
     };
-    let results = search_dir(&root, query.trim());
+    let results = {
+        let mut cache = state.search_cache.lock().map_err(|e| e.to_string())?;
+        search_dir(&root, query.trim(), &mut cache)
+    };
     let file_count = results.len();
     let match_count = results
         .iter()
@@ -1841,6 +1886,7 @@ pub fn run() {
             tree_root: Mutex::new(None),
             workspace_root: Mutex::new(None),
             frontmatter_cache: Mutex::new(HashMap::new()),
+            search_cache: Mutex::new(HashMap::new()),
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -2498,22 +2544,30 @@ mod tests {
     #[ignore = "profiling helper for large synthetic workspaces"]
     fn perf_search_dir_large_workspace_fixture() {
         let dir = create_large_workspace_fixture(40, 80, 5);
-        let started = Instant::now();
-        let results = search_dir(&dir.path().join("content"), "needle");
-        let elapsed = started.elapsed();
+        let mut cache = HashMap::new();
 
-        let file_count = results.len();
-        let match_count = results
+        let first_started = Instant::now();
+        let first_results = search_dir(&dir.path().join("content"), "needle", &mut cache);
+        let first_elapsed = first_started.elapsed();
+
+        let second_started = Instant::now();
+        let second_results = search_dir(&dir.path().join("content"), "needle", &mut cache);
+        let second_elapsed = second_started.elapsed();
+
+        let file_count = first_results.len();
+        let match_count = first_results
             .iter()
             .map(|result| result.matches.len())
             .sum::<usize>();
         assert_eq!(file_count, 640);
         assert_eq!(match_count, 640);
+        assert_eq!(second_results.len(), first_results.len());
         eprintln!(
-            "[perf-test] search_dir fixture dirs=40 files_per_dir=80 matched_files={} matched_lines={} elapsed={}ms",
+            "[perf-test] search_dir fixture dirs=40 files_per_dir=80 matched_files={} matched_lines={} first={}ms second={}ms",
             file_count,
             match_count,
-            elapsed.as_millis()
+            first_elapsed.as_millis(),
+            second_elapsed.as_millis()
         );
     }
 
@@ -2534,6 +2588,23 @@ mod tests {
         );
         let updated = read_frontmatter_meta_cached(&path, &mut cache);
         assert_eq!(updated.0.as_deref(), Some("Second title"));
+    }
+
+    #[test]
+    fn load_search_file_cached_refreshes_when_file_changes() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("entry.md");
+        let mut cache = HashMap::new();
+
+        write_markdown_file(&path, "First", "alpha needle");
+        let initial = load_search_file_cached(&path, &mut cache).unwrap();
+        assert_eq!(initial.title.as_deref(), Some("First"));
+        assert!(initial.lines.iter().any(|line| line.contains("needle")));
+
+        write_markdown_file(&path, "Second", "completely different body with more bytes");
+        let updated = load_search_file_cached(&path, &mut cache).unwrap();
+        assert_eq!(updated.title.as_deref(), Some("Second"));
+        assert!(!updated.lines.iter().any(|line| line.contains("needle")));
     }
 
     // ── git helpers ─────────────────────────────────────────────────────────
