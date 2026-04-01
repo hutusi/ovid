@@ -1,16 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FlatFile } from "../lib/fileSearch";
-import { flattenTree, score } from "../lib/fileSearch";
+import { Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { type FlatFile, flattenTree, score } from "../lib/fileSearch";
 import type { FileNode, RecentFile } from "../lib/types";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "./ui/command";
+import { useFocusTrap } from "../lib/useFocusTrap";
+import { Input } from "./ui/input";
 import "./Modal.css";
 import "./FileSwitcher.css";
 
@@ -21,16 +14,42 @@ interface FileSwitcherProps {
   onClose: () => void;
 }
 
+function buildItemGroups(
+  allFiles: FlatFile[],
+  filesByPath: Map<string, FlatFile>,
+  recentFiles: RecentFile[],
+  query: string
+) {
+  if (!query.trim()) {
+    const recentResults = recentFiles
+      .map((r) => filesByPath.get(r.path))
+      .filter((f): f is FlatFile => f !== undefined);
+    const recentPaths = new Set(recentResults.map((f) => f.node.path));
+    const otherResults = allFiles
+      .filter((f) => !recentPaths.has(f.node.path))
+      .slice(0, 50 - recentResults.length);
+    return { recentResults, otherResults };
+  }
+
+  const otherResults = allFiles
+    .map((f) => ({ file: f, score: score(f, query.trim()) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ file }) => file)
+    .slice(0, 50);
+
+  return { recentResults: [] as FlatFile[], otherResults };
+}
+
 export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitcherProps) {
   const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useFocusTrap<HTMLDivElement>();
 
   useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+    inputRef.current?.select();
+  }, []);
 
   const allFiles = useMemo(() => flattenTree(tree), [tree]);
 
@@ -40,74 +59,128 @@ export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitc
     return map;
   }, [allFiles]);
 
-  const { recentResults, otherResults } = useMemo(() => {
-    if (!query.trim()) {
-      const recentFlat = recentFiles
-        .map((r) => filesByPath.get(r.path))
-        .filter((f): f is FlatFile => f !== undefined);
-      const recentPaths = new Set(recentFlat.map((f) => f.node.path));
-      const rest = allFiles
-        .filter((f) => !recentPaths.has(f.node.path))
-        .slice(0, 50 - recentFlat.length);
-      return { recentResults: recentFlat, otherResults: rest };
-    }
-    const filtered = allFiles
-      .map((f) => ({ file: f, s: score(f, query.trim()) }))
-      .filter(({ s }) => s > 0)
-      .sort((a, b) => b.s - a.s)
-      .map(({ file }) => file)
-      .slice(0, 50);
-    return { recentResults: [] as FlatFile[], otherResults: filtered };
-  }, [allFiles, filesByPath, recentFiles, query]);
-
-  const renderItem = useCallback(
-    (f: FlatFile) => (
-      <CommandItem
-        key={f.node.path}
-        value={f.node.path}
-        onSelect={() => onSelect(f.node)}
-        className="flex flex-col items-start gap-0.5 py-2 cursor-pointer"
-      >
-        <span className="text-[13.5px] truncate w-full" style={{ opacity: f.node.draft ? 0.5 : 1 }}>
-          {f.displayName}
-        </span>
-        <span className="text-[11px] truncate w-full" style={{ color: "var(--color-fg-muted)" }}>
-          {f.relativePath}
-        </span>
-      </CommandItem>
-    ),
-    [onSelect]
+  const { recentResults, otherResults } = useMemo(
+    () => buildItemGroups(allFiles, filesByPath, recentFiles, query),
+    [allFiles, filesByPath, recentFiles, query]
   );
 
+  const visibleItems = useMemo(
+    () => [...recentResults, ...otherResults],
+    [recentResults, otherResults]
+  );
+  const otherResultsOffset = recentResults.length;
+
+  useEffect(() => {
+    setActiveIndex((current) => {
+      if (visibleItems.length === 0) return 0;
+      return Math.min(current, visibleItems.length - 1);
+    });
+  }, [visibleItems]);
+
+  function handleMove(delta: number) {
+    if (visibleItems.length === 0) return;
+    setActiveIndex((current) => {
+      const next = current + delta;
+      if (next < 0) return visibleItems.length - 1;
+      if (next >= visibleItems.length) return 0;
+      return next;
+    });
+  }
+
+  function handleOpenActive() {
+    const active = visibleItems[activeIndex];
+    if (!active) return;
+    onSelect(active.node);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      handleMove(1);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      handleMove(-1);
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleOpenActive();
+    }
+  }
+
+  function renderItem(file: FlatFile, index: number) {
+    const isActive = index === activeIndex;
+    return (
+      <button
+        key={file.node.path}
+        type="button"
+        role="option"
+        aria-selected={isActive}
+        className={`fs-item${isActive ? " is-active" : ""}`}
+        onMouseEnter={() => setActiveIndex(index)}
+        onClick={() => onSelect(file.node)}
+      >
+        <span className="fs-item-title" data-draft={file.node.draft ? "true" : undefined}>
+          {file.displayName}
+        </span>
+        <span className="fs-item-path">{file.relativePath}</span>
+      </button>
+    );
+  }
   return (
     <div className="modal-overlay modal-overlay--top" role="presentation">
       <button type="button" className="modal-backdrop" aria-label="Close" onClick={onClose} />
-      <div role="dialog" aria-modal="true" aria-label="Quick file switcher" className="fs-panel">
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder="Search files…"
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Quick file switcher"
+        className="fs-panel"
+        onKeyDown={handleKeyDown}
+      >
+        <div className="fs-search-row">
+          <Search className="fs-search-icon" />
+          <Input
+            ref={inputRef}
             value={query}
-            onValueChange={(v) => setQuery(v)}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search files…"
+            className="fs-search-input"
+            aria-label="Search files"
           />
-          <CommandList className="max-h-[60vh]">
-            <CommandEmpty>No files match</CommandEmpty>
-            {query.trim() === "" ? (
-              <>
-                {recentResults.length > 0 && (
-                  <CommandGroup heading="Recent">{recentResults.map(renderItem)}</CommandGroup>
-                )}
-                {recentResults.length > 0 && otherResults.length > 0 && <CommandSeparator />}
-                {otherResults.length > 0 && (
-                  <CommandGroup heading={recentResults.length > 0 ? "All files" : undefined}>
-                    {otherResults.map(renderItem)}
-                  </CommandGroup>
-                )}
-              </>
-            ) : (
-              <CommandGroup>{otherResults.map(renderItem)}</CommandGroup>
-            )}
-          </CommandList>
-        </Command>
+        </div>
+        <div className="fs-list" role="listbox" aria-label="Matching files">
+          {visibleItems.length === 0 ? (
+            <div className="fs-empty">No files match</div>
+          ) : query.trim() === "" ? (
+            <>
+              {recentResults.length > 0 && (
+                <>
+                  <div className="fs-group-heading">Recent</div>
+                  {recentResults.map((file, index) => renderItem(file, index))}
+                </>
+              )}
+              {recentResults.length > 0 && otherResults.length > 0 && (
+                <div className="fs-separator" aria-hidden="true" />
+              )}
+              {otherResults.length > 0 && (
+                <>
+                  {recentResults.length > 0 && <div className="fs-group-heading">All files</div>}
+                  {otherResults.map((file, index) => renderItem(file, otherResultsOffset + index))}
+                </>
+              )}
+            </>
+          ) : (
+            otherResults.map((file, index) => renderItem(file, index))
+          )}
+        </div>
       </div>
     </div>
   );

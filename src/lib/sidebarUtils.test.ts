@@ -5,6 +5,7 @@ import {
   needsPageDivider,
   rollupGitStatus,
   sortNodes,
+  sortTree,
 } from "./sidebarUtils";
 import type { FileNode, GitStatus } from "./types";
 
@@ -282,6 +283,45 @@ describe("sortNodes", () => {
     const original = [...nodes];
     sortNodes(nodes);
     expect(nodes).toEqual(original);
+  });
+});
+
+describe("sortTree", () => {
+  it("sorts nested directory children recursively", () => {
+    const nested = makeDir("nested", [
+      makeTypedFile("z-page.md", "page"),
+      makeTypedFile("a-flow.md", "flow"),
+    ]);
+    const root = makeDir("root", [
+      makeTypedFile("b-note.md", "note"),
+      nested,
+      makeTypedFile("a-post.md", "post"),
+    ]);
+
+    const result = sortTree([root]);
+
+    expect(result[0].children?.map((node) => node.name)).toEqual([
+      "nested",
+      "b-note.md",
+      "a-post.md",
+    ]);
+    expect(result[0].children?.[0].children?.map((node) => node.name)).toEqual([
+      "a-flow.md",
+      "z-page.md",
+    ]);
+  });
+
+  it("does not mutate nested input arrays", () => {
+    const childA = makeTypedFile("b-post.md", "post");
+    const childB = makeTypedFile("a-post.md", "post");
+    const dir = makeDir("posts", [childA, childB]);
+    const originalChildren = dir.children;
+
+    const result = sortTree([dir]);
+
+    expect(dir.children).toBe(originalChildren);
+    expect(dir.children?.map((node) => node.name)).toEqual(["b-post.md", "a-post.md"]);
+    expect(result[0].children?.map((node) => node.name)).toEqual(["a-post.md", "b-post.md"]);
   });
 });
 

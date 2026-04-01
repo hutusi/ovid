@@ -1,27 +1,16 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useRef, useState } from "react";
-import { BranchSwitcher } from "./components/BranchSwitcher";
-import { CommitDialog } from "./components/CommitDialog";
-import { DeleteBranchDialog } from "./components/DeleteBranchDialog";
-import { Editor } from "./components/Editor";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { FileSwitcher } from "./components/FileSwitcher";
-import { GitSyncPopover } from "./components/GitSyncPopover";
-import { NewBranchDialog } from "./components/NewBranchDialog";
-import { NewFileDialog } from "./components/NewFileDialog";
-import { PerfPanel } from "./components/PerfPanel";
 import { PropertiesPanel } from "./components/PropertiesPanel";
-import { RenameBranchDialog } from "./components/RenameBranchDialog";
-import { SearchPanel } from "./components/SearchPanel";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
-import { WorkspaceSwitcher } from "./components/WorkspaceSwitcher";
 import { findNodeByPath, loadLastRecentFilePath } from "./lib/appRestore";
 import { AUTO_FETCH_COOLDOWN_MS, runAutoFetchOnFocus } from "./lib/gitAutoFetch";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { resolveImageSrc } from "./lib/imageUtils";
+import { isPerfLoggingEnabled } from "./lib/perf";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
@@ -40,6 +29,45 @@ type ModalState = { type: "new-file"; dirPath: string; contentType?: string } | 
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
+
+const loadEditor = async () => import("./components/Editor");
+const Editor = lazy(async () => ({
+  default: (await loadEditor()).Editor,
+}));
+
+const SearchPanel = lazy(async () => ({
+  default: (await import("./components/SearchPanel")).SearchPanel,
+}));
+const WorkspaceSwitcher = lazy(async () => ({
+  default: (await import("./components/WorkspaceSwitcher")).WorkspaceSwitcher,
+}));
+const FileSwitcher = lazy(async () => ({
+  default: (await import("./components/FileSwitcher")).FileSwitcher,
+}));
+const NewFileDialog = lazy(async () => ({
+  default: (await import("./components/NewFileDialog")).NewFileDialog,
+}));
+const CommitDialog = lazy(async () => ({
+  default: (await import("./components/CommitDialog")).CommitDialog,
+}));
+const BranchSwitcher = lazy(async () => ({
+  default: (await import("./components/BranchSwitcher")).BranchSwitcher,
+}));
+const NewBranchDialog = lazy(async () => ({
+  default: (await import("./components/NewBranchDialog")).NewBranchDialog,
+}));
+const RenameBranchDialog = lazy(async () => ({
+  default: (await import("./components/RenameBranchDialog")).RenameBranchDialog,
+}));
+const DeleteBranchDialog = lazy(async () => ({
+  default: (await import("./components/DeleteBranchDialog")).DeleteBranchDialog,
+}));
+const GitSyncPopover = lazy(async () => ({
+  default: (await import("./components/GitSyncPopover")).GitSyncPopover,
+}));
+const PerfPanel = lazy(async () => ({
+  default: (await import("./components/PerfPanel")).PerfPanel,
+}));
 
 function App() {
   const { resolvedTheme, setPreference } = useTheme();
@@ -193,6 +221,14 @@ function App() {
   useEffect(() => {
     if (workspaceRoot) resetRecent(workspaceRoot);
   }, [workspaceRoot, resetRecent]);
+
+  useEffect(() => {
+    if (!workspaceRootPath && !selectedFile) return;
+    const timer = window.setTimeout(() => {
+      void loadEditor();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [workspaceRootPath, selectedFile]);
 
   // Track recently opened workspaces
   useEffect(() => {
@@ -596,7 +632,9 @@ function App() {
     <div className="app" data-zen={zenMode ? "true" : undefined}>
       <div className="app-body">
         {searchOpen ? (
-          <SearchPanel onOpenFile={handleOpenByPath} onClose={() => setSearchOpen(false)} />
+          <Suspense fallback={null}>
+            <SearchPanel onOpenFile={handleOpenByPath} onClose={() => setSearchOpen(false)} />
+          </Suspense>
         ) : (
           <Sidebar
             tree={tree}
@@ -630,18 +668,20 @@ function App() {
           )}
           {selectedFile ? (
             <ErrorBoundary key={selectedFile.path}>
-              <Editor
-                key={selectedFile.path}
-                content={fileContent}
-                filePath={selectedFile.path}
-                assetRoot={assetRoot}
-                cdnBase={cdnBase}
-                typewriterMode={typewriterMode}
-                spellCheck={prefs.spellCheck}
-                onWordCount={setWordCount}
-                onChange={handleEditorChange}
-                onError={showToast}
-              />
+              <Suspense fallback={<div className="editor-loading">Loading editor…</div>}>
+                <Editor
+                  key={selectedFile.path}
+                  content={fileContent}
+                  filePath={selectedFile.path}
+                  assetRoot={assetRoot}
+                  cdnBase={cdnBase}
+                  typewriterMode={typewriterMode}
+                  spellCheck={prefs.spellCheck}
+                  onWordCount={setWordCount}
+                  onChange={handleEditorChange}
+                  onError={showToast}
+                />
+              </Suspense>
             </ErrorBoundary>
           ) : (
             <EmptyState
@@ -694,11 +734,13 @@ function App() {
         onSetWordCountGoal={setWordCountGoal}
       />
       {gitSyncPopoverOpen && gitSyncPopover && (
-        <GitSyncPopover
-          state={gitSyncPopover}
-          onClose={() => setGitSyncPopoverOpen(false)}
-          onAction={gitSyncPopover.actionLabel ? () => void handleGitSyncAction() : undefined}
-        />
+        <Suspense fallback={null}>
+          <GitSyncPopover
+            state={gitSyncPopover}
+            onClose={() => setGitSyncPopoverOpen(false)}
+            onAction={gitSyncPopover.actionLabel ? () => void handleGitSyncAction() : undefined}
+          />
+        </Suspense>
       )}
       {toasts.length > 0 && (
         <div className="toast-container">
@@ -710,91 +752,111 @@ function App() {
         </div>
       )}
       {workspaceSwitcherOpen && (
-        <WorkspaceSwitcher
-          recentWorkspaces={recentWorkspaces}
-          currentRootPath={workspaceRootPath}
-          onSelect={(rootPath) => void openWorkspaceAtPath(rootPath)}
-          onOpenOther={handleOpenWorkspace}
-          onClose={() => setWorkspaceSwitcherOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <WorkspaceSwitcher
+            recentWorkspaces={recentWorkspaces}
+            currentRootPath={workspaceRootPath}
+            onSelect={(rootPath) => void openWorkspaceAtPath(rootPath)}
+            onOpenOther={handleOpenWorkspace}
+            onClose={() => setWorkspaceSwitcherOpen(false)}
+          />
+        </Suspense>
       )}
       {switcherOpen && (
-        <FileSwitcher
-          tree={tree}
-          recentFiles={recentFiles}
-          onSelect={(node) => {
-            void handleSelectFile(node);
-            pushRecent(node);
-            setSwitcherOpen(false);
-          }}
-          onClose={() => setSwitcherOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <FileSwitcher
+            tree={tree}
+            recentFiles={recentFiles}
+            onSelect={(node) => {
+              void handleSelectFile(node);
+              pushRecent(node);
+              setSwitcherOpen(false);
+            }}
+            onClose={() => setSwitcherOpen(false)}
+          />
+        </Suspense>
       )}
       {modal?.type === "new-file" && (
-        <NewFileDialog
-          contentTypes={contentTypes}
-          preselectedType={modal.contentType}
-          onConfirm={(name, contentType) => {
-            void handleNewFile(modal.dirPath, name, contentType);
-            setModal(null);
-          }}
-          onCancel={() => setModal(null)}
-        />
+        <Suspense fallback={null}>
+          <NewFileDialog
+            contentTypes={contentTypes}
+            preselectedType={modal.contentType}
+            onConfirm={(name, contentType) => {
+              void handleNewFile(modal.dirPath, name, contentType);
+              setModal(null);
+            }}
+            onCancel={() => setModal(null)}
+          />
+        </Suspense>
       )}
       {commitDialog && (
-        <CommitDialog
-          defaultMessage={commitDialog.message}
-          branch={commitDialog.branch}
-          changes={commitDialog.changes}
-          onCommit={(message, selectedPaths, push) =>
-            void handleCommitDialogCommit(message, selectedPaths, push)
-          }
-          onCancel={() => setCommitDialog(null)}
-        />
+        <Suspense fallback={null}>
+          <CommitDialog
+            defaultMessage={commitDialog.message}
+            branch={commitDialog.branch}
+            changes={commitDialog.changes}
+            onCommit={(message, selectedPaths, push) =>
+              void handleCommitDialogCommit(message, selectedPaths, push)
+            }
+            onCancel={() => setCommitDialog(null)}
+          />
+        </Suspense>
       )}
       {branchSwitcher && (
-        <BranchSwitcher
-          branches={branchSwitcher.branches}
-          remoteBranches={branchSwitcher.remoteBranches}
-          remoteInfo={branchSwitcher.remoteInfo}
-          onSelect={(branch) => void switchBranch(branch)}
-          onSelectRemoteBranch={(remoteRef) => void checkoutRemoteBranch(remoteRef)}
-          onCreateBranch={() => {
-            closeBranchSwitcher();
-            setNewBranchDialogOpen(true);
-          }}
-          onRenameBranch={(branch) => setRenameBranchDialog({ branch })}
-          onDeleteBranch={(branch) => setDeleteBranchDialog({ branch })}
-          onPushAndTrack={(remoteName) =>
-            void runGitAction("push", () => handlePush(remoteName), "Pushed and set upstream")
-          }
-          onOpenRemote={(remoteName) => void openRemote(remoteName)}
-          onCopyRemoteUrl={(remoteName) => void copyRemoteUrl(remoteName)}
-          onClose={closeBranchSwitcher}
-        />
+        <Suspense fallback={null}>
+          <BranchSwitcher
+            branches={branchSwitcher.branches}
+            remoteBranches={branchSwitcher.remoteBranches}
+            remoteInfo={branchSwitcher.remoteInfo}
+            onSelect={(branch) => void switchBranch(branch)}
+            onSelectRemoteBranch={(remoteRef) => void checkoutRemoteBranch(remoteRef)}
+            onCreateBranch={() => {
+              closeBranchSwitcher();
+              setNewBranchDialogOpen(true);
+            }}
+            onRenameBranch={(branch) => setRenameBranchDialog({ branch })}
+            onDeleteBranch={(branch) => setDeleteBranchDialog({ branch })}
+            onPushAndTrack={(remoteName) =>
+              void runGitAction("push", () => handlePush(remoteName), "Pushed and set upstream")
+            }
+            onOpenRemote={(remoteName) => void openRemote(remoteName)}
+            onCopyRemoteUrl={(remoteName) => void copyRemoteUrl(remoteName)}
+            onClose={closeBranchSwitcher}
+          />
+        </Suspense>
       )}
       {newBranchDialogOpen && (
-        <NewBranchDialog
-          currentBranch={currentBranch}
-          onConfirm={(branch) => void createBranch(branch)}
-          onCancel={() => setNewBranchDialogOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <NewBranchDialog
+            currentBranch={currentBranch}
+            onConfirm={(branch) => void createBranch(branch)}
+            onCancel={() => setNewBranchDialogOpen(false)}
+          />
+        </Suspense>
       )}
       {renameBranchDialog && (
-        <RenameBranchDialog
-          branch={renameBranchDialog.branch}
-          onConfirm={(branch) => void renameBranch(renameBranchDialog.branch, branch)}
-          onCancel={() => setRenameBranchDialog(null)}
-        />
+        <Suspense fallback={null}>
+          <RenameBranchDialog
+            branch={renameBranchDialog.branch}
+            onConfirm={(branch) => void renameBranch(renameBranchDialog.branch, branch)}
+            onCancel={() => setRenameBranchDialog(null)}
+          />
+        </Suspense>
       )}
       {deleteBranchDialog && (
-        <DeleteBranchDialog
-          branch={deleteBranchDialog.branch}
-          onConfirm={() => void deleteBranch(deleteBranchDialog.branch)}
-          onCancel={() => setDeleteBranchDialog(null)}
-        />
+        <Suspense fallback={null}>
+          <DeleteBranchDialog
+            branch={deleteBranchDialog.branch}
+            onConfirm={() => void deleteBranch(deleteBranchDialog.branch)}
+            onCancel={() => setDeleteBranchDialog(null)}
+          />
+        </Suspense>
       )}
-      <PerfPanel />
+      {isPerfLoggingEnabled() && (
+        <Suspense fallback={null}>
+          <PerfPanel />
+        </Suspense>
+      )}
     </div>
   );
 }

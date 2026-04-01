@@ -21,6 +21,14 @@
   overflow: hidden;
 }
 
+.editor-loading {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--color-fg-muted);
+  font-size: 13px;
+}
+
 /* ── Cover image banner ──────────────────────── */
 .cover-image-banner {
   flex-shrink: 0;

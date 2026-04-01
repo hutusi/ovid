@@ -1,9 +1,10 @@
-/* FileSwitcher panel — no padding, no radius on inner Command */
 .fs-panel {
   position: relative;
   z-index: 1;
   width: 480px;
   max-width: calc(100vw - 48px);
+  display: flex;
+  flex-direction: column;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: 10px;
@@ -13,8 +14,96 @@
   overflow: hidden;
 }
 
-/* Override cmdk root background so panel color shows through */
-.fs-panel [cmdk-root] {
+.fs-search-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fs-search-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-fg-muted);
+  flex: 0 0 auto;
+}
+
+.fs-search-input {
+  border: 0;
   background: transparent;
+  padding-inline: 0;
+  box-shadow: none;
+}
+
+.fs-search-input:focus-visible {
+  border-color: transparent;
+}
+
+.fs-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.fs-empty {
+  padding: 24px 8px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-fg-muted);
+}
+
+.fs-group-heading {
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-fg-muted);
+}
+
+.fs-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border);
+}
+
+.fs-item {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fs-item:hover,
+.fs-item.is-active {
+  background: var(--color-surface-hover);
+}
+
+.fs-item-title {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
   color: var(--color-fg);
+}
+
+.fs-item-title[data-draft="true"] {
+  opacity: 0.5;
+}
+
+.fs-item-path {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--color-fg-muted);
 }

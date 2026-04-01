@@ -6,6 +6,53 @@ import { defineConfig } from "vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+function manualChunks(id: string): string | undefined {
+  if (!id.includes("/node_modules/")) return undefined;
+
+  if (
+    id.includes("/node_modules/prosemirror-")
+  ) {
+    return "editor-prosemirror";
+  }
+
+  if (
+    id.includes("/node_modules/@tiptap/") &&
+    !id.includes("/node_modules/@tiptap/extension-mathematics/")
+  ) {
+    return "editor-tiptap";
+  }
+
+  if (
+    id.includes("/node_modules/katex/") ||
+    id.includes("/node_modules/@tiptap/extension-mathematics/")
+  ) {
+    return "editor-math";
+  }
+
+  if (
+    id.includes("/node_modules/lowlight/") ||
+    id.includes("/node_modules/highlight.js/") ||
+    id.includes("/node_modules/fault/") ||
+    id.includes("/node_modules/hast-util-") ||
+    id.includes("/node_modules/mdast-util-") ||
+    id.includes("/node_modules/micromark") ||
+    id.includes("/node_modules/unified/") ||
+    id.includes("/node_modules/unist-")
+  ) {
+    return "editor-highlight";
+  }
+
+  if (id.includes("/node_modules/@tauri-apps/")) {
+    return "tauri-vendor";
+  }
+
+  if (id.includes("/node_modules/lucide-react/")) {
+    return "icon-vendor";
+  }
+
+  return undefined;
+}
+
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
@@ -16,6 +63,13 @@ export default defineConfig(async () => ({
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks,
+      },
     },
   },
 

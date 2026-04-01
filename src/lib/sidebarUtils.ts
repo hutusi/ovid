@@ -87,6 +87,16 @@ export function sortNodes(nodes: FileNode[]): FileNode[] {
   });
 }
 
+export function sortTree(nodes: FileNode[]): FileNode[] {
+  return sortNodes(nodes).map((node) => {
+    if (!node.isDirectory) return node;
+    return {
+      ...node,
+      children: sortTree(node.children ?? []),
+    };
+  });
+}
+
 /** Returns true when a divider should be rendered before `nodes[index]`:
  *  the node is the first `page`-type file and there are non-page files
  *  earlier in the same list. */
