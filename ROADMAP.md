@@ -151,9 +151,14 @@ H. ✅ **Dialog accessibility** — shared `useFocusTrap` hook across all modals
 ## Phase 10 — Performance & Scale
 > Goal: keep Ovid calm and responsive as workspaces, documents, and daily usage get larger. 🖊 🧠
 
-55. **Faster workspace open** — avoid fully re-walking or eagerly hydrating everything on open; prioritize the visible tree and active workspace metadata so large projects feel immediate
-56. **Large-workspace navigation resilience** — keep sidebar expansion, quick switcher, and full-text search responsive in workspaces with thousands of files; reduce avoidable React churn and repeated derived-state work
+55. 🔄 **Faster workspace open** — avoid fully re-walking or eagerly hydrating everything on open; prioritize the visible tree and active workspace metadata so large projects feel immediate
+56. 🔄 **Large-workspace navigation resilience** — keep sidebar expansion, quick switcher, and full-text search responsive in workspaces with thousands of files; reduce avoidable React churn and repeated derived-state work
 57. **Large-document editor stability** — smooth out typing, folding, and cursor movement in very long Markdown files; identify expensive editor updates and defer or isolate non-critical work
 58. **Background refresh discipline** — make auto-save, Git refresh, and workspace reload behavior feel invisible; avoid UI stalls, redundant refreshes, and accidental focus-jumps during background tasks
 59. **Search and switcher ranking polish** — improve result quality for repeated daily use: better title/path balancing, stronger recent-file weighting, and less noisy fuzzy matches in large trees
-60. **Cold-start and release profiling** — measure startup, workspace open, search, branch switch, and commit-flow timings; use those numbers to drive follow-up optimizations instead of guessing
+60. 🔄 **Cold-start and release profiling** — measure startup, workspace open, search, branch switch, and commit-flow timings; use those numbers to drive follow-up optimizations instead of guessing
+
+Progress landed so far:
+- workspace/search caching and instrumentation improved repeated open and search paths
+- sidebar derived-state work was reduced for large trees
+- startup bundle work now defers overlays and the editor, with the editor stack split into smaller deferred chunks
