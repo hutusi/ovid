@@ -3,49 +3,42 @@ import {
   clearPerfEvents,
   formatDetail,
   getPerfEvents,
+  getPerfSummaries,
   isPerfLoggingEnabled,
   type PerfEvent,
+  type PerfMetricSummary,
   subscribePerfEvents,
 } from "../lib/perf";
 
-interface PerfEventSummary {
-  name: string;
-  count: number;
-  maxElapsedMs: number;
-  latestElapsedMs: number;
-  latestDetail?: Record<string, string | number | boolean>;
+interface PerfPanelState {
+  events: PerfEvent[];
+  summaries: PerfMetricSummary[];
 }
 
 export function PerfPanel() {
-  const [events, setEvents] = useState(() => getPerfEvents());
+  const [perfState, setPerfState] = useState<PerfPanelState>(() => ({
+    events: getPerfEvents(),
+    summaries: getPerfSummaries(),
+  }));
   const [showRecent, setShowRecent] = useState(false);
 
-  useEffect(() => subscribePerfEvents(() => setEvents(getPerfEvents())), []);
+  useEffect(
+    () =>
+      subscribePerfEvents(() =>
+        setPerfState({
+          events: getPerfEvents(),
+          summaries: getPerfSummaries(),
+        })
+      ),
+    []
+  );
 
-  if (!isPerfLoggingEnabled() || events.length === 0) return null;
+  const { events, summaries } = perfState;
+  if (!isPerfLoggingEnabled() || (events.length === 0 && summaries.length === 0)) return null;
 
-  const groupedEvents = Array.from(
-    events.reduce((groups, event) => {
-      const existing = groups.get(event.name);
-      if (existing) {
-        existing.count += 1;
-        existing.maxElapsedMs = Math.max(existing.maxElapsedMs, event.elapsedMs);
-        existing.latestElapsedMs = event.elapsedMs;
-        existing.latestDetail = event.detail;
-        return groups;
-      }
-      groups.set(event.name, {
-        name: event.name,
-        count: 1,
-        maxElapsedMs: event.elapsedMs,
-        latestElapsedMs: event.elapsedMs,
-        latestDetail: event.detail,
-      });
-      return groups;
-    }, new Map<string, PerfEventSummary>())
-  )
-    .map(([, group]) => group)
-    .sort((left, right) => right.maxElapsedMs - left.maxElapsedMs || right.count - left.count);
+  const sortedSummaries = [...summaries].sort(
+    (left, right) => right.maxElapsedMs - left.maxElapsedMs || right.count - left.count
+  );
 
   return (
     <aside className="perf-panel" aria-label="Performance events">
@@ -84,7 +77,7 @@ export function PerfPanel() {
                 )}
               </div>
             ))
-          : groupedEvents.map((event) => (
+          : sortedSummaries.map((event) => (
               <div key={event.name} className="perf-panel-item">
                 <div className="perf-panel-row">
                   <span className="perf-panel-name">{event.name}</span>
@@ -95,8 +88,11 @@ export function PerfPanel() {
                     latest={event.latestElapsedMs}ms count={event.count}
                   </div>
                 )}
-                {event.latestDetail && (
-                  <div className="perf-panel-detail">{formatDetail(event.latestDetail, false)}</div>
+                {(event.maxDetail || event.latestDetail) && (
+                  <div className="perf-panel-detail">
+                    peak={formatDetail(event.maxDetail, false)}
+                    {event.latestDetail ? ` latest=${formatDetail(event.latestDetail, false)}` : ""}
+                  </div>
                 )}
               </div>
             ))}

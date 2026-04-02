@@ -9,8 +9,18 @@ export interface PerfEvent {
   at: number;
 }
 
+export interface PerfMetricSummary {
+  name: string;
+  count: number;
+  maxElapsedMs: number;
+  latestElapsedMs: number;
+  maxDetail?: Record<string, string | number | boolean>;
+  latestDetail?: Record<string, string | number | boolean>;
+}
+
 let nextPerfEventId = 1;
 let perfEvents: PerfEvent[] = [];
+let perfSummaries = new Map<string, PerfMetricSummary>();
 const perfListeners = new Set<() => void>();
 
 export function isPerfLoggingEnabled(): boolean {
@@ -40,11 +50,31 @@ function pushPerfEvent(
   elapsedMs: number,
   detail?: Record<string, string | number | boolean>
 ): void {
+  const roundedElapsedMs = Math.round(elapsedMs);
+  const existingSummary = perfSummaries.get(name);
+  if (existingSummary) {
+    existingSummary.count += 1;
+    existingSummary.latestElapsedMs = roundedElapsedMs;
+    existingSummary.latestDetail = detail;
+    if (roundedElapsedMs >= existingSummary.maxElapsedMs) {
+      existingSummary.maxElapsedMs = roundedElapsedMs;
+      existingSummary.maxDetail = detail;
+    }
+  } else {
+    perfSummaries.set(name, {
+      name,
+      count: 1,
+      maxElapsedMs: roundedElapsedMs,
+      latestElapsedMs: roundedElapsedMs,
+      maxDetail: detail,
+      latestDetail: detail,
+    });
+  }
   perfEvents = [
     {
       id: nextPerfEventId++,
       name,
-      elapsedMs: Math.round(elapsedMs),
+      elapsedMs: roundedElapsedMs,
       detail,
       at: Date.now(),
     },
@@ -57,9 +87,14 @@ export function getPerfEvents(): PerfEvent[] {
   return [...perfEvents];
 }
 
+export function getPerfSummaries(): PerfMetricSummary[] {
+  return Array.from(perfSummaries.values()).map((summary) => ({ ...summary }));
+}
+
 export function clearPerfEvents(): void {
-  if (perfEvents.length === 0) return;
+  if (perfEvents.length === 0 && perfSummaries.size === 0) return;
   perfEvents = [];
+  perfSummaries = new Map();
   notifyPerfListeners();
 }
 
