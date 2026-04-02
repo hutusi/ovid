@@ -9,9 +9,11 @@ import {
   serializeFrontmatter,
 } from "./frontmatter";
 import { normalizeMarkdownSpacing } from "./markdown";
+import { measureAsync, measureSync } from "./perf";
 import type { FileNode, SaveStatus } from "./types";
 
 const SAVE_DELAY_MS = 750;
+type FlushMode = "blocking" | "background";
 
 export function useFileEditor({ showToast }: { showToast: (msg: string) => void }) {
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
@@ -25,6 +27,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingMarkdownRef = useRef<string | null>(null);
   const editorFlushRef = useRef<(() => void) | null>(null);
+  const inFlightWritesRef = useRef(new Set<Promise<void>>());
 
   useEffect(() => {
     return () => {
@@ -41,29 +44,87 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
     };
   }, []);
 
-  const flushPendingSave = useCallback(async () => {
-    editorFlushRef.current?.();
-    if (!saveTimerRef.current) return;
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = null;
+  const trackWrite = useCallback((write: Promise<void>) => {
+    inFlightWritesRef.current.add(write);
+    write.finally(() => {
+      inFlightWritesRef.current.delete(write);
+    });
+    return write;
+  }, []);
 
-    const path = selectedPathRef.current;
-    const markdown = pendingMarkdownRef.current;
-    if (!path || markdown === null) return;
+  const awaitInFlightWrites = useCallback(async () => {
+    const writes = Array.from(inFlightWritesRef.current);
+    if (writes.length === 0) return;
+    await Promise.all(writes);
+  }, []);
 
-    const diskContent = joinFrontmatter(frontmatterRef.current, markdown);
-    try {
-      await invoke("write_file", { path, content: diskContent });
-      if (pendingMarkdownRef.current === markdown) {
-        pendingMarkdownRef.current = null;
-        setSaveStatus("saved");
+  const writeMarkdown = useCallback(
+    (path: string, markdown: string, perfName: "editor.writeFile" | "editor.flushPendingWrite") => {
+      const diskContent = joinFrontmatter(frontmatterRef.current, markdown);
+      return trackWrite(
+        measureAsync(
+          perfName,
+          async () => {
+            await invoke("write_file", { path, content: diskContent });
+          },
+          {
+            contentLength: diskContent.length,
+          }
+        )
+      );
+    },
+    [trackWrite]
+  );
+
+  const flushPendingSave = useCallback(
+    async ({ mode = "blocking" }: { mode?: FlushMode } = {}) => {
+      editorFlushRef.current?.();
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
       }
-    } catch (err) {
-      console.error("Failed to flush pending save:", err);
-      showToast("Failed to save — check console for details");
-      throw err; // propagate so callers (e.g. commit flow) can abort
-    }
-  }, [showToast]);
+
+      const path = selectedPathRef.current;
+      const markdown = pendingMarkdownRef.current;
+      const pendingWrite =
+        path && markdown !== null
+          ? writeMarkdown(path, markdown, "editor.flushPendingWrite")
+          : null;
+
+      if (pendingWrite) {
+        if (mode === "background") {
+          pendingWrite.catch((err) => {
+            console.error("Failed to flush pending save:", err);
+            showToast("Failed to save — check console for details");
+          });
+        } else {
+          try {
+            await pendingWrite;
+          } catch (err) {
+            console.error("Failed to flush pending save:", err);
+            showToast("Failed to save — check console for details");
+            throw err;
+          }
+        }
+
+        if (selectedPathRef.current === path && pendingMarkdownRef.current === markdown) {
+          pendingMarkdownRef.current = null;
+          setSaveStatus("saved");
+        }
+      }
+
+      if (mode === "blocking") {
+        try {
+          await awaitInFlightWrites();
+        } catch (err) {
+          console.error("Failed to finish in-flight save:", err);
+          showToast("Failed to save — check console for details");
+          throw err;
+        }
+      }
+    },
+    [awaitInFlightWrites, showToast, writeMarkdown]
+  );
 
   const resetFileState = useCallback(() => {
     setSelectedFile(null);
@@ -77,12 +138,12 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
   }, []);
 
   const handleCloseFile = useCallback(async () => {
-    await flushPendingSave();
+    await flushPendingSave({ mode: "background" });
     resetFileState();
   }, [flushPendingSave, resetFileState]);
 
   async function handleSelectFile(node: FileNode) {
-    await flushPendingSave();
+    await flushPendingSave({ mode: "background" });
     const prevPath = selectedPathRef.current;
     selectedPathRef.current = node.path;
     pendingMarkdownRef.current = null;
@@ -110,7 +171,13 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
   function handleEditorChange(markdown: string) {
     if (!selectedFile) return;
     const pathToSave = selectedFile.path;
-    const normalizedMarkdown = normalizeMarkdownSpacing(markdown);
+    const normalizedMarkdown = measureSync(
+      "editor.normalizeMarkdownSpacing",
+      () => normalizeMarkdownSpacing(markdown),
+      {
+        contentLength: markdown.length,
+      }
+    );
     setSaveStatus("unsaved");
     pendingMarkdownRef.current = normalizedMarkdown;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -118,9 +185,8 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       saveTimerRef.current = null;
       const snapshot = pendingMarkdownRef.current;
       if (snapshot === null) return;
-      const diskContent = joinFrontmatter(frontmatterRef.current, snapshot);
       try {
-        await invoke("write_file", { path: pathToSave, content: diskContent });
+        await writeMarkdown(pathToSave, snapshot, "editor.writeFile");
         if (pendingMarkdownRef.current === snapshot) {
           pendingMarkdownRef.current = null;
           setSaveStatus("saved");

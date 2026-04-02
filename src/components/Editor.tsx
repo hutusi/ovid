@@ -11,6 +11,7 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableRow } from "@tiptap/extension-table-row";
 import Typography from "@tiptap/extension-typography";
+import { TextSelection } from "@tiptap/pm/state";
 import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
@@ -66,10 +67,13 @@ interface EditorProps {
   cdnBase?: string;
   typewriterMode?: boolean;
   spellCheck?: boolean;
+  initialSelection?: number;
+  initialScrollTop?: number;
   onWordCount?: (count: number) => void;
   onDirty?: () => void;
   onChange?: (markdown: string) => void;
   onError?: (msg: string) => void;
+  onViewStateChange?: (viewState: { selection: number; scrollTop: number }) => void;
   registerPendingFlush?: (flush: (() => void) | null) => void;
 }
 
@@ -80,10 +84,13 @@ export function Editor({
   cdnBase,
   typewriterMode = false,
   spellCheck = true,
+  initialSelection,
+  initialScrollTop,
   onWordCount,
   onDirty,
   onChange,
   onError,
+  onViewStateChange,
   registerPendingFlush,
 }: EditorProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -121,6 +128,13 @@ export function Editor({
       onChange(serializeMarkdown(editorInstance));
     },
     [onChange, serializeMarkdown]
+  );
+
+  const emitViewState = useCallback(
+    (selection: number, scrollTop = scrollRef.current?.scrollTop ?? 0) => {
+      onViewStateChange?.({ selection, scrollTop });
+    },
+    [onViewStateChange]
   );
 
   const editor = useEditor({
@@ -294,32 +308,81 @@ export function Editor({
           normalized: typingNormalization ? 1 : 0,
         });
       }
+
+      emitViewState(selection.from);
     },
     onSelectionUpdate({ editor: ed }) {
-      if (!typewriterRef.current || !scrollRef.current) return;
-      measureSync(
-        "editor.typewriterScroll",
-        () => {
-          const { from } = ed.view.state.selection;
-          const coords = ed.view.coordsAtPos(from);
-          if (coords.top === 0 && coords.bottom === 0) return;
-          const scrollEl = scrollRef.current;
-          if (!scrollEl) return;
-          const rect = scrollEl.getBoundingClientRect();
-          const cursorRelTop = coords.top - rect.top;
-          const target = scrollEl.scrollTop + cursorRelTop - rect.height / 2;
-          scrollEl.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
-        },
-        {
-          docSize: ed.state.doc.content.size,
-        }
-      );
+      if (typewriterRef.current && scrollRef.current) {
+        measureSync(
+          "editor.typewriterScroll",
+          () => {
+            const { from } = ed.view.state.selection;
+            const coords = ed.view.coordsAtPos(from);
+            if (coords.top === 0 && coords.bottom === 0) return;
+            const scrollEl = scrollRef.current;
+            if (!scrollEl) return;
+            const rect = scrollEl.getBoundingClientRect();
+            const cursorRelTop = coords.top - rect.top;
+            const target = scrollEl.scrollTop + cursorRelTop - rect.height / 2;
+            scrollEl.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+          },
+          {
+            docSize: ed.state.doc.content.size,
+          }
+        );
+      }
+      emitViewState(ed.state.selection.from);
     },
   });
 
   useEffect(() => {
     latestEditorRef.current = editor;
   }, [editor]);
+
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl || !editor) return;
+    function handleScroll(event: Event) {
+      const target = event.currentTarget;
+      if (!(target instanceof HTMLDivElement)) return;
+      emitViewState(editor.state.selection.from, target.scrollTop);
+    }
+    scrollEl.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scrollEl.removeEventListener("scroll", handleScroll);
+  }, [editor, emitViewState]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const restoreTimers: number[] = [];
+    const restoreFrames: number[] = [];
+    const restoreViewState = () => {
+      if (initialSelection !== undefined) {
+        const maxPos = Math.max(1, editor.state.doc.content.size);
+        const nextSelection = TextSelection.create(
+          editor.state.doc,
+          Math.min(Math.max(initialSelection, 1), maxPos)
+        );
+        editor.view.dispatch(
+          editor.state.tr.setSelection(nextSelection).setMeta("scrollIntoView", false)
+        );
+      }
+      if (scrollRef.current && initialScrollTop !== undefined) {
+        scrollRef.current.scrollTop = initialScrollTop;
+      }
+    };
+    restoreFrames.push(window.requestAnimationFrame(restoreViewState));
+    for (const delayMs of [16, 48, 96, 180, 320]) {
+      restoreTimers.push(
+        window.setTimeout(() => {
+          restoreFrames.push(window.requestAnimationFrame(restoreViewState));
+        }, delayMs)
+      );
+    }
+    return () => {
+      for (const timer of restoreTimers) window.clearTimeout(timer);
+      for (const frame of restoreFrames) window.cancelAnimationFrame(frame);
+    };
+  }, [editor, initialScrollTop, initialSelection]);
 
   useEffect(() => {
     if (!registerPendingFlush) return;
