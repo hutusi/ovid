@@ -102,7 +102,7 @@
   right: 14px;
   bottom: calc(var(--statusbar-height) + 12px);
   width: min(360px, calc(100vw - 28px));
-  max-height: min(45vh, 420px);
+  max-height: min(60vh, 520px);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -113,15 +113,39 @@
   backdrop-filter: blur(12px);
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
   z-index: 900;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .perf-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   font-size: 11px;
   color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
+}
+
+.perf-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.perf-panel-toggle,
+.perf-panel-clear {
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
+  font: inherit;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.perf-panel-toggle.is-active {
+  background: color-mix(in srgb, var(--color-accent, #4b7cff) 18%, var(--color-surface));
+  color: var(--color-fg);
 }
 
 .perf-panel-list {

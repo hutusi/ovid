@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { PropertiesPanel } from "./components/PropertiesPanel";
@@ -26,6 +26,7 @@ import "./styles/global.css";
 import "./App.css";
 
 type ModalState = { type: "new-file"; dirPath: string; contentType?: string } | null;
+type EditorViewState = { selection: number; scrollTop: number };
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
@@ -87,6 +88,7 @@ function App() {
   const pendingAutoOpenPath = useRef<string | null>(null);
   const lastAutoFetchAtRef = useRef(0);
   const autoFetchInFlightRef = useRef(false);
+  const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
 
   const { toasts, showToast } = useToast();
   const { prefs, updatePrefs } = useEditorPreferences();
@@ -106,7 +108,9 @@ function App() {
     handleCloseFile,
     handleSelectFile,
     handleEditorChange,
+    handleEditorDirty,
     handleFieldChange,
+    registerEditorFlush,
   } = useFileEditor({ showToast });
 
   const {
@@ -137,6 +141,16 @@ function App() {
   });
 
   const { recentFiles, pushRecent, resetRecent } = useRecentFiles(workspaceRoot);
+  const handleEditorViewStateChange = useCallback(
+    (viewState: EditorViewState) => {
+      if (!selectedFile) return;
+      editorViewStateRef.current[selectedFile.path] = viewState;
+    },
+    [selectedFile]
+  );
+  const currentEditorViewState = selectedFile
+    ? editorViewStateRef.current[selectedFile.path]
+    : undefined;
   const { recentWorkspaces, pushRecentWorkspace } = useRecentWorkspaces();
   const {
     gitStatusMap,
@@ -678,8 +692,13 @@ function App() {
                   typewriterMode={typewriterMode}
                   spellCheck={prefs.spellCheck}
                   onWordCount={setWordCount}
+                  onDirty={handleEditorDirty}
                   onChange={handleEditorChange}
                   onError={showToast}
+                  initialSelection={currentEditorViewState?.selection}
+                  initialScrollTop={currentEditorViewState?.scrollTop}
+                  onViewStateChange={handleEditorViewStateChange}
+                  registerPendingFlush={registerEditorFlush}
                 />
               </Suspense>
             </ErrorBoundary>
