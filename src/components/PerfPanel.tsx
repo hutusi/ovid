@@ -48,6 +48,7 @@ export function PerfPanel() {
           <button
             type="button"
             className={`perf-panel-toggle${showRecent ? "" : " is-active"}`}
+            aria-pressed={!showRecent}
             onClick={() => setShowRecent(false)}
           >
             Summary
@@ -55,6 +56,7 @@ export function PerfPanel() {
           <button
             type="button"
             className={`perf-panel-toggle${showRecent ? " is-active" : ""}`}
+            aria-pressed={showRecent}
             onClick={() => setShowRecent(true)}
           >
             Recent
