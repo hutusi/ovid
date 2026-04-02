@@ -98,6 +98,8 @@ export function Editor({
   const updateStartedAtRef = useRef(0);
   const pendingSerializeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestEditorRef = useRef<ReturnType<typeof useEditor>>(null);
+  const pendingRestoreTimersRef = useRef<number[]>([]);
+  const pendingRestoreFramesRef = useRef<number[]>([]);
   useEffect(() => {
     typewriterRef.current = typewriterMode;
   }, [typewriterMode]);
@@ -136,6 +138,13 @@ export function Editor({
     },
     [onViewStateChange]
   );
+
+  const clearPendingRestore = useCallback(() => {
+    for (const timer of pendingRestoreTimersRef.current) window.clearTimeout(timer);
+    for (const frame of pendingRestoreFramesRef.current) window.cancelAnimationFrame(frame);
+    pendingRestoreTimersRef.current = [];
+    pendingRestoreFramesRef.current = [];
+  }, []);
 
   const editor = useEditor({
     extensions: [
@@ -255,6 +264,7 @@ export function Editor({
       },
     },
     onUpdate({ editor }) {
+      clearPendingRestore();
       latestEditorRef.current = editor;
       updateStartedAtRef.current = performance.now();
       const { selection } = editor.state;
@@ -312,6 +322,7 @@ export function Editor({
       emitViewState(selection.from);
     },
     onSelectionUpdate({ editor: ed }) {
+      clearPendingRestore();
       if (typewriterRef.current && scrollRef.current) {
         measureSync(
           "editor.typewriterScroll",
@@ -353,8 +364,7 @@ export function Editor({
 
   useEffect(() => {
     if (!editor) return;
-    const restoreTimers: number[] = [];
-    const restoreFrames: number[] = [];
+    clearPendingRestore();
     const restoreViewState = () => {
       if (initialSelection !== undefined) {
         const maxPos = Math.max(1, editor.state.doc.content.size);
@@ -370,19 +380,18 @@ export function Editor({
         scrollRef.current.scrollTop = initialScrollTop;
       }
     };
-    restoreFrames.push(window.requestAnimationFrame(restoreViewState));
+    pendingRestoreFramesRef.current.push(window.requestAnimationFrame(restoreViewState));
     for (const delayMs of [16, 48, 96, 180, 320]) {
-      restoreTimers.push(
+      pendingRestoreTimersRef.current.push(
         window.setTimeout(() => {
-          restoreFrames.push(window.requestAnimationFrame(restoreViewState));
+          pendingRestoreFramesRef.current.push(window.requestAnimationFrame(restoreViewState));
         }, delayMs)
       );
     }
     return () => {
-      for (const timer of restoreTimers) window.clearTimeout(timer);
-      for (const frame of restoreFrames) window.cancelAnimationFrame(frame);
+      clearPendingRestore();
     };
-  }, [editor, initialScrollTop, initialSelection]);
+  }, [clearPendingRestore, editor, initialScrollTop, initialSelection]);
 
   useEffect(() => {
     if (!registerPendingFlush) return;
