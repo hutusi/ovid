@@ -30,6 +30,7 @@ type EditorViewState = { selection: number; scrollTop: number };
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
+const SAVE_GIT_REFRESH_DELAY_MS = 400;
 
 const loadEditor = async () => import("./components/Editor");
 const Editor = lazy(async () => ({
@@ -89,6 +90,8 @@ function App() {
   const lastAutoFetchAtRef = useRef(0);
   const autoFetchInFlightRef = useRef(false);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
+  const saveRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousSaveStatusRef = useRef<"saved" | "unsaved">("saved");
 
   const { toasts, showToast } = useToast();
   const { prefs, updatePrefs } = useEditorPreferences();
@@ -413,7 +416,23 @@ function App() {
 
   // Refresh git status after each save completes
   useEffect(() => {
-    if (saveStatus === "saved" && isGitRepo) void refreshGitStatus();
+    const previousSaveStatus = previousSaveStatusRef.current;
+    previousSaveStatusRef.current = saveStatus;
+
+    if (!isGitRepo || saveStatus !== "saved" || previousSaveStatus !== "unsaved") return;
+
+    if (saveRefreshTimerRef.current) clearTimeout(saveRefreshTimerRef.current);
+    saveRefreshTimerRef.current = setTimeout(() => {
+      saveRefreshTimerRef.current = null;
+      void refreshGitStatus();
+    }, SAVE_GIT_REFRESH_DELAY_MS);
+
+    return () => {
+      if (saveRefreshTimerRef.current) {
+        clearTimeout(saveRefreshTimerRef.current);
+        saveRefreshTimerRef.current = null;
+      }
+    };
   }, [saveStatus, isGitRepo, refreshGitStatus]);
 
   // Refresh remote-tracking refs when the window regains focus so ahead/behind stays current.
