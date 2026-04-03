@@ -123,8 +123,9 @@ export function useGit(workspaceRoot: string | null) {
   useEffect(() => {
     currentWorkspaceRootRef.current = workspaceRoot;
     refreshGenerationRef.current += 1;
+    resetGitState();
     void refreshGitStatus();
-  }, [workspaceRoot, refreshGitStatus]);
+  }, [workspaceRoot, refreshGitStatus, resetGitState]);
 
   async function getCommitChanges(): Promise<GitCommitChange[]> {
     return invoke<GitCommitChange[]>("get_git_commit_changes");
