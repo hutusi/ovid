@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { FlatFile } from "./fileSearch";
-import { flattenTree, score } from "./fileSearch";
+import { compareFiles, flattenTree, score } from "./fileSearch";
 import type { FileNode } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -130,25 +130,25 @@ function makeFlat(displayName: string, relativePath?: string): FlatFile {
 }
 
 describe("score", () => {
-  it("returns 3 for exact display name match", () => {
-    expect(score(makeFlat("hello"), "hello")).toBe(3);
+  it("returns a positive score for exact display name match", () => {
+    expect(score(makeFlat("hello"), "hello")).toBeGreaterThan(0);
   });
 
   it("exact match is case-insensitive", () => {
-    expect(score(makeFlat("Hello World"), "hello world")).toBe(3);
+    expect(score(makeFlat("Hello World"), "hello world")).toBeGreaterThan(0);
   });
 
-  it("returns 2 for prefix match on display name", () => {
-    expect(score(makeFlat("hello world"), "hello")).toBe(2);
+  it("returns a positive score for prefix match on display name", () => {
+    expect(score(makeFlat("hello world"), "hello")).toBeGreaterThan(0);
   });
 
-  it("returns 1 for substring match in display name", () => {
-    expect(score(makeFlat("say hello there"), "hello")).toBe(1);
+  it("returns a positive score for substring match in display name", () => {
+    expect(score(makeFlat("say hello there"), "hello")).toBeGreaterThan(0);
   });
 
-  it("returns 1 for match in relative path only", () => {
+  it("returns a positive score for match in relative path only", () => {
     const flat = makeFlat("untitled", "posts/2024/hello.md");
-    expect(score(flat, "hello")).toBe(1);
+    expect(score(flat, "hello")).toBeGreaterThan(0);
   });
 
   it("returns 0 when no match", () => {
@@ -157,7 +157,7 @@ describe("score", () => {
 
   it("path match is also case-insensitive", () => {
     const flat = makeFlat("untitled", "Archive/OldPost.md");
-    expect(score(flat, "oldpost")).toBe(1);
+    expect(score(flat, "oldpost")).toBeGreaterThan(0);
   });
 
   it("exact match scores higher than prefix", () => {
@@ -170,5 +170,51 @@ describe("score", () => {
     const prefix = makeFlat("rustacean");
     const substring = makeFlat("learning rust");
     expect(score(prefix, "rust")).toBeGreaterThan(score(substring, "rust"));
+  });
+
+  it("prefers basename prefix matches over deep path matches", () => {
+    const basenamePrefix = makeFlat("untitled", "hello-world.md");
+    const pathOnly = makeFlat("notes", "archive/hello/world.md");
+    expect(score(basenamePrefix, "hello")).toBeGreaterThan(score(pathOnly, "hello"));
+  });
+
+  it("prefers exact path segment matches over broader path substrings", () => {
+    const segmentMatch = makeFlat("untitled", "posts/hello/index.md");
+    const substringMatch = makeFlat("untitled", "posts/say-hello/index.md");
+    expect(score(segmentMatch, "hello")).toBeGreaterThan(score(substringMatch, "hello"));
+  });
+
+  it("prefers earlier display name substring matches over later ones", () => {
+    const early = makeFlat("hello notes");
+    const late = makeFlat("notes hello");
+    expect(score(early, "hello")).toBeGreaterThan(score(late, "hello"));
+  });
+
+  it("treats exact basename matches as strongest matches", () => {
+    const basenameExact = makeFlat("Untitled", "hello.md");
+    const titlePrefix = makeFlat("hello world", "notes.md");
+    expect(score(basenameExact, "hello")).toBeGreaterThan(score(titlePrefix, "hello"));
+  });
+});
+
+describe("compareFiles", () => {
+  it("uses recent-file order as a tie-breaker for typed matches", () => {
+    const recent = makeFlat("meeting notes", "notes/meeting.md");
+    const older = makeFlat("meeting notes", "archive/meeting.md");
+    const recentRankByPath = new Map([
+      [recent.node.path, 0],
+      [older.node.path, 3],
+    ]);
+
+    const sorted = [older, recent].sort((a, b) => compareFiles(a, b, "meeting", recentRankByPath));
+    expect(sorted[0]).toBe(recent);
+  });
+
+  it("prefers shorter paths when score and recency are tied", () => {
+    const shortPath = makeFlat("release notes", "release.md");
+    const longPath = makeFlat("release notes", "archive/2024/release.md");
+
+    const sorted = [longPath, shortPath].sort((a, b) => compareFiles(a, b, "release"));
+    expect(sorted[0]).toBe(shortPath);
   });
 });

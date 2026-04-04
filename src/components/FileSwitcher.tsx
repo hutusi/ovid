@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type FlatFile, flattenTree, score } from "../lib/fileSearch";
+import { compareFiles, type FlatFile, flattenTree, score } from "../lib/fileSearch";
 import type { FileNode, RecentFile } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { Input } from "./ui/input";
@@ -31,11 +31,10 @@ function buildItemGroups(
     return { recentResults, otherResults };
   }
 
+  const recentRankByPath = new Map(recentFiles.map((file, index) => [file.path, index]));
   const otherResults = allFiles
-    .map((f) => ({ file: f, score: score(f, query.trim()) }))
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map(({ file }) => file)
+    .filter((f) => score(f, query.trim()) > 0)
+    .sort((a, b) => compareFiles(a, b, query.trim(), recentRankByPath))
     .slice(0, 50);
 
   return { recentResults: [] as FlatFile[], otherResults };

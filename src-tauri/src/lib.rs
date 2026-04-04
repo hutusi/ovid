@@ -53,6 +53,65 @@ struct SearchResult {
     has_more_matches: bool,
 }
 
+fn search_display_name(result: &SearchResult) -> String {
+    if let Some(title) = result.title.as_deref().map(str::trim).filter(|title| !title.is_empty()) {
+        return title.to_lowercase();
+    }
+
+    Path::new(&result.path)
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or(&result.path)
+        .to_lowercase()
+}
+
+fn search_relative_path(path: &str, root: &Path) -> String {
+    Path::new(path)
+        .strip_prefix(root)
+        .unwrap_or_else(|_| Path::new(path))
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_lowercase()
+}
+
+fn score_search_result(result: &SearchResult, query_lower: &str, root: &Path) -> i64 {
+    let display_name = search_display_name(result);
+    let relative_path = search_relative_path(&result.path, root);
+    let base_name = Path::new(&result.path)
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let text_score = if display_name == query_lower || base_name == query_lower {
+        1_200
+    } else if display_name.starts_with(query_lower) {
+        900 - (display_name.len().saturating_sub(query_lower.len()) as i64)
+    } else if base_name.starts_with(query_lower) {
+        850 - (base_name.len().saturating_sub(query_lower.len()) as i64)
+    } else if relative_path
+        .split('/')
+        .any(|part| part == query_lower || part == format!("{query_lower}.md") || part == format!("{query_lower}.mdx"))
+    {
+        825
+    } else if relative_path
+        .split(|c: char| matches!(c, '/' | '\\' | '.' | '_' | '-' | ' '))
+        .any(|segment| segment == query_lower)
+    {
+        800
+    } else if let Some(index) = display_name.find(query_lower) {
+        600 - index as i64
+    } else if let Some(index) = base_name.find(query_lower) {
+        500 - index as i64
+    } else if let Some(index) = relative_path.find(query_lower) {
+        300 - std::cmp::min(index, 250) as i64
+    } else {
+        0
+    };
+
+    text_score + std::cmp::min(result.total_matches, 25) as i64
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct FileNode {
@@ -696,6 +755,22 @@ fn search_workspace(
         let frontmatter_cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
         search_dir(&root, &query_lower, &mut cache, &frontmatter_cache)
     };
+    let mut scored_results = results
+        .into_iter()
+        .map(|result| {
+            let score = score_search_result(&result, &query_lower, &root);
+            (score, result)
+        })
+        .collect::<Vec<_>>();
+    scored_results.sort_by(|(score_a, result_a), (score_b, result_b)| {
+        score_b
+            .cmp(score_a)
+            .then_with(|| result_a.path.cmp(&result_b.path))
+    });
+    let results = scored_results
+        .into_iter()
+        .map(|(_, result)| result)
+        .collect::<Vec<_>>();
     let file_count = results.len();
     let match_count = results
         .iter()
@@ -2678,6 +2753,57 @@ mod tests {
         assert_eq!(results[0].matches.len(), MAX_SEARCH_MATCHES_PER_FILE);
         assert_eq!(results[0].total_matches, 13);
         assert!(results[0].has_more_matches);
+    }
+
+    fn make_search_result(path: &str, title: Option<&str>, total_matches: usize) -> SearchResult {
+        SearchResult {
+            path: path.to_string(),
+            title: title.map(str::to_string),
+            matches: Vec::new(),
+            total_matches,
+            has_more_matches: false,
+        }
+    }
+
+    #[test]
+    fn score_search_result_prefers_exact_title_matches() {
+        let root = PathBuf::from("/workspace");
+        let exact = make_search_result("/workspace/notes/rust.md", Some("Rust"), 1);
+        let prefix = make_search_result("/workspace/notes/rust-book.md", Some("Rust Book"), 1);
+
+        assert!(score_search_result(&exact, "rust", &root) > score_search_result(&prefix, "rust", &root));
+    }
+
+    #[test]
+    fn score_search_result_prefers_exact_path_parts_over_substrings() {
+        let root = PathBuf::from("/workspace");
+        let exact_part = make_search_result("/workspace/posts/hello/index.md", None, 1);
+        let substring = make_search_result("/workspace/posts/say-hello/index.md", None, 1);
+
+        assert!(
+            score_search_result(&exact_part, "hello", &root)
+                > score_search_result(&substring, "hello", &root)
+        );
+    }
+
+    #[test]
+    fn search_workspace_sort_prefers_relevance_then_match_count() {
+        let root = PathBuf::from("/workspace");
+        let mut results = vec![
+            make_search_result("/workspace/archive/rust-notes.md", Some("Notes"), 5),
+            make_search_result("/workspace/notes/rust.md", Some("Rust"), 1),
+            make_search_result("/workspace/notes/rust-book.md", Some("Rust Book"), 2),
+        ];
+
+        results.sort_by(|a, b| {
+            score_search_result(b, "rust", &root)
+                .cmp(&score_search_result(a, "rust", &root))
+                .then_with(|| a.path.cmp(&b.path))
+        });
+
+        assert_eq!(results[0].path, "/workspace/notes/rust.md");
+        assert_eq!(results[1].path, "/workspace/notes/rust-book.md");
+        assert_eq!(results[2].path, "/workspace/archive/rust-notes.md");
     }
 
     // ── git helpers ─────────────────────────────────────────────────────────
