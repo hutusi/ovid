@@ -747,7 +747,7 @@ fn search_workspace(
         root_guard.as_ref().ok_or("no workspace open")?.clone()
     };
     let query_lower = query.trim().to_lowercase();
-    let mut results = {
+    let results = {
         // Keep cache lock ordering consistent: search_cache first, then
         // frontmatter_cache. If this path ever changes, preserve that order to
         // avoid introducing deadlocks across future cache-aware search/tree code.
@@ -755,11 +755,22 @@ fn search_workspace(
         let frontmatter_cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
         search_dir(&root, &query_lower, &mut cache, &frontmatter_cache)
     };
-    results.sort_by(|a, b| {
-        score_search_result(b, &query_lower, &root)
-            .cmp(&score_search_result(a, &query_lower, &root))
-            .then_with(|| a.path.cmp(&b.path))
+    let mut scored_results = results
+        .into_iter()
+        .map(|result| {
+            let score = score_search_result(&result, &query_lower, &root);
+            (score, result)
+        })
+        .collect::<Vec<_>>();
+    scored_results.sort_by(|(score_a, result_a), (score_b, result_b)| {
+        score_b
+            .cmp(score_a)
+            .then_with(|| result_a.path.cmp(&result_b.path))
     });
+    let results = scored_results
+        .into_iter()
+        .map(|(_, result)| result)
+        .collect::<Vec<_>>();
     let file_count = results.len();
     let match_count = results
         .iter()
