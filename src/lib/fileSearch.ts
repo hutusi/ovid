@@ -15,6 +15,9 @@ export function flattenTree(nodes: FileNode[], prefix = ""): FlatFile[] {
   for (const node of collapseIndexNodes(nodes)) {
     if (node.isDirectory) {
       const dir = prefix ? `${prefix}/${node.name}` : node.name;
+      if (node.childrenLoaded === false) {
+        continue;
+      }
       if (node.children) result.push(...flattenTree(node.children, dir));
     } else {
       const baseName = node.name.replace(/\.mdx?$/, "");

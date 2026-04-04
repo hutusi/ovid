@@ -35,6 +35,7 @@ interface SidebarProps {
   onOpenWorkspace: () => void;
   onOpenSwitcher: () => void;
   onNewFile: (dirPath: string) => void;
+  onLoadDirectoryChildren: (dirPath: string) => void;
   onRename: (node: FileNode, newName: string) => void;
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
@@ -52,6 +53,7 @@ interface FileItemProps {
   forceExpand?: boolean;
   onSelect: (node: FileNode) => void;
   onNewFile: (dirPath: string) => void;
+  onLoadDirectoryChildren: (dirPath: string) => void;
   onRename: (node: FileNode, newName: string) => void;
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
@@ -69,6 +71,7 @@ function FileItem({
   forceExpand = false,
   onSelect,
   onNewFile,
+  onLoadDirectoryChildren,
   onRename,
   onDelete,
   onStartRename,
@@ -121,7 +124,12 @@ function FileItem({
             type="button"
             className="sidebar-dir"
             aria-expanded={expanded}
-            onClick={() => onToggleExpand(node.path, depth)}
+            onClick={() => {
+              if (!expanded && node.childrenLoaded === false) {
+                onLoadDirectoryChildren(node.path);
+              }
+              onToggleExpand(node.path, depth);
+            }}
           >
             <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
             {node.name}
@@ -148,6 +156,7 @@ function FileItem({
                 forceExpand={forceExpand}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
+                onLoadDirectoryChildren={onLoadDirectoryChildren}
                 onRename={onRename}
                 onDelete={onDelete}
                 onStartRename={onStartRename}
@@ -254,6 +263,7 @@ export function Sidebar({
   onOpenWorkspace,
   onOpenSwitcher,
   onNewFile,
+  onLoadDirectoryChildren,
   onRename,
   onDelete,
   onStartRename,
@@ -469,6 +479,7 @@ export function Sidebar({
                 forceExpand={filterQuery.length > 0}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
+                onLoadDirectoryChildren={onLoadDirectoryChildren}
                 onRename={onRename}
                 onDelete={onDelete}
                 onStartRename={onStartRename}

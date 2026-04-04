@@ -115,6 +115,31 @@ describe("flattenTree", () => {
     const [flat] = flattenTree([node]);
     expect(flat.relativePath).toBe("readme.md");
   });
+
+  it("does not descend into unloaded directories", () => {
+    const tree = [
+      {
+        name: "posts",
+        path: "/workspace/posts",
+        isDirectory: true,
+        childrenLoaded: false,
+        children: [
+          {
+            name: "hidden.md",
+            path: "/workspace/posts/hidden.md",
+            isDirectory: false,
+            extension: ".md",
+          },
+        ],
+      } satisfies FileNode,
+      makeFile("top.md"),
+    ];
+
+    const result = flattenTree(tree);
+    expect(result).toHaveLength(1);
+    expect(result[0].relativePath).toBe("top.md");
+    expect(result.some((flat) => flat.relativePath === "posts/hidden.md")).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

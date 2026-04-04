@@ -31,6 +31,27 @@ interface UseWorkspaceOptions {
   resetFileState: () => void;
 }
 
+function mergeDirectoryChildren(
+  nodes: FileNode[],
+  dirPath: string,
+  children: FileNode[]
+): FileNode[] {
+  return nodes.map((node) => {
+    if (node.path === dirPath && node.isDirectory) {
+      return {
+        ...node,
+        children,
+        childrenLoaded: true,
+      };
+    }
+    if (!node.children) return node;
+    return {
+      ...node,
+      children: mergeDirectoryChildren(node.children, dirPath, children),
+    };
+  });
+}
+
 function findNode(nodes: FileNode[], path: string): FileNode | undefined {
   for (const n of nodes) {
     if (n.path === path) return n;
@@ -59,6 +80,7 @@ export function useWorkspace({
   const [assetRoot, setAssetRoot] = useState<string | undefined>(undefined);
   const [cdnBase, setCdnBase] = useState<string | undefined>(undefined);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
+  const loadingDirectoryRequestsRef = useState(() => new Map<string, Promise<FileNode[]>>())[0];
 
   const refreshTree = useCallback(async (): Promise<FileNode[]> => {
     try {
@@ -72,6 +94,34 @@ export function useWorkspace({
       return [];
     }
   }, []);
+
+  const loadDirectoryChildren = useCallback(
+    async (dirPath: string): Promise<FileNode[]> => {
+      const inFlight = loadingDirectoryRequestsRef.get(dirPath);
+      if (inFlight) return inFlight;
+
+      const request = (async () => {
+        try {
+          const children = await measureAsync("list_workspace_children.invoke", () =>
+            invoke<FileNode[]>("list_workspace_children", { path: dirPath })
+          );
+          setTree((current) => mergeDirectoryChildren(current, dirPath, children));
+          return children;
+        } catch (err) {
+          console.error("Failed to load directory children:", err);
+          showToast(`Failed to load directory children: ${err}`);
+          return [];
+        } finally {
+          loadingDirectoryRequestsRef.delete(dirPath);
+        }
+      })();
+
+      loadingDirectoryRequestsRef.set(dirPath, request);
+
+      return request;
+    },
+    [loadingDirectoryRequestsRef, showToast]
+  );
 
   const applyWorkspaceResult = useCallback(
     (result: WorkspaceResult) => {
@@ -223,5 +273,6 @@ export function useWorkspace({
     handleNewTodayFlow,
     handleRename,
     handleDelete,
+    loadDirectoryChildren,
   };
 }

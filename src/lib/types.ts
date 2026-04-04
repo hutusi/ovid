@@ -3,6 +3,7 @@ export interface FileNode {
   path: string;
   isDirectory: boolean;
   children?: FileNode[];
+  childrenLoaded?: boolean;
   extension?: string;
   title?: string;
   draft?: boolean;

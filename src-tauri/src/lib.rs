@@ -119,6 +119,7 @@ struct FileNode {
     path: String,
     is_directory: bool,
     children: Option<Vec<FileNode>>,
+    children_loaded: Option<bool>,
     extension: Option<String>,
     title: Option<String>,
     draft: Option<bool>,
@@ -313,6 +314,10 @@ fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec
             continue;
         };
 
+        if file_type.is_symlink() {
+            continue;
+        }
+
         if file_type.is_dir() {
             let children = walk_dir(&entry_path, cache);
             if !children.is_empty() {
@@ -321,6 +326,7 @@ fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec
                     path: entry_path.to_string_lossy().to_string(),
                     is_directory: true,
                     children: Some(children),
+                    children_loaded: Some(true),
                     extension: None,
                     title: None,
                     draft: None,
@@ -339,12 +345,77 @@ fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec
                     path: entry_path.to_string_lossy().to_string(),
                     is_directory: false,
                     children: None,
+                    children_loaded: None,
                     extension: Some(format!(".{}", ext)),
                     title,
                     draft,
                     content_type,
                 });
             }
+        }
+    }
+
+    nodes
+}
+
+fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec<FileNode> {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return Vec::new();
+    };
+
+    let mut entries: Vec<_> = entries.flatten().collect();
+    entries.sort_by_key(|e| e.file_name());
+
+    let mut nodes = Vec::new();
+
+    for entry in entries {
+        let entry_path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        if name.starts_with('.') {
+            continue;
+        }
+
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+
+        if file_type.is_symlink() {
+            continue;
+        }
+
+        if file_type.is_dir() {
+            nodes.push(FileNode {
+                name,
+                path: entry_path.to_string_lossy().to_string(),
+                is_directory: true,
+                children: None,
+                children_loaded: Some(false),
+                extension: None,
+                title: None,
+                draft: None,
+                content_type: None,
+            });
+            continue;
+        }
+
+        let ext = entry_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("");
+        if ext == "md" || ext == "mdx" {
+            let (title, draft, content_type) = read_frontmatter_meta_cached(&entry_path, cache);
+            nodes.push(FileNode {
+                name,
+                path: entry_path.to_string_lossy().to_string(),
+                is_directory: false,
+                children: None,
+                children_loaded: None,
+                extension: Some(format!(".{}", ext)),
+                title,
+                draft,
+                content_type,
+            });
         }
     }
 
@@ -459,7 +530,7 @@ async fn open_workspace_at_path(
         root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        walk_dir(&tree_root, &mut cache)
+        list_dir_shallow(&tree_root, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
@@ -539,7 +610,7 @@ async fn open_workspace(
         root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        walk_dir(&tree_root, &mut cache)
+        list_dir_shallow(&tree_root, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
@@ -594,6 +665,30 @@ fn list_workspace(state: State<'_, WorkspaceState>) -> Result<Vec<FileNode>, Str
             ("treeRoot", to_slash(&root)),
             ("nodes", tree.len().to_string()),
         ],
+    );
+    Ok(tree)
+}
+
+#[tauri::command]
+fn list_workspace_children(path: String, state: State<'_, WorkspaceState>) -> Result<Vec<FileNode>, String> {
+    let root = {
+        let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+        root_guard.as_ref().ok_or("no workspace open")?.clone()
+    };
+    let dir = validate_path(&root, &path)?;
+    if !dir.is_dir() {
+        return Err("directory not found".to_string());
+    }
+
+    let started = Instant::now();
+    let tree = {
+        let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
+        list_dir_shallow(&dir, &mut cache)
+    };
+    log_perf(
+        "list_workspace_children",
+        started.elapsed(),
+        &[("path", to_slash(&dir)), ("nodes", tree.len().to_string())],
     );
     Ok(tree)
 }
@@ -2218,6 +2313,7 @@ pub fn run() {
             open_workspace,
             open_workspace_at_path,
             list_workspace,
+            list_workspace_children,
             read_file,
             write_file,
             create_file,
@@ -2753,6 +2849,28 @@ mod tests {
         assert_eq!(results[0].matches.len(), MAX_SEARCH_MATCHES_PER_FILE);
         assert_eq!(results[0].total_matches, 13);
         assert!(results[0].has_more_matches);
+    }
+
+    #[test]
+    fn list_dir_shallow_marks_directories_unloaded_and_keeps_file_metadata() {
+        let dir = TempDir::new().unwrap();
+        let content_root = dir.path().join("content");
+        fs::create_dir_all(content_root.join("posts")).unwrap();
+        write_markdown_file(&content_root.join("readme.md"), "Readme", "body");
+
+        let mut cache = HashMap::new();
+        let results = list_dir_shallow(&content_root, &mut cache);
+
+        assert_eq!(results.len(), 2);
+        let dir_node = results.iter().find(|node| node.is_directory).unwrap();
+        assert_eq!(dir_node.name, "posts");
+        assert_eq!(dir_node.children_loaded, Some(false));
+        assert!(dir_node.children.is_none());
+
+        let file_node = results.iter().find(|node| !node.is_directory).unwrap();
+        assert_eq!(file_node.name, "readme.md");
+        assert_eq!(file_node.title.as_deref(), Some("Readme"));
+        assert_eq!(file_node.children_loaded, None);
     }
 
     fn make_search_result(path: &str, title: Option<&str>, total_matches: usize) -> SearchResult {
