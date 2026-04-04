@@ -123,6 +123,14 @@ describe("flattenTree", () => {
         path: "/workspace/posts",
         isDirectory: true,
         childrenLoaded: false,
+        children: [
+          {
+            name: "hidden.md",
+            path: "/workspace/posts/hidden.md",
+            isDirectory: false,
+            extension: ".md",
+          },
+        ],
       } satisfies FileNode,
       makeFile("top.md"),
     ];
@@ -130,6 +138,7 @@ describe("flattenTree", () => {
     const result = flattenTree(tree);
     expect(result).toHaveLength(1);
     expect(result[0].relativePath).toBe("top.md");
+    expect(result.some((flat) => flat.relativePath === "posts/hidden.md")).toBe(false);
   });
 });
 

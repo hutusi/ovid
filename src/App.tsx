@@ -73,7 +73,8 @@ const PerfPanel = lazy(async () => ({
 }));
 
 function makeFileNodeFromPath(path: string): FileNode {
-  const name = path.split("/").pop() ?? path;
+  const normalizedPath = path.replace(/\\/g, "/");
+  const name = normalizedPath.split("/").pop() ?? path;
   const extension = name.endsWith(".mdx") ? ".mdx" : name.endsWith(".md") ? ".md" : undefined;
   return {
     name,

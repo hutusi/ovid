@@ -314,6 +314,10 @@ fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec
             continue;
         };
 
+        if file_type.is_symlink() {
+            continue;
+        }
+
         if file_type.is_dir() {
             let children = walk_dir(&entry_path, cache);
             if !children.is_empty() {
@@ -375,6 +379,10 @@ fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>
         let Ok(file_type) = entry.file_type() else {
             continue;
         };
+
+        if file_type.is_symlink() {
+            continue;
+        }
 
         if file_type.is_dir() {
             nodes.push(FileNode {
