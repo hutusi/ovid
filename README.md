@@ -78,6 +78,17 @@ See [Git Workflow](docs/git-workflow.md) for the status-bar model, sync behavior
 
 ---
 
+## Release Preparation
+
+The current release line is `0.9.0`.
+
+For release work, use these repo artifacts:
+
+- [CHANGELOG.md](./CHANGELOG.md) for shipped scope
+- [docs/release-checklist.md](./docs/release-checklist.md) for the release gate and packaging checklist
+
+---
+
 ## Workspaces
 
 ### Opening a workspace
