@@ -31,6 +31,7 @@ Verified in the current repo:
 - [src-tauri/capabilities/default.json](../src-tauri/capabilities/default.json) has no updater-related permission entry
 - [src-tauri/src/lib.rs](../src-tauri/src/lib.rs) already has a native `Help` menu, which is the right future home for `Check for Updates`
 - [.github/workflows/release-bundles.yml](../.github/workflows/release-bundles.yml) builds predictable macOS and Windows release assets on tag pushes, which is the right base for later updater artifact generation
+- [.github/workflows/windows-release.yml](../.github/workflows/windows-release.yml) still exists as a narrower Windows-only fallback path and should remain secondary to the cross-platform release workflow for now
 
 This means Ovid is not one config flag away from updater support. The release pipeline,
 desktop permissions, Rust plugin setup, and frontend surface all still need explicit work.
@@ -218,6 +219,16 @@ Use a split hosting model:
 - that metadata points to GitHub Release asset URLs for the current version
 - the repo can generate this file with [scripts/generate-updater-json.mjs](../scripts/generate-updater-json.mjs)
   and publish it with [.github/workflows/updater-metadata.yml](../.github/workflows/updater-metadata.yml)
+
+### Workflow Roles
+
+For the current repo state:
+
+- [.github/workflows/release-bundles.yml](../.github/workflows/release-bundles.yml) should be treated as the canonical release asset workflow
+- [.github/workflows/windows-release.yml](../.github/workflows/windows-release.yml) should remain as a targeted Windows-only fallback until the new release path proves stable
+
+That avoids unnecessary workflow churn while Phase 12.70 is still defining updater-compatible
+assets and metadata.
 
 ### Metadata Contract
 
