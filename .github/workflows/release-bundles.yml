@@ -1,0 +1,66 @@
+name: Release Bundles
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-release-bundles:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS DMG
+            os: macos-latest
+            bundle_args: "--bundles app,dmg"
+            artifact_name: ovid-macos-dmg
+            artifact_path: src-tauri/target/release/bundle/dmg/*.dmg
+            release_files: src-tauri/target/release/bundle/dmg/*.dmg
+          - label: Windows MSI
+            os: windows-latest
+            bundle_args: "--bundles msi"
+            artifact_name: ovid-windows-msi
+            artifact_path: src-tauri/target/release/bundle/msi/*.msi
+            release_files: src-tauri/target/release/bundle/msi/*.msi
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build outputs
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build release bundle
+        run: bun run tauri build ${{ matrix.bundle_args }}
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          if-no-files-found: error
+
+      - name: Attach bundle to GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.release_files }}

@@ -30,6 +30,7 @@ Verified in the current repo:
 - [src-tauri/src/lib.rs](../src-tauri/src/lib.rs) currently initializes `opener` and `dialog` plugins only
 - [src-tauri/capabilities/default.json](../src-tauri/capabilities/default.json) has no updater-related permission entry
 - [src-tauri/src/lib.rs](../src-tauri/src/lib.rs) already has a native `Help` menu, which is the right future home for `Check for Updates`
+- [.github/workflows/release-bundles.yml](../.github/workflows/release-bundles.yml) builds predictable macOS and Windows release assets on tag pushes, which is the right base for later updater artifact generation
 
 This means Ovid is not one config flag away from updater support. The release pipeline,
 desktop permissions, Rust plugin setup, and frontend surface all still need explicit work.
