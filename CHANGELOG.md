@@ -5,7 +5,7 @@ All notable changes to Ovid will be documented in this file.
 The format is based on Keep a Changelog, adapted to match the project's
 release cadence and Conventional Commit history.
 
-## [0.9.0] - 2026-04-13
+## 0.9.0 - 2026-04-13
 
 ### Added
 - Keyboard-first workspace and file navigation with workspace switcher, file switcher, and
