@@ -189,6 +189,7 @@ Exit criteria:
   release
 - Whether Ovid should use GitHub Releases directly as the updater metadata endpoint or publish
   a dedicated stable `latest.json` URL outside GitHub's release UI
+- How updater signing keys are generated, stored, and rotated in CI
 
 ## Recommendation
 
@@ -285,3 +286,57 @@ That contract is deliberate:
 - manually editing and committing `latest.json` for every release
 - treating the GitHub release page structure as the updater API
 - storing updater private signing keys in the repository
+
+## Signing Key Handling
+
+Updater signing must be treated as release infrastructure, not app code.
+
+### Recommended Model
+
+- generate the updater keypair once, outside the repository
+- commit only the public key through app configuration when updater support is enabled
+- store the private key only in GitHub Actions secrets for release workflows
+- restrict who can rotate or replace that key
+
+### CI Ownership
+
+For Ovid, the expected split should be:
+
+- repository code stores:
+  - updater public key
+  - updater endpoint configuration
+- GitHub Actions secrets store:
+  - updater private key
+  - updater private key password, if one is used
+
+### Operational Rules
+
+- never commit the private key to the repository
+- never upload the private key as a build artifact
+- use one persistent private key across updater-compatible releases so old installs can verify
+  new releases
+- rotate only when necessary, because rotation affects updater continuity
+
+### Suggested Secret Names
+
+If Ovid uses GitHub Actions for updater signing, use clear names such as:
+
+- `TAURI_UPDATER_PRIVATE_KEY`
+- `TAURI_UPDATER_PRIVATE_KEY_PASSWORD`
+
+### Release Responsibility
+
+Before updater support is enabled in the app:
+
+- one maintainer should generate and securely archive the original keypair
+- the public key should be reviewed before committing to app config
+- the private key should be added to GitHub repository or environment secrets
+- the release workflow should be the only place that consumes the private key
+
+### Practical Consequence
+
+Until this key handling path exists:
+
+- updater artifacts cannot be produced in a trustworthy way
+- `latest.json` can only be a scaffold, not a real production updater endpoint
+- app-side updater UI should remain out of scope
