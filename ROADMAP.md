@@ -188,3 +188,15 @@ Progress landed so far:
 67. **Installer and first-run triage** — fix release issues found in macOS/Windows install, launch, permissions, and first-workspace-open flows
 68. **Core workflow regressions first** — prioritize bugs in open, save, search, switcher, sidebar, editor, and Git flows ahead of new roadmap breadth
 69. **Release feedback capture** — turn confirmed post-release user feedback into scoped issues or follow-up roadmap items instead of reacting ad hoc
+
+---
+
+## Phase 12 — Application Updates
+> Goal: let users move to newer Ovid releases with confidence, first manually and then with optional automation. 🖊 📢
+
+70. **Updater release pipeline** — make release assets, metadata, and signing/notarization predictable enough for updater consumption across supported platforms
+71. **Manual update check** — add a `Check for Updates` action that shows current version, latest version, and release notes, with a clear no-update state
+72. **Manual update install flow** — support user-initiated download and install/update flows from within Ovid, with platform-appropriate prompts and failure handling
+73. **Automatic update check** — add a preference-controlled background check on launch or at a calm interval; notify users when an update is available without forcing immediate install
+74. **Update preferences and visibility** — expose updater settings, last-checked state, and release-channel/version messaging clearly enough that users trust what the app is doing
+75. **Updater resilience** — handle offline mode, partial downloads, invalid metadata, and platform-specific update failures without leaving the app in a confusing state
