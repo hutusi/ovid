@@ -4,6 +4,8 @@ Ovid is a writing and knowledge tool for people who take their words seriously. 
 
 This roadmap is organized into deliberate phases — each phase must feel complete and polished before the next begins. Features are tagged by primary audience: 🖊 Writer · 🧠 Knowledge · 📢 Publisher.
 
+> Release status: `0.9.0` shipped on 2026-04-15 as the first public preview release.
+
 ---
 
 ## Completed
@@ -177,3 +179,12 @@ Progress landed so far:
 64. **Workspace/session restore polish** — restore not just the last workspace, but the last useful working context with fewer surprises: recent file, visible editor state, and a calmer handoff after restart or workspace switch
 65. **Publishing flow tightening** — make the draft → edit → publish → commit/push sequence feel more deliberate, with better defaults and fewer small interruptions around metadata, commit message generation, and follow-up Git actions
 66. **Cross-surface consistency pass** — align sidebar, switcher, recents, search, and open-by-path behavior so ranking, reveal rules, and path handling feel like one coherent system rather than feature-by-feature exceptions
+
+---
+
+## Post-0.9.0 Stabilization
+> Goal: protect the first release quality before taking on broader feature work. 🖊 🧠 📢
+
+67. **Installer and first-run triage** — fix release issues found in macOS/Windows install, launch, permissions, and first-workspace-open flows
+68. **Core workflow regressions first** — prioritize bugs in open, save, search, switcher, sidebar, editor, and Git flows ahead of new roadmap breadth
+69. **Release feedback capture** — turn confirmed post-release user feedback into scoped issues or follow-up roadmap items instead of reacting ad hoc
