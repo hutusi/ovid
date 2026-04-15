@@ -10,6 +10,8 @@ The goal is to make updates trustworthy before they become automatic.
 As of `0.9.0`, Ovid has:
 
 - native packaged artifacts for macOS (`.dmg`) and Windows (`.msi`)
+- Linux packaging is intentionally out of scope for this release pipeline for now, so
+  Phase 12.70 stays focused on the two desktop targets we already distribute
 - a GitHub-based release flow
 - a GitHub Actions workflow for building the Windows MSI
 
@@ -100,6 +102,8 @@ For Ovid, that likely means:
 - GitHub Releases remain the distribution source
 - updater metadata is generated as part of release publishing
 - macOS and Windows updater artifacts are published together for each version
+- Linux artifacts are intentionally excluded from this pipeline until Ovid has a clearer
+  distribution and support story for Linux packaging
 
 ## Tauri 2 Requirements
 
