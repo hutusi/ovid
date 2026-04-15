@@ -18,6 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux updater/release bundles are intentionally deferred for now.
+          # Phase 12 is focused on the macOS + Windows update path first.
           - label: macOS DMG
             os: macos-latest
             bundle_args: "--bundles app,dmg"
@@ -52,11 +54,13 @@ jobs:
       - name: Build release bundle
         shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_UPDATER_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_UPDATER_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PRIVATE_KEY: ${{ secrets.TAURI_UPDATER_PRIVATE_KEY }}
+          TAURI_UPDATER_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_UPDATER_PRIVATE_KEY_PASSWORD }}
         run: |
-          if [ -n "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+          if [ -n "${TAURI_UPDATER_PRIVATE_KEY}" ]; then
             echo "Signing key detected; enabling updater artifact generation."
+            export TAURI_SIGNING_PRIVATE_KEY="${TAURI_UPDATER_PRIVATE_KEY}"
+            export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="${TAURI_UPDATER_PRIVATE_KEY_PASSWORD}"
             bun run tauri build ${{ matrix.bundle_args }} \
               --config '{"bundle":{"createUpdaterArtifacts":true}}'
           else

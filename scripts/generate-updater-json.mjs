@@ -3,6 +3,23 @@
 import fs from "node:fs";
 import path from "node:path";
 
+function isValidUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function isValidPubDate(value) {
+  return !Number.isNaN(Date.parse(value));
+}
+
+function isValidSignature(value) {
+  return /^[A-Za-z0-9+/=_-]+$/.test(value);
+}
+
 function usage() {
   console.error(
     [
@@ -51,8 +68,11 @@ function readArgs(argv) {
         }
 
         const key = raw.slice(0, eqIndex);
-        const url = raw.slice(eqIndex + 1, sigIndex);
-        const signature = raw.slice(sigIndex + 2);
+        const url = raw.slice(eqIndex + 1, sigIndex).trim();
+        const signature = raw.slice(sigIndex + 2).trim();
+        if (result.platforms[key]) {
+          throw new Error(`duplicate platform key: ${key}`);
+        }
         result.platforms[key] = { signature, url };
         break;
       }
@@ -61,8 +81,27 @@ function readArgs(argv) {
     }
   }
 
-  if (!result.version || !result.output || Object.keys(result.platforms).length === 0) {
+  if (
+    !result.version ||
+    !result.pubDate ||
+    !result.notes ||
+    !result.output ||
+    Object.keys(result.platforms).length === 0
+  ) {
     throw new Error("missing required arguments");
+  }
+
+  if (!isValidPubDate(result.pubDate)) {
+    throw new Error(`invalid pub date: ${result.pubDate}`);
+  }
+
+  for (const [key, platform] of Object.entries(result.platforms)) {
+    if (!platform.url || !isValidUrl(platform.url)) {
+      throw new Error(`invalid platform url for ${key}: ${platform.url}`);
+    }
+    if (!platform.signature || !isValidSignature(platform.signature)) {
+      throw new Error(`invalid platform signature for ${key}`);
+    }
   }
 
   return result;

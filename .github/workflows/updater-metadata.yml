@@ -56,20 +56,27 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Write release notes
+        env:
+          NOTES: ${{ inputs.notes }}
         run: |
           mkdir -p updater-dist
-          cat > updater-dist/notes.txt <<'EOF'
-          ${{ inputs.notes }}
-          EOF
+          printf '%s' "$NOTES" > updater-dist/notes.txt
 
       - name: Generate latest.json
+        env:
+          VERSION: ${{ inputs.version }}
+          PUB_DATE: ${{ inputs.pub_date }}
+          WINDOWS_URL: ${{ inputs.windows_url }}
+          WINDOWS_SIGNATURE: ${{ inputs.windows_signature }}
+          DARWIN_AARCH64_URL: ${{ inputs.darwin_aarch64_url }}
+          DARWIN_AARCH64_SIGNATURE: ${{ inputs.darwin_aarch64_signature }}
         run: |
           node scripts/generate-updater-json.mjs \
-            --version "${{ inputs.version }}" \
-            --pub-date "${{ inputs.pub_date }}" \
+            --version "$VERSION" \
+            --pub-date "$PUB_DATE" \
             --notes-file updater-dist/notes.txt \
-            --platform "windows-x86_64=${{ inputs.windows_url }}::${{ inputs.windows_signature }}" \
-            --platform "darwin-aarch64=${{ inputs.darwin_aarch64_url }}::${{ inputs.darwin_aarch64_signature }}" \
+            --platform "windows-x86_64=${WINDOWS_URL}::${WINDOWS_SIGNATURE}" \
+            --platform "darwin-aarch64=${DARWIN_AARCH64_URL}::${DARWIN_AARCH64_SIGNATURE}" \
             --output updater-dist/latest.json
 
       - name: Upload Pages artifact

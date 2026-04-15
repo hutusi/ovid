@@ -237,6 +237,8 @@ The release workflow is now updater-aware:
 
 - if `TAURI_UPDATER_PRIVATE_KEY` is present in GitHub Actions secrets, the
   cross-platform release workflow enables `createUpdaterArtifacts` during tagged builds
+- the workflow then maps that secret into the `TAURI_SIGNING_PRIVATE_KEY` environment variable
+  expected by Tauri during the build step
 - if the signing secret is absent, the workflow still produces normal release bundles
 
 This lets Ovid adopt updater artifacts incrementally instead of forcing all release builds
