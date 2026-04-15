@@ -231,6 +231,17 @@ For the current repo state:
 That avoids unnecessary workflow churn while Phase 12.70 is still defining updater-compatible
 assets and metadata.
 
+### Current CI Bridge
+
+The release workflow is now updater-aware:
+
+- if `TAURI_UPDATER_PRIVATE_KEY` is present in GitHub Actions secrets, the
+  cross-platform release workflow enables `createUpdaterArtifacts` during tagged builds
+- if the signing secret is absent, the workflow still produces normal release bundles
+
+This lets Ovid adopt updater artifacts incrementally instead of forcing all release builds
+to depend on updater secrets from day one.
+
 ### Metadata Contract
 
 The current scaffold expects a static JSON payload shaped like:

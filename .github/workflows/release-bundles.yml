@@ -50,7 +50,19 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build release bundle
-        run: bun run tauri build ${{ matrix.bundle_args }}
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_UPDATER_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_UPDATER_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "Signing key detected; enabling updater artifact generation."
+            bun run tauri build ${{ matrix.bundle_args }} \
+              --config '{"bundle":{"createUpdaterArtifacts":true}}'
+          else
+            echo "No updater signing key configured; building standard release bundles only."
+            bun run tauri build ${{ matrix.bundle_args }}
+          fi
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
