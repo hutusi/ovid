@@ -145,7 +145,9 @@ Concrete repo checklist:
 
 - add updater dependencies to [package.json](../package.json) and [src-tauri/Cargo.toml](../src-tauri/Cargo.toml)
 - add updater plugin initialization in [src-tauri/src/lib.rs](../src-tauri/src/lib.rs)
-- add updater config and `createUpdaterArtifacts` in [src-tauri/tauri.conf.json](../src-tauri/tauri.conf.json)
+- add updater config in [src-tauri/tauri.conf.json](../src-tauri/tauri.conf.json) and
+  enable `createUpdaterArtifacts` from the build invocation in
+  [.github/workflows/release-bundles.yml](../.github/workflows/release-bundles.yml)
 - update [src-tauri/capabilities/default.json](../src-tauri/capabilities/default.json) with updater permissions once the plugin is installed
 - define how updater metadata is published alongside GitHub releases
 - define where the updater signing private key is stored in CI and who owns rotation
