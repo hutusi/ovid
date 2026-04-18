@@ -11,6 +11,12 @@ release cadence and Conventional Commit history.
 - `0.9.0` shipped as the first public preview release on 2026-04-15.
 - Follow-up work is now focused on stabilization, installer feedback, and core workflow regressions before broader Phase 11 implementation resumes.
 
+### Added
+- Updater release infrastructure for signed release bundles, stable `latest.json` publishing,
+  and release-operator documentation.
+- An initial in-app manual update flow under `Help -> Check for Updates…`, including update
+  status, download/install progress, and restart-to-finish behavior.
+
 ## 0.9.0 - 2026-04-13
 
 ### Added
