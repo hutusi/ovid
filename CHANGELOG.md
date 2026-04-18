@@ -11,6 +11,12 @@ release cadence and Conventional Commit history.
 - `0.9.0` shipped as the first public preview release on 2026-04-15.
 - Follow-up work is now focused on stabilization, installer feedback, and core workflow regressions before broader Phase 11 implementation resumes.
 
+## 0.9.5 - 2026-04-18
+
+### Fixed
+- Bumped the shipped app version metadata to match the release tag so updater artifacts and
+  `latest.json` stay consistent across macOS and Windows.
+
 ## 0.9.3 - 2026-04-18
 
 ### Fixed
