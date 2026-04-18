@@ -829,7 +829,10 @@ function App() {
       )}
       {updateDialogOpen && (
         <Suspense fallback={null}>
-          <UpdateDialog onClose={() => setUpdateDialogOpen(false)} />
+          <UpdateDialog
+            onBeforeRestart={flushPendingSave}
+            onClose={() => setUpdateDialogOpen(false)}
+          />
         </Suspense>
       )}
       {switcherOpen && (

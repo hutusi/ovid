@@ -11,6 +11,7 @@ import "./Modal.css";
 import "./UpdateDialog.css";
 
 interface UpdateDialogProps {
+  onBeforeRestart?: () => Promise<void>;
   onClose: () => void;
 }
 
@@ -52,7 +53,7 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function UpdateDialog({ onClose }: UpdateDialogProps) {
+export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
   const dialogRef = useFocusTrap<HTMLDivElement>();
   const updateRef = useRef<PendingUpdate | null>(null);
   const mountedRef = useRef(true);
@@ -123,6 +124,7 @@ export function UpdateDialog({ onClose }: UpdateDialogProps) {
 
     try {
       await pendingUpdate.downloadAndInstall((event: DownloadEvent) => {
+        if (!mountedRef.current) return;
         setState((currentState) => {
           if (currentState.kind !== "installing") return currentState;
 
@@ -140,11 +142,14 @@ export function UpdateDialog({ onClose }: UpdateDialogProps) {
               };
             case "Finished":
               return currentState;
+            default:
+              return currentState;
           }
         });
       });
 
       await pendingUpdate.close();
+      if (!mountedRef.current) return;
       updateRef.current = null;
       setState({
         kind: "installed",
@@ -153,6 +158,7 @@ export function UpdateDialog({ onClose }: UpdateDialogProps) {
         restartPending: false,
       });
     } catch (error) {
+      if (!mountedRef.current) return;
       setState({
         kind: "error",
         currentVersion: state.currentVersion,
@@ -164,6 +170,7 @@ export function UpdateDialog({ onClose }: UpdateDialogProps) {
   async function handleRestart() {
     if (state.kind !== "installed" || state.restartPending) return;
     setState({ ...state, restartPending: true });
+    await onBeforeRestart?.();
     await invoke("restart_app");
   }
 
@@ -191,6 +198,7 @@ export function UpdateDialog({ onClose }: UpdateDialogProps) {
         type="button"
         className="modal-backdrop"
         aria-label="Close"
+        disabled={state.kind === "installing"}
         onClick={() => {
           if (state.kind === "installing") return;
           onClose();

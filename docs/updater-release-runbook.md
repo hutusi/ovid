@@ -78,8 +78,8 @@ Create the release tag in the `vX.Y.Z` format expected by
 Example:
 
 ```bash
-git tag v0.9.2
-git push origin v0.9.2
+git tag v0.9.3
+git push origin v0.9.3
 ```
 
 That workflow will:
