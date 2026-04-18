@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Ovid",
-  "version": "0.9.0",
+  "version": "0.9.3",
   "identifier": "com.hutusi.ovid",
   "build": {
     "beforeDevCommand": "bun run dev",
@@ -48,7 +48,7 @@
   "plugins": {
     "updater": {
       "endpoints": ["https://hutusi.github.io/ovid/latest.json"],
-      "pubkey": "untrusted comment: minisign public key: 4FCB51D80D3B4459\nRWRZRDsN2FHLT35RG6Wviu216UmvtLBnfDvILFqovlzVL6CTSKR9G70B",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRGQ0I1MUQ4MEQzQjQ0NTkKUldSWlJEc04yRkhMVDM1Ukc2V3ZpdTIxNlVtdnRMQm5mRHZJTEZxb3ZselZMNkNUU0tSOUc3MEIK",
       "windows": {
         "installMode": "passive"
       }

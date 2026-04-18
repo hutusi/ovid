@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build-release-bundles:
@@ -24,14 +26,24 @@ jobs:
             os: macos-latest
             bundle_args: "--bundles app,dmg"
             artifact_name: ovid-macos-dmg
-            artifact_path: src-tauri/target/release/bundle/dmg/*.dmg
-            release_files: src-tauri/target/release/bundle/dmg/*.dmg
+            artifact_path: |
+              src-tauri/target/release/bundle/dmg/*.dmg
+              src-tauri/target/release/bundle/macos/*.tar.gz
+              src-tauri/target/release/bundle/macos/*.tar.gz.sig
+            release_files: |
+              src-tauri/target/release/bundle/dmg/*.dmg
+              src-tauri/target/release/bundle/macos/*.tar.gz
+              src-tauri/target/release/bundle/macos/*.tar.gz.sig
           - label: Windows MSI
             os: windows-latest
             bundle_args: "--bundles msi"
             artifact_name: ovid-windows-msi
-            artifact_path: src-tauri/target/release/bundle/msi/*.msi
-            release_files: src-tauri/target/release/bundle/msi/*.msi
+            artifact_path: |
+              src-tauri/target/release/bundle/msi/*.msi
+              src-tauri/target/release/bundle/msi/*.msi.sig
+            release_files: |
+              src-tauri/target/release/bundle/msi/*.msi
+              src-tauri/target/release/bundle/msi/*.msi.sig
 
     steps:
       - uses: actions/checkout@v6
@@ -80,3 +92,98 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.release_files }}
+
+  publish-updater-metadata:
+    name: Publish latest.json
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-release-bundles
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Download macOS release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ovid-macos-dmg
+          path: release-artifacts/macos
+
+      - name: Download Windows release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ovid-windows-msi
+          path: release-artifacts/windows
+
+      - name: Build updater metadata inputs
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="${GITHUB_REF_NAME#v}"
+          release_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          macos_tarball="$(find release-artifacts/macos -type f -name '*.tar.gz' -print -quit)"
+          macos_signature_file="$(find release-artifacts/macos -type f -name '*.tar.gz.sig' -print -quit)"
+          windows_installer="$(find release-artifacts/windows -type f -name '*.msi' -print -quit)"
+          windows_signature_file="$(find release-artifacts/windows -type f -name '*.msi.sig' -print -quit)"
+
+          if [ -z "${macos_tarball}" ] || [ -z "${macos_signature_file}" ]; then
+            echo "Missing macOS updater artifacts." >&2
+            exit 1
+          fi
+
+          if [ -z "${windows_installer}" ] || [ -z "${windows_signature_file}" ]; then
+            echo "Missing Windows updater artifacts." >&2
+            exit 1
+          fi
+
+          macos_signature="$(tr -d '\n' < "${macos_signature_file}")"
+          windows_signature="$(tr -d '\n' < "${windows_signature_file}")"
+          notes="Automated updater metadata for Ovid ${version}."
+
+          {
+            echo "version=${version}"
+            echo "pub_date=${pub_date}"
+            echo "notes=${notes}"
+            echo "windows_url=${release_url}/$(basename "${windows_installer}")"
+            echo "windows_signature=${windows_signature}"
+            echo "darwin_aarch64_url=${release_url}/$(basename "${macos_tarball}")"
+            echo "darwin_aarch64_signature=${macos_signature}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Generate latest.json
+        env:
+          VERSION: ${{ steps.metadata.outputs.version }}
+          PUB_DATE: ${{ steps.metadata.outputs.pub_date }}
+          NOTES: ${{ steps.metadata.outputs.notes }}
+          WINDOWS_URL: ${{ steps.metadata.outputs.windows_url }}
+          WINDOWS_SIGNATURE: ${{ steps.metadata.outputs.windows_signature }}
+          DARWIN_AARCH64_URL: ${{ steps.metadata.outputs.darwin_aarch64_url }}
+          DARWIN_AARCH64_SIGNATURE: ${{ steps.metadata.outputs.darwin_aarch64_signature }}
+        run: |
+          mkdir -p updater-dist
+          printf '%s' "$NOTES" > updater-dist/notes.txt
+          node scripts/generate-updater-json.mjs \
+            --version "$VERSION" \
+            --pub-date "$PUB_DATE" \
+            --notes-file updater-dist/notes.txt \
+            --platform "windows-x86_64=${WINDOWS_URL}::${WINDOWS_SIGNATURE}" \
+            --platform "darwin-aarch64=${DARWIN_AARCH64_URL}::${DARWIN_AARCH64_SIGNATURE}" \
+            --output updater-dist/latest.json
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: updater-dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

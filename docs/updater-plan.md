@@ -330,6 +330,8 @@ Updater signing must be treated as release infrastructure, not app code.
 
 - generate the updater keypair once, outside the repository
 - commit only the public key through app configuration when updater support is enabled
+- store that Tauri `pubkey` value as the base64-encoded content of the minisign `.pub` file, not
+  as the raw multi-line key text
 - store the private key only in GitHub Actions secrets for release workflows
 - restrict who can rotate or replace that key
 

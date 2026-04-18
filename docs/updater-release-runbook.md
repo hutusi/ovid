@@ -41,6 +41,8 @@ Before the first updater-capable release, verify:
 
 - `plugins.updater.endpoints` points at `https://hutusi.github.io/ovid/latest.json`
 - `plugins.updater.pubkey` matches the public key generated from your persistent keypair
+- `plugins.updater.pubkey` stores the base64-encoded content of the `.pub` file, not the raw
+  multi-line minisign text
 
 ### 4. Enable GitHub Pages
 
@@ -76,8 +78,8 @@ Create the release tag in the `vX.Y.Z` format expected by
 Example:
 
 ```bash
-git tag v0.9.1
-git push origin v0.9.1
+git tag v0.9.3
+git push origin v0.9.3
 ```
 
 That workflow will:
@@ -106,7 +108,22 @@ Do not guess these values. Copy them from the real release outputs.
 
 ### 4. Publish `latest.json`
 
-Run the manual
+Tag-driven release builds now publish `latest.json` automatically from
+[.github/workflows/release-bundles.yml](../.github/workflows/release-bundles.yml).
+After the macOS and Windows bundle jobs finish, the workflow:
+
+- downloads the real built updater artifacts from the workflow run
+- reads the generated `.sig` files
+- constructs the GitHub release asset URLs from the current tag
+- generates `latest.json` with
+  [scripts/generate-updater-json.mjs](../scripts/generate-updater-json.mjs)
+- deploys the metadata to GitHub Pages
+
+This makes the release workflow the canonical updater publishing path.
+
+### Manual fallback
+
+If the Pages deploy needs to be repaired without rebuilding bundles, run the manual
 [.github/workflows/updater-metadata.yml](../.github/workflows/updater-metadata.yml)
 workflow in GitHub Actions.
 
@@ -130,13 +147,9 @@ Input mapping:
 - `darwin_aarch64_url` -> `latest.json.platforms["darwin-aarch64"].url`
 - `darwin_aarch64_signature` -> `latest.json.platforms["darwin-aarch64"].signature`
 
-The workflow generates `latest.json` with
-[scripts/generate-updater-json.mjs](../scripts/generate-updater-json.mjs)
-and deploys it to GitHub Pages.
-
 ### 5. Verify the published metadata
 
-After the metadata workflow completes, verify:
+After metadata publishing completes, whether from the release workflow or the manual fallback, verify:
 
 - `https://hutusi.github.io/ovid/latest.json` is reachable
 - the JSON version matches the release version
@@ -172,6 +185,8 @@ Likely causes:
 
 - the public key in `src-tauri/tauri.conf.json` does not match the signing private key used in
   CI
+- the public key was committed in raw minisign text form instead of the base64-encoded `.pub`
+  content that Tauri expects
 - the metadata points at the wrong asset URL
 - the metadata contains the wrong signature for one platform
 

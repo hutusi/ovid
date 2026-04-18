@@ -2020,6 +2020,11 @@ async fn pick_image_file(app: tauri::AppHandle) -> Result<Option<String>, String
     Ok(Some(path))
 }
 
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
 /// validated against the workspace root — drag-and-drop sources originate from
 /// external locations (desktop, downloads, etc.). The destination is safely
 /// constrained to `<workspace>/assets/`.
@@ -2265,6 +2270,8 @@ pub fn run() {
             // ── Help ──────────────────────────────────────────────────────────
             let help_menu = SubmenuBuilder::new(app, "Help")
                 .items(&[
+                    &MenuItemBuilder::with_id("check-updates", "Check for Updates…").build(app)?,
+                    &PredefinedMenuItem::separator(app)?,
                     &MenuItemBuilder::with_id("help-docs", "Ovid Documentation").build(app)?,
                     &PredefinedMenuItem::separator(app)?,
                     &MenuItemBuilder::with_id("help-issues", "Report an Issue…").build(app)?,
@@ -2342,6 +2349,7 @@ pub fn run() {
             open_git_remote,
             save_asset,
             pick_image_file,
+            restart_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")

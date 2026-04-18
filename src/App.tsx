@@ -71,6 +71,9 @@ const GitSyncPopover = lazy(async () => ({
 const PerfPanel = lazy(async () => ({
   default: (await import("./components/PerfPanel")).PerfPanel,
 }));
+const UpdateDialog = lazy(async () => ({
+  default: (await import("./components/UpdateDialog")).UpdateDialog,
+}));
 
 function makeFileNodeFromPath(path: string): FileNode {
   const normalizedPath = path.replace(/\\/g, "/");
@@ -98,6 +101,7 @@ function App() {
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [workspaceSwitcherOpen, setWorkspaceSwitcherOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
   const lastAutoFetchAtRef = useRef(0);
@@ -327,7 +331,8 @@ function App() {
         !newBranchDialogOpen &&
         !renameBranchDialog &&
         !deleteBranchDialog &&
-        !workspaceSwitcherOpen
+        !workspaceSwitcherOpen &&
+        !updateDialogOpen
       ) {
         setZenMode(false);
         return;
@@ -426,6 +431,7 @@ function App() {
     renameBranchDialog,
     deleteBranchDialog,
     workspaceSwitcherOpen,
+    updateDialogOpen,
   ]);
 
   // Refresh git status after each save completes
@@ -506,7 +512,8 @@ function App() {
         newBranchDialogOpen ||
         renameBranchDialog !== null ||
         deleteBranchDialog !== null ||
-        workspaceSwitcherOpen;
+        workspaceSwitcherOpen ||
+        updateDialogOpen;
       switch (event.payload) {
         case "new-post":
         case "new-flow":
@@ -560,6 +567,9 @@ function App() {
           break;
         case "toggle-spell-check":
           updatePrefs({ spellCheck: !prefs.spellCheck });
+          break;
+        case "check-updates":
+          if (!hasBlockingOverlay) setUpdateDialogOpen(true);
           break;
         case "git-commit":
           if (!hasBlockingOverlay && isGitRepo) void openCommitDialog(defaultCommitMessage);
@@ -620,6 +630,7 @@ function App() {
     renameBranchDialog,
     deleteBranchDialog,
     workspaceSwitcherOpen,
+    updateDialogOpen,
     workspaceRoot,
     tree,
     isGitRepo,
@@ -813,6 +824,14 @@ function App() {
             onSelect={(rootPath) => void openWorkspaceAtPath(rootPath)}
             onOpenOther={handleOpenWorkspace}
             onClose={() => setWorkspaceSwitcherOpen(false)}
+          />
+        </Suspense>
+      )}
+      {updateDialogOpen && (
+        <Suspense fallback={null}>
+          <UpdateDialog
+            onBeforeRestart={flushPendingSave}
+            onClose={() => setUpdateDialogOpen(false)}
           />
         </Suspense>
       )}
