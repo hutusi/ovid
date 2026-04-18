@@ -24,14 +24,24 @@ jobs:
             os: macos-latest
             bundle_args: "--bundles app,dmg"
             artifact_name: ovid-macos-dmg
-            artifact_path: src-tauri/target/release/bundle/dmg/*.dmg
-            release_files: src-tauri/target/release/bundle/dmg/*.dmg
+            artifact_path: |
+              src-tauri/target/release/bundle/dmg/*.dmg
+              src-tauri/target/release/bundle/macos/*.tar.gz
+              src-tauri/target/release/bundle/macos/*.tar.gz.sig
+            release_files: |
+              src-tauri/target/release/bundle/dmg/*.dmg
+              src-tauri/target/release/bundle/macos/*.tar.gz
+              src-tauri/target/release/bundle/macos/*.tar.gz.sig
           - label: Windows MSI
             os: windows-latest
             bundle_args: "--bundles msi"
             artifact_name: ovid-windows-msi
-            artifact_path: src-tauri/target/release/bundle/msi/*.msi
-            release_files: src-tauri/target/release/bundle/msi/*.msi
+            artifact_path: |
+              src-tauri/target/release/bundle/msi/*.msi
+              src-tauri/target/release/bundle/msi/*.msi.sig
+            release_files: |
+              src-tauri/target/release/bundle/msi/*.msi
+              src-tauri/target/release/bundle/msi/*.msi.sig
 
     steps:
       - uses: actions/checkout@v6
