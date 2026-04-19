@@ -43,16 +43,21 @@ The first release should stay narrow:
 ### macOS
 
 - `bun run tauri build` successfully produces the `.app` bundle on macOS.
-- If Tauri's DMG wrapper fails, a plain DMG built from the generated `.app` is an acceptable
-  first-release fallback.
+- Public release DMGs must be code-signed and notarized, or Gatekeeper can mark the downloaded
+  app as broken when users open it.
+- CI macOS release builds expect these secrets:
+  - `APPLE_CERTIFICATE`
+  - `APPLE_CERTIFICATE_PASSWORD`
+  - `APPLE_API_KEY_ID`
+  - `APPLE_API_ISSUER`
+  - `APPLE_API_KEY_CONTENT`
+  - `KEYCHAIN_PASSWORD`
 - Verify the mounted DMG shows `Ovid.app` and an `Applications` shortcut before publishing.
 
 ### Windows
 
 - Build the installer on a Windows machine with Bun and Rust installed.
 - Run `bun run tauri build` and confirm the `.msi` appears under the Tauri bundle output.
-- The repo also provides a GitHub Actions workflow at `.github/workflows/windows-release.yml`
-  for manual or tag-triggered MSI builds on `windows-latest`.
 - Smoke-test installer flows:
   - install
   - first launch

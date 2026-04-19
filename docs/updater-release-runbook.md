@@ -53,6 +53,32 @@ confirm the expected final URL:
 
 - `https://hutusi.github.io/ovid/latest.json`
 
+### 5. Configure macOS signing and notarization secrets
+
+Public macOS releases downloaded from the browser must be code-signed, and Developer ID builds
+must also be notarized for Gatekeeper to trust them.
+
+The macOS release job expects these GitHub Actions secrets:
+
+- `APPLE_CERTIFICATE`
+- `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_API_KEY_ID`
+- `APPLE_API_ISSUER`
+- `APPLE_API_KEY_CONTENT`
+- `KEYCHAIN_PASSWORD`
+
+Recommended values:
+
+- `APPLE_CERTIFICATE`: base64-encoded exported `.p12` certificate for a `Developer ID Application`
+  identity
+- `APPLE_CERTIFICATE_PASSWORD`: password used when exporting the `.p12`
+- `APPLE_API_KEY_ID`: App Store Connect API key ID
+- `APPLE_API_ISSUER`: App Store Connect API issuer ID
+- `APPLE_API_KEY_CONTENT`: raw contents of the downloaded `AuthKey_<KEYID>.p8` file
+- `KEYCHAIN_PASSWORD`: temporary keychain password used in CI
+
+This setup follows Tauri's documented macOS signing and notarization environment model.
+
 ## Per-Release Steps
 
 ### 1. Prepare the release version
@@ -196,6 +222,17 @@ Likely causes:
 
 - Pages is not configured to use GitHub Actions as the source
 - the Pages deployment is still propagating
+
+### macOS DMG downloads but the app is reported as broken
+
+Likely causes:
+
+- the macOS release job ran without a valid `Developer ID Application` certificate
+- notarization credentials were missing or invalid
+- the downloaded app is quarantined by Gatekeeper and the release was not properly notarized
+
+Local builds can still appear to work because Gatekeeper checks differ for locally produced,
+non-quarantined artifacts.
 
 ## Related Docs
 
