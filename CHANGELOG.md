@@ -11,6 +11,13 @@ release cadence and Conventional Commit history.
 - `0.9.0` shipped as the first public preview release on 2026-04-15.
 - Follow-up work is now focused on stabilization, installer feedback, and core workflow regressions before broader Phase 11 implementation resumes.
 
+## 0.9.6 - 2026-04-19
+
+### Changed
+- Documented and standardized the mixed release flow: Windows bundles ship from GitHub Actions,
+  while macOS release artifacts are built locally and uploaded manually before publishing updater
+  metadata.
+
 ## 0.9.5 - 2026-04-18
 
 ### Fixed
