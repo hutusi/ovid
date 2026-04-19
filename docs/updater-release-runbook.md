@@ -101,7 +101,7 @@ artifacts you need for updater metadata:
 Then build macOS artifacts locally on your Mac:
 
 ```bash
-bun run tauri build --bundles app,dmg --config '{"bundle":{"createUpdaterArtifacts":true}}'
+bun run tauri:build:macos-release
 ```
 
 Upload these files to the existing GitHub release:

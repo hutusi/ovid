@@ -44,7 +44,7 @@ The first release should stay narrow:
 
 - Build the release on your local Mac for now.
 - Run:
-  `bun run tauri build --bundles app,dmg --config '{"bundle":{"createUpdaterArtifacts":true}}'`
+  `bun run tauri:build:macos-release`
 - Upload these files manually to the GitHub release after the Windows CI run completes:
   - `src-tauri/target/release/bundle/dmg/Ovid_<version>_aarch64.dmg`
   - `src-tauri/target/release/bundle/macos/Ovid.app.tar.gz`
