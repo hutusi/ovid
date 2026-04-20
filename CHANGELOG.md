@@ -11,6 +11,12 @@ release cadence and Conventional Commit history.
 - `0.9.0` shipped as the first public preview release on 2026-04-15.
 - Follow-up work is now focused on stabilization, installer feedback, and core workflow regressions before broader Phase 11 implementation resumes.
 
+## 0.9.9 - 2026-04-20
+
+### Changed
+- Added the first Ovid app logo source asset and regenerated the packaged icon set so fresh
+  installs and upgrade paths can be verified with the new bundled branding.
+
 ## 0.9.8 - 2026-04-20
 
 ### Changed
