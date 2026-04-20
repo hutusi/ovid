@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:build:macos-release": "tauri build --bundles app,dmg --config '{\"bundle\":{\"createUpdaterArtifacts\":true}}'",
+    "release:macos-local": "node scripts/release-macos-local.mjs",
     "lint": "biome check src",
     "lint:fix": "biome check --write src",
     "format": "biome format --write src",

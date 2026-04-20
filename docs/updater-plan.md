@@ -17,6 +17,7 @@ As of `0.9.0`, Ovid has:
   Phase 12.70 stays focused on the two desktop targets we already distribute
 - a GitHub-based release flow
 - a GitHub Actions workflow for building the Windows MSI
+- a local macOS release automation path that publishes macOS assets and updater metadata
 
 Ovid does **not** yet have:
 
@@ -35,10 +36,12 @@ Verified in the current repo:
 - [src-tauri/capabilities/default.json](../src-tauri/capabilities/default.json) already grants
   the `updater:default` permission
 - [src-tauri/src/lib.rs](../src-tauri/src/lib.rs) already has a native `Help` menu, which is the right future home for `Check for Updates`
-- [.github/workflows/release-bundles.yml](../.github/workflows/release-bundles.yml) builds predictable macOS and Windows release assets on tag pushes, which is the right base for later updater artifact generation
+- [.github/workflows/release-bundles.yml](../.github/workflows/release-bundles.yml) builds the
+  Windows MSI and updater signature on tag pushes
 - [.github/workflows/updater-metadata.yml](../.github/workflows/updater-metadata.yml) can publish
   a stable `latest.json` file to GitHub Pages
-- [.github/workflows/windows-release.yml](../.github/workflows/windows-release.yml) still exists as a narrower Windows-only fallback path and should remain secondary to the cross-platform release workflow for now
+- [scripts/release-macos-local.mjs](../scripts/release-macos-local.mjs) builds macOS updater
+  artifacts locally, uploads them to the matching GitHub release, and triggers metadata publish
 
 This means Ovid now has the updater release scaffolding in place, but it still needs real
 signing secrets, release operations, and app-side update UI before end users can update from
@@ -107,7 +110,8 @@ For Ovid, that likely means:
 
 - GitHub Releases remain the distribution source
 - updater metadata is generated as part of release publishing
-- macOS and Windows updater artifacts are published together for each version
+- Windows updater artifacts are published from tag-triggered CI
+- macOS updater artifacts are published from a local release command after the Windows assets land
 - Linux artifacts are intentionally excluded from this pipeline until Ovid has a clearer
   distribution and support story for Linux packaging
 
@@ -237,18 +241,19 @@ Use a split hosting model:
 
 For the current repo state:
 
-- [.github/workflows/release-bundles.yml](../.github/workflows/release-bundles.yml) should be treated as the canonical release asset workflow
-- [.github/workflows/windows-release.yml](../.github/workflows/windows-release.yml) should remain as a targeted Windows-only fallback until the new release path proves stable
+- [.github/workflows/release-bundles.yml](../.github/workflows/release-bundles.yml) should be treated as the canonical Windows release asset workflow
+- [scripts/release-macos-local.mjs](../scripts/release-macos-local.mjs) should be treated as the
+  canonical macOS release asset and metadata workflow
 
-That avoids unnecessary workflow churn while Phase 12.70 is still defining updater-compatible
-assets and metadata.
+That keeps the release path aligned with the current trust boundary: Windows bundles can be built
+in CI, while macOS bundles still depend on local operator packaging.
 
 ### Current CI Bridge
 
 The release workflow is now updater-aware:
 
-- if `TAURI_UPDATER_PRIVATE_KEY` is present in GitHub Actions secrets, the
-  cross-platform release workflow enables `createUpdaterArtifacts` during tagged builds
+- if `TAURI_UPDATER_PRIVATE_KEY` is present in GitHub Actions secrets, the Windows release
+  workflow enables `createUpdaterArtifacts` during tagged builds
 - the workflow then maps that secret into the `TAURI_SIGNING_PRIVATE_KEY` environment variable
   expected by Tauri during the build step
 - if the signing secret is absent, the workflow still produces normal release bundles
