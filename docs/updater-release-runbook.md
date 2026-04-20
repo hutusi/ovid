@@ -65,6 +65,8 @@ Before tagging the release:
 - update the version in `src-tauri/Cargo.toml`
 - update the version in `src-tauri/tauri.conf.json`
 - update `CHANGELOG.md`
+- for Windows MSI targets, avoid semver labels like `-rc1` or `-beta.1`; use a plain `x.y.z`
+  version or a Windows-compatible numeric prerelease identifier if you intentionally need one
 
 Run the normal release validation:
 
@@ -171,6 +173,13 @@ Likely causes:
 - the local macOS build did not include `createUpdaterArtifacts`, so `Ovid.app.tar.gz.sig`
   was not generated
 - the upload step failed before the release assets were attached
+
+### Windows MSI bundling fails on the app version
+
+Likely cause:
+
+- the app version uses a prerelease label such as `0.9.7-rc1`, but the MSI target only accepts a
+  numeric prerelease identifier and will reject those labels during bundling
 
 ### `latest.json` publishes but updates do not work
 

@@ -17,6 +17,9 @@ The first release should stay narrow:
 
 - Confirm the version is correct in `package.json`, `src-tauri/Cargo.toml`, and
   `src-tauri/tauri.conf.json`.
+- If the release will produce a Windows MSI, avoid app versions like `x.y.z-rc1` or
+  `x.y.z-beta.1`; use a plain `x.y.z` version unless you explicitly need a Windows-compatible
+  numeric prerelease identifier.
 - Run `bun run validate` on the release branch.
 - Run `bun run tauri build` on the target release machine.
 - Smoke-test the packaged app with a real Amytis workspace and a large Markdown workspace.
