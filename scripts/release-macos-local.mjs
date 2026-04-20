@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -160,6 +161,7 @@ function main() {
     "Ovid.app.tar.gz.sig",
   );
 
+  // Fail fast before the local macOS build if the matching Windows release assets are missing.
   console.log(`Verifying release ${tag} and Windows assets...`);
   const initialRelease = readJson("gh", ["release", "view", tag, "--json", "assets"]);
   const initialAssets = initialRelease.assets ?? [];
@@ -184,27 +186,33 @@ function main() {
   console.log("Uploading macOS assets to the GitHub release...");
   run("gh", uploadArgs);
 
+  // Re-read the release after upload so the macOS updater URL comes from the attached asset.
   console.log("Resolving final release asset URLs and signatures...");
   const finalRelease = readJson("gh", ["release", "view", tag, "--json", "assets"]);
   const finalAssets = finalRelease.assets ?? [];
   const darwinUrl = findAssetUrl(finalAssets, "Ovid.app.tar.gz");
   findAssetUrl(finalAssets, "Ovid.app.tar.gz.sig");
 
-  const downloadDir = fs.mkdtempSync(path.join(process.cwd(), "tmp-release-metadata-"));
+  const downloadDir = fs.mkdtempSync(path.join(os.tmpdir(), "ovid-release-metadata-"));
   const windowsSigPath = path.join(downloadDir, `Ovid_${options.version}_x64_en-US.msi.sig`);
-  run("gh", [
-    "release",
-    "download",
-    tag,
-    "--pattern",
-    `Ovid_${options.version}_x64_en-US.msi.sig`,
-    "--dir",
-    downloadDir,
-  ]);
+  let windowsSignature = "";
+  let darwinSignature = "";
+  try {
+    run("gh", [
+      "release",
+      "download",
+      tag,
+      "--pattern",
+      `Ovid_${options.version}_x64_en-US.msi.sig`,
+      "--dir",
+      downloadDir,
+    ]);
 
-  const windowsSignature = readSignature(windowsSigPath);
-  const darwinSignature = readSignature(macosSignature);
-  fs.rmSync(downloadDir, { force: true, recursive: true });
+    windowsSignature = readSignature(windowsSigPath);
+    darwinSignature = readSignature(macosSignature);
+  } finally {
+    fs.rmSync(downloadDir, { force: true, recursive: true });
+  }
 
   console.log("Triggering updater metadata workflow...");
   run("gh", [
