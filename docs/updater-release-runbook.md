@@ -174,6 +174,20 @@ Likely causes:
   was not generated
 - the upload step failed before the release assets were attached
 
+### Downloaded macOS DMG shows as broken even though checksums match
+
+Likely causes:
+
+- the downloaded DMG and the copied app are still subject to Gatekeeper checks because the app is
+  not yet Developer ID signed and notarized
+- quarantine removal may need to be applied to both the downloaded DMG and the copied
+  `/Applications/Ovid.app` during limited internal testing
+
+Notes:
+
+- this is an internal-test workaround only, not a public release instruction
+- the real fix is Apple signing and notarization, tracked in GitHub issue `#43`
+
 ### Windows MSI bundling fails on the app version
 
 Likely cause:

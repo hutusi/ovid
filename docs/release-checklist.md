@@ -53,6 +53,10 @@ The first release should stay narrow:
 - If Tauri's DMG wrapper fails locally, a plain DMG built from the generated `.app` is an
   acceptable fallback for limited private distribution.
 - Verify the mounted DMG shows `Ovid.app` and an `Applications` shortcut before publishing.
+- For limited internal testing only, an unsigned downloaded DMG may still be blocked by
+  Gatekeeper even when its checksum matches the local build. If that happens, remove quarantine
+  from both the downloaded DMG and the copied `/Applications/Ovid.app` before retrying. Do not
+  treat that as a public install flow; the real fix is tracked in GitHub issue `#43`.
 
 ### Windows
 
