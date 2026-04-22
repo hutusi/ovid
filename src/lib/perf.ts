@@ -1,4 +1,6 @@
 const PERF_FLAG_KEY = "ovid:perf";
+const PERF_PANEL_COLLAPSED_KEY = "ovid:perf-panel-collapsed";
+const PERF_PANEL_HIDDEN_KEY = "ovid:perf-panel-hidden";
 const MAX_EVENTS = 40;
 
 export interface PerfEvent {
@@ -27,6 +29,34 @@ export function isPerfLoggingEnabled(): boolean {
   if (import.meta.env.DEV) return true;
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(PERF_FLAG_KEY) === "1";
+}
+
+export function isPerfPanelCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(PERF_PANEL_COLLAPSED_KEY) === "1";
+}
+
+export function setPerfPanelCollapsed(collapsed: boolean): void {
+  if (typeof window === "undefined") return;
+  if (collapsed) {
+    window.localStorage.setItem(PERF_PANEL_COLLAPSED_KEY, "1");
+  } else {
+    window.localStorage.removeItem(PERF_PANEL_COLLAPSED_KEY);
+  }
+}
+
+export function isPerfPanelHidden(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(PERF_PANEL_HIDDEN_KEY) === "1";
+}
+
+export function setPerfPanelHidden(hidden: boolean): void {
+  if (typeof window === "undefined") return;
+  if (hidden) {
+    window.localStorage.setItem(PERF_PANEL_HIDDEN_KEY, "1");
+  } else {
+    window.localStorage.removeItem(PERF_PANEL_HIDDEN_KEY);
+  }
 }
 
 export function formatDetail(

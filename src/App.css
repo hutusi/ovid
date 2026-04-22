@@ -116,6 +116,13 @@
   pointer-events: auto;
 }
 
+.perf-panel.is-collapsed {
+  width: auto;
+  max-width: calc(100vw - 28px);
+  max-height: none;
+  gap: 0;
+}
+
 .perf-panel-header {
   display: flex;
   align-items: center;
@@ -125,10 +132,15 @@
   color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
 }
 
+.perf-panel.is-collapsed .perf-panel-header {
+  min-width: 0;
+}
+
 .perf-panel-actions {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .perf-panel-toggle,

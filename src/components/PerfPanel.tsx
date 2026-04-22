@@ -5,8 +5,12 @@ import {
   getPerfEvents,
   getPerfSummaries,
   isPerfLoggingEnabled,
+  isPerfPanelCollapsed,
+  isPerfPanelHidden,
   type PerfEvent,
   type PerfMetricSummary,
+  setPerfPanelCollapsed,
+  setPerfPanelHidden,
   subscribePerfEvents,
 } from "../lib/perf";
 
@@ -21,6 +25,8 @@ export function PerfPanel() {
     summaries: getPerfSummaries(),
   }));
   const [showRecent, setShowRecent] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => isPerfPanelCollapsed());
+  const [hidden, setHidden] = useState(() => isPerfPanelHidden());
 
   useEffect(() => {
     const syncPerfState = () =>
@@ -34,17 +40,33 @@ export function PerfPanel() {
   }, []);
 
   const { events, summaries } = perfState;
-  if (!isPerfLoggingEnabled() || (events.length === 0 && summaries.length === 0)) return null;
+  if (!isPerfLoggingEnabled() || hidden || (events.length === 0 && summaries.length === 0)) {
+    return null;
+  }
 
   const sortedSummaries = [...summaries].sort(
     (left, right) => right.maxElapsedMs - left.maxElapsedMs || right.count - left.count
   );
 
   return (
-    <aside className="perf-panel" aria-label="Performance events">
+    <aside
+      className={`perf-panel${collapsed ? " is-collapsed" : ""}`}
+      aria-label="Performance events"
+    >
       <div className="perf-panel-header">
         <strong>Perf</strong>
         <div className="perf-panel-actions">
+          <button
+            type="button"
+            className="perf-panel-clear"
+            onClick={() => {
+              const next = !collapsed;
+              setCollapsed(next);
+              setPerfPanelCollapsed(next);
+            }}
+          >
+            {collapsed ? "Expand" : "Collapse"}
+          </button>
           <button
             type="button"
             className={`perf-panel-toggle${showRecent ? "" : " is-active"}`}
@@ -64,43 +86,55 @@ export function PerfPanel() {
           <button type="button" className="perf-panel-clear" onClick={clearPerfEvents}>
             Clear
           </button>
+          <button
+            type="button"
+            className="perf-panel-clear"
+            onClick={() => {
+              setHidden(true);
+              setPerfPanelHidden(true);
+            }}
+          >
+            Hide
+          </button>
         </div>
       </div>
-      <div className="perf-panel-list">
-        {showRecent
-          ? events.map((event: PerfEvent) => (
-              <div key={event.id} className="perf-panel-item">
-                <div className="perf-panel-row">
-                  <span className="perf-panel-name">{event.name}</span>
-                  <span className="perf-panel-time">{event.elapsedMs}ms</span>
-                </div>
-                {event.detail && (
-                  <div className="perf-panel-detail">{formatDetail(event.detail, false)}</div>
-                )}
-              </div>
-            ))
-          : sortedSummaries.map((event) => (
-              <div key={event.name} className="perf-panel-item">
-                <div className="perf-panel-row">
-                  <span className="perf-panel-name">{event.name}</span>
-                  <span className="perf-panel-time">{event.maxElapsedMs}ms</span>
-                </div>
-                {event.count > 1 && (
-                  <div className="perf-panel-detail">
-                    latest={event.latestElapsedMs}ms count={event.count}
+      {!collapsed && (
+        <div className="perf-panel-list">
+          {showRecent
+            ? events.map((event: PerfEvent) => (
+                <div key={event.id} className="perf-panel-item">
+                  <div className="perf-panel-row">
+                    <span className="perf-panel-name">{event.name}</span>
+                    <span className="perf-panel-time">{event.elapsedMs}ms</span>
                   </div>
-                )}
-                {(event.maxDetail || event.latestDetail) && (
-                  <div className="perf-panel-detail">
-                    {event.maxDetail ? `peak=${formatDetail(event.maxDetail, false)}` : ""}
-                    {event.latestDetail
-                      ? `${event.maxDetail ? " " : ""}latest=${formatDetail(event.latestDetail, false)}`
-                      : ""}
+                  {event.detail && (
+                    <div className="perf-panel-detail">{formatDetail(event.detail, false)}</div>
+                  )}
+                </div>
+              ))
+            : sortedSummaries.map((event) => (
+                <div key={event.name} className="perf-panel-item">
+                  <div className="perf-panel-row">
+                    <span className="perf-panel-name">{event.name}</span>
+                    <span className="perf-panel-time">{event.maxElapsedMs}ms</span>
                   </div>
-                )}
-              </div>
-            ))}
-      </div>
+                  {event.count > 1 && (
+                    <div className="perf-panel-detail">
+                      latest={event.latestElapsedMs}ms count={event.count}
+                    </div>
+                  )}
+                  {(event.maxDetail || event.latestDetail) && (
+                    <div className="perf-panel-detail">
+                      {event.maxDetail ? `peak=${formatDetail(event.maxDetail, false)}` : ""}
+                      {event.latestDetail
+                        ? `${event.maxDetail ? " " : ""}latest=${formatDetail(event.latestDetail, false)}`
+                        : ""}
+                    </div>
+                  )}
+                </div>
+              ))}
+        </div>
+      )}
     </aside>
   );
 }
