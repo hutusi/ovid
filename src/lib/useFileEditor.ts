@@ -8,8 +8,7 @@ import {
   parseYamlFrontmatter,
   serializeFrontmatter,
 } from "./frontmatter";
-import { normalizeMarkdownSpacing } from "./markdown";
-import { measureAsync, measureSync } from "./perf";
+import { measureAsync } from "./perf";
 import type { FileNode, SaveStatus } from "./types";
 
 const SAVE_DELAY_MS = 750;
@@ -153,13 +152,12 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       if (selectedPathRef.current !== node.path) return;
       const { frontmatter, body } = parseFrontmatter(raw);
       frontmatterRef.current = frontmatter;
-      const normalizedBody = normalizeMarkdownSpacing(body);
       // Update all state only after a successful read so a failure leaves the
       // previous file's metadata intact on screen.
       setWordCount(0);
       setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
       setSaveStatus("saved");
-      setFileContent(normalizedBody);
+      setFileContent(body);
       setSelectedFile(node);
     } catch (err) {
       console.error("Failed to read file:", err);
@@ -171,15 +169,8 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
   function handleEditorChange(markdown: string) {
     if (!selectedFile) return;
     const pathToSave = selectedFile.path;
-    const normalizedMarkdown = measureSync(
-      "editor.normalizeMarkdownSpacing",
-      () => normalizeMarkdownSpacing(markdown),
-      {
-        contentLength: markdown.length,
-      }
-    );
     setSaveStatus("unsaved");
-    pendingMarkdownRef.current = normalizedMarkdown;
+    pendingMarkdownRef.current = markdown;
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
       saveTimerRef.current = null;

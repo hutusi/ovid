@@ -122,11 +122,12 @@ export function Editor({
 
   const flushPendingSerialization = useCallback(
     (editorInstance = latestEditorRef.current) => {
-      if (pendingSerializeTimerRef.current) {
+      const hasPendingSerialization = pendingSerializeTimerRef.current !== null;
+      if (hasPendingSerialization) {
         clearTimeout(pendingSerializeTimerRef.current);
         pendingSerializeTimerRef.current = null;
       }
-      if (!editorInstance || !onChange) return;
+      if (!hasPendingSerialization || !editorInstance || !onChange) return;
       onChange(serializeMarkdown(editorInstance));
     },
     [onChange, serializeMarkdown]
@@ -267,6 +268,7 @@ export function Editor({
       clearPendingRestore();
       latestEditorRef.current = editor;
       updateStartedAtRef.current = performance.now();
+      const isUserEdit = editor.isFocused;
       const { selection } = editor.state;
       const currentBlock =
         selection.$from.parent.type.name === "paragraph" ? selection.$from : null;
@@ -295,8 +297,10 @@ export function Editor({
         editor.commands.setTextSelection(typingNormalization.targetPos);
       }
 
-      onDirty?.();
-      if (onChange) {
+      if (isUserEdit) {
+        onDirty?.();
+      }
+      if (isUserEdit && onChange) {
         if (pendingSerializeTimerRef.current) clearTimeout(pendingSerializeTimerRef.current);
         pendingSerializeTimerRef.current = setTimeout(() => {
           pendingSerializeTimerRef.current = null;
