@@ -1,4 +1,13 @@
-import { ArrowDown, ArrowUp, ArrowUpDown, GitBranch, PencilLine } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  GitBranch,
+  Keyboard,
+  MoonStar,
+  PencilLine,
+  SunMedium,
+} from "lucide-react";
 import type { SaveStatus } from "../lib/types";
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
 import type { ResolvedTheme } from "../lib/useTheme";
@@ -153,30 +162,32 @@ export function StatusBar({
           </span>
         )}
         <span className="statusbar-words">{wordCount > 0 ? `${wordCount} words` : ""}</span>
-        <button
-          type="button"
-          className={`statusbar-control statusbar-mode-toggle${typewriterMode ? " statusbar-control-active" : ""}`}
-          onClick={onToggleTypewriter}
-          title={
-            typewriterMode
-              ? "Disable typewriter mode"
-              : "Enable typewriter mode (keeps cursor centered)"
-          }
-          aria-label="Toggle typewriter mode"
-          aria-pressed={typewriterMode}
-        >
-          ⌨
-        </button>
-        <button
-          type="button"
-          className={`statusbar-control statusbar-mode-toggle${zenMode ? " statusbar-control-active" : ""}`}
-          onClick={onToggleZen}
-          title={zenMode ? "Exit zen mode (Esc)" : "Enter zen mode (⌃⌘Z)"}
-          aria-label="Toggle zen mode"
-          aria-pressed={zenMode}
-        >
-          ◎
-        </button>
+        <div className="statusbar-mode-group">
+          <button
+            type="button"
+            className={`statusbar-control statusbar-mode-toggle statusbar-typewriter-toggle${typewriterMode ? " statusbar-control-active" : ""}`}
+            onClick={onToggleTypewriter}
+            title={
+              typewriterMode
+                ? "Disable typewriter mode"
+                : "Enable typewriter mode (keeps cursor centered)"
+            }
+            aria-label="Toggle typewriter mode"
+            aria-pressed={typewriterMode}
+          >
+            <Keyboard className="statusbar-mode-icon" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className={`statusbar-control statusbar-mode-toggle${zenMode ? " statusbar-control-active" : ""}`}
+            onClick={onToggleZen}
+            title={zenMode ? "Exit zen mode (Esc)" : "Enter zen mode (⌃⌘Z)"}
+            aria-label="Toggle zen mode"
+            aria-pressed={zenMode}
+          >
+            <span className="statusbar-zen-icon" aria-hidden="true" />
+          </button>
+        </div>
         <FontSettingsButton
           fontFamily={fontFamily}
           fontSize={fontSize}
@@ -195,7 +206,11 @@ export function StatusBar({
           aria-label="Toggle theme"
           aria-pressed={resolvedTheme === "dark"}
         >
-          {resolvedTheme === "dark" ? "☀" : "⏾"}
+          {resolvedTheme === "dark" ? (
+            <SunMedium className="statusbar-mode-icon" aria-hidden="true" />
+          ) : (
+            <MoonStar className="statusbar-mode-icon" aria-hidden="true" />
+          )}
         </button>
       </div>
     </div>

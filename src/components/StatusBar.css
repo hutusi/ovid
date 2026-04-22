@@ -58,10 +58,17 @@
   flex-shrink: 0;
 }
 
+.statusbar-mode-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 4px;
+}
+
 .statusbar-control {
   height: 22px;
-  min-width: 22px;
-  padding: 0 8px;
+  min-width: 24px;
+  padding: 0 6px;
   border-radius: 999px;
   border: 1px solid transparent;
   background: transparent;
@@ -103,8 +110,24 @@
   padding: 0 6px;
 }
 
-.statusbar-font-button {
-  font-size: 13px;
+.statusbar-typewriter-toggle {
+  min-width: 24px;
+  padding-right: 7px;
+}
+
+.statusbar-mode-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  stroke-width: 2;
+}
+
+.statusbar-zen-icon {
+  width: 13px;
+  height: 13px;
+  border: 1.6px solid currentColor;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 
 .statusbar-git {

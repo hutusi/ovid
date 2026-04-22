@@ -1,3 +1,4 @@
+import { Type } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
 import "./FontSettings.css";
@@ -69,7 +70,7 @@ export function FontSettingsButton({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        Aa
+        <Type className="statusbar-mode-icon" aria-hidden="true" />
       </button>
 
       {open && (
