@@ -18,7 +18,7 @@ describe("frontmatter schema", () => {
   test("coerces known boolean input to real booleans", () => {
     expect(coerceFrontmatterInput("featured", "false")).toBe(false);
     expect(coerceFrontmatterInput("pinned", "true")).toBe(true);
-    expect(coerceFrontmatterInput("featured", "")).toBe(true);
+    expect(coerceFrontmatterInput("featured", "")).toBe(false);
   });
 
   test("coerces known tag input to arrays", () => {

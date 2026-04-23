@@ -51,7 +51,7 @@ export function coerceFrontmatterInput(key: string, value: string): FrontmatterV
   const trimmed = value.trim();
 
   if (schema?.kind === "boolean") {
-    return parseBooleanFrontmatterValue(trimmed) ?? true;
+    return parseBooleanFrontmatterValue(trimmed) ?? false;
   }
 
   if (schema?.kind === "tags") {

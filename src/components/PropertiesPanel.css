@@ -278,7 +278,14 @@
 
 .prop-add-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+}
+
+.prop-add-field-error {
+  flex-basis: 100%;
+  font-size: 10.5px;
+  color: var(--color-warning);
 }
 
 /* ── Inline input ────────────────────────────── */

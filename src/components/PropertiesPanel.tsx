@@ -211,10 +211,17 @@ function EditableValue({
 // Add field row
 // ---------------------------------------------------------------------------
 
-function AddFieldRow({ onAdd }: { onAdd: (key: string, value: FrontmatterValue) => void }) {
+function AddFieldRow({
+  existingKeys,
+  onAdd,
+}: {
+  existingKeys: string[];
+  onAdd: (key: string, value: FrontmatterValue) => void;
+}) {
   const [adding, setAdding] = useState(false);
   const [key, setKey] = useState("");
   const [val, setVal] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const keyRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -224,15 +231,25 @@ function AddFieldRow({ onAdd }: { onAdd: (key: string, value: FrontmatterValue) 
   function submit() {
     const k = key.trim();
     if (!k) return;
+    if (existingKeys.includes(k)) {
+      setError("This field already exists.");
+      return;
+    }
+    if (isKnownFrontmatterField(k)) {
+      setError("Use the dedicated editor for this field.");
+      return;
+    }
     onAdd(k, coerceFrontmatterInput(k, val));
     setKey("");
     setVal("");
+    setError(null);
     setAdding(false);
   }
 
   function cancel() {
     setKey("");
     setVal("");
+    setError(null);
     setAdding(false);
   }
 
@@ -252,7 +269,10 @@ function AddFieldRow({ onAdd }: { onAdd: (key: string, value: FrontmatterValue) 
         className="prop-input prop-input--sm"
         placeholder="field name"
         value={key}
-        onChange={(e) => setKey(e.target.value)}
+        onChange={(e) => {
+          setKey(e.target.value);
+          setError(null);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Escape") cancel();
           else if (e.key === "Enter") submit();
@@ -263,12 +283,16 @@ function AddFieldRow({ onAdd }: { onAdd: (key: string, value: FrontmatterValue) 
         className="prop-input prop-input--sm"
         placeholder="value"
         value={val}
-        onChange={(e) => setVal(e.target.value)}
+        onChange={(e) => {
+          setVal(e.target.value);
+          setError(null);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Escape") cancel();
           else if (e.key === "Enter") submit();
         }}
       />
+      {error && <span className="prop-add-field-error">{error}</span>}
     </div>
   );
 }
@@ -506,7 +530,10 @@ export function PropertiesPanel({
           </section>
         )}
 
-        <AddFieldRow onAdd={(k, v) => onFieldChange?.(k, v)} />
+        <AddFieldRow
+          existingKeys={Object.keys(frontmatter)}
+          onAdd={(k, v) => onFieldChange?.(k, v)}
+        />
       </div>
     </div>
   );
