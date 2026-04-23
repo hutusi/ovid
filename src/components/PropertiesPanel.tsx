@@ -402,7 +402,10 @@ export function PropertiesPanel({
     <div className={`properties-panel${visible ? "" : " hidden"}`}>
       {/* ── Header: type + status ──────────────────── */}
       <div className="prop-header">
-        <TypeSelector type={type} onChange={(t) => onFieldChange?.("type", t)} />
+        <div className="prop-header-main">
+          <span className="prop-panel-kicker">Metadata</span>
+          <TypeSelector type={type} onChange={(t) => onFieldChange?.("type", t)} />
+        </div>
         <button
           type="button"
           className={`prop-status-badge${draft ? "" : " published"}`}
@@ -415,51 +418,55 @@ export function PropertiesPanel({
 
       {/* ── Body: standard fields ──────────────────── */}
       <div className="properties-body">
-        {title !== undefined && (
-          <div className="prop-field">
-            <span className="prop-label">Title</span>
-            <EditableValue
-              label="Title"
-              value={title}
-              onSave={(v) => onFieldChange?.("title", v)}
-            />
-          </div>
-        )}
+        <section className="prop-section" aria-label="Document metadata">
+          {title !== undefined && (
+            <div className="prop-field">
+              <span className="prop-label">Title</span>
+              <EditableValue
+                label="Title"
+                value={title}
+                onSave={(v) => onFieldChange?.("title", v)}
+              />
+            </div>
+          )}
 
-        {slug && (
-          <div className="prop-field">
-            <span className="prop-label">Slug</span>
-            <span className="prop-slug">{slug}</span>
-          </div>
-        )}
+          {slug && (
+            <div className="prop-field">
+              <span className="prop-label">Slug</span>
+              <span className="prop-slug">{slug}</span>
+            </div>
+          )}
 
-        {date !== undefined && (
-          <div className="prop-field">
-            <span className="prop-label">Date</span>
-            <DateField value={date} onSave={(v) => onFieldChange?.("date", v)} />
-          </div>
-        )}
+          {date !== undefined && (
+            <div className="prop-field">
+              <span className="prop-label">Date</span>
+              <DateField value={date} onSave={(v) => onFieldChange?.("date", v)} />
+            </div>
+          )}
 
-        {tags !== undefined && (
-          <div className="prop-field">
-            <span className="prop-label">Tags</span>
-            <TagInput tags={tags} onSave={(v) => onFieldChange?.("tags", v)} />
-          </div>
-        )}
+          {tags !== undefined && (
+            <div className="prop-field">
+              <span className="prop-label">Tags</span>
+              <TagInput tags={tags} onSave={(v) => onFieldChange?.("tags", v)} />
+            </div>
+          )}
+        </section>
 
         {coverImage !== undefined && (
-          <CoverImageField
-            value={coverImage}
-            previewVisible={coverImageVisible}
-            onTogglePreview={() => onToggleCoverImage?.()}
-            onSave={(v) => onFieldChange?.("coverImage", v)}
-          />
+          <section className="prop-section" aria-label="Cover image metadata">
+            <CoverImageField
+              value={coverImage}
+              previewVisible={coverImageVisible}
+              onTogglePreview={() => onToggleCoverImage?.()}
+              onSave={(v) => onFieldChange?.("coverImage", v)}
+            />
+          </section>
         )}
 
         {/* ── Custom fields ─────────────────────────── */}
         {customKeys.length > 0 && (
-          <>
-            <div className="prop-divider" />
+          <section className="prop-section" aria-label="Custom metadata">
+            <span className="prop-section-title">Custom</span>
             {customKeys.map((key) => (
               <div key={key} className="prop-field">
                 <span className="prop-label">{key}</span>
@@ -470,7 +477,7 @@ export function PropertiesPanel({
                 />
               </div>
             ))}
-          </>
+          </section>
         )}
 
         <AddFieldRow onAdd={(k, v) => onFieldChange?.(k, v)} />
