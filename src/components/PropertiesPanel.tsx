@@ -24,6 +24,7 @@ interface PropertiesPanelProps {
   coverImageVisible?: boolean;
   onFieldChange?: (key: string, value: FrontmatterValue) => void;
   onToggleCoverImage?: () => void;
+  onError?: (message: string) => void;
 }
 
 const PUBLISHING_BOOLEAN_FIELDS = ["draft", "featured", "pinned"];
@@ -298,7 +299,7 @@ function CustomMetadataDialog({
     if (e.key === "Escape") {
       e.stopPropagation();
       onCancel();
-    } else if (e.key === "Enter" && !(e.target instanceof HTMLTextAreaElement)) {
+    } else if (e.key === "Enter" && e.target instanceof HTMLInputElement) {
       e.preventDefault();
       submit();
     }
@@ -415,11 +416,13 @@ function CustomMetadataField({
   value,
   onSave,
   onRemove,
+  onError,
 }: {
   fieldKey: string;
   value: FrontmatterValue;
   onSave: (value: FrontmatterValue) => void;
   onRemove: () => void;
+  onError?: (message: string) => void;
 }) {
   const inferredType = inferCustomFrontmatterValueType(value);
   const removeButton = <RemoveFieldButton label={fieldKey} onRemove={onRemove} />;
@@ -456,7 +459,11 @@ function CustomMetadataField({
             return;
           }
           const parsed = Number(String(nextValue).trim());
-          onSave(Number.isFinite(parsed) ? parsed : value);
+          if (Number.isFinite(parsed)) {
+            onSave(parsed);
+          } else {
+            onError?.(`"${fieldKey}" must be a number.`);
+          }
         }}
       />
     );
@@ -683,6 +690,7 @@ export function PropertiesPanel({
   coverImageVisible = false,
   onFieldChange,
   onToggleCoverImage,
+  onError,
 }: PropertiesPanelProps) {
   const titleValue = getFrontmatterFieldValue(frontmatter, "title");
   const dateValue = getFrontmatterFieldValue(frontmatter, "date");
@@ -785,6 +793,7 @@ export function PropertiesPanel({
                   value={frontmatter[key]}
                   onSave={(v) => onFieldChange?.(key, v)}
                   onRemove={() => onFieldChange?.(key, null)}
+                  onError={onError}
                 />
               </div>
             ))}
@@ -792,7 +801,7 @@ export function PropertiesPanel({
         )}
 
         <AddFieldRow
-          existingKeys={Object.keys(frontmatter)}
+          existingKeys={Object.keys(frontmatter).filter((k) => frontmatter[k] != null)}
           addableKeys={addableKeys}
           onAddKnownField={(key) => onFieldChange?.(key, getFrontmatterFieldDefaultValue(key))}
           onAdd={(k, v) => onFieldChange?.(k, v)}

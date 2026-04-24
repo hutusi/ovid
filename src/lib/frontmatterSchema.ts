@@ -105,7 +105,9 @@ export function setFrontmatterFieldValue(
 
 export function getMissingAddableFrontmatterFields(frontmatter: ParsedFrontmatter): string[] {
   const presentKeys = new Set(
-    Object.keys(frontmatter).map((key) => resolveKnownFrontmatterFieldKey(key) ?? key)
+    Object.entries(frontmatter)
+      .filter(([, value]) => value != null)
+      .map(([key]) => resolveKnownFrontmatterFieldKey(key) ?? key)
   );
   return Object.values(FRONTMATTER_FIELD_SCHEMA)
     .filter((field) => field.addable && !presentKeys.has(field.key))

@@ -765,6 +765,7 @@ function App() {
             coverImageVisible={coverImageVisible}
             onFieldChange={handlePublishAwareFieldChange}
             onToggleCoverImage={() => setCoverImageVisible((v) => !v)}
+            onError={showToast}
           />
         )}
       </div>

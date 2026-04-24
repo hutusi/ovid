@@ -64,6 +64,15 @@ describe("frontmatter schema", () => {
     ).toEqual(["pinned"]);
   });
 
+  test("treats null-valued known keys as absent for addable fields", () => {
+    expect(
+      getMissingAddableFrontmatterFields({
+        featured: null,
+        pinned: false,
+      })
+    ).toEqual(["featured", "coverImage"]);
+  });
+
   test("coerces custom metadata values by type", () => {
     expect(coerceCustomFrontmatterValue("text", " hello ")).toBe("hello");
     expect(coerceCustomFrontmatterValue("boolean", "", true)).toBe(true);
