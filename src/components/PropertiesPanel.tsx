@@ -652,7 +652,7 @@ function CoverImageField({
   return (
     <div className="prop-field">
       <div className="prop-field-head">
-        <span className="prop-label">coverImage</span>
+        <span className="prop-label">Cover Image</span>
         <div className="prop-field-actions">
           <button
             type="button"
@@ -663,10 +663,10 @@ function CoverImageField({
           >
             <EyeIcon open={previewVisible} />
           </button>
-          <RemoveFieldButton label="coverImage" onRemove={onRemove} />
+          <RemoveFieldButton label="cover image" onRemove={onRemove} />
         </div>
       </div>
-      <EditableValue label="coverImage path" value={value} onSave={onSave} />
+      <EditableValue label="Cover image path" value={value} onSave={onSave} />
     </div>
   );
 }
@@ -709,9 +709,9 @@ export function PropertiesPanel({
         <section className="prop-section" aria-label="Document metadata">
           {title !== undefined && (
             <div className="prop-field">
-              <span className="prop-label">title</span>
+              <span className="prop-label">Title</span>
               <EditableValue
-                label="title"
+                label="Title"
                 value={title}
                 onSave={(v) => onFieldChange?.("title", v)}
               />
@@ -720,21 +720,21 @@ export function PropertiesPanel({
 
           {slug && (
             <div className="prop-field">
-              <span className="prop-label">slug</span>
+              <span className="prop-label">Slug</span>
               <span className="prop-slug">{slug}</span>
             </div>
           )}
 
           {date !== undefined && (
             <div className="prop-field">
-              <span className="prop-label">date</span>
+              <span className="prop-label">Date</span>
               <DateField value={date} onSave={(v) => onFieldChange?.("date", v)} />
             </div>
           )}
 
           {tags !== undefined && (
             <div className="prop-field">
-              <span className="prop-label">tags</span>
+              <span className="prop-label">Tags</span>
               <TagInput tags={tags} onSave={(v) => onFieldChange?.("tags", v)} />
             </div>
           )}
