@@ -222,6 +222,20 @@ function EditableValue({
   );
 }
 
+function RemoveFieldButton({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <button
+      type="button"
+      className="prop-remove-btn"
+      aria-label={`Remove ${label} metadata`}
+      title={`Remove ${label}`}
+      onClick={onRemove}
+    >
+      ×
+    </button>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Add field row
 // ---------------------------------------------------------------------------
@@ -387,12 +401,15 @@ function CustomMetadataField({
   fieldKey,
   value,
   onSave,
+  onRemove,
 }: {
   fieldKey: string;
   value: FrontmatterValue;
   onSave: (value: FrontmatterValue) => void;
+  onRemove: () => void;
 }) {
   const inferredType = inferCustomFrontmatterValueType(value);
+  const removeButton = <RemoveFieldButton label={fieldKey} onRemove={onRemove} />;
 
   if (inferredType === "boolean") {
     return (
@@ -400,25 +417,23 @@ function CustomMetadataField({
         label={fieldKey}
         checked={readBooleanFrontmatterValue(value)}
         onSave={(nextValue) => onSave(nextValue)}
+        action={removeButton}
       />
     );
   }
 
+  let editor: React.ReactNode;
   if (inferredType === "tags") {
-    return (
+    editor = (
       <TagInput
         tags={Array.isArray(value) ? value : []}
         onSave={(nextValue) => onSave(nextValue)}
       />
     );
-  }
-
-  if (inferredType === "date" && typeof value === "string") {
-    return <DateField value={value} onSave={(nextValue) => onSave(nextValue)} />;
-  }
-
-  if (inferredType === "number") {
-    return (
+  } else if (inferredType === "date" && typeof value === "string") {
+    editor = <DateField value={value} onSave={(nextValue) => onSave(nextValue)} />;
+  } else if (inferredType === "number") {
+    editor = (
       <EditableValue
         label={fieldKey}
         value={value}
@@ -432,9 +447,21 @@ function CustomMetadataField({
         }}
       />
     );
+  } else {
+    editor = (
+      <EditableValue label={fieldKey} value={value} onSave={(nextValue) => onSave(nextValue)} />
+    );
   }
 
-  return <EditableValue label={fieldKey} value={value} onSave={(nextValue) => onSave(nextValue)} />;
+  return (
+    <div className="prop-field">
+      <div className="prop-field-head">
+        <span className="prop-label">{fieldKey}</span>
+        <div className="prop-field-actions">{removeButton}</div>
+      </div>
+      {editor}
+    </div>
+  );
 }
 
 function AddFieldRow({
@@ -497,11 +524,13 @@ function BooleanField({
   checked,
   stateLabel,
   onSave,
+  action,
 }: {
   label: string;
   checked: boolean;
   stateLabel?: string;
   onSave: (v: boolean) => void;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="prop-boolean-row">
@@ -511,15 +540,18 @@ function BooleanField({
           {stateLabel ?? (checked ? "Enabled" : "Disabled")}
         </span>
       </div>
-      <button
-        type="button"
-        className={`prop-boolean-toggle${checked ? " is-on" : ""}`}
-        aria-label={`${label}: ${checked ? "enabled" : "disabled"}`}
-        aria-pressed={checked}
-        onClick={() => onSave(!checked)}
-      >
-        <span className="prop-boolean-knob" />
-      </button>
+      <div className="prop-boolean-actions">
+        <button
+          type="button"
+          className={`prop-boolean-toggle${checked ? " is-on" : ""}`}
+          aria-label={`${label}: ${checked ? "enabled" : "disabled"}`}
+          aria-pressed={checked}
+          onClick={() => onSave(!checked)}
+        >
+          <span className="prop-boolean-knob" />
+        </button>
+        {action}
+      </div>
     </div>
   );
 }
@@ -528,10 +560,12 @@ function PublishingBooleanField({
   fieldKey,
   value,
   onSave,
+  onRemove,
 }: {
   fieldKey: string;
   value: FrontmatterValue;
   onSave: (fieldKey: string, value: boolean) => void;
+  onRemove?: () => void;
 }) {
   const checked = readBooleanFrontmatterValue(value);
   return (
@@ -540,6 +574,11 @@ function PublishingBooleanField({
       checked={checked}
       stateLabel={fieldKey === "draft" ? (checked ? "Draft" : "Published") : undefined}
       onSave={(nextValue) => onSave(fieldKey, nextValue)}
+      action={
+        onRemove ? (
+          <RemoveFieldButton label={getFrontmatterFieldLabel(fieldKey)} onRemove={onRemove} />
+        ) : undefined
+      }
     />
   );
 }
@@ -590,25 +629,30 @@ function CoverImageField({
   previewVisible,
   onTogglePreview,
   onSave,
+  onRemove,
 }: {
   value: string;
   previewVisible: boolean;
   onTogglePreview: () => void;
   onSave: (v: FrontmatterValue) => void;
+  onRemove: () => void;
 }) {
   return (
     <div className="prop-field">
-      <div className="prop-cover-header">
+      <div className="prop-field-head">
         <span className="prop-label">Cover Image</span>
-        <button
-          type="button"
-          className="prop-cover-eye-btn"
-          aria-label={previewVisible ? "Hide cover image preview" : "Show cover image preview"}
-          aria-pressed={previewVisible}
-          onClick={onTogglePreview}
-        >
-          <EyeIcon open={previewVisible} />
-        </button>
+        <div className="prop-field-actions">
+          <button
+            type="button"
+            className="prop-cover-eye-btn"
+            aria-label={previewVisible ? "Hide cover image preview" : "Show cover image preview"}
+            aria-pressed={previewVisible}
+            onClick={onTogglePreview}
+          >
+            <EyeIcon open={previewVisible} />
+          </button>
+          <RemoveFieldButton label="cover image" onRemove={onRemove} />
+        </div>
       </div>
       <EditableValue label="Cover image path" value={value} onSave={onSave} />
     </div>
@@ -693,6 +737,7 @@ export function PropertiesPanel({
                 fieldKey={key}
                 value={frontmatter[key]}
                 onSave={(fieldKey, value) => onFieldChange?.(fieldKey, value)}
+                onRemove={key === "draft" ? undefined : () => onFieldChange?.(key, null)}
               />
             ))}
           </section>
@@ -705,6 +750,7 @@ export function PropertiesPanel({
               previewVisible={coverImageVisible}
               onTogglePreview={() => onToggleCoverImage?.()}
               onSave={(v) => onFieldChange?.("coverImage", v)}
+              onRemove={() => onFieldChange?.("coverImage", null)}
             />
           </section>
         )}
@@ -714,12 +760,12 @@ export function PropertiesPanel({
           <section className="prop-section" aria-label="Custom metadata">
             <span className="prop-section-title">Custom</span>
             {customKeys.map((key) => (
-              <div key={key} className="prop-field">
-                <span className="prop-label">{key}</span>
+              <div key={key}>
                 <CustomMetadataField
                   fieldKey={key}
                   value={frontmatter[key]}
                   onSave={(v) => onFieldChange?.(key, v)}
+                  onRemove={() => onFieldChange?.(key, null)}
                 />
               </div>
             ))}
