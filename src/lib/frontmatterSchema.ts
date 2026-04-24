@@ -69,7 +69,7 @@ export function getFrontmatterFieldLabel(key: string): string {
 
 export function getMissingAddableFrontmatterFields(frontmatter: ParsedFrontmatter): string[] {
   return Object.values(FRONTMATTER_FIELD_SCHEMA)
-    .filter((field) => field.addable && frontmatter[field.key] === undefined)
+    .filter((field) => field.addable && frontmatter[field.key] == null)
     .map((field) => field.key);
 }
 

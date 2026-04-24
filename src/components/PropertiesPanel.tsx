@@ -229,7 +229,10 @@ function RemoveFieldButton({ label, onRemove }: { label: string; onRemove: () =>
       className="prop-remove-btn"
       aria-label={`Remove ${label} metadata`}
       title={`Remove ${label}`}
-      onClick={onRemove}
+      onClick={(event) => {
+        onRemove();
+        event.currentTarget.blur();
+      }}
     >
       ×
     </button>
@@ -672,14 +675,14 @@ export function PropertiesPanel({
   onToggleCoverImage,
 }: PropertiesPanelProps) {
   const title = frontmatter.title;
-  const date = frontmatter.date as string | undefined;
+  const date = typeof frontmatter.date === "string" ? frontmatter.date : undefined;
   const tags = Array.isArray(frontmatter.tags) ? (frontmatter.tags as string[]) : undefined;
   const coverImage =
-    frontmatter.coverImage !== undefined ? String(frontmatter.coverImage) : undefined;
-  const publishingKeys = PUBLISHING_BOOLEAN_FIELDS.filter((key) => frontmatter[key] !== undefined);
+    typeof frontmatter.coverImage === "string" ? frontmatter.coverImage : undefined;
+  const publishingKeys = PUBLISHING_BOOLEAN_FIELDS.filter((key) => frontmatter[key] != null);
   const addableKeys = getMissingAddableFrontmatterFields(frontmatter);
   const customKeys = Object.keys(frontmatter)
-    .filter((k) => !isKnownFrontmatterField(k))
+    .filter((k) => frontmatter[k] != null && !isKnownFrontmatterField(k))
     .sort();
 
   return (

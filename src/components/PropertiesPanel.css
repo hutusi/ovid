@@ -194,9 +194,8 @@
 }
 
 .prop-field:hover .prop-remove-btn,
-.prop-field:focus-within .prop-remove-btn,
 .prop-boolean-row:hover .prop-remove-btn,
-.prop-boolean-row:focus-within .prop-remove-btn {
+.prop-remove-btn:focus-visible {
   opacity: 1;
   pointer-events: auto;
 }
