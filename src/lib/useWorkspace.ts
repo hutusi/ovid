@@ -62,6 +62,14 @@ function findNode(nodes: FileNode[], path: string): FileNode | undefined {
   }
 }
 
+function getDuplicateEntrySourcePath(node: FileNode): string {
+  if (node.containerDirPath) return node.containerDirPath;
+  if (/^index\.mdx?$/i.test(node.name)) {
+    return node.path.slice(0, node.path.lastIndexOf("/"));
+  }
+  return node.path;
+}
+
 export function useWorkspace({
   showToast,
   flushPendingSave,
@@ -243,16 +251,17 @@ export function useWorkspace({
   async function handleDuplicate(node: FileNode, newName: string) {
     await flushPendingSave();
     const ext = node.extension ?? ".md";
-    const oldPath = node.containerDirPath ?? node.path;
+    const oldPath = getDuplicateEntrySourcePath(node);
     const dir = oldPath.substring(0, oldPath.lastIndexOf("/"));
-    const newPath = node.containerDirPath
+    const isFolderBackedDuplicate = oldPath !== node.path || Boolean(node.containerDirPath);
+    const newPath = isFolderBackedDuplicate
       ? `${dir}/${newName}`
       : `${dir}/${newName}${newName.endsWith(ext) ? "" : ext}`;
 
     try {
       await invoke("duplicate_entry", { srcPath: oldPath, destPath: newPath });
       const updated = await refreshTree();
-      const duplicatedPath = node.containerDirPath ? `${newPath}/index${ext}` : newPath;
+      const duplicatedPath = isFolderBackedDuplicate ? `${newPath}/index${ext}` : newPath;
       const duplicated = findNode(updated, duplicatedPath);
       if (duplicated) {
         await handleSelectFile(duplicated);

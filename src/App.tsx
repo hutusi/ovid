@@ -90,8 +90,20 @@ function makeFileNodeFromPath(path: string): FileNode {
   };
 }
 
+function getDuplicateEntrySourcePath(node: FileNode): string {
+  if (node.containerDirPath) return node.containerDirPath;
+  if (/^index\.mdx?$/i.test(node.name)) {
+    return node.path.slice(0, node.path.lastIndexOf("/"));
+  }
+  return node.path;
+}
+
 function getDuplicateNameSuggestion(node: FileNode): string {
-  const baseName = node.containerDirPath ? node.name : node.name.replace(/\.(md|mdx)$/i, "");
+  const sourcePath = getDuplicateEntrySourcePath(node);
+  const sourceName = sourcePath.split("/").filter(Boolean).pop() ?? node.name;
+  const baseName = /^index\.mdx?$/i.test(sourceName)
+    ? node.name.replace(/\.(md|mdx)$/i, "")
+    : sourceName.replace(/\.(md|mdx)$/i, "");
   return `${baseName}-copy`;
 }
 
