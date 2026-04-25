@@ -11,6 +11,11 @@ import { AUTO_FETCH_COOLDOWN_MS, runAutoFetchOnFocus } from "./lib/gitAutoFetch"
 import { getGitBranchTitle } from "./lib/gitUi";
 import { resolveImageSrc } from "./lib/imageUtils";
 import { isPerfLoggingEnabled } from "./lib/perf";
+import {
+  getDuplicateNameSuggestion,
+  getPathDisplayLabel,
+  getRenamePathDialogState,
+} from "./lib/postPath";
 import type { FileNode } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
@@ -91,58 +96,6 @@ function makeFileNodeFromPath(path: string): FileNode {
     path,
     isDirectory: false,
     extension,
-  };
-}
-
-function getDuplicateEntrySourcePath(node: FileNode): string {
-  if (node.containerDirPath) return node.containerDirPath;
-  if (/^index\.mdx?$/i.test(node.name)) {
-    return node.path.slice(0, node.path.lastIndexOf("/"));
-  }
-  return node.path;
-}
-
-function getDuplicateNameSuggestion(node: FileNode): string {
-  const sourcePath = getDuplicateEntrySourcePath(node);
-  const sourceName = sourcePath.split("/").filter(Boolean).pop() ?? node.name;
-  const baseName = /^index\.mdx?$/i.test(sourceName)
-    ? node.name.replace(/\.(md|mdx)$/i, "")
-    : sourceName.replace(/\.(md|mdx)$/i, "");
-  return `${baseName}-copy`;
-}
-
-function isFolderBackedPostNode(node: FileNode): boolean {
-  return Boolean(node.containerDirPath) || /^index\.mdx?$/i.test(node.name);
-}
-
-function getPathDisplayLabel(node: FileNode): string {
-  if (!isFolderBackedPostNode(node)) {
-    return node.name;
-  }
-  const folderPath = node.containerDirPath ?? node.path.slice(0, node.path.lastIndexOf("/"));
-  const folderName = folderPath.split("/").filter(Boolean).pop() ?? node.name;
-  return `${folderName}/${node.name}`;
-}
-
-function getRenamePathDialogState(node: FileNode): {
-  currentPath: string;
-  currentName: string;
-  suffix: string;
-} {
-  const ext = node.extension ?? ".md";
-  if (!isFolderBackedPostNode(node)) {
-    return {
-      currentPath: node.name,
-      currentName: node.name.replace(/\.(md|mdx)$/i, ""),
-      suffix: ext,
-    };
-  }
-  const folderPath = node.containerDirPath ?? node.path.slice(0, node.path.lastIndexOf("/"));
-  const folderName = folderPath.split("/").filter(Boolean).pop() ?? node.name;
-  return {
-    currentPath: `${folderName}/${node.name}`,
-    currentName: folderName,
-    suffix: `/${node.name}`,
   };
 }
 

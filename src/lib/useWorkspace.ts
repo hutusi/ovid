@@ -7,6 +7,7 @@ import {
   createTypedFrontmatter,
 } from "./frontmatter";
 import { measureAsync } from "./perf";
+import { getPostEntrySourcePath } from "./postPath";
 import type { FileNode } from "./types";
 import { syncRecentDelete, syncRecentRename } from "./useRecentFiles";
 
@@ -60,22 +61,6 @@ function findNode(nodes: FileNode[], path: string): FileNode | undefined {
       if (found) return found;
     }
   }
-}
-
-function getDuplicateEntrySourcePath(node: FileNode): string {
-  if (node.containerDirPath) return node.containerDirPath;
-  if (/^index\.mdx?$/i.test(node.name)) {
-    return node.path.slice(0, node.path.lastIndexOf("/"));
-  }
-  return node.path;
-}
-
-function getRenameEntrySourcePath(node: FileNode): string {
-  if (node.containerDirPath) return node.containerDirPath;
-  if (/^index\.mdx?$/i.test(node.name)) {
-    return node.path.slice(0, node.path.lastIndexOf("/"));
-  }
-  return node.path;
 }
 
 export function useWorkspace({
@@ -233,7 +218,7 @@ export function useWorkspace({
     setRenamingPath(null);
     await flushPendingSave();
     const ext = node.extension ?? ".md";
-    const oldPath = getRenameEntrySourcePath(node);
+    const oldPath = getPostEntrySourcePath(node);
     const dir = oldPath.substring(0, oldPath.lastIndexOf("/"));
     const isFolderBackedRename = oldPath !== node.path || Boolean(node.containerDirPath);
     const newPath = isFolderBackedRename
@@ -260,7 +245,7 @@ export function useWorkspace({
   async function handleDuplicate(node: FileNode, newName: string) {
     await flushPendingSave();
     const ext = node.extension ?? ".md";
-    const oldPath = getDuplicateEntrySourcePath(node);
+    const oldPath = getPostEntrySourcePath(node);
     const dir = oldPath.substring(0, oldPath.lastIndexOf("/"));
     const isFolderBackedDuplicate = oldPath !== node.path || Boolean(node.containerDirPath);
     const newPath = isFolderBackedDuplicate
