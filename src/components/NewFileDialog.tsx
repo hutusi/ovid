@@ -5,6 +5,10 @@ import "./NewFileDialog.css";
 interface NewFileDialogProps {
   contentTypes: ContentType[];
   preselectedType?: string;
+  initialFilename?: string;
+  title?: string;
+  confirmLabel?: string;
+  showTypeSelector?: boolean;
   onConfirm: (filename: string, contentType?: string) => void;
   onCancel: () => void;
 }
@@ -12,16 +16,24 @@ interface NewFileDialogProps {
 export function NewFileDialog({
   contentTypes,
   preselectedType,
+  initialFilename = "",
+  title,
+  confirmLabel = "Create",
+  showTypeSelector = true,
   onConfirm,
   onCancel,
 }: NewFileDialogProps) {
-  const [filename, setFilename] = useState("");
+  const [filename, setFilename] = useState(initialFilename);
   const [selectedType, setSelectedType] = useState<string>(contentTypes[0]?.name ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    setFilename(initialFilename);
+  }, [initialFilename]);
 
   useEffect(() => {
     if (
@@ -45,15 +57,17 @@ export function NewFileDialog({
     else if (e.key === "Escape") onCancel();
   }
 
-  const title = preselectedType
-    ? `New ${preselectedType.charAt(0).toUpperCase()}${preselectedType.slice(1)}`
-    : "New file";
+  const dialogTitle =
+    title ??
+    (preselectedType
+      ? `New ${preselectedType.charAt(0).toUpperCase()}${preselectedType.slice(1)}`
+      : "New file");
 
   return (
     <div className="nfd-overlay" role="presentation">
       <button type="button" className="nfd-backdrop" aria-label="Close" onClick={onCancel} />
-      <div role="dialog" aria-modal="true" aria-label={title} className="nfd-panel">
-        <p className="nfd-title">{title}</p>
+      <div role="dialog" aria-modal="true" aria-label={dialogTitle} className="nfd-panel">
+        <p className="nfd-title">{dialogTitle}</p>
 
         <input
           ref={inputRef}
@@ -65,7 +79,7 @@ export function NewFileDialog({
           onKeyDown={handleKeyDown}
         />
 
-        {!preselectedType && contentTypes.length > 0 && (
+        {showTypeSelector && !preselectedType && contentTypes.length > 0 && (
           <div className="nfd-type-section">
             <span className="nfd-type-label">Type</span>
             <div className="nfd-type-chips">
@@ -94,7 +108,7 @@ export function NewFileDialog({
             disabled={!filename.trim()}
             onClick={handleConfirm}
           >
-            Create
+            {confirmLabel}
           </button>
         </div>
       </div>

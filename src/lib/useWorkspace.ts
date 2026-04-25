@@ -240,6 +240,29 @@ export function useWorkspace({
     }
   }
 
+  async function handleDuplicate(node: FileNode, newName: string) {
+    await flushPendingSave();
+    const ext = node.extension ?? ".md";
+    const oldPath = node.containerDirPath ?? node.path;
+    const dir = oldPath.substring(0, oldPath.lastIndexOf("/"));
+    const newPath = node.containerDirPath
+      ? `${dir}/${newName}`
+      : `${dir}/${newName}${newName.endsWith(ext) ? "" : ext}`;
+
+    try {
+      await invoke("duplicate_entry", { srcPath: oldPath, destPath: newPath });
+      const updated = await refreshTree();
+      const duplicatedPath = node.containerDirPath ? `${newPath}/index${ext}` : newPath;
+      const duplicated = findNode(updated, duplicatedPath);
+      if (duplicated) {
+        await handleSelectFile(duplicated);
+      }
+    } catch (err) {
+      console.error("Failed to duplicate file:", err);
+      showToast(`Failed to duplicate: ${err}`);
+    }
+  }
+
   async function handleDelete(node: FileNode) {
     const confirmed = window.confirm(`Move "${node.name}" to Trash?`);
     if (!confirmed) return;
@@ -272,6 +295,7 @@ export function useWorkspace({
     handleNewFile,
     handleNewTodayFlow,
     handleRename,
+    handleDuplicate,
     handleDelete,
     loadDirectoryChildren,
   };

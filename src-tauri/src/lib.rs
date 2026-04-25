@@ -753,6 +753,38 @@ fn rename_file(
     std::fs::rename(&canonical_old, &new).map_err(|e| e.to_string())
 }
 
+fn copy_entry_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+    if src.is_dir() {
+        std::fs::create_dir(dest).map_err(|e| e.to_string())?;
+        for entry in std::fs::read_dir(src).map_err(|e| e.to_string())? {
+            let entry = entry.map_err(|e| e.to_string())?;
+            let child_src = entry.path();
+            let child_dest = dest.join(entry.file_name());
+            copy_entry_recursive(&child_src, &child_dest)?;
+        }
+        return Ok(());
+    }
+
+    std::fs::copy(src, dest).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn duplicate_entry(
+    src_path: String,
+    dest_path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root = root_guard.as_ref().ok_or("no workspace open")?;
+    let src = validate_path(root, &src_path)?;
+    let dest = validate_new_path(root, &dest_path)?;
+    if dest.exists() {
+        return Err("a file with that name already exists".to_string());
+    }
+    copy_entry_recursive(&src, &dest)
+}
+
 #[tauri::command]
 fn trash_file(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
@@ -2349,6 +2381,7 @@ pub fn run() {
             write_file,
             create_file,
             rename_file,
+            duplicate_entry,
             trash_file,
             create_dir,
             ensure_dir,
@@ -2425,6 +2458,24 @@ mod tests {
             normalize_path(Path::new("/a/../../etc/passwd")),
             PathBuf::from("/etc/passwd")
         );
+    }
+
+    #[test]
+    fn copy_entry_recursive_copies_nested_directories() {
+        let dir = TempDir::new().unwrap();
+        let src = dir.path().join("hello");
+        let nested = src.join("images");
+        let dest = dir.path().join("hello-copy");
+
+        fs::create_dir(&src).unwrap();
+        fs::create_dir(&nested).unwrap();
+        fs::write(src.join("index.md"), "# Hello").unwrap();
+        fs::write(nested.join("cover.png"), "png").unwrap();
+
+        copy_entry_recursive(&src, &dest).unwrap();
+
+        assert_eq!(fs::read_to_string(dest.join("index.md")).unwrap(), "# Hello");
+        assert_eq!(fs::read_to_string(dest.join("images").join("cover.png")).unwrap(), "png");
     }
 
     // ── extract_quoted_string ────────────────────────────────────────────────

@@ -37,6 +37,7 @@ interface SidebarProps {
   onNewFile: (dirPath: string) => void;
   onLoadDirectoryChildren: (dirPath: string) => void;
   onRename: (node: FileNode, newName: string) => void;
+  onDuplicate: (node: FileNode) => void;
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
   onCancelRename: () => void;
@@ -55,6 +56,7 @@ interface FileItemProps {
   onNewFile: (dirPath: string) => void;
   onLoadDirectoryChildren: (dirPath: string) => void;
   onRename: (node: FileNode, newName: string) => void;
+  onDuplicate: (node: FileNode) => void;
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
   onCancelRename: () => void;
@@ -73,6 +75,7 @@ function FileItem({
   onNewFile,
   onLoadDirectoryChildren,
   onRename,
+  onDuplicate,
   onDelete,
   onStartRename,
   onCancelRename,
@@ -158,6 +161,7 @@ function FileItem({
                 onNewFile={onNewFile}
                 onLoadDirectoryChildren={onLoadDirectoryChildren}
                 onRename={onRename}
+                onDuplicate={onDuplicate}
                 onDelete={onDelete}
                 onStartRename={onStartRename}
                 onCancelRename={onCancelRename}
@@ -201,6 +205,8 @@ function FileItem({
   async function showFileContextMenu() {
     const menu = await Menu.new({
       items: [
+        await MenuItem.new({ text: "Duplicate", action: () => onDuplicate(node) }),
+        await PredefinedMenuItem.new({ item: "Separator" }),
         await MenuItem.new({ text: "Rename", action: () => onStartRename(node.path) }),
         await MenuItem.new({ text: "Delete", action: () => onDelete(node) }),
       ],
@@ -265,6 +271,7 @@ export function Sidebar({
   onNewFile,
   onLoadDirectoryChildren,
   onRename,
+  onDuplicate,
   onDelete,
   onStartRename,
   onCancelRename,
@@ -481,6 +488,7 @@ export function Sidebar({
                 onNewFile={onNewFile}
                 onLoadDirectoryChildren={onLoadDirectoryChildren}
                 onRename={onRename}
+                onDuplicate={onDuplicate}
                 onDelete={onDelete}
                 onStartRename={onStartRename}
                 onCancelRename={onCancelRename}

@@ -26,7 +26,10 @@ import { useWorkspace } from "./lib/useWorkspace";
 import "./styles/global.css";
 import "./App.css";
 
-type ModalState = { type: "new-file"; dirPath: string; contentType?: string } | null;
+type ModalState =
+  | { type: "new-file"; dirPath: string; contentType?: string }
+  | { type: "duplicate-file"; node: FileNode }
+  | null;
 type EditorViewState = { selection: number; scrollTop: number };
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
@@ -85,6 +88,11 @@ function makeFileNodeFromPath(path: string): FileNode {
     isDirectory: false,
     extension,
   };
+}
+
+function getDuplicateNameSuggestion(node: FileNode): string {
+  const baseName = node.containerDirPath ? node.name : node.name.replace(/\.(md|mdx)$/i, "");
+  return `${baseName}-copy`;
 }
 
 function App() {
@@ -148,6 +156,7 @@ function App() {
     handleNewFile,
     handleNewTodayFlow,
     handleRename,
+    handleDuplicate,
     handleDelete,
     loadDirectoryChildren,
   } = useWorkspace({
@@ -712,6 +721,7 @@ function App() {
             onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
             onLoadDirectoryChildren={(dirPath) => void loadDirectoryChildren(dirPath)}
             onRename={handleRename}
+            onDuplicate={(node) => setModal({ type: "duplicate-file", node })}
             onDelete={handleDelete}
             onStartRename={setRenamingPath}
             onCancelRename={() => setRenamingPath(null)}
@@ -857,6 +867,22 @@ function App() {
             preselectedType={modal.contentType}
             onConfirm={(name, contentType) => {
               void handleNewFile(modal.dirPath, name, contentType);
+              setModal(null);
+            }}
+            onCancel={() => setModal(null)}
+          />
+        </Suspense>
+      )}
+      {modal?.type === "duplicate-file" && (
+        <Suspense fallback={null}>
+          <NewFileDialog
+            contentTypes={[]}
+            initialFilename={getDuplicateNameSuggestion(modal.node)}
+            title="Duplicate Post"
+            confirmLabel="Duplicate"
+            showTypeSelector={false}
+            onConfirm={(name) => {
+              void handleDuplicate(modal.node, name);
               setModal(null);
             }}
             onCancel={() => setModal(null)}
