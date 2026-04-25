@@ -2,6 +2,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  FilePenLine,
   GitBranch,
   Keyboard,
   MoonStar,
@@ -124,6 +125,7 @@ export function StatusBar({
             onClick={onRenamePath}
             title="Rename path"
           >
+            <FilePenLine className="statusbar-git-icon" aria-hidden="true" />
             {fileLabel}
           </button>
         ) : (
