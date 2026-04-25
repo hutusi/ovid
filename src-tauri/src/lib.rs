@@ -754,7 +754,14 @@ fn rename_file(
 }
 
 fn copy_entry_recursive(src: &Path, dest: &Path) -> Result<(), String> {
-    if src.is_dir() {
+    let metadata = std::fs::symlink_metadata(src).map_err(|e| e.to_string())?;
+    let file_type = metadata.file_type();
+
+    if file_type.is_symlink() {
+        return Err("symlinks are not supported when duplicating entries".to_string());
+    }
+
+    if file_type.is_dir() {
         std::fs::create_dir(dest).map_err(|e| e.to_string())?;
         for entry in std::fs::read_dir(src).map_err(|e| e.to_string())? {
             let entry = entry.map_err(|e| e.to_string())?;
@@ -775,10 +782,12 @@ fn duplicate_entry(
     dest_path: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let src = validate_path(root, &src_path)?;
-    let dest = validate_new_path(root, &dest_path)?;
+    let root = {
+        let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+        root_guard.as_ref().ok_or("no workspace open")?.clone()
+    };
+    let src = validate_path(&root, &src_path)?;
+    let dest = validate_new_path(&root, &dest_path)?;
     if dest.exists() {
         return Err("a file with that name already exists".to_string());
     }

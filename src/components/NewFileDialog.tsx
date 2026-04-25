@@ -32,10 +32,6 @@ export function NewFileDialog({
   }, []);
 
   useEffect(() => {
-    setFilename(initialFilename);
-  }, [initialFilename]);
-
-  useEffect(() => {
     if (
       !preselectedType &&
       contentTypes.length > 0 &&

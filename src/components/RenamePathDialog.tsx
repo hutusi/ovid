@@ -20,6 +20,8 @@ export function RenamePathDialog({
   const [name, setName] = useState(currentName);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLDivElement>();
+  const trimmedName = name.trim();
+  const isUnchanged = !trimmedName || trimmedName === currentName;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -27,9 +29,8 @@ export function RenamePathDialog({
   }, []);
 
   function handleConfirm() {
-    const nextName = name.trim();
-    if (!nextName || nextName === currentName) return;
-    onConfirm(nextName);
+    if (isUnchanged) return;
+    onConfirm(trimmedName);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -81,7 +82,7 @@ export function RenamePathDialog({
         <div className="modal-branch-row">
           <span className="modal-branch-label">Result</span>
           <code className="modal-badge">
-            {name.trim() ? `${name.trim()}${suffix}` : `—${suffix}`}
+            {trimmedName ? `${trimmedName}${suffix}` : `—${suffix}`}
           </code>
         </div>
 
@@ -93,7 +94,7 @@ export function RenamePathDialog({
           <button
             type="button"
             className="modal-btn modal-btn-primary"
-            disabled={!name.trim() || name.trim() === currentName}
+            disabled={isUnchanged}
             onClick={handleConfirm}
           >
             Rename

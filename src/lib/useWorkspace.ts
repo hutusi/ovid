@@ -7,7 +7,7 @@ import {
   createTypedFrontmatter,
 } from "./frontmatter";
 import { measureAsync } from "./perf";
-import { getPostEntrySourcePath } from "./postPath";
+import { getPostEntrySourcePath, isFolderBackedPostNode } from "./postPath";
 import type { FileNode } from "./types";
 import { syncRecentDelete, syncRecentRename } from "./useRecentFiles";
 
@@ -220,8 +220,8 @@ export function useWorkspace({
     const ext = node.extension ?? ".md";
     const oldPath = getPostEntrySourcePath(node);
     const dir = oldPath.substring(0, oldPath.lastIndexOf("/"));
-    const isFolderBackedRename = oldPath !== node.path || Boolean(node.containerDirPath);
-    const newPath = isFolderBackedRename
+    const folderBacked = isFolderBackedPostNode(node);
+    const newPath = folderBacked
       ? `${dir}/${newName}`
       : `${dir}/${newName}${newName.endsWith(ext) ? "" : ext}`;
     try {
@@ -229,7 +229,7 @@ export function useWorkspace({
       if (workspaceRoot) syncRecentRename(workspaceRoot, oldPath, newPath);
       const updated = await refreshTree();
       if (selectedFile?.path === node.path) {
-        const selectedPath = isFolderBackedRename ? `${newPath}/${node.name}` : newPath;
+        const selectedPath = folderBacked ? `${newPath}/${node.name}` : newPath;
         const renamed = findNode(updated, selectedPath);
         if (renamed) {
           selectedPathRef.current = selectedPath;
@@ -247,15 +247,15 @@ export function useWorkspace({
     const ext = node.extension ?? ".md";
     const oldPath = getPostEntrySourcePath(node);
     const dir = oldPath.substring(0, oldPath.lastIndexOf("/"));
-    const isFolderBackedDuplicate = oldPath !== node.path || Boolean(node.containerDirPath);
-    const newPath = isFolderBackedDuplicate
+    const folderBacked = isFolderBackedPostNode(node);
+    const newPath = folderBacked
       ? `${dir}/${newName}`
       : `${dir}/${newName}${newName.endsWith(ext) ? "" : ext}`;
 
     try {
       await invoke("duplicate_entry", { srcPath: oldPath, destPath: newPath });
       const updated = await refreshTree();
-      const duplicatedPath = isFolderBackedDuplicate ? `${newPath}/index${ext}` : newPath;
+      const duplicatedPath = folderBacked ? `${newPath}/index${ext}` : newPath;
       const duplicated = findNode(updated, duplicatedPath);
       if (duplicated) {
         await handleSelectFile(duplicated);
