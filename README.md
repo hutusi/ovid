@@ -161,6 +161,10 @@ Creates a new `.md` file. You are prompted for a filename. In an Amytis workspac
 
 Inline rename in the sidebar. The editor tab updates automatically if the renamed file is currently open. Duplicate names are rejected.
 
+### Make a copy (right-click → Make a Copy)
+
+Creates a sibling copy of the selected post or Markdown file. For folder-backed posts such as `post/index.md` or `post/index.mdx`, Ovid copies the whole post folder and opens the copied index file immediately.
+
 ### Delete (right-click → Delete)
 
 Moves the file to the system Trash (not permanent delete). A confirmation dialog is shown. If the file is currently open, it is closed first.
@@ -281,7 +285,7 @@ Replaces the sidebar with a search panel. The shortcut works even when the edito
 
 The status bar (bottom of the window) shows:
 
-- **Filename** of the current file
+- **Path control** — click the current file path to rename it; folder-backed posts show paths like `hello/index.md`, but only the folder name is editable
 - **Save indicator** — grey dot = saved, amber dot = unsaved changes
 - **Word count** — total words in the current file
 - **Session words** — `+N` words added since the file was opened; resets on file switch
