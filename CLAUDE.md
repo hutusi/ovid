@@ -224,10 +224,6 @@ When compressing conversation history, preserve in priority order:
 5. **Open TODOs and rollback notes**
 6. **Tool output** — can be dropped; keep pass/fail summary only
 
-## Commits
-
-Recent history follows Conventional Commit-style prefixes: `feat:`, `fix:`, `refine:`, `test:`, `docs:`. Subjects are imperative and scoped (e.g. `fix: preserve title when renaming flow files`).
-
 ## Reference Docs
 
 - [ROADMAP.md](./ROADMAP.md) — phased plan; complete the current phase before starting the next
