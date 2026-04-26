@@ -54,9 +54,7 @@ export function buildPostTargetPath(
 export function getDuplicateNameSuggestion(node: FileNode): string {
   const sourcePath = getPostEntrySourcePath(node);
   const sourceName = getPathBaseName(sourcePath);
-  const baseName = /^index\.mdx?$/i.test(sourceName)
-    ? node.name.replace(/\.(md|mdx)$/i, "")
-    : sourceName.replace(/\.(md|mdx)$/i, "");
+  const baseName = sourceName.replace(/\.(md|mdx)$/i, "");
   return `${baseName}-copy`;
 }
 
