@@ -111,7 +111,7 @@ Pure helpers:
 - `global.css` — Tailwind `@theme` block (single source of truth for design tokens + utility classes); `[data-theme="dark"]` overrides; `:root` for non-theme constants (font sizes, layout, shadows)
 - `editor.css` — ProseMirror / Tiptap prose typography
 
-**`src-tauri/`** — Rust backend (Tauri 2). All commands live in `src-tauri/src/lib.rs` and are registered via `tauri::generate_handler!`. Path arguments are validated against the open workspace root before any filesystem access.
+**`src-tauri/`** — Rust backend (Tauri 2). All commands live in `src-tauri/src/lib.rs` and are registered via `tauri::generate_handler!`. For workspace-scoped file operations, path arguments are validated against the open workspace root before filesystem reads/writes.
 
 Workspace and file lifecycle:
 - `open_workspace` (folder picker) / `open_workspace_at_path` — async, tokio oneshot; walks the file tree
