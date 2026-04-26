@@ -22,6 +22,16 @@ bun run test             # Bun unit tests
 bun tsc --noEmit         # Type-check without emitting
 ```
 
+Single test runs:
+
+```bash
+bun test src/lib/frontmatter.test.ts                # Run a single test file
+bun test --test-name-pattern "parses frontmatter"   # Filter by test name
+cargo test --manifest-path src-tauri/Cargo.toml     # Rust tests only
+```
+
+Tests are colocated as `*.test.ts` next to the implementation (e.g. `src/lib/frontmatter.test.ts`, `src/lib/tiptap/FindReplace.test.ts`).
+
 ## Architecture
 
 Three-zone layout managed by `src/App.tsx`:
@@ -36,10 +46,10 @@ Three-zone layout managed by `src/App.tsx`:
 └─────────────────────────────────────────────────┘
 ```
 
-**`src/App.tsx`** — Root component; owns all global state (workspace, selected file, word count).
+**`src/App.tsx`** — Root component; composes top-level state from custom hooks (`useWorkspace`, `useFileEditor`, `useGit`, `useGitUiController`, `useTheme`, `useToast`, `useEditorPreferences`, `useWordCountGoal`, `useRecentFiles`, `useRecentWorkspaces`, `useContentTypes`) and owns local UI flags (sidebar/properties visibility, zen/typewriter mode, dialog open states).
 
 **`src/components/`** — UI components (list is representative, not exhaustive)
-- `Editor.tsx` — Tiptap WYSIWYG editor (StarterKit + Markdown + Typography + Link + Image + Table + Mathematics + custom extensions)
+- `Editor.tsx` — Tiptap WYSIWYG editor; StarterKit + Markdown + Typography + Link + Table (+ TableCell/Header/Row) + Mathematics + Placeholder + CodeBlockLowlight + TaskList/TaskItem (from `@tiptap/extension-list`) + custom extensions in `src/lib/tiptap/`
 - `BubbleMenu.tsx` — Floating formatting toolbar (Bold, Italic, Strike, Code, Link) shown on text selection
 - `FindReplaceBar.tsx` — Find & replace bar (`Cmd+H`); live match highlighting, navigate, replace one/all
 - `TableControls.tsx` — Floating table toolbar (add/delete rows and columns) shown when cursor is in a table
@@ -48,8 +58,12 @@ Three-zone layout managed by `src/App.tsx`:
 - `PropertiesPanel.tsx` — Collapsible bar above editor showing parsed frontmatter fields
 - `SearchPanel.tsx` — Full-text search panel (replaces sidebar); queries run in Rust
 - `FileSwitcher.tsx` — `Cmd+P` command palette; wraps `cmdk`
-- `CommitDialog.tsx`, `LinkDialog.tsx`, `WorkspaceSwitcher.tsx` — Plain-CSS modal dialogs
+- Git UI: `GitSyncPopover.tsx`, `BranchSwitcher.tsx`, `NewBranchDialog.tsx`, `RenameBranchDialog.tsx`, `DeleteBranchDialog.tsx`, `CommitDialog.tsx` — surface the Tauri git commands; coordinated by `useGitUiController`
+- File lifecycle: `NewFileDialog.tsx`, `RenamePathDialog.tsx` — create/rename via Tauri commands
+- `UpdateDialog.tsx` — surfaces Tauri updater state
+- `LinkDialog.tsx`, `WorkspaceSwitcher.tsx` — plain-CSS modal dialogs
 - `FontSettings.tsx`, `CodeBlockView.tsx` — Custom CSS-positioned panels (no Portal); code blocks support copy and custom language labels
+- `ContentTypeIcon.tsx`, `EmptyState.tsx`, `PerfPanel.tsx` — icons, no-workspace state, perf overlay (gated by `isPerfLoggingEnabled`)
 - `ErrorBoundary.tsx` — React error boundary wrapping the editor; surfaces render errors instead of blank screen
 - `Modal.css` — Shared plain-CSS primitives for all modal dialogs (overlay, panel, buttons, inputs, badge, checkbox label)
 - `ui/command.tsx` — Thin wrapper around `cmdk` for the file switcher; styled with design tokens
@@ -60,11 +74,27 @@ Sidebar/session behavior:
 - Sidebar expansion is selective: shallow folders open by default, deeper branches fold by default, and manual collapse overrides auto-expansion
 - On launch, the app auto-reopens the last workspace and attempts to restore the most recently opened file in that workspace
 
-**`src/lib/`**
+**`src/lib/`** — hooks and helpers (representative, not exhaustive)
+
+State hooks (composed in `App.tsx`):
+- `useWorkspace.ts` — workspace open/close, file tree, current path
+- `useFileEditor.ts` — current file content, dirty tracking, save coordination
+- `useGit.ts` — git state (branch, status, remotes); polls via Tauri commands
+- `useGitUiController.ts` — coordinates git dialogs (commit, branch CRUD, sync popover)
+- `useContentTypes.ts` — Amytis content type discovery (only when workspace is Amytis)
+- `useRecentFiles.ts` / `useRecentWorkspaces.ts` — per-workspace and global MRU lists
+- `useEditorPreferences.ts`, `useWordCountGoal.ts` — user preferences in `localStorage`
+- `useToast.ts` — toast queue surfaced by `App.tsx`
+- `useTheme.ts` — system/manual dark mode; syncs to `localStorage`; applies `data-theme` on `<html>`
+- `useFocusTrap.ts` — modal dialogs: auto-focus first element, trap Tab/Shift+Tab, restore focus on close
+
+Pure helpers:
 - `types.ts` — Shared interfaces (`FileNode`, `WorkspaceState`)
-- `frontmatter.ts` — `parseFrontmatter` / `joinFrontmatter` (raw round-trip) + `parseYamlFrontmatter` (js-yaml)
-- `useTheme.ts` — Hook for system/manual dark mode; syncs to `localStorage`; applies `data-theme` on `<html>`
-- `useFocusTrap.ts` — Hook for modal dialogs: auto-focuses first element on open, traps Tab/Shift+Tab within bounds, restores focus on close
+- `frontmatter.ts` / `frontmatterSchema.ts` — `parseFrontmatter` / `joinFrontmatter` (raw round-trip), `parseYamlFrontmatter` (js-yaml), and Amytis-aware schema lookups
+- `appRestore.ts` — last-workspace and last-file restoration on launch
+- `fileSearch.ts`, `markdown.ts`, `codeBlockLanguages.ts`, `imageUtils.ts`, `postPath.ts`, `sidebarExpansion.ts`, `sidebarUtils.ts`, `gitAutoFetch.ts`, `gitUi.ts`, `utils.ts`, `perf.ts`
+
+**`src/theme.ts`** — Static theme constants consumed by components alongside the `useTheme` hook.
 
 **`src/lib/tiptap/`**
 - `FindReplace.ts` — ProseMirror plugin + Tiptap extension for find & replace; `collectMatches` exported for testing
@@ -74,14 +104,34 @@ Sidebar/session behavior:
 - `ActiveHeadingIndicator.ts` — Decorates the active heading with its current `H1`-`H6` level while editing
 - `Footnotes.ts` — Decorates raw Markdown footnote references and definition paragraphs so footnotes remain readable without adding custom document nodes
 - `ListBackspace.ts` — Intercepts start-of-text `Backspace` for structural blocks so lists, task lists, blockquotes, headings, and code blocks unwrap predictably instead of merging backward
+- `ImageRenderer.tsx` — React node view for images; resolves workspace-relative paths via Tauri (replaces the stock `@tiptap/extension-image`)
+- `taskLists.ts` — Markdown-aware task list normalization (typing rules + paste/load fixups) layered on top of `@tiptap/extension-list`
 
 **`src/styles/`**
 - `global.css` — Tailwind `@theme` block (single source of truth for design tokens + utility classes); `[data-theme="dark"]` overrides; `:root` for non-theme constants (font sizes, layout, shadows)
 - `editor.css` — ProseMirror / Tiptap prose typography
 
-**`src-tauri/`** — Rust backend (Tauri 2).
-- `open_workspace` — folder picker dialog (async, tokio oneshot); walks file tree
-- `read_file` / `write_file` — path-validated against workspace root; atomic saves via temp-file + rename
+**`src-tauri/`** — Rust backend (Tauri 2). All commands live in `src-tauri/src/lib.rs` and are registered via `tauri::generate_handler!`. For workspace-scoped file operations, path arguments are validated against the open workspace root before filesystem reads/writes.
+
+Workspace and file lifecycle:
+- `open_workspace` (folder picker) / `open_workspace_at_path` — async, tokio oneshot; walks the file tree
+- `list_workspace`, `list_workspace_children` — initial tree and lazy directory expansion
+- `read_file`, `write_file` — atomic saves via temp-file + rename
+- `create_file`, `create_dir`, `ensure_dir` — new files/folders inside the workspace
+- `rename_file`, `duplicate_entry`, `trash_file` — rename, copy, and OS-trash operations
+- `save_asset`, `pick_image_file` — image asset import (file picker + copy into workspace)
+
+Search and content metadata:
+- `search_workspace` — full-text search; ranked results
+- `get_content_types` — Amytis content type discovery from `site.config.ts`
+
+Git (graceful no-op when no `.git` is found):
+- Read: `get_git_status`, `get_git_commit_changes`, `get_git_branch`, `get_git_branches`, `get_git_remote_branches`, `get_git_remote_info`
+- Write: `git_commit`, `git_push`, `git_pull`, `git_fetch`, `git_switch_branch`, `git_create_branch`, `git_rename_branch`, `git_delete_branch`, `git_checkout_remote_branch`
+- `open_git_remote` — open the remote URL for the current repo in the system browser
+
+App lifecycle:
+- `restart_app` — used by the updater after install
 
 ## Design Principles
 
@@ -174,6 +224,13 @@ When compressing conversation history, preserve in priority order:
 5. **Open TODOs and rollback notes**
 6. **Tool output** — can be dropped; keep pass/fail summary only
 
-## Roadmap
+## Commits
 
-See [ROADMAP.md](./ROADMAP.md) for the full phased plan. Features are organized into deliberate phases; complete the current phase before starting the next. Earlier phases are complete, and newer phases may be added as the roadmap evolves.
+Recent history follows Conventional Commit-style prefixes: `feat:`, `fix:`, `refine:`, `test:`, `docs:`. Subjects are imperative and scoped (e.g. `fix: preserve title when renaming flow files`).
+
+## Reference Docs
+
+- [ROADMAP.md](./ROADMAP.md) — phased plan; complete the current phase before starting the next
+- [AGENTS.md](./AGENTS.md) — sibling guidance file with overlapping conventions; keep the two in sync if either changes
+- `docs/git-workflow.md` — branch and merge conventions
+- `docs/release-checklist.md`, `docs/updater-plan.md`, `docs/updater-release-runbook.md` — release and updater procedures
