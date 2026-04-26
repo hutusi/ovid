@@ -155,8 +155,6 @@ function App() {
     isAmytisWorkspace,
     assetRoot,
     cdnBase,
-    renamingPath,
-    setRenamingPath,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
@@ -715,7 +713,6 @@ function App() {
             tree={tree}
             workspaceKey={workspaceRootPath}
             selectedPath={selectedFile?.path ?? null}
-            renamingPath={renamingPath}
             visible={sidebarVisible}
             workspaceName={workspaceName}
             gitStatusMap={gitStatusMap}
@@ -727,12 +724,10 @@ function App() {
             onOpenSwitcher={() => setWorkspaceSwitcherOpen(true)}
             onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
             onLoadDirectoryChildren={(dirPath) => void loadDirectoryChildren(dirPath)}
-            onRename={handleRename}
+            onRename={(node) => setModal({ type: "rename-path", node })}
             onDuplicate={(node) => setModal({ type: "duplicate-file", node })}
             onNewFromExisting={(node) => setModal({ type: "new-from-existing", node })}
             onDelete={handleDelete}
-            onStartRename={setRenamingPath}
-            onCancelRename={() => setRenamingPath(null)}
           />
         )}
         <div className="editor-column">

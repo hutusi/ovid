@@ -81,7 +81,6 @@ export function useWorkspace({
   const [isAmytisWorkspace, setIsAmytisWorkspace] = useState(false);
   const [assetRoot, setAssetRoot] = useState<string | undefined>(undefined);
   const [cdnBase, setCdnBase] = useState<string | undefined>(undefined);
-  const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const loadingDirectoryRequestsRef = useState(() => new Map<string, Promise<FileNode[]>>())[0];
 
   const refreshTree = useCallback(async (): Promise<FileNode[]> => {
@@ -216,7 +215,6 @@ export function useWorkspace({
   }
 
   async function handleRename(node: FileNode, newName: string) {
-    setRenamingPath(null);
     await flushPendingSave();
     const { oldPath, newPath, folderBacked, entryFileName } = buildPostTargetPath(node, newName);
     try {
@@ -310,8 +308,6 @@ export function useWorkspace({
     isAmytisWorkspace,
     assetRoot,
     cdnBase,
-    renamingPath,
-    setRenamingPath,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,

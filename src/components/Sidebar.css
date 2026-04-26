@@ -130,13 +130,11 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 0;
+  padding: 5px 4px 5px 0;
   flex: 1;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--color-fg);
   text-align: left;
   cursor: pointer;
   border-radius: 4px;
@@ -227,11 +225,6 @@
 
 .sidebar-dir-icon {
   opacity: 0.6;
-}
-
-/* ── Inline rename ───────────────────────────── */
-.sidebar-rename-row {
-  padding: 3px 10px 3px 0;
 }
 
 /* ── Empty workspace state ───────────────────── */

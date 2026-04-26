@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   collapseIndexNodes,
   filterTree,
+  getSidebarDisplayName,
   needsPageDivider,
   rollupGitStatus,
   sortNodes,
@@ -73,7 +74,7 @@ describe("filterTree", () => {
   it("includes directory only when a child matches", () => {
     const match = makeFile("post.md");
     const noMatch = makeFile("about.md");
-    const dir = makeDir("posts", [match, noMatch]);
+    const dir = makeDir("blog", [match, noMatch]);
     const result = filterTree([dir], "post");
     expect(result).toHaveLength(1);
     expect(result[0].isDirectory).toBe(true);
@@ -103,6 +104,24 @@ describe("filterTree", () => {
   it("is a substring match, not prefix-only", () => {
     const file = makeFile("my-awesome-post.md");
     expect(filterTree([file], "awesome")).toEqual([file]);
+  });
+
+  it("matches a directory by name and keeps all its children", () => {
+    const indexFile = makeFile("index.md", { path: "/workspace/posts/hello/index.md" });
+    const cover = makeFile("cover.md", { path: "/workspace/posts/hello/cover.md" });
+    const dir = makeDir("hello", [indexFile, cover]);
+    const result = filterTree([dir], "hello");
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(dir);
+    expect(result[0].children).toHaveLength(2);
+  });
+
+  it("matches a directory by name even when no descendants match", () => {
+    const file = makeFile("nope.md", { path: "/workspace/posts/hello/nope.md" });
+    const dir = makeDir("hello-world", [file]);
+    const result = filterTree([dir], "hello");
+    expect(result).toHaveLength(1);
+    expect(result[0].children).toEqual([file]);
   });
 });
 
@@ -359,5 +378,59 @@ describe("needsPageDivider", () => {
     const post = makeTypedFile("post.md", "post");
     const nodes = [post, dir];
     expect(needsPageDivider(nodes, 1)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getSidebarDisplayName
+// ---------------------------------------------------------------------------
+
+describe("getSidebarDisplayName", () => {
+  it("prefers frontmatter title when present", () => {
+    const file = makeFile("my-slug.md", { title: "Hello World" });
+    expect(getSidebarDisplayName(file)).toBe("Hello World");
+  });
+
+  it("strips the .md extension when there is no title", () => {
+    const file = makeFile("my-slug.md");
+    expect(getSidebarDisplayName(file)).toBe("my-slug");
+  });
+
+  it("strips the .mdx extension when there is no title", () => {
+    const file: FileNode = {
+      name: "my-slug.mdx",
+      path: "/workspace/my-slug.mdx",
+      isDirectory: false,
+      extension: ".mdx",
+    };
+    expect(getSidebarDisplayName(file)).toBe("my-slug");
+  });
+
+  it("uses the parent folder name for index.md without a title", () => {
+    const indexFile = makeFile("index.md", { path: "/workspace/posts/hello/index.md" });
+    expect(getSidebarDisplayName(indexFile)).toBe("hello");
+  });
+
+  it("uses the parent folder name for index.mdx without a title", () => {
+    const indexFile: FileNode = {
+      name: "index.mdx",
+      path: "/workspace/posts/hello/index.mdx",
+      isDirectory: false,
+      extension: ".mdx",
+    };
+    expect(getSidebarDisplayName(indexFile)).toBe("hello");
+  });
+
+  it("still prefers the title for index.md when set", () => {
+    const indexFile = makeFile("index.md", {
+      path: "/workspace/posts/hello/index.md",
+      title: "Hello, World",
+    });
+    expect(getSidebarDisplayName(indexFile)).toBe("Hello, World");
+  });
+
+  it("falls back to the bare name when index has no parent folder", () => {
+    const indexFile = makeFile("index.md", { path: "index.md" });
+    expect(getSidebarDisplayName(indexFile)).toBe("index");
   });
 });

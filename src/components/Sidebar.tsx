@@ -12,8 +12,8 @@ import {
   shouldRevealSelectedAncestors,
 } from "../lib/sidebarExpansion";
 import {
-  collapseIndexNodes,
   filterTree,
+  getSidebarDisplayName,
   needsPageDivider,
   rollupGitStatus,
   sortTree,
@@ -27,7 +27,6 @@ interface SidebarProps {
   tree: FileNode[];
   workspaceKey?: string | null;
   selectedPath: string | null;
-  renamingPath: string | null;
   visible: boolean;
   workspaceName: string | null;
   gitStatusMap: Map<string, GitStatus>;
@@ -36,12 +35,10 @@ interface SidebarProps {
   onOpenSwitcher: () => void;
   onNewFile: (dirPath: string) => void;
   onLoadDirectoryChildren: (dirPath: string) => void;
-  onRename: (node: FileNode, newName: string) => void;
+  onRename: (node: FileNode) => void;
   onDuplicate: (node: FileNode) => void;
   onNewFromExisting: (node: FileNode) => void;
   onDelete: (node: FileNode) => void;
-  onStartRename: (path: string) => void;
-  onCancelRename: () => void;
 }
 
 interface FileItemProps {
@@ -50,18 +47,15 @@ interface FileItemProps {
   isExpanded: (node: FileNode, depth: number) => boolean;
   onToggleExpand: (path: string, depth: number) => void;
   selectedPath: string | null;
-  renamingPath: string | null;
   gitStatusMap: Map<string, GitStatus>;
   forceExpand?: boolean;
   onSelect: (node: FileNode) => void;
   onNewFile: (dirPath: string) => void;
   onLoadDirectoryChildren: (dirPath: string) => void;
-  onRename: (node: FileNode, newName: string) => void;
+  onRename: (node: FileNode) => void;
   onDuplicate: (node: FileNode) => void;
   onNewFromExisting: (node: FileNode) => void;
   onDelete: (node: FileNode) => void;
-  onStartRename: (path: string) => void;
-  onCancelRename: () => void;
 }
 
 function FileItem({
@@ -70,7 +64,6 @@ function FileItem({
   isExpanded,
   onToggleExpand,
   selectedPath,
-  renamingPath,
   gitStatusMap,
   forceExpand = false,
   onSelect,
@@ -80,32 +73,18 @@ function FileItem({
   onDuplicate,
   onNewFromExisting,
   onDelete,
-  onStartRename,
-  onCancelRename,
 }: FileItemProps) {
   const expanded = forceExpand || isExpanded(node, depth);
   const isSelected = node.path === selectedPath;
-  const isRenaming = renamingPath === node.path;
   const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
-  const baseName = node.name.replace(/\.mdx?$/, "");
-  const [renameValue, setRenameValue] = useState(baseName);
-  const renameRef = useRef<HTMLInputElement>(null);
   const indent = `${12 + depth * 14}px`;
-
-  useEffect(() => {
-    if (isRenaming) {
-      setRenameValue(baseName);
-      renameRef.current?.focus();
-      renameRef.current?.select();
-    }
-  }, [isRenaming, baseName]);
 
   async function showDirContextMenu() {
     const menu = await Menu.new({
       items: [
         await MenuItem.new({ text: "New file here", action: () => onNewFile(node.path) }),
         await PredefinedMenuItem.new({ item: "Separator" }),
-        await MenuItem.new({ text: "Rename", action: () => onStartRename(node.path) }),
+        await MenuItem.new({ text: "Rename", action: () => onRename(node) }),
         await MenuItem.new({ text: "Delete", action: () => onDelete(node) }),
       ],
     });
@@ -157,7 +136,6 @@ function FileItem({
                 isExpanded={isExpanded}
                 onToggleExpand={onToggleExpand}
                 selectedPath={selectedPath}
-                renamingPath={renamingPath}
                 gitStatusMap={gitStatusMap}
                 forceExpand={forceExpand}
                 onSelect={onSelect}
@@ -167,8 +145,6 @@ function FileItem({
                 onDuplicate={onDuplicate}
                 onNewFromExisting={onNewFromExisting}
                 onDelete={onDelete}
-                onStartRename={onStartRename}
-                onCancelRename={onCancelRename}
               />
             </Fragment>
           ))}
@@ -178,33 +154,8 @@ function FileItem({
 
   if (!isMarkdown) return null;
 
-  if (isRenaming) {
-    return (
-      <div className="sidebar-rename-row" style={{ paddingLeft: indent }}>
-        <Input
-          ref={renameRef}
-          className="h-7 text-[13.5px]"
-          value={renameValue}
-          onChange={(e) => setRenameValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && renameValue.trim()) {
-              onRename(node, renameValue.trim());
-            } else if (e.key === "Escape") {
-              onCancelRename();
-            }
-          }}
-          onBlur={() => {
-            if (renameValue.trim()) onRename(node, renameValue.trim());
-            else onCancelRename();
-          }}
-        />
-      </div>
-    );
-  }
-
-  const displayName = node.title || baseName;
+  const displayName = getSidebarDisplayName(node);
   const gitStatus = gitStatusMap.get(node.path);
-  const isIndexBackedItem = Boolean(node.containerDirPath);
 
   async function showFileContextMenu() {
     const menu = await Menu.new({
@@ -212,7 +163,7 @@ function FileItem({
         await MenuItem.new({ text: "Make a Copy", action: () => onDuplicate(node) }),
         await MenuItem.new({ text: "New from Existing", action: () => onNewFromExisting(node) }),
         await PredefinedMenuItem.new({ item: "Separator" }),
-        await MenuItem.new({ text: "Rename", action: () => onStartRename(node.path) }),
+        await MenuItem.new({ text: "Rename", action: () => onRename(node) }),
         await MenuItem.new({ text: "Delete", action: () => onDelete(node) }),
       ],
     });
@@ -233,20 +184,13 @@ function FileItem({
         className="sidebar-file"
         style={{ paddingLeft: indent }}
         onClick={() => onSelect(node)}
-        onDoubleClick={() => onStartRename(node.path)}
+        onDoubleClick={() => onRename(node)}
         onKeyDown={(e) => {
-          if (e.key === "F2") onStartRename(node.path);
+          if (e.key === "F2") onRename(node);
         }}
       >
         <span className="sidebar-file-icon-wrap">
           <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
-          {isIndexBackedItem && (
-            <span
-              className="sidebar-file-icon-badge"
-              aria-hidden="true"
-              title="Folder-backed item"
-            />
-          )}
         </span>
         <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
           {displayName}
@@ -266,7 +210,6 @@ export function Sidebar({
   tree,
   workspaceKey,
   selectedPath,
-  renamingPath,
   visible,
   workspaceName,
   gitStatusMap,
@@ -279,19 +222,10 @@ export function Sidebar({
   onDuplicate,
   onNewFromExisting,
   onDelete,
-  onStartRename,
-  onCancelRename,
 }: SidebarProps) {
   const renderStartedAtRef = useRef(0);
   renderStartedAtRef.current = performance.now();
   const [filterQuery, setFilterQuery] = useState("");
-  const visibleTree = useMemo(
-    () =>
-      measureSync("sidebar.collapseIndexNodes", () => collapseIndexNodes(tree), {
-        treeNodes: tree.length,
-      }),
-    [tree]
-  );
   const expandedStorageKey = useMemo(() => buildExpandedStorageKey(workspaceKey), [workspaceKey]);
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
   const [hasStoredExpandedState, setHasStoredExpandedState] = useState(false);
@@ -325,24 +259,24 @@ export function Sidebar({
 
   const selectedAncestorPaths = useMemo(
     () =>
-      measureSync("sidebar.findAncestorPaths", () => findAncestorPaths(visibleTree, selectedPath), {
-        treeNodes: visibleTree.length,
+      measureSync("sidebar.findAncestorPaths", () => findAncestorPaths(tree, selectedPath), {
+        treeNodes: tree.length,
         hasSelection: Boolean(selectedPath),
       }),
-    [visibleTree, selectedPath]
+    [tree, selectedPath]
   );
 
   const renderedNodes = useMemo(
     () =>
       measureSync(
         "sidebar.renderedNodes",
-        () => sortTree(filterQuery ? filterTree(visibleTree, filterQuery) : visibleTree),
+        () => sortTree(filterQuery ? filterTree(tree, filterQuery) : tree),
         {
-          treeNodes: visibleTree.length,
+          treeNodes: tree.length,
           filterLength: filterQuery.length,
         }
       ),
-    [filterQuery, visibleTree]
+    [filterQuery, tree]
   );
 
   useEffect(() => {
@@ -442,7 +376,7 @@ export function Sidebar({
         </div>
       </div>
 
-      {visibleTree.length > 0 && (
+      {tree.length > 0 && (
         <div className="sidebar-filter">
           <div className="relative flex-1">
             <Input
@@ -470,7 +404,7 @@ export function Sidebar({
       )}
 
       <div className="sidebar-tree">
-        {visibleTree.length === 0 ? (
+        {tree.length === 0 ? (
           <div className="sidebar-empty">
             <p>No workspace open.</p>
             <button type="button" className="sidebar-open-workspace-btn" onClick={onOpenWorkspace}>
@@ -487,7 +421,6 @@ export function Sidebar({
                 isExpanded={isNodeExpanded}
                 onToggleExpand={handleToggleExpand}
                 selectedPath={selectedPath}
-                renamingPath={renamingPath}
                 gitStatusMap={gitStatusMap}
                 forceExpand={filterQuery.length > 0}
                 onSelect={onSelect}
@@ -497,8 +430,6 @@ export function Sidebar({
                 onDuplicate={onDuplicate}
                 onNewFromExisting={onNewFromExisting}
                 onDelete={onDelete}
-                onStartRename={onStartRename}
-                onCancelRename={onCancelRename}
               />
             </Fragment>
           ))
