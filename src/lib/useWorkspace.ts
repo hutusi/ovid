@@ -8,6 +8,7 @@ import {
 } from "./frontmatter";
 import { measureAsync } from "./perf";
 import { buildPostTargetPath } from "./postPath";
+import { createPostFromExistingContent } from "./postTemplate";
 import type { FileNode } from "./types";
 import { syncRecentDelete, syncRecentRename } from "./useRecentFiles";
 
@@ -254,6 +255,36 @@ export function useWorkspace({
     }
   }
 
+  async function handleNewFromExisting(node: FileNode, newName: string) {
+    await flushPendingSave();
+    const { newPath, folderBacked, entryFileName } = buildPostTargetPath(node, newName);
+    const targetPath = folderBacked ? `${newPath}/${entryFileName}` : newPath;
+
+    if (findNode(tree, newPath)) {
+      showToast(`Failed to create post from existing: "${newName}" already exists`);
+      return;
+    }
+
+    try {
+      const raw = await invoke<string>("read_file", { path: node.path });
+      const content = createPostFromExistingContent(raw);
+
+      if (folderBacked) {
+        await invoke("ensure_dir", { path: newPath });
+      }
+
+      await invoke("create_file", { path: targetPath, content });
+      const updated = await refreshTree();
+      const created = findNode(updated, targetPath);
+      if (created) {
+        await handleSelectFile(created);
+      }
+    } catch (err) {
+      console.error("Failed to create post from existing:", err);
+      showToast(`Failed to create post from existing: ${err}`);
+    }
+  }
+
   async function handleDelete(node: FileNode) {
     const confirmed = window.confirm(`Move "${node.name}" to Trash?`);
     if (!confirmed) return;
@@ -287,6 +318,7 @@ export function useWorkspace({
     handleNewTodayFlow,
     handleRename,
     handleDuplicate,
+    handleNewFromExisting,
     handleDelete,
     loadDirectoryChildren,
   };

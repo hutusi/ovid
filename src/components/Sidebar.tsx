@@ -38,6 +38,7 @@ interface SidebarProps {
   onLoadDirectoryChildren: (dirPath: string) => void;
   onRename: (node: FileNode, newName: string) => void;
   onDuplicate: (node: FileNode) => void;
+  onNewFromExisting: (node: FileNode) => void;
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
   onCancelRename: () => void;
@@ -57,6 +58,7 @@ interface FileItemProps {
   onLoadDirectoryChildren: (dirPath: string) => void;
   onRename: (node: FileNode, newName: string) => void;
   onDuplicate: (node: FileNode) => void;
+  onNewFromExisting: (node: FileNode) => void;
   onDelete: (node: FileNode) => void;
   onStartRename: (path: string) => void;
   onCancelRename: () => void;
@@ -76,6 +78,7 @@ function FileItem({
   onLoadDirectoryChildren,
   onRename,
   onDuplicate,
+  onNewFromExisting,
   onDelete,
   onStartRename,
   onCancelRename,
@@ -162,6 +165,7 @@ function FileItem({
                 onLoadDirectoryChildren={onLoadDirectoryChildren}
                 onRename={onRename}
                 onDuplicate={onDuplicate}
+                onNewFromExisting={onNewFromExisting}
                 onDelete={onDelete}
                 onStartRename={onStartRename}
                 onCancelRename={onCancelRename}
@@ -206,6 +210,7 @@ function FileItem({
     const menu = await Menu.new({
       items: [
         await MenuItem.new({ text: "Make a Copy", action: () => onDuplicate(node) }),
+        await MenuItem.new({ text: "New from Existing", action: () => onNewFromExisting(node) }),
         await PredefinedMenuItem.new({ item: "Separator" }),
         await MenuItem.new({ text: "Rename", action: () => onStartRename(node.path) }),
         await MenuItem.new({ text: "Delete", action: () => onDelete(node) }),
@@ -272,6 +277,7 @@ export function Sidebar({
   onLoadDirectoryChildren,
   onRename,
   onDuplicate,
+  onNewFromExisting,
   onDelete,
   onStartRename,
   onCancelRename,
@@ -489,6 +495,7 @@ export function Sidebar({
                 onLoadDirectoryChildren={onLoadDirectoryChildren}
                 onRename={onRename}
                 onDuplicate={onDuplicate}
+                onNewFromExisting={onNewFromExisting}
                 onDelete={onDelete}
                 onStartRename={onStartRename}
                 onCancelRename={onCancelRename}

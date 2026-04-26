@@ -51,11 +51,17 @@ export function buildPostTargetPath(
   };
 }
 
+function getPostBaseName(node: FileNode): string {
+  const sourceName = getPathBaseName(getPostEntrySourcePath(node));
+  return sourceName.replace(/\.(md|mdx)$/i, "");
+}
+
 export function getDuplicateNameSuggestion(node: FileNode): string {
-  const sourcePath = getPostEntrySourcePath(node);
-  const sourceName = getPathBaseName(sourcePath);
-  const baseName = sourceName.replace(/\.(md|mdx)$/i, "");
-  return `${baseName}-copy`;
+  return `${getPostBaseName(node)}-copy`;
+}
+
+export function getNewFromExistingNameSuggestion(node: FileNode): string {
+  return `${getPostBaseName(node)}-new`;
 }
 
 export function getPathDisplayLabel(node: FileNode): string {

@@ -13,6 +13,7 @@ import { resolveImageSrc } from "./lib/imageUtils";
 import { isPerfLoggingEnabled } from "./lib/perf";
 import {
   getDuplicateNameSuggestion,
+  getNewFromExistingNameSuggestion,
   getPathDisplayLabel,
   getRenamePathDialogState,
 } from "./lib/postPath";
@@ -34,6 +35,7 @@ import "./App.css";
 type ModalState =
   | { type: "new-file"; dirPath: string; contentType?: string }
   | { type: "duplicate-file"; node: FileNode }
+  | { type: "new-from-existing"; node: FileNode }
   | { type: "rename-path"; node: FileNode }
   | null;
 type EditorViewState = { selection: number; scrollTop: number };
@@ -161,6 +163,7 @@ function App() {
     handleNewTodayFlow,
     handleRename,
     handleDuplicate,
+    handleNewFromExisting,
     handleDelete,
     loadDirectoryChildren,
   } = useWorkspace({
@@ -726,6 +729,7 @@ function App() {
             onLoadDirectoryChildren={(dirPath) => void loadDirectoryChildren(dirPath)}
             onRename={handleRename}
             onDuplicate={(node) => setModal({ type: "duplicate-file", node })}
+            onNewFromExisting={(node) => setModal({ type: "new-from-existing", node })}
             onDelete={handleDelete}
             onStartRename={setRenamingPath}
             onCancelRename={() => setRenamingPath(null)}
@@ -904,6 +908,22 @@ function App() {
             showTypeSelector={false}
             onConfirm={(name) => {
               void handleDuplicate(modal.node, name);
+              setModal(null);
+            }}
+            onCancel={() => setModal(null)}
+          />
+        </Suspense>
+      )}
+      {modal?.type === "new-from-existing" && (
+        <Suspense fallback={null}>
+          <NewFileDialog
+            contentTypes={[]}
+            initialFilename={getNewFromExistingNameSuggestion(modal.node)}
+            title="New from Existing"
+            confirmLabel="Create"
+            showTypeSelector={false}
+            onConfirm={(name) => {
+              void handleNewFromExisting(modal.node, name);
               setModal(null);
             }}
             onCancel={() => setModal(null)}

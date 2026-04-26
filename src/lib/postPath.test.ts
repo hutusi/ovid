@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   buildPostTargetPath,
   getDuplicateNameSuggestion,
+  getNewFromExistingNameSuggestion,
   getPathDisplayLabel,
   getPostEntryFileName,
   getPostEntrySourcePath,
@@ -73,6 +74,19 @@ describe("postPath", () => {
     expect(getDuplicateNameSuggestion(makeNode("/workspace/posts/hello/index.mdx"))).toBe(
       "hello-copy"
     );
+  });
+
+  test("builds new-from-existing name suggestions from the post identity", () => {
+    expect(getNewFromExistingNameSuggestion(makeNode("/workspace/posts/hello.md"))).toBe(
+      "hello-new"
+    );
+    expect(
+      getNewFromExistingNameSuggestion(
+        makeNode("/workspace/posts/hello/index.md", {
+          containerDirPath: "/workspace/posts/hello",
+        })
+      )
+    ).toBe("hello-new");
   });
 
   test("builds path display labels for file-backed and folder-backed posts", () => {

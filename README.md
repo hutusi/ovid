@@ -165,6 +165,10 @@ Inline rename in the sidebar. The editor tab updates automatically if the rename
 
 Creates a sibling copy of the selected post or Markdown file. For folder-backed posts such as `post/index.md` or `post/index.mdx`, Ovid copies the whole post folder and opens the copied index file immediately.
 
+### New from Existing (right-click → New from Existing)
+
+Creates a sibling post from the selected post without carrying over the old body content. Ovid keeps the frontmatter shape, clears the body, and resets common post fields such as `title`, `date`, `draft`, `featured`, `pinned`, `coverImage`, `slug`, and `tags`. For folder-backed posts such as `post/index.md` or `post/index.mdx`, Ovid creates a new sibling post folder with the same index filename.
+
 ### Delete (right-click → Delete)
 
 Moves the file to the system Trash (not permanent delete). A confirmation dialog is shown. If the file is currently open, it is closed first.
