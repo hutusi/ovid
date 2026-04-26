@@ -22,6 +22,16 @@ bun run test             # Bun unit tests
 bun tsc --noEmit         # Type-check without emitting
 ```
 
+Single test runs:
+
+```bash
+bun test src/lib/frontmatter.test.ts                # Run a single test file
+bun test --test-name-pattern "parses frontmatter"   # Filter by test name
+cargo test --manifest-path src-tauri/Cargo.toml     # Rust tests only
+```
+
+Tests are colocated as `*.test.ts` next to the implementation (e.g. `src/lib/frontmatter.test.ts`, `src/lib/tiptap/FindReplace.test.ts`).
+
 ## Architecture
 
 Three-zone layout managed by `src/App.tsx`:
@@ -65,6 +75,8 @@ Sidebar/session behavior:
 - `frontmatter.ts` — `parseFrontmatter` / `joinFrontmatter` (raw round-trip) + `parseYamlFrontmatter` (js-yaml)
 - `useTheme.ts` — Hook for system/manual dark mode; syncs to `localStorage`; applies `data-theme` on `<html>`
 - `useFocusTrap.ts` — Hook for modal dialogs: auto-focuses first element on open, traps Tab/Shift+Tab within bounds, restores focus on close
+
+**`src/theme.ts`** — Static theme constants consumed by components alongside the `useTheme` hook.
 
 **`src/lib/tiptap/`**
 - `FindReplace.ts` — ProseMirror plugin + Tiptap extension for find & replace; `collectMatches` exported for testing
@@ -174,6 +186,13 @@ When compressing conversation history, preserve in priority order:
 5. **Open TODOs and rollback notes**
 6. **Tool output** — can be dropped; keep pass/fail summary only
 
-## Roadmap
+## Commits
 
-See [ROADMAP.md](./ROADMAP.md) for the full phased plan. Features are organized into deliberate phases; complete the current phase before starting the next. Earlier phases are complete, and newer phases may be added as the roadmap evolves.
+Recent history follows Conventional Commit-style prefixes: `feat:`, `fix:`, `refine:`, `test:`, `docs:`. Subjects are imperative and scoped (e.g. `fix: preserve title when renaming flow files`).
+
+## Reference Docs
+
+- [ROADMAP.md](./ROADMAP.md) — phased plan; complete the current phase before starting the next
+- [AGENTS.md](./AGENTS.md) — sibling guidance file with overlapping conventions; keep the two in sync if either changes
+- `docs/git-workflow.md` — branch and merge conventions
+- `docs/release-checklist.md`, `docs/updater-plan.md`, `docs/updater-release-runbook.md` — release and updater procedures
