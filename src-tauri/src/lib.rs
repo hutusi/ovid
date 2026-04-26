@@ -329,7 +329,7 @@ fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec
             if !children.is_empty() {
                 nodes.push(FileNode {
                     name,
-                    path: entry_path.to_string_lossy().to_string(),
+                    path: to_slash(&entry_path),
                     is_directory: true,
                     children: Some(children),
                     children_loaded: Some(true),
@@ -348,7 +348,7 @@ fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec
                 let (title, draft, content_type) = read_frontmatter_meta_cached(&entry_path, cache);
                 nodes.push(FileNode {
                     name,
-                    path: entry_path.to_string_lossy().to_string(),
+                    path: to_slash(&entry_path),
                     is_directory: false,
                     children: None,
                     children_loaded: None,
@@ -393,7 +393,7 @@ fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>
         if file_type.is_dir() {
             nodes.push(FileNode {
                 name,
-                path: entry_path.to_string_lossy().to_string(),
+                path: to_slash(&entry_path),
                 is_directory: true,
                 children: None,
                 children_loaded: Some(false),
@@ -413,7 +413,7 @@ fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>
             let (title, draft, content_type) = read_frontmatter_meta_cached(&entry_path, cache);
             nodes.push(FileNode {
                 name,
-                path: entry_path.to_string_lossy().to_string(),
+                path: to_slash(&entry_path),
                 is_directory: false,
                 children: None,
                 children_loaded: None,
@@ -478,8 +478,10 @@ fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
 }
 
 /// Normalize a path to forward-slash separators for JSON serialization.
-/// The frontend's `resolveImageSrc` splits on "/" so native Windows backslashes
-/// would produce wrong results; this keeps paths consistent across platforms.
+/// The frontend treats `node.path` as a forward-slash string everywhere it
+/// splits on "/" (sidebar display, recent files, image resolution, etc.); on
+/// Windows native backslashes would break those helpers, so every path that
+/// crosses the bridge into JS goes through this.
 fn to_slash(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
@@ -860,7 +862,7 @@ fn search_dir(
 
             if total_matches > 0 {
                 results.push(SearchResult {
-                    path: entry_path.to_string_lossy().to_string(),
+                    path: to_slash(&entry_path),
                     title: file.title.clone(),
                     matches,
                     total_matches,
@@ -2076,7 +2078,7 @@ async fn pick_image_file(app: tauri::AppHandle) -> Result<Option<String>, String
         None => return Ok(None),
     };
     let path = match file {
-        tauri_plugin_dialog::FilePath::Path(p) => p.to_string_lossy().to_string(),
+        tauri_plugin_dialog::FilePath::Path(p) => to_slash(&p),
         tauri_plugin_dialog::FilePath::Url(u) => u.path().to_string(),
     };
     Ok(Some(path))
