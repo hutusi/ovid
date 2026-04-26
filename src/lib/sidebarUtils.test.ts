@@ -73,7 +73,7 @@ describe("filterTree", () => {
   it("includes directory only when a child matches", () => {
     const match = makeFile("post.md");
     const noMatch = makeFile("about.md");
-    const dir = makeDir("posts", [match, noMatch]);
+    const dir = makeDir("blog", [match, noMatch]);
     const result = filterTree([dir], "post");
     expect(result).toHaveLength(1);
     expect(result[0].isDirectory).toBe(true);
@@ -103,6 +103,24 @@ describe("filterTree", () => {
   it("is a substring match, not prefix-only", () => {
     const file = makeFile("my-awesome-post.md");
     expect(filterTree([file], "awesome")).toEqual([file]);
+  });
+
+  it("matches a directory by name and keeps all its children", () => {
+    const indexFile = makeFile("index.md", { path: "/workspace/posts/hello/index.md" });
+    const cover = makeFile("cover.md", { path: "/workspace/posts/hello/cover.md" });
+    const dir = makeDir("hello", [indexFile, cover]);
+    const result = filterTree([dir], "hello");
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe(dir);
+    expect(result[0].children).toHaveLength(2);
+  });
+
+  it("matches a directory by name even when no descendants match", () => {
+    const file = makeFile("nope.md", { path: "/workspace/posts/hello/nope.md" });
+    const dir = makeDir("hello-world", [file]);
+    const result = filterTree([dir], "hello");
+    expect(result).toHaveLength(1);
+    expect(result[0].children).toEqual([file]);
   });
 });
 

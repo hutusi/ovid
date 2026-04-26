@@ -48,6 +48,7 @@ export function filterTree(nodes: FileNode[], query: string): FileNode[] {
   const q = query.toLowerCase();
   return nodes.flatMap((node) => {
     if (node.isDirectory) {
+      if (node.name.toLowerCase().includes(q)) return [node];
       const filtered = filterTree(node.children ?? [], q);
       return filtered.length > 0 ? [{ ...node, children: filtered }] : [];
     }

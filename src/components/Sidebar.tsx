@@ -11,13 +11,7 @@ import {
   shouldDefaultExpand,
   shouldRevealSelectedAncestors,
 } from "../lib/sidebarExpansion";
-import {
-  collapseIndexNodes,
-  filterTree,
-  needsPageDivider,
-  rollupGitStatus,
-  sortTree,
-} from "../lib/sidebarUtils";
+import { filterTree, needsPageDivider, rollupGitStatus, sortTree } from "../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../lib/types";
 import { ContentTypeIcon } from "./ContentTypeIcon";
 import "./Sidebar.css";
@@ -88,17 +82,20 @@ function FileItem({
   const isRenaming = renamingPath === node.path;
   const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
   const baseName = node.name.replace(/\.mdx?$/, "");
-  const [renameValue, setRenameValue] = useState(baseName);
+  const isIndexFile = /^index\.mdx?$/i.test(node.name);
+  const parentFolderName = node.path.split("/").filter(Boolean).slice(-2, -1)[0] ?? baseName;
+  const initialRenameValue = isIndexFile ? parentFolderName : baseName;
+  const [renameValue, setRenameValue] = useState(initialRenameValue);
   const renameRef = useRef<HTMLInputElement>(null);
   const indent = `${12 + depth * 14}px`;
 
   useEffect(() => {
     if (isRenaming) {
-      setRenameValue(baseName);
+      setRenameValue(initialRenameValue);
       renameRef.current?.focus();
       renameRef.current?.select();
     }
-  }, [isRenaming, baseName]);
+  }, [isRenaming, initialRenameValue]);
 
   async function showDirContextMenu() {
     const menu = await Menu.new({
@@ -202,9 +199,8 @@ function FileItem({
     );
   }
 
-  const displayName = node.title || baseName;
+  const displayName = node.title || (isIndexFile ? parentFolderName : baseName);
   const gitStatus = gitStatusMap.get(node.path);
-  const isIndexBackedItem = Boolean(node.containerDirPath);
 
   async function showFileContextMenu() {
     const menu = await Menu.new({
@@ -240,13 +236,6 @@ function FileItem({
       >
         <span className="sidebar-file-icon-wrap">
           <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
-          {isIndexBackedItem && (
-            <span
-              className="sidebar-file-icon-badge"
-              aria-hidden="true"
-              title="Folder-backed item"
-            />
-          )}
         </span>
         <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
           {displayName}
@@ -285,13 +274,6 @@ export function Sidebar({
   const renderStartedAtRef = useRef(0);
   renderStartedAtRef.current = performance.now();
   const [filterQuery, setFilterQuery] = useState("");
-  const visibleTree = useMemo(
-    () =>
-      measureSync("sidebar.collapseIndexNodes", () => collapseIndexNodes(tree), {
-        treeNodes: tree.length,
-      }),
-    [tree]
-  );
   const expandedStorageKey = useMemo(() => buildExpandedStorageKey(workspaceKey), [workspaceKey]);
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
   const [hasStoredExpandedState, setHasStoredExpandedState] = useState(false);
@@ -325,24 +307,24 @@ export function Sidebar({
 
   const selectedAncestorPaths = useMemo(
     () =>
-      measureSync("sidebar.findAncestorPaths", () => findAncestorPaths(visibleTree, selectedPath), {
-        treeNodes: visibleTree.length,
+      measureSync("sidebar.findAncestorPaths", () => findAncestorPaths(tree, selectedPath), {
+        treeNodes: tree.length,
         hasSelection: Boolean(selectedPath),
       }),
-    [visibleTree, selectedPath]
+    [tree, selectedPath]
   );
 
   const renderedNodes = useMemo(
     () =>
       measureSync(
         "sidebar.renderedNodes",
-        () => sortTree(filterQuery ? filterTree(visibleTree, filterQuery) : visibleTree),
+        () => sortTree(filterQuery ? filterTree(tree, filterQuery) : tree),
         {
-          treeNodes: visibleTree.length,
+          treeNodes: tree.length,
           filterLength: filterQuery.length,
         }
       ),
-    [filterQuery, visibleTree]
+    [filterQuery, tree]
   );
 
   useEffect(() => {
@@ -442,7 +424,7 @@ export function Sidebar({
         </div>
       </div>
 
-      {visibleTree.length > 0 && (
+      {tree.length > 0 && (
         <div className="sidebar-filter">
           <div className="relative flex-1">
             <Input
@@ -470,7 +452,7 @@ export function Sidebar({
       )}
 
       <div className="sidebar-tree">
-        {visibleTree.length === 0 ? (
+        {tree.length === 0 ? (
           <div className="sidebar-empty">
             <p>No workspace open.</p>
             <button type="button" className="sidebar-open-workspace-btn" onClick={onOpenWorkspace}>
