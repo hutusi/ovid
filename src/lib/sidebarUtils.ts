@@ -107,3 +107,17 @@ export function needsPageDivider(nodes: FileNode[], index: number): boolean {
   if (index > 0 && nodes[index - 1].contentType === "page") return false;
   return nodes.slice(0, index).some((n) => !n.isDirectory && n.contentType !== "page");
 }
+
+/** Sidebar label for a file node. Prefers the frontmatter title; for
+ *  `index.md(x)` files without a title, falls back to the parent folder
+ *  name so folder-backed posts read as the post itself rather than literal
+ *  "index". For all other files, falls back to the filename without its
+ *  markdown extension. */
+export function getSidebarDisplayName(node: FileNode): string {
+  const baseName = node.name.replace(/\.mdx?$/i, "");
+  if (node.title) return node.title;
+  const isIndexFile = /^index\.mdx?$/i.test(node.name);
+  if (!isIndexFile) return baseName;
+  const parentFolderName = node.path.split("/").filter(Boolean).slice(-2, -1)[0];
+  return parentFolderName ?? baseName;
+}

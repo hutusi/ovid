@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   collapseIndexNodes,
   filterTree,
+  getSidebarDisplayName,
   needsPageDivider,
   rollupGitStatus,
   sortNodes,
@@ -377,5 +378,59 @@ describe("needsPageDivider", () => {
     const post = makeTypedFile("post.md", "post");
     const nodes = [post, dir];
     expect(needsPageDivider(nodes, 1)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getSidebarDisplayName
+// ---------------------------------------------------------------------------
+
+describe("getSidebarDisplayName", () => {
+  it("prefers frontmatter title when present", () => {
+    const file = makeFile("my-slug.md", { title: "Hello World" });
+    expect(getSidebarDisplayName(file)).toBe("Hello World");
+  });
+
+  it("strips the .md extension when there is no title", () => {
+    const file = makeFile("my-slug.md");
+    expect(getSidebarDisplayName(file)).toBe("my-slug");
+  });
+
+  it("strips the .mdx extension when there is no title", () => {
+    const file: FileNode = {
+      name: "my-slug.mdx",
+      path: "/workspace/my-slug.mdx",
+      isDirectory: false,
+      extension: ".mdx",
+    };
+    expect(getSidebarDisplayName(file)).toBe("my-slug");
+  });
+
+  it("uses the parent folder name for index.md without a title", () => {
+    const indexFile = makeFile("index.md", { path: "/workspace/posts/hello/index.md" });
+    expect(getSidebarDisplayName(indexFile)).toBe("hello");
+  });
+
+  it("uses the parent folder name for index.mdx without a title", () => {
+    const indexFile: FileNode = {
+      name: "index.mdx",
+      path: "/workspace/posts/hello/index.mdx",
+      isDirectory: false,
+      extension: ".mdx",
+    };
+    expect(getSidebarDisplayName(indexFile)).toBe("hello");
+  });
+
+  it("still prefers the title for index.md when set", () => {
+    const indexFile = makeFile("index.md", {
+      path: "/workspace/posts/hello/index.md",
+      title: "Hello, World",
+    });
+    expect(getSidebarDisplayName(indexFile)).toBe("Hello, World");
+  });
+
+  it("falls back to the bare name when index has no parent folder", () => {
+    const indexFile = makeFile("index.md", { path: "index.md" });
+    expect(getSidebarDisplayName(indexFile)).toBe("index");
   });
 });

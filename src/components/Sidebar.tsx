@@ -11,7 +11,13 @@ import {
   shouldDefaultExpand,
   shouldRevealSelectedAncestors,
 } from "../lib/sidebarExpansion";
-import { filterTree, needsPageDivider, rollupGitStatus, sortTree } from "../lib/sidebarUtils";
+import {
+  filterTree,
+  getSidebarDisplayName,
+  needsPageDivider,
+  rollupGitStatus,
+  sortTree,
+} from "../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../lib/types";
 import { ContentTypeIcon } from "./ContentTypeIcon";
 import "./Sidebar.css";
@@ -71,9 +77,6 @@ function FileItem({
   const expanded = forceExpand || isExpanded(node, depth);
   const isSelected = node.path === selectedPath;
   const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
-  const baseName = node.name.replace(/\.mdx?$/, "");
-  const isIndexFile = /^index\.mdx?$/i.test(node.name);
-  const parentFolderName = node.path.split("/").filter(Boolean).slice(-2, -1)[0] ?? baseName;
   const indent = `${12 + depth * 14}px`;
 
   async function showDirContextMenu() {
@@ -151,7 +154,7 @@ function FileItem({
 
   if (!isMarkdown) return null;
 
-  const displayName = node.title || (isIndexFile ? parentFolderName : baseName);
+  const displayName = getSidebarDisplayName(node);
   const gitStatus = gitStatusMap.get(node.path);
 
   async function showFileContextMenu() {
