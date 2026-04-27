@@ -5,6 +5,7 @@ import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import {
   buildExpandedStorageKey,
   findAncestorPaths,
+  findExpandedUnloadedPaths,
   forceExpandAncestors,
   getNodeExpanded,
   parseExpandedPaths,
@@ -226,6 +227,7 @@ export function Sidebar({
   renderStartedAtRef.current = performance.now();
   const [filterQuery, setFilterQuery] = useState("");
   const expandedStorageKey = useMemo(() => buildExpandedStorageKey(workspaceKey), [workspaceKey]);
+  const expandedStorageKeyRef = useRef(expandedStorageKey);
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
   const [isExpandedStateLoaded, setIsExpandedStateLoaded] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -287,7 +289,7 @@ export function Sidebar({
   }, [renderedNodes.length, filterQuery.length, visible]);
 
   useEffect(() => {
-    setIsExpandedStateLoaded(false);
+    expandedStorageKeyRef.current = expandedStorageKey;
     const stored = localStorage.getItem(expandedStorageKey);
     const next = parseExpandedPaths(stored);
     setExpandedPaths(next.expandedPaths);
@@ -296,14 +298,20 @@ export function Sidebar({
 
   useEffect(() => {
     if (!isExpandedStateLoaded) return;
-    localStorage.setItem(expandedStorageKey, JSON.stringify(expandedPaths));
-  }, [expandedPaths, expandedStorageKey, isExpandedStateLoaded]);
+    localStorage.setItem(expandedStorageKeyRef.current, JSON.stringify(expandedPaths));
+  }, [expandedPaths, isExpandedStateLoaded]);
 
   useEffect(() => {
     if (!isExpandedStateLoaded) return;
     if (selectedAncestorPaths.size === 0) return;
     setExpandedPaths((current) => forceExpandAncestors(current, selectedAncestorPaths));
   }, [selectedAncestorPaths, isExpandedStateLoaded]);
+
+  useEffect(() => {
+    if (!isExpandedStateLoaded) return;
+    const toLoad = findExpandedUnloadedPaths(tree, expandedPaths);
+    for (const path of toLoad) onLoadDirectoryChildren(path);
+  }, [tree, expandedPaths, isExpandedStateLoaded, onLoadDirectoryChildren]);
 
   function isNodeExpanded(node: FileNode, depth: number): boolean {
     return getNodeExpanded(node.path, depth, expandedPaths);

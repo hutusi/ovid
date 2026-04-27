@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   buildExpandedStorageKey,
   findAncestorPaths,
+  findExpandedUnloadedPaths,
   forceExpandAncestors,
   getNodeExpanded,
   parseExpandedPaths,
@@ -26,6 +27,16 @@ function makeDir(path: string, children: FileNode[]): FileNode {
     path,
     isDirectory: true,
     children,
+  };
+}
+
+function makeUnloadedDir(path: string): FileNode {
+  const parts = path.split("/");
+  return {
+    name: parts[parts.length - 1] ?? path,
+    path,
+    isDirectory: true,
+    childrenLoaded: false,
   };
 }
 
@@ -120,5 +131,38 @@ describe("getNodeExpanded", () => {
   it("falls back to default depth-based expansion", () => {
     expect(getNodeExpanded("/workspace/posts", 0, {})).toBe(true);
     expect(getNodeExpanded("/workspace/posts/2024", 1, {})).toBe(false);
+  });
+});
+
+describe("findExpandedUnloadedPaths", () => {
+  it("returns expanded directories whose children have not been fetched", () => {
+    const tree = [makeUnloadedDir("/workspace/posts"), makeUnloadedDir("/workspace/books")];
+    expect(
+      findExpandedUnloadedPaths(tree, {
+        "/workspace/posts": true,
+        "/workspace/books": false,
+      })
+    ).toEqual(["/workspace/posts"]);
+  });
+
+  it("includes top-level directories by default when no state is persisted", () => {
+    const tree = [makeUnloadedDir("/workspace/posts")];
+    expect(findExpandedUnloadedPaths(tree, {})).toEqual(["/workspace/posts"]);
+  });
+
+  it("descends into already-loaded directories to find nested unloaded ones", () => {
+    const nestedUnloaded = makeUnloadedDir("/workspace/posts/2024");
+    const posts = makeDir("/workspace/posts", [nestedUnloaded]);
+    expect(
+      findExpandedUnloadedPaths([posts], {
+        "/workspace/posts": true,
+        "/workspace/posts/2024": true,
+      })
+    ).toEqual(["/workspace/posts/2024"]);
+  });
+
+  it("skips collapsed directories even when their children are unloaded", () => {
+    const tree = [makeUnloadedDir("/workspace/posts")];
+    expect(findExpandedUnloadedPaths(tree, { "/workspace/posts": false })).toEqual([]);
   });
 });

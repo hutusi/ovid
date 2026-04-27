@@ -68,3 +68,23 @@ export function getNodeExpanded(
   if (persisted !== undefined) return persisted;
   return shouldDefaultExpand(depth);
 }
+
+export function findExpandedUnloadedPaths(
+  nodes: FileNode[],
+  expandedPaths: Record<string, boolean>
+): string[] {
+  const paths: string[] = [];
+  function visit(items: FileNode[], depth: number) {
+    for (const node of items) {
+      if (!node.isDirectory) continue;
+      if (!getNodeExpanded(node.path, depth, expandedPaths)) continue;
+      if (node.childrenLoaded === false) {
+        paths.push(node.path);
+      } else if (node.children) {
+        visit(node.children, depth + 1);
+      }
+    }
+  }
+  visit(nodes, 0);
+  return paths;
+}

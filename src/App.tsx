@@ -190,6 +190,13 @@ function App() {
     tabSyncRef.current = { renameTab, removeTab };
   }, [renameTab, removeTab]);
 
+  const handleLoadDirectoryChildren = useCallback(
+    (dirPath: string) => {
+      void loadDirectoryChildren(dirPath);
+    },
+    [loadDirectoryChildren]
+  );
+
   const closeActiveTabOrFile = useCallback(() => {
     if (selectedFile && tabs.includes(selectedFile.path)) {
       const { neighbor } = closeTab(selectedFile.path);
@@ -762,7 +769,7 @@ function App() {
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => setWorkspaceSwitcherOpen(true)}
             onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
-            onLoadDirectoryChildren={(dirPath) => void loadDirectoryChildren(dirPath)}
+            onLoadDirectoryChildren={handleLoadDirectoryChildren}
             onRename={(node) => setModal({ type: "rename-path", node })}
             onDuplicate={(node) => setModal({ type: "duplicate-file", node })}
             onNewFromExisting={(node) => setModal({ type: "new-from-existing", node })}
