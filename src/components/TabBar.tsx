@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { findNodeByPath } from "../lib/appRestore";
 import { getSidebarDisplayName } from "../lib/sidebarUtils";
 import type { FileNode, SaveStatus } from "../lib/types";
@@ -34,6 +34,12 @@ export function TabBar({
 }: TabBarProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const activeTabRef = useRef<HTMLDivElement | null>(null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activePath is the intended trigger for scrolling into view
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }, [activePath]);
 
   return (
     <div className="tab-bar" role="toolbar" aria-label="Open files">
@@ -48,6 +54,7 @@ export function TabBar({
           // biome-ignore lint/a11y/noStaticElementInteractions: drag wrapper; keyboard-accessible actions live on the inner buttons
           <div
             key={path}
+            ref={isActive ? activeTabRef : undefined}
             className={[
               "tab-bar-item",
               isActive ? "is-active" : "",
@@ -68,7 +75,9 @@ export function TabBar({
               e.dataTransfer.dropEffect = "move";
               if (dropIndex !== index) setDropIndex(index);
             }}
-            onDragLeave={() => {
+            onDragLeave={(e) => {
+              const next = e.relatedTarget as Node | null;
+              if (next && e.currentTarget.contains(next)) return;
               if (dropIndex === index) setDropIndex(null);
             }}
             onDrop={(e) => {
