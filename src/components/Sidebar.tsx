@@ -184,7 +184,6 @@ function FileItem({
         className="sidebar-file"
         style={{ paddingLeft: indent }}
         onClick={() => onSelect(node)}
-        onDoubleClick={() => onRename(node)}
         onKeyDown={(e) => {
           if (e.key === "F2") onRename(node);
         }}
