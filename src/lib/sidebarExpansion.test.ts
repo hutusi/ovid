@@ -71,8 +71,15 @@ describe("parseExpandedPaths", () => {
     expect(parseExpandedPaths("{not json")).toEqual({ expandedPaths: {} });
   });
 
-  it("restores saved expanded paths", () => {
-    expect(parseExpandedPaths('{"/workspace/posts":true,"/workspace/flows":false}')).toEqual({
+  it("rejects arrays and non-boolean values", () => {
+    expect(parseExpandedPaths("[]")).toEqual({ expandedPaths: {} });
+    expect(parseExpandedPaths('{"a":1,"b":"yes"}')).toEqual({ expandedPaths: {} });
+  });
+
+  it("restores saved expanded paths, filtering non-boolean values", () => {
+    expect(
+      parseExpandedPaths('{"/workspace/posts":true,"/workspace/flows":false,"bad":1}')
+    ).toEqual({
       expandedPaths: {
         "/workspace/posts": true,
         "/workspace/flows": false,

@@ -265,6 +265,11 @@ export function Sidebar({
     [tree, selectedPath]
   );
 
+  const selectedAncestorKey = useMemo(
+    () => [...selectedAncestorPaths].sort().join("\0"),
+    [selectedAncestorPaths]
+  );
+
   const renderedNodes = useMemo(
     () =>
       measureSync(
@@ -302,9 +307,10 @@ export function Sidebar({
 
   useEffect(() => {
     if (!isExpandedStateLoaded) return;
-    if (selectedAncestorPaths.size === 0) return;
-    setExpandedPaths((current) => forceExpandAncestors(current, selectedAncestorPaths));
-  }, [selectedAncestorPaths, isExpandedStateLoaded]);
+    if (!selectedAncestorKey) return;
+    const ancestors = new Set(selectedAncestorKey.split("\0"));
+    setExpandedPaths((current) => forceExpandAncestors(current, ancestors));
+  }, [selectedAncestorKey, isExpandedStateLoaded]);
 
   useEffect(() => {
     if (!isExpandedStateLoaded) return;

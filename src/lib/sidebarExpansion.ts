@@ -17,8 +17,14 @@ export function parseExpandedPaths(stored: string | null): {
 
   try {
     const parsed = JSON.parse(stored);
-    if (typeof parsed !== "object" || !parsed) return { expandedPaths: {} };
-    return { expandedPaths: parsed as Record<string, boolean> };
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      return { expandedPaths: {} };
+    }
+    const expandedPaths: Record<string, boolean> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v === "boolean") expandedPaths[k] = v;
+    }
+    return { expandedPaths };
   } catch {
     return { expandedPaths: {} };
   }

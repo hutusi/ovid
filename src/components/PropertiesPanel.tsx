@@ -704,7 +704,7 @@ export function PropertiesPanel({
     key,
     value: getFrontmatterFieldValue(frontmatter, key),
   })).filter((field): field is { key: string; value: FrontmatterValue } => field.value != null);
-  const isEmpty = Object.keys(frontmatter).length === 0;
+  const isEmpty = Object.values(frontmatter).every((v) => v == null);
   const addableKeys = getMissingAddableFrontmatterFields(frontmatter);
   const customKeys = Object.keys(frontmatter)
     .filter((k) => frontmatter[k] != null && !isKnownFrontmatterField(k))
