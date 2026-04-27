@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import type { MutableRefObject } from "react";
 import { useCallback, useState } from "react";
 import {
@@ -289,7 +290,10 @@ export function useWorkspace({
   }
 
   async function handleDelete(node: FileNode) {
-    const confirmed = window.confirm(`Move "${node.name}" to Trash?`);
+    const confirmed = await confirm(`Move "${node.name}" to Trash?`, {
+      title: "Delete",
+      kind: "warning",
+    });
     if (!confirmed) return;
     if (selectedFile?.path === node.path) {
       await flushPendingSave();
