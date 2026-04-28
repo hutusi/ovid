@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import "./TitleInput.css";
 
 interface TitleInputProps {
@@ -7,6 +8,7 @@ interface TitleInputProps {
 }
 
 export function TitleInput({ title, onChange }: TitleInputProps) {
+  const { t } = useTranslation();
   const [value, setValue] = useState(title);
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -43,8 +45,8 @@ export function TitleInput({ title, onChange }: TitleInputProps) {
       <textarea
         ref={ref}
         className="title-input"
-        aria-label="Document title"
-        placeholder="Untitled"
+        aria-label={t("title_input.aria_label")}
+        placeholder={t("title_input.placeholder")}
         rows={1}
         value={value}
         autoCapitalize="off"

@@ -1,5 +1,6 @@
 import { Type } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
 import "./FontSettings.css";
 
@@ -24,6 +25,7 @@ export function FontSettingsButton({
   onToggleSpellCheck,
   onSetWordCountGoal,
 }: FontSettingsProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [goalInput, setGoalInput] = useState("");
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -65,8 +67,8 @@ export function FontSettingsButton({
       <button
         type="button"
         className="statusbar-control statusbar-font-button"
-        title="Editor settings (font, spell check, session goal)"
-        aria-label="Editor settings"
+        title={t("font_settings.editor_settings")}
+        aria-label={t("font_settings.editor_settings_label")}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
@@ -74,31 +76,41 @@ export function FontSettingsButton({
       </button>
 
       {open && (
-        <div className="fsp-panel" role="dialog" aria-label="Editor settings">
-          <span className="fsp-section-label">Font</span>
+        <div
+          className="fsp-panel"
+          role="dialog"
+          aria-label={t("font_settings.editor_settings_label")}
+        >
+          <span className="fsp-section-label">{t("font_settings.font")}</span>
           <div className="fsp-chip-row">
             {(["serif", "sans", "mono"] as FontFamily[]).map((f) => (
               <button
                 key={f}
                 type="button"
                 aria-pressed={fontFamily === f}
-                aria-label={`${f === "serif" ? "Serif" : f === "sans" ? "Sans-serif" : "Monospace"} font`}
+                aria-label={t(
+                  `font_settings.font_${f === "serif" ? "serif" : f === "sans" ? "sans" : "mono"}`
+                )}
                 className={`fsp-chip${fontFamily === f ? " fsp-chip--active" : ""}`}
                 onClick={() => onSetFontFamily(f)}
               >
-                {f === "serif" ? "Serif" : f === "sans" ? "Sans" : "Mono"}
+                {t(
+                  `font_settings.font_${f === "serif" ? "serif" : f === "sans" ? "sans" : "mono"}_short`
+                )}
               </button>
             ))}
           </div>
 
-          <span className="fsp-section-label">Size</span>
+          <span className="fsp-section-label">{t("font_settings.size")}</span>
           <div className="fsp-chip-row">
             {(["small", "default", "large"] as FontSize[]).map((s) => (
               <button
                 key={s}
                 type="button"
                 aria-pressed={fontSize === s}
-                aria-label={`${s === "small" ? "Small" : s === "default" ? "Medium" : "Large"} font size`}
+                aria-label={t(
+                  `font_settings.size_${s === "small" ? "small" : s === "default" ? "medium" : "large"}`
+                )}
                 className={`fsp-chip${fontSize === s ? " fsp-chip--active" : ""}`}
                 onClick={() => onSetFontSize(s)}
               >
@@ -115,16 +127,16 @@ export function FontSettingsButton({
             className="fsp-toggle"
             onClick={onToggleSpellCheck}
           >
-            <span>Spell check</span>
+            <span>{t("font_settings.spell_check")}</span>
             <span className={`fsp-toggle-value${spellCheck ? " fsp-toggle-value--on" : ""}`}>
-              {spellCheck ? "on" : "off"}
+              {spellCheck ? t("font_settings.on") : t("font_settings.off")}
             </span>
           </button>
 
           <div className="fsp-divider" />
 
           <label htmlFor="fsp-goal-input" className="fsp-section-label">
-            Session goal
+            {t("font_settings.session_goal")}
           </label>
           <div className="fsp-goal-row">
             <input
@@ -132,7 +144,7 @@ export function FontSettingsButton({
               className="fsp-goal-input"
               type="number"
               min="1"
-              placeholder="words"
+              placeholder={t("font_settings.words_placeholder")}
               value={goalInput}
               onChange={(e) => setGoalInput(e.target.value)}
               onKeyDown={(e) => {
@@ -140,11 +152,11 @@ export function FontSettingsButton({
               }}
             />
             <button type="button" className="fsp-goal-set" onClick={handleSetGoal}>
-              Set
+              {t("font_settings.set")}
             </button>
             {wordCountGoal !== null && (
               <button type="button" className="fsp-goal-clear" onClick={handleClearGoal}>
-                Clear
+                {t("font_settings.clear")}
               </button>
             )}
           </div>

@@ -62,7 +62,8 @@
     "no_workspace": "未打开工作区。",
     "open_folder": "打开文件夹",
     "resize": "调整侧栏宽度",
-    "changes_inside": "内有 {{count}} 处修改"
+    "no_workspace_name": "未打开工作区",
+    "changes_inside": "{{status}} 更改在内"
   },
   "file_switcher": {
     "title": "快速切换文件",

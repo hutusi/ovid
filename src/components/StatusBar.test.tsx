@@ -1,5 +1,16 @@
 import { describe, expect, it, mock } from "bun:test";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
+
+mock.module("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, vars?: Record<string, unknown>) => {
+      if (vars) return `${key}(${JSON.stringify(vars)})`;
+      return key;
+    },
+    i18n: { language: "en", changeLanguage: mock(() => {}) },
+  }),
+}));
+
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
 import { StatusBar } from "./StatusBar";
 

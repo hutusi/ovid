@@ -62,7 +62,8 @@
     "no_workspace": "No workspace open.",
     "open_folder": "Open folder",
     "resize": "Resize sidebar",
-    "changes_inside": "{{count}} changes inside"
+    "no_workspace_name": "No workspace",
+    "changes_inside": "{{status}} changes inside"
   },
   "file_switcher": {
     "title": "Quick file switcher",

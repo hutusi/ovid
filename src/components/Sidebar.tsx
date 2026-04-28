@@ -1,6 +1,7 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import { Folder, FolderOpen, Search, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import {
   buildExpandedStorageKey,
@@ -73,6 +74,7 @@ function FileItem({
   onNewFromExisting,
   onDelete,
 }: FileItemProps) {
+  const { t } = useTranslation();
   const expanded = forceExpand || isExpanded(node, depth);
   const isSelected = node.path === selectedPath;
   const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
@@ -115,7 +117,7 @@ function FileItem({
             {dirRollup && (
               <span
                 className={`git-dot git-dot-${dirRollup}`}
-                title={`${dirRollup} changes inside`}
+                title={t("sidebar.changes_inside", { status: dirRollup })}
               />
             )}
           </button>
@@ -216,6 +218,7 @@ export function Sidebar({
   onNewFromExisting,
   onDelete,
 }: SidebarProps) {
+  const { t } = useTranslation();
   const renderStartedAtRef = useRef(0);
   renderStartedAtRef.current = performance.now();
   const [filterQuery, setFilterQuery] = useState("");
@@ -364,16 +367,16 @@ export function Sidebar({
           type="button"
           className="sidebar-workspace-name"
           onClick={onOpenSwitcher}
-          title="Switch workspace"
+          title={t("sidebar.switch_workspace")}
         >
-          {workspaceName ?? "No workspace"}
+          {workspaceName ?? t("sidebar.no_workspace_name")}
         </button>
         <div className="sidebar-header-actions">
           <button
             type="button"
             className="sidebar-open-btn"
             onClick={onOpenWorkspace}
-            title="Open workspace"
+            title={t("sidebar.open_workspace")}
           >
             ⊕
           </button>
@@ -387,8 +390,8 @@ export function Sidebar({
             <input
               type="text"
               className="sidebar-filter-input"
-              aria-label="Filter files"
-              placeholder="Filter…"
+              aria-label={t("sidebar.filter_label")}
+              placeholder={t("sidebar.filter_placeholder")}
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
@@ -402,7 +405,7 @@ export function Sidebar({
               <button
                 type="button"
                 className="sidebar-filter-clear"
-                aria-label="Clear filter"
+                aria-label={t("sidebar.clear_filter")}
                 onClick={() => setFilterQuery("")}
               >
                 <X size={10} aria-hidden="true" />
@@ -415,9 +418,9 @@ export function Sidebar({
       <div className="sidebar-tree">
         {tree.length === 0 ? (
           <div className="sidebar-empty">
-            <p>No workspace open.</p>
+            <p>{t("sidebar.no_workspace")}</p>
             <button type="button" className="sidebar-open-workspace-btn" onClick={onOpenWorkspace}>
-              Open folder
+              {t("sidebar.open_folder")}
             </button>
           </div>
         ) : (
@@ -448,7 +451,7 @@ export function Sidebar({
       {/* biome-ignore lint/a11y/useSemanticElements: resize splitter widget requires div, not <hr> */}
       <div
         role="separator"
-        aria-label="Resize sidebar"
+        aria-label={t("sidebar.resize")}
         aria-valuenow={sidebarWidth}
         aria-valuemin={SIDEBAR_MIN}
         aria-valuemax={SIDEBAR_MAX}

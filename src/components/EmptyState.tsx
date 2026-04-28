@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 const isMac = navigator.platform.startsWith("Mac") || navigator.userAgent.includes("Mac");
 const modKey = isMac ? "⌘" : "Ctrl+";
 
@@ -20,13 +22,16 @@ export function EmptyState({
   onOpenWorkspace,
   onOpenRecent,
 }: EmptyStateProps) {
+  const { t } = useTranslation();
   if (workspaceOpen) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-fg-subtle select-none">
-        <p className="text-[13px]">Select a file to start writing</p>
+        <p className="text-[13px]">{t("empty_state.select_file")}</p>
         {recentFiles.length > 0 && (
           <div className="mt-4 text-center">
-            <p className="text-[10.5px] uppercase tracking-[0.06em] mb-2">Recent</p>
+            <p className="text-[10.5px] uppercase tracking-[0.06em] mb-2">
+              {t("empty_state.recent")}
+            </p>
             <ul className="list-none flex flex-col gap-0.5">
               {recentFiles.map((f) => (
                 <li key={f.path}>
@@ -49,17 +54,17 @@ export function EmptyState({
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-fg-subtle select-none">
       <h2 className="font-[var(--font-editor)] text-[28px] font-normal text-fg-muted tracking-[0.02em]">
-        Ovid
+        {t("empty_state.app_name")}
       </h2>
-      <p className="text-[13px]">A writing space for Amytis content</p>
+      <p className="text-[13px]">{t("empty_state.tagline")}</p>
       <button
         type="button"
         className="mt-1 text-[13px] text-accent border border-accent rounded-md px-4 py-1.5 transition-colors hover:bg-accent-subtle"
         onClick={onOpenWorkspace}
       >
-        Open workspace
+        {t("empty_state.open_workspace")}
       </button>
-      <p className="text-[11px] opacity-60">{modKey}O to open a folder</p>
+      <p className="text-[11px] opacity-60">{t("empty_state.open_hint", { modKey })}</p>
     </div>
   );
 }

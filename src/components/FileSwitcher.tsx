@@ -1,5 +1,6 @@
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { compareFiles, type FlatFile, flattenTree, score } from "../lib/fileSearch";
 import type { FileNode, RecentFile } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -41,6 +42,7 @@ function buildItemGroups(
 }
 
 export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitcherProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -135,12 +137,17 @@ export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitc
   }
   return (
     <div className="modal-overlay modal-overlay--top" role="presentation">
-      <button type="button" className="modal-backdrop" aria-label="Close" onClick={onClose} />
+      <button
+        type="button"
+        className="modal-backdrop"
+        aria-label={t("file_switcher.close")}
+        onClick={onClose}
+      />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Quick file switcher"
+        aria-label={t("file_switcher.title")}
         className="fs-panel"
         onKeyDown={handleKeyDown}
       >
@@ -150,19 +157,19 @@ export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitc
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search files…"
+            placeholder={t("file_switcher.search_placeholder")}
             className="fs-search-input"
-            aria-label="Search files"
+            aria-label={t("file_switcher.search_label")}
           />
         </div>
-        <div className="fs-list" role="listbox" aria-label="Matching files">
+        <div className="fs-list" role="listbox" aria-label={t("file_switcher.matching")}>
           {visibleItems.length === 0 ? (
-            <div className="fs-empty">No files match</div>
+            <div className="fs-empty">{t("file_switcher.no_match")}</div>
           ) : query.trim() === "" ? (
             <>
               {recentResults.length > 0 && (
                 <>
-                  <div className="fs-group-heading">Recent</div>
+                  <div className="fs-group-heading">{t("file_switcher.recent")}</div>
                   {recentResults.map((file, index) => renderItem(file, index))}
                 </>
               )}
@@ -171,7 +178,9 @@ export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitc
               )}
               {otherResults.length > 0 && (
                 <>
-                  {recentResults.length > 0 && <div className="fs-group-heading">All files</div>}
+                  {recentResults.length > 0 && (
+                    <div className="fs-group-heading">{t("file_switcher.all_files")}</div>
+                  )}
                   {otherResults.map((file, index) => renderItem(file, otherResultsOffset + index))}
                 </>
               )}

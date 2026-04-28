@@ -9,6 +9,7 @@ import {
   PencilLine,
   SunMedium,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { SaveStatus } from "../lib/types";
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
 import type { ResolvedTheme } from "../lib/useTheme";
@@ -93,6 +94,7 @@ export function StatusBar({
   onToggleSpellCheck,
   onSetWordCountGoal,
 }: StatusBarProps) {
+  const { t, i18n } = useTranslation();
   const goalProgress =
     wordCountGoal !== null && wordCountGoal > 0 ? sessionWordsAdded / wordCountGoal : null;
   const sessionClass =
@@ -106,8 +108,8 @@ export function StatusBar({
 
   const sessionTitle =
     wordCountGoal !== null
-      ? `${sessionWordsAdded} / ${wordCountGoal} words (session goal)`
-      : "Words added this session";
+      ? t("status_bar.session_goal", { added: sessionWordsAdded, goal: wordCountGoal })
+      : t("status_bar.session_words_title");
 
   return (
     <div className="statusbar">
@@ -115,7 +117,7 @@ export function StatusBar({
         {fileLabel && (
           <span
             className={`save-dot ${saveStatus}`}
-            title={saveStatus === "unsaved" ? "Unsaved changes" : "Saved"}
+            title={saveStatus === "unsaved" ? t("status_bar.unsaved") : t("status_bar.saved")}
           />
         )}
         {fileLabel ? (
@@ -123,7 +125,7 @@ export function StatusBar({
             type="button"
             className="statusbar-file statusbar-file-button"
             onClick={onRenamePath}
-            title="Rename path"
+            title={t("status_bar.rename_path")}
           >
             <FilePenLine className="statusbar-git-icon" aria-hidden="true" />
             {fileLabel}
@@ -176,7 +178,9 @@ export function StatusBar({
             {wordCountGoal !== null && `/${wordCountGoal}`}
           </span>
         )}
-        <span className="statusbar-words">{wordCount > 0 ? `${wordCount} words` : ""}</span>
+        <span className="statusbar-words">
+          {wordCount > 0 ? t("status_bar.word_count", { count: wordCount }) : ""}
+        </span>
         <div className="statusbar-mode-group">
           <button
             type="button"
@@ -184,10 +188,10 @@ export function StatusBar({
             onClick={onToggleTypewriter}
             title={
               typewriterMode
-                ? "Disable typewriter mode"
-                : "Enable typewriter mode (keeps cursor centered)"
+                ? t("status_bar.typewriter_disable")
+                : t("status_bar.typewriter_enable")
             }
-            aria-label="Toggle typewriter mode"
+            aria-label={t("status_bar.typewriter_toggle")}
             aria-pressed={typewriterMode}
           >
             <Keyboard className="statusbar-mode-icon" aria-hidden="true" />
@@ -196,8 +200,8 @@ export function StatusBar({
             type="button"
             className={`statusbar-control statusbar-mode-toggle${zenMode ? " statusbar-control-active" : ""}`}
             onClick={onToggleZen}
-            title={zenMode ? "Exit zen mode (Esc)" : "Enter zen mode (⌃⌘Z)"}
-            aria-label="Toggle zen mode"
+            title={zenMode ? t("status_bar.zen_exit") : t("status_bar.zen_enter")}
+            aria-label={t("status_bar.zen_toggle")}
             aria-pressed={zenMode}
           >
             <span className="statusbar-zen-icon" aria-hidden="true" />
@@ -217,8 +221,10 @@ export function StatusBar({
           type="button"
           className="statusbar-control statusbar-mode-toggle"
           onClick={onToggleTheme}
-          title={resolvedTheme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          aria-label="Toggle theme"
+          title={
+            resolvedTheme === "dark" ? t("status_bar.theme_light") : t("status_bar.theme_dark")
+          }
+          aria-label={t("status_bar.theme_toggle")}
           aria-pressed={resolvedTheme === "dark"}
         >
           {resolvedTheme === "dark" ? (
@@ -226,6 +232,15 @@ export function StatusBar({
           ) : (
             <MoonStar className="statusbar-mode-icon" aria-hidden="true" />
           )}
+        </button>
+        <button
+          type="button"
+          className="statusbar-control statusbar-lang-toggle"
+          onClick={() => i18n.changeLanguage(i18n.language === "zh-CN" ? "en" : "zh-CN")}
+          title={t("status_bar.language")}
+          aria-label={t("status_bar.language")}
+        >
+          {i18n.language === "zh-CN" ? "中" : "EN"}
         </button>
       </div>
     </div>
