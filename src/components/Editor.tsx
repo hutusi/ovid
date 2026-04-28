@@ -648,8 +648,12 @@ export function Editor({
   return (
     <div className="editor-wrapper">
       <div ref={scrollRef} className="editor-scroll">
-        {onTitleChange !== undefined && <TitleInput title={title ?? ""} onChange={onTitleChange} />}
-        <EditorContent editor={editor} />
+        <div className="editor-content-area">
+          {onTitleChange !== undefined && (
+            <TitleInput title={title ?? ""} onChange={onTitleChange} />
+          )}
+          <EditorContent editor={editor} />
+        </div>
       </div>
       {editor && showFindReplace && (
         <FindReplaceBar
