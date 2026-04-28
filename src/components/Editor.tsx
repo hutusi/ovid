@@ -22,6 +22,7 @@ import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
 import { FindReplace } from "../lib/tiptap/FindReplace";
 import { Footnotes } from "../lib/tiptap/Footnotes";
+import { H1Warning } from "../lib/tiptap/H1Warning";
 import { ImageRenderer } from "../lib/tiptap/ImageRenderer";
 import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
@@ -33,6 +34,7 @@ import { CodeBlockView } from "./CodeBlockView";
 import { FindReplaceBar } from "./FindReplaceBar";
 import { LinkDialog } from "./LinkDialog";
 import { TableControls } from "./TableControls";
+import { TitleInput } from "./TitleInput";
 import "katex/dist/katex.min.css";
 import "../styles/editor.css";
 
@@ -68,6 +70,9 @@ interface EditorProps {
   cdnBase?: string;
   typewriterMode?: boolean;
   spellCheck?: boolean;
+  showH1Warning?: boolean;
+  title?: string;
+  onTitleChange?: (value: string) => void;
   initialSelection?: number;
   initialScrollTop?: number;
   onWordCount?: (count: number) => void;
@@ -91,6 +96,9 @@ export function Editor({
   onDirty,
   onChange,
   onError,
+  showH1Warning = false,
+  title,
+  onTitleChange,
   onViewStateChange,
   registerPendingFlush,
 }: EditorProps) {
@@ -236,6 +244,7 @@ export function Editor({
       ListBackspace,
       TextFolding,
       InlineEditMode,
+      ...(showH1Warning ? [H1Warning] : []),
     ],
     content,
     editorProps: {
@@ -639,6 +648,7 @@ export function Editor({
   return (
     <div className="editor-wrapper">
       <div ref={scrollRef} className="editor-scroll">
+        {onTitleChange !== undefined && <TitleInput title={title ?? ""} onChange={onTitleChange} />}
         <EditorContent editor={editor} />
       </div>
       {editor && showFindReplace && (
