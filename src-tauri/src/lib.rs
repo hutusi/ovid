@@ -2179,6 +2179,7 @@ pub fn run() {
             #[cfg(not(target_os = "macos"))]
             let about_item = MenuItemBuilder::with_id("about", "About Ovid").build(app)?;
 
+            #[cfg(target_os = "macos")]
             let ovid_menu = SubmenuBuilder::new(app, "Ovid")
                 .items(&[
                     &about_item,
@@ -2186,6 +2187,14 @@ pub fn run() {
                     &PredefinedMenuItem::hide(app, None)?,
                     &PredefinedMenuItem::hide_others(app, None)?,
                     &PredefinedMenuItem::show_all(app, None)?,
+                    &PredefinedMenuItem::separator(app)?,
+                    &PredefinedMenuItem::quit(app, None)?,
+                ])
+                .build()?;
+            #[cfg(not(target_os = "macos"))]
+            let ovid_menu = SubmenuBuilder::new(app, "Ovid")
+                .items(&[
+                    &about_item,
                     &PredefinedMenuItem::separator(app)?,
                     &PredefinedMenuItem::quit(app, None)?,
                 ])

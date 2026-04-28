@@ -234,6 +234,13 @@ export function useWorkspace({
           selectedPathRef.current = selectedPath;
           setSelectedFile(renamed);
         }
+      } else if (selectedFile?.path.startsWith(`${oldPath}/`)) {
+        const selectedPath = newPath + selectedFile.path.slice(oldPath.length);
+        const renamed = findNode(updated, selectedPath);
+        if (renamed) {
+          selectedPathRef.current = selectedPath;
+          setSelectedFile(renamed);
+        }
       }
     } catch (err) {
       console.error("Failed to rename file:", err);
