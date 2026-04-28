@@ -32,6 +32,12 @@
   line-height: 1.4;
 }
 
+.tiptap {
+  display: block;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
 .ProseMirror {
   max-width: 760px;
   margin: 0 auto;
