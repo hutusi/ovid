@@ -44,7 +44,7 @@
 
   /* Fonts */
   --font-ui: system-ui, -apple-system, sans-serif;
-  --font-editor: "Georgia", "Times New Roman", serif;
+  --font-editor: "Georgia", "Times New Roman", "Noto Serif CJK SC", "Songti SC", "STSong", serif;
   --font-mono: "Fira Code", "JetBrains Mono", monospace;
 }
 
