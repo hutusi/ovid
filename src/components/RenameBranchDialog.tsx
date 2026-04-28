@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 
@@ -9,6 +10,7 @@ interface RenameBranchDialogProps {
 }
 
 export function RenameBranchDialog({ branch, onConfirm, onCancel }: RenameBranchDialogProps) {
+  const { t } = useTranslation();
   const [branchName, setBranchName] = useState(branch);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLDivElement>();
@@ -40,31 +42,31 @@ export function RenameBranchDialog({ branch, onConfirm, onCancel }: RenameBranch
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Rename branch"
+        aria-label={t("rename_branch_dialog.title")}
         className="modal-panel"
         style={{ width: 380, maxWidth: "calc(100vw - 48px)" }}
         onKeyDown={handleKeyDown}
       >
-        <p className="modal-title">Rename branch</p>
+        <p className="modal-title">{t("rename_branch_dialog.title")}</p>
 
         <div className="modal-branch-row">
-          <span className="modal-branch-label">Current</span>
+          <span className="modal-branch-label">{t("rename_branch_dialog.current")}</span>
           <code className="modal-badge">{branch}</code>
         </div>
 
         <input
           ref={inputRef}
           className="modal-input"
-          aria-label="New branch name"
+          aria-label={t("rename_branch_dialog.name_label")}
           value={branchName}
-          placeholder="feature/my-branch"
+          placeholder={t("rename_branch_dialog.name_placeholder")}
           onChange={(e) => setBranchName(e.target.value)}
         />
 
         <div className="modal-actions">
           <div className="modal-spacer" />
           <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel}>
-            Cancel
+            {t("rename_branch_dialog.cancel")}
           </button>
           <button
             type="button"
@@ -72,7 +74,7 @@ export function RenameBranchDialog({ branch, onConfirm, onCancel }: RenameBranch
             disabled={!branchName.trim() || branchName.trim() === branch}
             onClick={() => onConfirm(branchName.trim())}
           >
-            Rename
+            {t("rename_branch_dialog.rename")}
           </button>
         </div>
       </div>

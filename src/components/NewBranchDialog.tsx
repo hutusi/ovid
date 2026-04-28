@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 
@@ -9,6 +10,7 @@ interface NewBranchDialogProps {
 }
 
 export function NewBranchDialog({ currentBranch, onConfirm, onCancel }: NewBranchDialogProps) {
+  const { t } = useTranslation();
   const [branchName, setBranchName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLDivElement>();
@@ -30,31 +32,31 @@ export function NewBranchDialog({ currentBranch, onConfirm, onCancel }: NewBranc
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="New branch"
+        aria-label={t("new_branch_dialog.title")}
         className="modal-panel"
         style={{ width: 380, maxWidth: "calc(100vw - 48px)" }}
         onKeyDown={handleKeyDown}
       >
-        <p className="modal-title">New branch</p>
+        <p className="modal-title">{t("new_branch_dialog.title")}</p>
 
         <div className="modal-branch-row">
-          <span className="modal-branch-label">From</span>
+          <span className="modal-branch-label">{t("new_branch_dialog.from")}</span>
           <code className="modal-badge">{currentBranch}</code>
         </div>
 
         <input
           ref={inputRef}
           className="modal-input"
-          aria-label="Branch name"
+          aria-label={t("new_branch_dialog.name_label")}
           value={branchName}
-          placeholder="feature/my-branch"
+          placeholder={t("new_branch_dialog.name_placeholder")}
           onChange={(e) => setBranchName(e.target.value)}
         />
 
         <div className="modal-actions">
           <div className="modal-spacer" />
           <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel}>
-            Cancel
+            {t("new_branch_dialog.cancel")}
           </button>
           <button
             type="button"
@@ -62,7 +64,7 @@ export function NewBranchDialog({ currentBranch, onConfirm, onCancel }: NewBranc
             disabled={!branchName.trim()}
             onClick={() => onConfirm(branchName.trim())}
           >
-            Create
+            {t("new_branch_dialog.create")}
           </button>
         </div>
       </div>

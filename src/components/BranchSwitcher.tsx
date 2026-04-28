@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getRemoteSummary } from "../lib/gitUi";
 import type { GitBranch, GitRemote, GitRemoteBranch, GitRemoteInfo } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -34,6 +35,7 @@ export function BranchSwitcher({
   onCopyRemoteUrl,
   onClose,
 }: BranchSwitcherProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [actionMenuBranch, setActionMenuBranch] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -86,9 +88,9 @@ export function BranchSwitcher({
       return `${remoteInfo.upstream}${remoteInfo.aheadBehind ? ` ${remoteInfo.aheadBehind}` : ""}`;
     }
     if (remote.name === remoteInfo.remoteName) {
-      return "Preferred push remote";
+      return t("branch_switcher.preferred_remote");
     }
-    return remote.url ?? "Remote URL unavailable";
+    return remote.url ?? t("branch_switcher.remote_unavailable");
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -158,16 +160,16 @@ export function BranchSwitcher({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Switch branch"
+        aria-label={t("branch_switcher.title")}
         className="modal-panel"
         style={{ width: 420, maxWidth: "calc(100vw - 48px)" }}
         onKeyDown={handleKeyDown}
       >
-        <p className="modal-title">Switch branch</p>
+        <p className="modal-title">{t("branch_switcher.title")}</p>
 
         {(remoteInfo.upstream || remoteInfo.remotes.length > 0) && (
           <div className="modal-branch-row">
-            <span className="modal-branch-label">Tracking</span>
+            <span className="modal-branch-label">{t("branch_switcher.tracking")}</span>
             <div className="modal-inline-actions">
               <span className="modal-selection-count">{getRemoteSummary(remoteInfo)}</span>
               {!remoteInfo.upstream && remoteInfo.remoteName && onPushAndTrack && (
@@ -176,7 +178,7 @@ export function BranchSwitcher({
                   className="modal-inline-btn"
                   onClick={() => onPushAndTrack(remoteInfo.remoteName as string)}
                 >
-                  Push + Track
+                  {t("branch_switcher.push_track")}
                 </button>
               )}
               {remoteInfo.remoteUrl && (
@@ -186,14 +188,14 @@ export function BranchSwitcher({
                     className="modal-inline-btn"
                     onClick={() => onOpenRemote(remoteInfo.remoteName ?? undefined)}
                   >
-                    Open
+                    {t("branch_switcher.open")}
                   </button>
                   <button
                     type="button"
                     className="modal-inline-btn"
                     onClick={() => onCopyRemoteUrl(remoteInfo.remoteName ?? undefined)}
                   >
-                    Copy URL
+                    {t("branch_switcher.copy_url")}
                   </button>
                 </>
               )}
@@ -203,7 +205,7 @@ export function BranchSwitcher({
 
         {remoteInfo.remotes.length > 1 && (
           <fieldset className="ws-list ws-list--group">
-            <legend className="ws-list-legend">Available remotes</legend>
+            <legend className="ws-list-legend">{t("branch_switcher.available_remotes")}</legend>
             {remoteInfo.remotes.map((remote) => (
               <div key={remote.name} className="ws-item ws-item--static">
                 <span className="ws-item-name">{remote.name}</span>
@@ -216,14 +218,14 @@ export function BranchSwitcher({
                         className="modal-inline-btn"
                         onClick={() => onOpenRemote(remote.name)}
                       >
-                        Open
+                        {t("branch_switcher.open")}
                       </button>
                       <button
                         type="button"
                         className="modal-inline-btn"
                         onClick={() => onCopyRemoteUrl(remote.name)}
                       >
-                        Copy URL
+                        {t("branch_switcher.copy_url")}
                       </button>
                     </>
                   )}
@@ -233,7 +235,7 @@ export function BranchSwitcher({
                       className="modal-inline-btn"
                       onClick={() => onPushAndTrack(remote.name)}
                     >
-                      Push + Track
+                      {t("branch_switcher.push_track")}
                     </button>
                   )}
                 </div>
@@ -245,9 +247,9 @@ export function BranchSwitcher({
         <input
           ref={inputRef}
           className="modal-input"
-          aria-label="Search branches"
+          aria-label={t("branch_switcher.search_label")}
           value={query}
-          placeholder="Search branches"
+          placeholder={t("branch_switcher.search_placeholder")}
           onChange={(e) => setQuery(e.target.value)}
         />
 
@@ -270,17 +272,19 @@ export function BranchSwitcher({
                   <span className="ws-item-path">
                     {branch.upstream
                       ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
-                      : "No upstream"}
+                      : t("branch_switcher.no_upstream")}
                   </span>
                 </button>
                 <div className="ws-item-controls">
                   {branch.isCurrent && (
-                    <span className="ws-item-badge ws-item-badge--inline">current</span>
+                    <span className="ws-item-badge ws-item-badge--inline">
+                      {t("branch_switcher.current")}
+                    </span>
                   )}
                   <button
                     type="button"
                     className={`ws-overflow-btn${actionMenuBranch === branch.name ? " is-open" : ""}`}
-                    aria-label={`Branch actions for ${branch.name}`}
+                    aria-label={t("branch_switcher.branch_actions", { branch: branch.name })}
                     aria-haspopup="menu"
                     aria-expanded={actionMenuBranch === branch.name}
                     onClick={(e) => {
@@ -299,7 +303,7 @@ export function BranchSwitcher({
                 <div
                   className="ws-actions-menu"
                   role="menu"
-                  aria-label={`Actions for ${branch.name}`}
+                  aria-label={t("branch_switcher.actions_for", { branch: branch.name })}
                   onKeyDown={handleActionMenuKeyDown}
                 >
                   <button
@@ -314,7 +318,7 @@ export function BranchSwitcher({
                       onRenameBranch(branch.name);
                     }}
                   >
-                    Rename
+                    {t("branch_switcher.rename")}
                   </button>
                   {!branch.isCurrent && (
                     <button
@@ -329,7 +333,7 @@ export function BranchSwitcher({
                         onDeleteBranch(branch.name);
                       }}
                     >
-                      Delete
+                      {t("branch_switcher.delete")}
                     </button>
                   )}
                 </div>
@@ -337,18 +341,18 @@ export function BranchSwitcher({
             </div>
           ))}
           {filteredBranches.length === 0 && filteredRemoteBranches.length === 0 && (
-            <p className="ws-empty">No branches match.</p>
+            <p className="ws-empty">{t("branch_switcher.no_match")}</p>
           )}
         </div>
 
         {filteredRemoteBranches.length > 0 && (
           <>
             <div className="modal-branch-row">
-              <span className="modal-branch-label">Remote branches</span>
+              <span className="modal-branch-label">{t("branch_switcher.remote_branches")}</span>
             </div>
             <fieldset className="ws-list ws-list--group">
               <legend className="ws-list-legend" aria-hidden="true">
-                Remote branches
+                {t("branch_switcher.remote_branches")}
               </legend>
               {filteredRemoteBranches.map((branch) => (
                 <button
@@ -359,7 +363,7 @@ export function BranchSwitcher({
                 >
                   <span className="ws-item-name">{branch.name}</span>
                   <span className="ws-item-path">
-                    {branch.remoteRef} · creates or switches tracking branch
+                    {branch.remoteRef} · {t("branch_switcher.creates_tracking")}
                   </span>
                 </button>
               ))}
@@ -369,11 +373,11 @@ export function BranchSwitcher({
 
         <div className="modal-actions">
           <button type="button" className="modal-btn modal-btn-cancel" onClick={onCreateBranch}>
-            New branch…
+            {t("branch_switcher.new_branch")}
           </button>
           <div className="modal-spacer" />
           <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
-            Cancel
+            {t("branch_switcher.cancel")}
           </button>
         </div>
       </div>

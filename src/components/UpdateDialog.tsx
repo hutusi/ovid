@@ -6,6 +6,7 @@ import {
   type Update as PendingUpdate,
 } from "@tauri-apps/plugin-updater";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 import "./UpdateDialog.css";
@@ -54,6 +55,7 @@ function formatBytes(bytes: number) {
 }
 
 export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
+  const { t } = useTranslation();
   const dialogRef = useFocusTrap<HTMLDivElement>();
   const updateRef = useRef<PendingUpdate | null>(null);
   const mountedRef = useRef(true);
@@ -189,7 +191,7 @@ export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
     state.kind === "installing"
       ? state.contentLength != null
         ? `${formatBytes(state.downloadedBytes)} / ${formatBytes(state.contentLength)}`
-        : `${formatBytes(state.downloadedBytes)} downloaded`
+        : t("update_dialog.progress_downloaded", { bytes: formatBytes(state.downloadedBytes) })
       : null;
 
   return (
@@ -208,37 +210,35 @@ export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Check for updates"
+        aria-label={t("update_dialog.title")}
         className="modal-panel update-dialog"
         onKeyDown={handleKeyDown}
       >
-        <p className="modal-title">Check for Updates</p>
+        <p className="modal-title">{t("update_dialog.title")}</p>
 
         {state.currentVersion && (
           <div className="modal-branch-row">
-            <span className="modal-branch-label">Current</span>
+            <span className="modal-branch-label">{t("update_dialog.current_version")}</span>
             <code className="modal-badge">{state.currentVersion}</code>
           </div>
         )}
 
-        {state.kind === "checking" && (
-          <p className="modal-copy">
-            Checking the configured updater endpoint for a newer release…
-          </p>
-        )}
+        {state.kind === "checking" && <p className="modal-copy">{t("update_dialog.checking")}</p>}
 
-        {state.kind === "upToDate" && (
-          <p className="modal-copy">Ovid is up to date. No newer version is currently available.</p>
-        )}
+        {state.kind === "upToDate" && <p className="modal-copy">{t("update_dialog.up_to_date")}</p>}
 
         {state.kind === "available" && (
           <>
             <div className="modal-branch-row">
-              <span className="modal-branch-label">Latest</span>
+              <span className="modal-branch-label">{t("update_dialog.latest_version")}</span>
               <code className="modal-badge">{state.version}</code>
             </div>
-            {state.date && <p className="modal-copy">Published {formatDate(state.date)}</p>}
-            <p className="modal-copy">A newer version is available and ready to install.</p>
+            {state.date && (
+              <p className="modal-copy">
+                {t("update_dialog.published", { date: formatDate(state.date) })}
+              </p>
+            )}
+            <p className="modal-copy">{t("update_dialog.update_available")}</p>
             {state.notes && <pre className="update-dialog-notes">{state.notes}</pre>}
           </>
         )}
@@ -246,10 +246,10 @@ export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
         {state.kind === "installing" && (
           <>
             <div className="modal-branch-row">
-              <span className="modal-branch-label">Installing</span>
+              <span className="modal-branch-label">{t("update_dialog.installing")}</span>
               <code className="modal-badge">{state.version}</code>
             </div>
-            <p className="modal-copy">Downloading and preparing the update package…</p>
+            <p className="modal-copy">{t("update_dialog.downloading")}</p>
             {progressText && <p className="update-dialog-progress">{progressText}</p>}
           </>
         )}
@@ -257,13 +257,10 @@ export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
         {state.kind === "installed" && (
           <>
             <div className="modal-branch-row">
-              <span className="modal-branch-label">Ready</span>
+              <span className="modal-branch-label">{t("update_dialog.ready")}</span>
               <code className="modal-badge">{state.version}</code>
             </div>
-            <p className="modal-copy">
-              The update package has been installed. Restart Ovid now to finish applying the new
-              version.
-            </p>
+            <p className="modal-copy">{t("update_dialog.restart_message")}</p>
           </>
         )}
 
@@ -277,16 +274,16 @@ export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
             onClick={onClose}
             disabled={state.kind === "installing"}
           >
-            {state.kind === "upToDate" ? "Close" : "Cancel"}
+            {state.kind === "upToDate" ? t("update_dialog.close") : t("update_dialog.cancel")}
           </button>
           {state.kind === "available" && (
             <button type="button" className="modal-btn modal-btn-primary" onClick={handleInstall}>
-              Install Update
+              {t("update_dialog.install")}
             </button>
           )}
           {state.kind === "error" && (
             <button type="button" className="modal-btn modal-btn-primary" onClick={handleRetry}>
-              Retry
+              {t("update_dialog.retry")}
             </button>
           )}
           {state.kind === "installed" && (
@@ -296,7 +293,9 @@ export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
               onClick={() => void handleRestart()}
               disabled={state.restartPending}
             >
-              {state.restartPending ? "Restarting…" : "Restart Now"}
+              {state.restartPending
+                ? t("update_dialog.restarting")
+                : t("update_dialog.restart_now")}
             </button>
           )}
         </div>

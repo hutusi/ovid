@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { GitCommitChange } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
@@ -11,15 +12,6 @@ interface CommitDialogProps {
   onCancel: () => void;
 }
 
-const STATUS_LABELS: Record<GitCommitChange["status"], string> = {
-  modified: "Modified",
-  staged: "Staged",
-  untracked: "Untracked",
-  added: "Added",
-  deleted: "Deleted",
-  renamed: "Renamed",
-};
-
 export function CommitDialog({
   defaultMessage,
   branch,
@@ -27,6 +19,7 @@ export function CommitDialog({
   onCommit,
   onCancel,
 }: CommitDialogProps) {
+  const { t } = useTranslation();
   const [message, setMessage] = useState(defaultMessage);
   const [push, setPush] = useState(false);
   const [selectedPaths, setSelectedPaths] = useState<string[]>(() =>
@@ -59,6 +52,10 @@ export function CommitDialog({
     );
   }
 
+  function getStatusLabel(status: GitCommitChange["status"]): string {
+    return t(`commit_dialog.${status}`);
+  }
+
   return (
     <div className="modal-overlay" role="presentation">
       <button type="button" className="modal-backdrop" aria-label="Close" onClick={onCancel} />
@@ -66,38 +63,41 @@ export function CommitDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Commit changes"
+        aria-label={t("commit_dialog.title")}
         className="modal-panel"
         style={{ width: 400, maxWidth: "calc(100vw - 48px)" }}
         onKeyDown={handleKeyDown}
       >
-        <p className="modal-title">Commit changes</p>
+        <p className="modal-title">{t("commit_dialog.title")}</p>
 
         <div className="modal-branch-row">
-          <span className="modal-branch-label">Branch</span>
+          <span className="modal-branch-label">{t("commit_dialog.branch")}</span>
           <code className="modal-badge">{branch}</code>
         </div>
 
         <div className="modal-branch-row">
-          <span className="modal-branch-label">Files</span>
+          <span className="modal-branch-label">{t("commit_dialog.files")}</span>
           <div className="modal-inline-actions">
             <button
               type="button"
               className="modal-inline-btn"
               onClick={() => setSelectedPaths(changes.map((change) => change.displayPath))}
             >
-              All
+              {t("commit_dialog.select_all")}
             </button>
             <button type="button" className="modal-inline-btn" onClick={() => setSelectedPaths([])}>
-              None
+              {t("commit_dialog.select_none")}
             </button>
             <span className="modal-selection-count">
-              {selectedPaths.length} of {changes.length} selected
+              {t("commit_dialog.selection", {
+                selected: selectedPaths.length,
+                total: changes.length,
+              })}
             </span>
           </div>
         </div>
 
-        <ul className="modal-commit-list" aria-label="Changed files">
+        <ul className="modal-commit-list" aria-label={t("commit_dialog.changed_files")}>
           {changes.map((change) => {
             const checked = selectedPaths.includes(change.displayPath);
             return (
@@ -111,8 +111,8 @@ export function CommitDialog({
                   <div className="modal-commit-copy">
                     <span className="modal-commit-path">{change.displayPath}</span>
                     <span className="modal-commit-meta">
-                      {STATUS_LABELS[change.status]}
-                      {change.staged ? " • already staged" : ""}
+                      {getStatusLabel(change.status)}
+                      {change.staged ? ` • ${t("commit_dialog.already_staged")}` : ""}
                     </span>
                   </div>
                 </label>
@@ -125,20 +125,20 @@ export function CommitDialog({
           ref={textareaRef}
           className="modal-textarea"
           value={message}
-          placeholder="Commit message"
+          placeholder={t("commit_dialog.message_placeholder")}
           rows={3}
           onChange={(e) => setMessage(e.target.value)}
         />
 
         <label className="modal-checkbox-label">
           <input type="checkbox" checked={push} onChange={(e) => setPush(e.target.checked)} />
-          Push after commit
+          {t("commit_dialog.push_after")}
         </label>
 
         <div className="modal-actions">
           <div className="modal-spacer" />
           <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel}>
-            Cancel
+            {t("commit_dialog.cancel")}
           </button>
           <button
             type="button"
@@ -146,7 +146,7 @@ export function CommitDialog({
             disabled={!message.trim() || selectedPaths.length === 0}
             onClick={() => message.trim() && onCommit(message.trim(), selectedPaths, push)}
           >
-            Commit
+            {t("commit_dialog.commit")}
           </button>
         </div>
       </div>

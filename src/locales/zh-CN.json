@@ -126,12 +126,30 @@
     "search_label": "搜索分支",
     "current": "当前",
     "branch_actions": "{{branch}} 的分支操作",
+    "actions_for": "{{branch}} 的操作",
     "no_upstream": "无上游",
     "no_match": "无匹配分支。",
     "remote_branches": "远端分支",
     "creates_tracking": "创建或切换追踪分支",
     "new_branch": "新建分支…",
+    "rename": "重命名",
+    "delete": "删除",
     "cancel": "取消"
+  },
+  "rename_branch_dialog": {
+    "title": "重命名分支",
+    "current": "当前",
+    "name_label": "新分支名称",
+    "name_placeholder": "feature/my-branch",
+    "cancel": "取消",
+    "rename": "重命名"
+  },
+  "delete_branch_dialog": {
+    "title": "删除分支",
+    "confirm_before": "删除 ",
+    "confirm_after": "？此操作仅删除本地分支，远端分支不受影响，使用 Git 安全删除模式。",
+    "cancel": "取消",
+    "delete": "删除"
   },
   "new_branch_dialog": {
     "title": "新建分支",
@@ -174,7 +192,8 @@
     "install": "安装更新",
     "retry": "重试",
     "restarting": "正在重启…",
-    "restart_now": "立即重启"
+    "restart_now": "立即重启",
+    "progress_downloaded": "已下载 {{bytes}}"
   },
   "properties": {
     "metadata": "元数据",

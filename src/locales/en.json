@@ -126,12 +126,30 @@
     "search_label": "Search branches",
     "current": "current",
     "branch_actions": "Branch actions for {{branch}}",
+    "actions_for": "Actions for {{branch}}",
     "no_upstream": "No upstream",
     "no_match": "No branches match.",
     "remote_branches": "Remote branches",
     "creates_tracking": "creates or switches tracking branch",
     "new_branch": "New branch…",
+    "rename": "Rename",
+    "delete": "Delete",
     "cancel": "Cancel"
+  },
+  "rename_branch_dialog": {
+    "title": "Rename branch",
+    "current": "Current",
+    "name_label": "New branch name",
+    "name_placeholder": "feature/my-branch",
+    "cancel": "Cancel",
+    "rename": "Rename"
+  },
+  "delete_branch_dialog": {
+    "title": "Delete branch",
+    "confirm_before": "Delete ",
+    "confirm_after": "? This keeps the remote branch untouched and uses Git's safe local delete.",
+    "cancel": "Cancel",
+    "delete": "Delete"
   },
   "new_branch_dialog": {
     "title": "New branch",
@@ -174,7 +192,8 @@
     "install": "Install Update",
     "retry": "Retry",
     "restarting": "Restarting…",
-    "restart_now": "Restart Now"
+    "restart_now": "Restart Now",
+    "progress_downloaded": "{{bytes}} downloaded"
   },
   "properties": {
     "metadata": "Metadata",

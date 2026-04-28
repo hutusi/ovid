@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 
@@ -17,6 +18,7 @@ export function RenamePathDialog({
   onConfirm,
   onCancel,
 }: RenamePathDialogProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState(currentName);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLDivElement>();
@@ -50,15 +52,15 @@ export function RenamePathDialog({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Rename path"
+        aria-label={t("rename_path_dialog.title")}
         className="modal-panel"
         style={{ width: 420, maxWidth: "calc(100vw - 48px)" }}
         onKeyDown={handleKeyDown}
       >
-        <p className="modal-title">Rename path</p>
+        <p className="modal-title">{t("rename_path_dialog.title")}</p>
 
         <div className="modal-branch-row">
-          <span className="modal-branch-label">Current</span>
+          <span className="modal-branch-label">{t("rename_path_dialog.current")}</span>
           <code className="modal-badge">{currentPath}</code>
         </div>
 
@@ -66,9 +68,9 @@ export function RenamePathDialog({
           <input
             ref={inputRef}
             className="modal-input"
-            aria-label="Path name"
+            aria-label={t("rename_path_dialog.path_label")}
             value={name}
-            placeholder="post-name"
+            placeholder={t("rename_path_dialog.path_placeholder")}
             autoCapitalize="off"
             autoCorrect="off"
             spellCheck={false}
@@ -80,7 +82,7 @@ export function RenamePathDialog({
         </div>
 
         <div className="modal-branch-row">
-          <span className="modal-branch-label">Result</span>
+          <span className="modal-branch-label">{t("rename_path_dialog.result")}</span>
           <code className="modal-badge">
             {trimmedName ? `${trimmedName}${suffix}` : `—${suffix}`}
           </code>
@@ -89,7 +91,7 @@ export function RenamePathDialog({
         <div className="modal-actions">
           <div className="modal-spacer" />
           <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel}>
-            Cancel
+            {t("rename_path_dialog.cancel")}
           </button>
           <button
             type="button"
@@ -97,7 +99,7 @@ export function RenamePathDialog({
             disabled={isUnchanged}
             onClick={handleConfirm}
           >
-            Rename
+            {t("rename_path_dialog.rename")}
           </button>
         </div>
       </div>
