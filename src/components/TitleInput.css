@@ -1,0 +1,28 @@
+.title-input-wrap {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 24px;
+  padding-top: 48px;
+}
+
+.title-input {
+  width: 100%;
+  font-family: var(--font-editor);
+  font-size: 2em;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--color-fg);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  padding: 0;
+  margin: 0 0 0.25em;
+  display: block;
+}
+
+.title-input::placeholder {
+  color: var(--color-fg-subtle);
+  opacity: 0.4;
+}

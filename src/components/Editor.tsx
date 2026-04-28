@@ -22,6 +22,7 @@ import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
 import { FindReplace } from "../lib/tiptap/FindReplace";
 import { Footnotes } from "../lib/tiptap/Footnotes";
+import { H1Warning } from "../lib/tiptap/H1Warning";
 import { ImageRenderer } from "../lib/tiptap/ImageRenderer";
 import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
@@ -68,6 +69,7 @@ interface EditorProps {
   cdnBase?: string;
   typewriterMode?: boolean;
   spellCheck?: boolean;
+  showH1Warning?: boolean;
   initialSelection?: number;
   initialScrollTop?: number;
   onWordCount?: (count: number) => void;
@@ -91,6 +93,7 @@ export function Editor({
   onDirty,
   onChange,
   onError,
+  showH1Warning = false,
   onViewStateChange,
   registerPendingFlush,
 }: EditorProps) {
@@ -236,6 +239,7 @@ export function Editor({
       ListBackspace,
       TextFolding,
       InlineEditMode,
+      ...(showH1Warning ? [H1Warning] : []),
     ],
     content,
     editorProps: {
