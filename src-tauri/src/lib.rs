@@ -2448,10 +2448,10 @@ fn set_menu_language(
 ) -> Result<(), String> {
     // Update stored about dialog strings for the non-macOS handler.
     if let Some(title) = labels.get("about_title") {
-        *about_state.title.lock().unwrap() = title.clone();
+        *about_state.title.lock().map_err(|e| e.to_string())? = title.clone();
     }
     if let Some(body) = labels.get("about_body") {
-        *about_state.body_template.lock().unwrap() = body.clone();
+        *about_state.body_template.lock().map_err(|e| e.to_string())? = body.clone();
     }
 
     let menu = build_app_menu(&app, &labels).map_err(|e| e.to_string())?;
@@ -2489,8 +2489,12 @@ pub fn run() {
             app.on_menu_event(move |_app, event| match event.id().as_ref() {
                 "about" => {
                     let about: tauri::State<'_, AboutState> = handle.state();
-                    let title = about.title.lock().unwrap().clone();
-                    let body_template = about.body_template.lock().unwrap().clone();
+                    let (Ok(title), Ok(body_template)) = (
+                        about.title.lock().map(|g| g.clone()),
+                        about.body_template.lock().map(|g| g.clone()),
+                    ) else {
+                        return;
+                    };
                     let version = handle.package_info().version.to_string();
                     let _ = handle
                         .dialog()
