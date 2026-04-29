@@ -257,9 +257,13 @@ export function Editor({
         );
         if (imageFiles.length > 0) {
           event.preventDefault();
+          // Capture insertion point now — editor.state.selection will be stale
+          // by the time the async saves complete.
+          const pasteFrom = view.state.selection.from;
           Promise.allSettled(
             imageFiles.map((file) => {
-              const ext = file.type.split("/")[1].replace("jpeg", "jpg");
+              const mimeSubtype = file.type.split("/")[1] ?? "png";
+              const ext = mimeSubtype === "svg+xml" ? "svg" : mimeSubtype.replace("jpeg", "jpg");
               return file.arrayBuffer().then((buf) => {
                 const bytes = Array.from(new Uint8Array(buf));
                 return invoke<string>("save_asset_from_bytes", {
@@ -281,13 +285,13 @@ export function Editor({
               return [];
             });
             if (saved.length === 0) return;
-            editor.chain().focus().run();
+            editor.view.focus();
             const tr = editor.state.tr;
-            const { from } = editor.state.selection;
+            const insertFrom = Math.min(pasteFrom, editor.state.doc.content.size);
             let offset = 0;
             for (const { name, relPath } of saved) {
               const node = editor.state.schema.nodes.image.create({ src: relPath, alt: name });
-              tr.insert(from + offset, node);
+              tr.insert(insertFrom + offset, node);
               offset += node.nodeSize;
             }
             editor.view.dispatch(tr);
@@ -332,9 +336,9 @@ export function Editor({
         const dropY = event.clientY;
         Promise.allSettled(
           imageFiles.map((file) => {
-            const ext =
-              file.name.split(".").pop()?.toLowerCase() ??
-              file.type.split("/")[1].replace("jpeg", "jpg");
+            const mimeSubtype = file.type.split("/")[1] ?? "png";
+            const mimeExt = mimeSubtype === "svg+xml" ? "svg" : mimeSubtype.replace("jpeg", "jpg");
+            const ext = file.name.split(".").pop()?.toLowerCase() ?? mimeExt;
             return file.arrayBuffer().then((buf) => {
               const bytes = Array.from(new Uint8Array(buf));
               return invoke<string>("save_asset_from_bytes", {

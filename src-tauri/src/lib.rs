@@ -2102,10 +2102,16 @@ fn restart_app(app: tauri::AppHandle) {
 /// Uses the active file's sibling `images/` when available; falls back to
 /// `<workspace_root>/images/`.
 fn resolve_images_dir(active_file_path: Option<&str>, root: &Path) -> PathBuf {
-    active_file_path
-        .and_then(|p| Path::new(p).parent())
-        .map(|dir| dir.join("images"))
-        .unwrap_or_else(|| root.join("images"))
+    if let Some(p) = active_file_path {
+        if let Some(parent) = Path::new(p).parent() {
+            let norm_parent = normalize_path(parent);
+            let norm_root = normalize_path(root);
+            if norm_parent.starts_with(&norm_root) {
+                return norm_parent.join("images");
+            }
+        }
+    }
+    root.join("images")
 }
 
 /// Atomically reserve a unique filename inside `dir`.
@@ -2720,6 +2726,13 @@ mod tests {
     fn resolve_images_dir_file_at_root_level_uses_root_images() {
         let root = Path::new("/workspace");
         let result = resolve_images_dir(Some("/workspace/README.md"), root);
+        assert_eq!(result, PathBuf::from("/workspace/images"));
+    }
+
+    #[test]
+    fn resolve_images_dir_rejects_path_traversal_outside_workspace() {
+        let root = Path::new("/workspace");
+        let result = resolve_images_dir(Some("/workspace/../etc/passwd"), root);
         assert_eq!(result, PathBuf::from("/workspace/images"));
     }
 
