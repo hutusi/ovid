@@ -348,5 +348,8 @@
   "title_input": {
     "aria_label": "文档标题",
     "placeholder": "无标题"
+  },
+  "editor": {
+    "h1_warning": "⚠ 此文档已有标题。建议将此处改为 ## 二级标题。"
   }
 }

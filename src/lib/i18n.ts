@@ -6,6 +6,13 @@ import en from "../locales/en.json";
 import zhCN from "../locales/zh-CN.json";
 import { buildMenuLabels } from "./menuLabels";
 
+function updateCssVars() {
+  document.documentElement.style.setProperty(
+    "--h1-warning-text",
+    JSON.stringify(i18n.t("editor.h1_warning"))
+  );
+}
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
@@ -26,7 +33,10 @@ i18n
     },
   })
   .then(() => {
+    updateCssVars();
     void invoke("set_menu_language", { labels: buildMenuLabels(i18n.t.bind(i18n)) });
   });
+
+i18n.on("languageChanged", updateCssVars);
 
 export default i18n;

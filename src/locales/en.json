@@ -348,5 +348,8 @@
   "title_input": {
     "aria_label": "Document title",
     "placeholder": "Untitled"
+  },
+  "editor": {
+    "h1_warning": "⚠ This document already has a title. Consider changing this heading to ##."
   }
 }
