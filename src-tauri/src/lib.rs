@@ -2098,9 +2098,48 @@ fn restart_app(app: tauri::AppHandle) {
     app.restart();
 }
 
-/// validated against the workspace root — drag-and-drop sources originate from
-/// external locations (desktop, downloads, etc.). The destination is safely
-/// constrained to `<workspace>/assets/`.
+/// Resolve the `images/` directory for saving an asset.
+/// Uses the active file's sibling `images/` when available; falls back to
+/// `<workspace_root>/images/`.
+fn resolve_images_dir(active_file_path: Option<&str>, root: &Path) -> PathBuf {
+    active_file_path
+        .and_then(|p| Path::new(p).parent())
+        .map(|dir| dir.join("images"))
+        .unwrap_or_else(|| root.join("images"))
+}
+
+/// Atomically reserve a unique filename inside `dir`.
+/// Tries `base_name` first; if taken, prepends a millisecond timestamp until a
+/// slot is free. Returns the reserved name on success.
+fn reserve_unique_name(dir: &Path, base_name: &str) -> Result<String, String> {
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(dir.join(base_name))
+    {
+        Ok(_) => Ok(base_name.to_string()),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => loop {
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            let candidate = format!("{ts}_{base_name}");
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(dir.join(&candidate))
+            {
+                Ok(_) => break Ok(candidate),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => break Err(format!("could not reserve asset path: {e}")),
+            }
+        },
+        Err(e) => Err(format!("could not reserve asset path: {e}")),
+    }
+}
+
+/// Save a drag-and-dropped image file to the active file's sibling `images/`
+/// directory (falls back to `<workspace_root>/images/`).
 #[tauri::command]
 fn save_asset(
     src_path: String,
@@ -2118,47 +2157,20 @@ fn save_asset(
         .to_string_lossy()
         .to_string();
 
-    let assets_dir = root.join("assets");
-    std::fs::create_dir_all(&assets_dir)
-        .map_err(|e| format!("could not create assets dir: {e}"))?;
+    let images_dir = resolve_images_dir(active_file_path.as_deref(), &root);
+    std::fs::create_dir_all(&images_dir)
+        .map_err(|e| format!("could not create images dir: {e}"))?;
 
-    // Atomically reserve a destination path to avoid TOCTOU races.
-    // Try the original name first; fall back to timestamp-prefixed candidates.
-    let dest_name = match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(assets_dir.join(&file_name))
-    {
-        Ok(_) => file_name.clone(),
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => loop {
-            let ts = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0);
-            let candidate = format!("{ts}_{file_name}");
-            match std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(assets_dir.join(&candidate))
-            {
-                Ok(_) => break candidate,
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(e) => return Err(format!("could not reserve asset path: {e}")),
-            }
-        },
-        Err(e) => return Err(format!("could not reserve asset path: {e}")),
-    };
-
-    let dest = assets_dir.join(&dest_name);
+    let dest_name = reserve_unique_name(&images_dir, &file_name)?;
+    let dest = images_dir.join(&dest_name);
     std::fs::copy(src, &dest).map_err(|e| format!("copy failed: {e}"))?;
 
-    // Return a path relative to the active file's directory when available.
     let rel = if let Some(active) = active_file_path {
         let from_dir = PathBuf::from(&active);
         let from_dir = from_dir.parent().unwrap_or(Path::new(""));
         relative_path_from(from_dir, &dest)
     } else {
-        format!("assets/{dest_name}")
+        format!("images/{dest_name}")
     };
 
     Ok(rel)
@@ -2166,7 +2178,8 @@ fn save_asset(
 
 const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"];
 
-/// Save raw image bytes from the clipboard to `<workspace>/assets/`.
+/// Save raw image bytes (e.g. from the clipboard) to the active file's sibling
+/// `images/` directory (falls back to `<workspace_root>/images/`).
 /// Returns the relative path to insert into the document.
 #[tauri::command]
 fn save_asset_from_bytes(
@@ -2184,37 +2197,13 @@ fn save_asset_from_bytes(
     let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
     drop(root_guard);
 
-    let assets_dir = root.join("assets");
-    std::fs::create_dir_all(&assets_dir)
-        .map_err(|e| format!("could not create assets dir: {e}"))?;
+    let images_dir = resolve_images_dir(active_file_path.as_deref(), &root);
+    std::fs::create_dir_all(&images_dir)
+        .map_err(|e| format!("could not create images dir: {e}"))?;
 
     let base_name = format!("pasted-image.{ext}");
-    let dest_name = match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(assets_dir.join(&base_name))
-    {
-        Ok(_) => base_name.clone(),
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => loop {
-            let ts = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0);
-            let candidate = format!("{ts}-pasted-image.{ext}");
-            match std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(assets_dir.join(&candidate))
-            {
-                Ok(_) => break candidate,
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(e) => return Err(format!("could not reserve asset path: {e}")),
-            }
-        },
-        Err(e) => return Err(format!("could not reserve asset path: {e}")),
-    };
-
-    let dest = assets_dir.join(&dest_name);
+    let dest_name = reserve_unique_name(&images_dir, &base_name)?;
+    let dest = images_dir.join(&dest_name);
     std::fs::write(&dest, &bytes).map_err(|e| format!("write failed: {e}"))?;
 
     let rel = if let Some(active) = active_file_path {
@@ -2222,7 +2211,7 @@ fn save_asset_from_bytes(
         let from_dir = from_dir.parent().unwrap_or(Path::new(""));
         relative_path_from(from_dir, &dest)
     } else {
-        format!("assets/{dest_name}")
+        format!("images/{dest_name}")
     };
 
     Ok(rel)
