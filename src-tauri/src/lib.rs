@@ -2700,6 +2700,48 @@ mod tests {
         assert_eq!(fs::read_to_string(dest.join("images").join("cover.png")).unwrap(), "png");
     }
 
+    // ── resolve_images_dir ───────────────────────────────────────────────────
+
+    #[test]
+    fn resolve_images_dir_uses_sibling_when_active_file_given() {
+        let root = Path::new("/workspace");
+        let result = resolve_images_dir(Some("/workspace/content/posts/my-post/index.md"), root);
+        assert_eq!(result, PathBuf::from("/workspace/content/posts/my-post/images"));
+    }
+
+    #[test]
+    fn resolve_images_dir_falls_back_to_root_when_no_active_file() {
+        let root = Path::new("/workspace");
+        let result = resolve_images_dir(None, root);
+        assert_eq!(result, PathBuf::from("/workspace/images"));
+    }
+
+    #[test]
+    fn resolve_images_dir_file_at_root_level_uses_root_images() {
+        let root = Path::new("/workspace");
+        let result = resolve_images_dir(Some("/workspace/README.md"), root);
+        assert_eq!(result, PathBuf::from("/workspace/images"));
+    }
+
+    // ── reserve_unique_name ──────────────────────────────────────────────────
+
+    #[test]
+    fn reserve_unique_name_returns_base_name_when_available() {
+        let dir = TempDir::new().unwrap();
+        let name = reserve_unique_name(dir.path(), "image.png").unwrap();
+        assert_eq!(name, "image.png");
+        assert!(dir.path().join("image.png").exists());
+    }
+
+    #[test]
+    fn reserve_unique_name_uses_timestamp_prefix_when_name_taken() {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("image.png"), b"").unwrap();
+        let name = reserve_unique_name(dir.path(), "image.png").unwrap();
+        assert!(name.ends_with("_image.png"), "expected timestamp prefix, got: {name}");
+        assert!(dir.path().join(&name).exists());
+    }
+
     // ── extract_quoted_string ────────────────────────────────────────────────
 
     #[test]
