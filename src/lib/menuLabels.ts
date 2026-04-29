@@ -1,6 +1,6 @@
 import type { TFunction } from "i18next";
 
-const MENU_KEYS = [
+export const MENU_KEYS = [
   "menu_file",
   "menu_new",
   "menu_edit",
