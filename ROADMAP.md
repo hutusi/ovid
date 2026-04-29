@@ -82,7 +82,7 @@ This roadmap is organized into deliberate phases — each phase must feel comple
 ## ✅ Phase 6 — Rich Editing
 > Goal: the editor should feel as capable as it is calm.
 
-29. ✅ **Image handling** — drag-and-drop image into editor: copy to workspace `assets/` (or configured asset dir), insert relative markdown path; show inline preview
+29. ✅ **Image handling** — drag-and-drop image into editor: copy to the active file's sibling `images/` directory, insert relative markdown path; show inline preview
 30. ✅ **Code block syntax highlighting** — syntax-highlighted code blocks in the editor (read-only highlight; doesn't affect saved markdown)
 31. ✅ **Focus / Zen mode** (`Ctrl+Cmd+Z`) — hide sidebar, properties panel, status bar; center editor with generous margins; `Esc` to exit
 32. ✅ **Typewriter mode** — keep the active line vertically centered as you type; reduces eye movement during long writing sessions
@@ -207,6 +207,6 @@ Progress landed so far:
 > Goal: make the writing surface itself feel as capable as the surrounding workflow. Each addition must justify the chrome it introduces and stay invisible in zen mode. 🖊 🧠
 
 76. ✅ **Open-file tab bar** — single-line tab strip above the editor showing currently open files (cap 8); click to switch, middle-click or `Cmd+W` to close and fall back to the neighbor tab, drag to reorder; persists across launches per workspace; only renders once 2+ files have been opened; hidden in zen mode; typography-only chrome
-77. **Image paste & drag-drop** — paste from clipboard or drag from Finder/browser into the editor; auto-save the asset under the workspace's configured asset directory using the existing `save_asset` Tauri command; insert a relative-path Markdown image at the cursor; surface failures via the toast system
+77. ✅ **Image paste & drag-drop** — paste from clipboard or drag from Finder/browser into the editor; auto-save to the active file's sibling `images/` directory via `save_asset` / `save_asset_from_bytes` Tauri commands; insert a relative-path Markdown image at the cursor; surface failures via the toast system
 78. **Slash command menu** — type `/` at the start of a line (or after whitespace) to open a Notion-style block picker: heading, list, quote, code, table, image, math, divider; keyboard-navigable like the file switcher; coexists with the existing markdown auto-conversions (`# `, `> `, etc.) without double-firing
 79. **Document outline / TOC** — collapsible right-side panel listing the document's heading structure with click-to-jump; reuses the `TextFolding` extension's heading scan; toggle with a keyboard shortcut; hidden in zen mode; respects the editor's max-width by overlaying rather than pushing content

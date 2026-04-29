@@ -121,7 +121,7 @@ Workspace and file lifecycle:
 - `read_file`, `write_file` — atomic saves via temp-file + rename
 - `create_file`, `create_dir`, `ensure_dir` — new files/folders inside the workspace
 - `rename_file`, `duplicate_entry`, `trash_file` — rename, copy, and OS-trash operations
-- `save_asset`, `pick_image_file` — image asset import (file picker + copy into workspace)
+- `save_asset`, `save_asset_from_bytes`, `pick_image_file` — image asset import: `save_asset` copies a file-path source (drag-and-drop), `save_asset_from_bytes` writes raw bytes (clipboard paste); both save to the active file's sibling `images/` directory, falling back to `<workspace_root>/images/`
 
 Search and content metadata:
 - `search_workspace` — full-text search; ranked results
