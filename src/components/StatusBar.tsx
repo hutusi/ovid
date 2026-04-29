@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import {
   ArrowDown,
   ArrowUp,
@@ -10,6 +11,7 @@ import {
   SunMedium,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { buildMenuLabels } from "../lib/menuLabels";
 import type { SaveStatus } from "../lib/types";
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
 import type { ResolvedTheme } from "../lib/useTheme";
@@ -236,7 +238,12 @@ export function StatusBar({
         <button
           type="button"
           className="statusbar-control statusbar-lang-toggle"
-          onClick={() => i18n.changeLanguage(i18n.language === "zh-CN" ? "en" : "zh-CN")}
+          onClick={() => {
+            const next = i18n.language === "zh-CN" ? "en" : "zh-CN";
+            void i18n.changeLanguage(next).then(() => {
+              void invoke("set_menu_language", { labels: buildMenuLabels(i18n.t.bind(i18n)) });
+            });
+          }}
           title={t("status_bar.language")}
           aria-label={t("status_bar.language")}
         >
