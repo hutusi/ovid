@@ -209,6 +209,26 @@ An Amytis workspace is identified by the presence of `site.config.ts` + `content
 
 When persisting per-workspace UI state that depends on the file tree, note that Amytis workspaces may use `content/` as the tree root even when the workspace root is the project root; recent-file restore logic must account for both paths.
 
+## Internationalization
+
+Supported languages: **English** (`en`) and **Simplified Chinese** (`zh-CN`). Language preference is stored in `localStorage` under `ovid:language` and detected on startup by `i18next-browser-languagedetector` (localStorage → navigator).
+
+**Locale files**: `src/locales/en.json` and `src/locales/zh-CN.json` — nested JSON, dot-notation keys. Both files must have identical key structure; `src/lib/i18n.test.ts` enforces parity.
+
+**React components**: use `useTranslation()` from `react-i18next`. Call `t("section.key")` for static strings and `t("key", { count })` for plurals (i18next resolves `_one`/`_other` suffixes automatically).
+
+**Pure helpers** (non-React modules like `src/lib/gitUi.ts`): accept a `Translate` type parameter — `type Translate = (key: string, vars?: Record<string, unknown>) => string` — instead of importing `TFunction`. This keeps the module framework-free and trivially testable with a plain `mockT` function. Thread `t` from the nearest hook (`useTranslation` in `useGitUiController.ts`).
+
+**CSS-only text** (the H1-duplicate warning in `editor.css`): `content: var(--h1-warning-text, "…fallback…")`. `src/lib/i18n.ts` sets `--h1-warning-text` on `<html>` via `JSON.stringify(i18n.t("editor.h1_warning"))` after init and on every `languageChanged` event.
+
+**Rust native menus**: the frontend calls `invoke("set_menu_language", { labels })` after i18n initialises and again on language toggle. `labels` is a `Record<string, string>` built by `buildMenuLabels(t)` in `src/lib/menuLabels.ts`. On startup (before the WebView loads), `initial_menu_labels()` in `src-tauri/src/lib.rs` uses `sys-locale` to read the OS locale and parses `src/locales/*.json` (embedded via `include_str!`) to seed the menu in the right language from frame one.
+
+**Adding a translation key**:
+1. Add the key to **both** `en.json` and `zh-CN.json` under the appropriate section.
+2. Use `t("section.key")` in the component or pass `Translate` to the helper.
+3. For Rust menu items, also add the key to `MENU_KEYS` in `src/lib/menuLabels.ts`.
+4. Run `bun run validate` — the parity test in `i18n.test.ts` will fail if either locale file is missing the key.
+
 ## Error Handling
 
 - Tauri Rust commands return `Result<T, String>` — errors surface as rejected promises in the frontend

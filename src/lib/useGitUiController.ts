@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   getGitChangeSummary,
   getGitSyncLabel,
@@ -132,11 +133,12 @@ export function useGitUiController({
   const [renameBranchDialog, setRenameBranchDialog] = useState<RenameBranchDialogState>(null);
   const [deleteBranchDialog, setDeleteBranchDialog] = useState<DeleteBranchDialogState>(null);
   const [gitSyncPopoverOpen, setGitSyncPopoverOpen] = useState(false);
+  const { t } = useTranslation();
 
-  const pushSuccessMessage = getPushSuccessMessage(remoteInfo);
-  const gitChangeSummary = isGitRepo ? getGitChangeSummary(gitStatusMap) : null;
+  const pushSuccessMessage = getPushSuccessMessage(remoteInfo, t);
+  const gitChangeSummary = isGitRepo ? getGitChangeSummary(gitStatusMap, t) : null;
   const gitSyncLabel = isGitRepo ? getGitSyncLabel(remoteInfo) : null;
-  const gitSyncPopover = isGitRepo ? getGitSyncPopoverState(remoteInfo) : null;
+  const gitSyncPopover = isGitRepo ? getGitSyncPopoverState(remoteInfo, t) : null;
 
   const closeBranchSwitcher = useCallback(() => {
     setBranchSwitcher(null);
@@ -358,9 +360,9 @@ export function useGitUiController({
         gitSyncPopover.actionKind === "push-track" && remoteInfo.remoteName
           ? handlePush(remoteInfo.remoteName)
           : handlePush(),
-      getPushSuccessMessage(remoteInfo)
+      getPushSuccessMessage(remoteInfo, t)
     );
-  }, [gitSyncPopover, handlePull, handlePush, remoteInfo, runGitAction]);
+  }, [gitSyncPopover, handlePull, handlePush, remoteInfo, runGitAction, t]);
 
   const defaultCommitMessage = useMemo(() => {
     return buildDefaultCommitMessage(parsedTitle, selectedFileName);

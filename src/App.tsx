@@ -858,7 +858,7 @@ function App() {
         fontSize={prefs.fontSize}
         spellCheck={prefs.spellCheck}
         gitBranch={isGitRepo ? currentBranch : null}
-        gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo) : undefined}
+        gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo, t) : undefined}
         gitSyncLabel={gitSyncLabel}
         gitSyncTitle={gitSyncPopover?.description}
         gitChangeLabel={gitChangeSummary?.label}

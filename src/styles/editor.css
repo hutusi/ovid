@@ -20,7 +20,10 @@
 }
 
 .ProseMirror .h1-warning::after {
-  content: "⚠ This document already has a title. Consider changing this heading to ##.";
+  content: var(
+    --h1-warning-text,
+    "⚠ This document already has a title. Consider changing this heading to ##."
+  );
   display: block;
   font-family: var(--font-ui);
   font-size: 11px;

@@ -176,7 +176,7 @@ export function BranchSwitcher({
           <div className="modal-branch-row">
             <span className="modal-branch-label">{t("branch_switcher.tracking")}</span>
             <div className="modal-inline-actions">
-              <span className="modal-selection-count">{getRemoteSummary(remoteInfo)}</span>
+              <span className="modal-selection-count">{getRemoteSummary(remoteInfo, t)}</span>
               {!remoteInfo.upstream && remoteInfo.remoteName && onPushAndTrack && (
                 <button
                   type="button"
