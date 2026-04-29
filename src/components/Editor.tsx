@@ -320,29 +320,33 @@ export function Editor({
         },
       },
       handleDrop(view, event) {
-        // Check MIME type first — before filtering by path — so we can call
-        // preventDefault() immediately and prevent WebKit from navigating to the file.
-        const allImageFiles = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
+        // dragDropEnabled is false in tauri.conf.json, so File.path is not
+        // populated by Tauri. Read bytes from the File object directly and
+        // use save_asset_from_bytes — consistent with clipboard paste.
+        const imageFiles = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
           IMAGE_MIME.test(f.type)
         );
-        if (allImageFiles.length === 0) return false;
+        if (imageFiles.length === 0) return false;
         event.preventDefault();
-        // Only files that Tauri exposes a filesystem path for can be copied via save_asset.
-        const imageFiles = allImageFiles
-          .map((f) => ({ name: f.name, srcPath: (f as { path?: string }).path }))
-          .filter((f): f is { name: string; srcPath: string } => f.srcPath !== undefined);
-        if (imageFiles.length === 0) return true;
-        // Capture coords now; recompute position after async uploads settle
-        // to avoid using a stale absolute offset if the document changes.
         const dropX = event.clientX;
         const dropY = event.clientY;
         Promise.allSettled(
-          imageFiles.map(({ name, srcPath }) =>
-            invoke<string>("save_asset", { srcPath, activeFilePath: filePath }).then((relPath) => ({
-              name,
-              relPath,
-            }))
-          )
+          imageFiles.map((file) => {
+            const ext =
+              file.name.split(".").pop()?.toLowerCase() ??
+              file.type.split("/")[1].replace("jpeg", "jpg");
+            return file.arrayBuffer().then((buf) => {
+              const bytes = Array.from(new Uint8Array(buf));
+              return invoke<string>("save_asset_from_bytes", {
+                bytes,
+                extension: ext,
+                activeFilePath: filePath,
+              }).then((relPath) => ({
+                name: file.name.replace(/\.[^.]+$/, ""),
+                relPath,
+              }));
+            });
+          })
         ).then((results) => {
           const saved = results.flatMap((r) => {
             if (r.status === "fulfilled") return [r.value];
@@ -356,7 +360,6 @@ export function Editor({
           const dropPos = view.posAtCoords({ left: dropX, top: dropY })?.pos;
           if (dropPos === undefined) return;
           view.focus();
-          // Apply all insertions in one transaction to avoid stale positions
           const tr = view.state.tr;
           let offset = 0;
           for (const { name, relPath } of saved) {
