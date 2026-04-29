@@ -1,5 +1,6 @@
-import type { TFunction } from "i18next";
 import type { GitRemoteInfo, GitStatus } from "./types";
+
+type Translate = (key: string, vars?: Record<string, unknown>) => string;
 
 export type GitSyncActionKind = "push" | "pull" | "push-track";
 
@@ -17,7 +18,7 @@ export interface GitChangeSummary {
   title: string;
 }
 
-export function getPushSuccessMessage(remoteInfo: GitRemoteInfo, t: TFunction): string {
+export function getPushSuccessMessage(remoteInfo: GitRemoteInfo, t: Translate): string {
   return !remoteInfo.upstream && remoteInfo.remoteName
     ? t("git_sync_popover.push_success_upstream")
     : t("git_sync_popover.push_success");
@@ -34,7 +35,7 @@ export function getGitSyncLabel(remoteInfo: GitRemoteInfo): string | null {
   return null;
 }
 
-export function getGitSyncDisplayLabel(label: string, t: TFunction): string {
+export function getGitSyncDisplayLabel(label: string, t: Translate): string {
   switch (label) {
     case "ahead":
       return t("git_sync_popover.label_ahead");
@@ -51,7 +52,7 @@ export function getGitSyncDisplayLabel(label: string, t: TFunction): string {
   }
 }
 
-function getGitSyncDescription(remoteInfo: GitRemoteInfo, t: TFunction): string {
+export function getGitSyncDescription(remoteInfo: GitRemoteInfo, t: Translate): string {
   if (remoteInfo.aheadBehind === ">")
     return t("git_sync_popover.desc_ahead", { upstream: remoteInfo.upstream });
   if (remoteInfo.aheadBehind === "<")
@@ -65,7 +66,7 @@ function getGitSyncDescription(remoteInfo: GitRemoteInfo, t: TFunction): string 
   return t("git_sync_popover.desc_synced");
 }
 
-export function getRemoteSummary(remoteInfo: GitRemoteInfo, t: TFunction): string {
+export function getRemoteSummary(remoteInfo: GitRemoteInfo, t: Translate): string {
   if (remoteInfo.upstream) return remoteInfo.upstream;
   if (remoteInfo.remoteName) {
     return `${remoteInfo.remoteName}${remoteInfo.aheadBehind ? ` ${remoteInfo.aheadBehind}` : ""}`;
@@ -79,7 +80,7 @@ export function getRemoteSummary(remoteInfo: GitRemoteInfo, t: TFunction): strin
   return t("git_sync_popover.no_upstream_summary");
 }
 
-export function getGitBranchTitle(branch: string, remoteInfo: GitRemoteInfo, t: TFunction): string {
+export function getGitBranchTitle(branch: string, remoteInfo: GitRemoteInfo, t: Translate): string {
   return [
     t("git_branch.current", { branch }),
     remoteInfo.upstream
@@ -99,7 +100,7 @@ export function getGitBranchTitle(branch: string, remoteInfo: GitRemoteInfo, t: 
 
 export function getGitSyncPopoverState(
   remoteInfo: GitRemoteInfo,
-  t: TFunction
+  t: Translate
 ): GitSyncPopoverState | null {
   const label = getGitSyncLabel(remoteInfo);
   if (!label) return null;
@@ -171,7 +172,7 @@ export function getGitSyncPopoverState(
 
 export function getGitChangeSummary(
   gitStatusMap: Map<string, GitStatus>,
-  t: TFunction
+  t: Translate
 ): GitChangeSummary | null {
   const statuses = Array.from(gitStatusMap.values());
   const total = statuses.length;
