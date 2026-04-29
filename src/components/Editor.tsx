@@ -16,6 +16,7 @@ import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Markdown } from "tiptap-markdown";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
@@ -102,6 +103,7 @@ export function Editor({
   onViewStateChange,
   registerPendingFlush,
 }: EditorProps) {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const typewriterRef = useRef(typewriterMode);
   const updateStartedAtRef = useRef(0);
@@ -250,6 +252,48 @@ export function Editor({
     editorProps: {
       attributes: { spellcheck: spellCheck ? "true" : "false" },
       handlePaste(view, event) {
+        const imageFiles = Array.from(event.clipboardData?.files ?? []).filter((f) =>
+          IMAGE_MIME.test(f.type)
+        );
+        if (imageFiles.length > 0) {
+          event.preventDefault();
+          Promise.allSettled(
+            imageFiles.map((file) => {
+              const ext = file.type.split("/")[1].replace("jpeg", "jpg");
+              return file.arrayBuffer().then((buf) => {
+                const bytes = Array.from(new Uint8Array(buf));
+                return invoke<string>("save_asset_from_bytes", {
+                  bytes,
+                  extension: ext,
+                  activeFilePath: filePath,
+                }).then((relPath) => ({ name: file.name || "pasted-image", relPath }));
+              });
+            })
+          ).then((results) => {
+            const editor = latestEditorRef.current;
+            if (!editor) return;
+            const saved = results.flatMap((r) => {
+              if (r.status === "fulfilled") return [r.value];
+              const reason = r.reason instanceof Error ? r.reason.message : String(r.reason);
+              const msg = t("editor.paste_image_error", { reason });
+              if (onError) onError(msg);
+              else console.error(msg);
+              return [];
+            });
+            if (saved.length === 0) return;
+            editor.chain().focus().run();
+            const tr = editor.state.tr;
+            const { from } = editor.state.selection;
+            let offset = 0;
+            for (const { name, relPath } of saved) {
+              const node = editor.state.schema.nodes.image.create({ src: relPath, alt: name });
+              tr.insert(from + offset, node);
+              offset += node.nodeSize;
+            }
+            editor.view.dispatch(tr);
+          });
+          return true;
+        }
         const text = (event.clipboardData?.getData("text/plain") ?? "").trim();
         if (!/^https?:\/\/\S+$/.test(text)) return false;
         if (view.state.selection.empty) return false;

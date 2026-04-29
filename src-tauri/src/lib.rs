@@ -2164,6 +2164,70 @@ fn save_asset(
     Ok(rel)
 }
 
+const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"];
+
+/// Save raw image bytes from the clipboard to `<workspace>/assets/`.
+/// Returns the relative path to insert into the document.
+#[tauri::command]
+fn save_asset_from_bytes(
+    bytes: Vec<u8>,
+    extension: String,
+    active_file_path: Option<String>,
+    state: State<'_, WorkspaceState>,
+) -> Result<String, String> {
+    let ext = extension.trim_start_matches('.').to_lowercase();
+    if !ALLOWED_IMAGE_EXTENSIONS.contains(&ext.as_str()) {
+        return Err(format!("unsupported image type: {ext}"));
+    }
+
+    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
+    drop(root_guard);
+
+    let assets_dir = root.join("assets");
+    std::fs::create_dir_all(&assets_dir)
+        .map_err(|e| format!("could not create assets dir: {e}"))?;
+
+    let base_name = format!("pasted-image.{ext}");
+    let dest_name = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(assets_dir.join(&base_name))
+    {
+        Ok(_) => base_name.clone(),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => loop {
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            let candidate = format!("{ts}-pasted-image.{ext}");
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(assets_dir.join(&candidate))
+            {
+                Ok(_) => break candidate,
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(format!("could not reserve asset path: {e}")),
+            }
+        },
+        Err(e) => return Err(format!("could not reserve asset path: {e}")),
+    };
+
+    let dest = assets_dir.join(&dest_name);
+    std::fs::write(&dest, &bytes).map_err(|e| format!("write failed: {e}"))?;
+
+    let rel = if let Some(active) = active_file_path {
+        let from_dir = PathBuf::from(&active);
+        let from_dir = from_dir.parent().unwrap_or(Path::new(""));
+        relative_path_from(from_dir, &dest)
+    } else {
+        format!("assets/{dest_name}")
+    };
+
+    Ok(rel)
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Menu building
 // ──────────────────────────────────────────────────────────────────────────
@@ -2571,6 +2635,7 @@ pub fn run() {
             git_checkout_remote_branch,
             open_git_remote,
             save_asset,
+            save_asset_from_bytes,
             pick_image_file,
             restart_app,
             set_menu_language,
