@@ -2371,6 +2371,24 @@ fn build_app_menu<R: tauri::Runtime>(
     )
 }
 
+fn initial_menu_labels() -> HashMap<String, String> {
+    const EN: &str = include_str!("../../src/locales/en.json");
+    const ZH_CN: &str = include_str!("../../src/locales/zh-CN.json");
+
+    let locale = sys_locale::get_locale().unwrap_or_default();
+    let json_str = if locale.starts_with("zh") { ZH_CN } else { EN };
+
+    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) else {
+        return default_menu_labels();
+    };
+    let Some(menu) = parsed.get("menu").and_then(|m| m.as_object()) else {
+        return default_menu_labels();
+    };
+    menu.iter()
+        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+        .collect()
+}
+
 fn default_menu_labels() -> HashMap<String, String> {
     [
         ("menu_file", "File"),
@@ -2480,7 +2498,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            let menu = build_app_menu(app, &default_menu_labels())?;
+            let menu = build_app_menu(app, &initial_menu_labels())?;
             app.set_menu(menu)?;
 
             // Help links are resolved in Rust; everything else is forwarded to
