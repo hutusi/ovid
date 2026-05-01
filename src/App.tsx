@@ -33,6 +33,7 @@ import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspace } from "./lib/useWorkspace";
+import { getExternalWorkspaceChangeAction } from "./lib/workspaceRefresh";
 import "./styles/global.css";
 import "./App.css";
 
@@ -555,18 +556,40 @@ function App() {
         const updatedTree = await refreshTree();
         if (!mounted) return;
 
-        const activeFile = selectedFileRef.current;
-        if (activeFile) {
-          const refreshedNode = findNodeByPath(updatedTree, activeFile.path);
-          if (saveStatusRef.current === "unsaved") {
-            if (externalUnsavedToastRevisionRef.current !== revision) {
-              externalUnsavedToastRevisionRef.current = revision;
-              showToast("Workspace changed on disk while you have unsaved edits.");
+        const activeFileAction = getExternalWorkspaceChangeAction({
+          activeFile: selectedFileRef.current,
+          revision,
+          tree: updatedTree,
+          saveStatus: saveStatusRef.current,
+          lastWarnedRevision: externalUnsavedToastRevisionRef.current,
+        });
+
+        switch (activeFileAction.type) {
+          case "warn-unsaved":
+            externalUnsavedToastRevisionRef.current = activeFileAction.revision;
+            showToast("Workspace changed on disk while you have unsaved edits.");
+            break;
+          case "reload-active-file": {
+            const reloaded = await reloadSelectedFileFromDisk(activeFileAction.node);
+            if (!reloaded) {
+              const closeAction = getExternalWorkspaceChangeAction({
+                activeFile: selectedFileRef.current,
+                revision,
+                tree: updatedTree,
+                saveStatus: saveStatusRef.current,
+                reloadSucceeded: false,
+                lastWarnedRevision: externalUnsavedToastRevisionRef.current,
+              });
+              if (closeAction.type === "close-active-file") {
+                await handleCloseFile();
+                showToast("The active file was removed on disk.");
+              }
             }
-          } else if (!(await reloadSelectedFileFromDisk(refreshedNode ?? activeFile))) {
-            await handleCloseFile();
-            showToast("The active file was removed on disk.");
+            break;
           }
+          case "none":
+          case "close-active-file":
+            break;
         }
 
         if (isGitRepoRef.current) {
