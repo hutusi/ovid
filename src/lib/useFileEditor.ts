@@ -167,6 +167,31 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
     }
   }
 
+  const reloadSelectedFileFromDisk = useCallback(
+    async (node: FileNode): Promise<boolean> => {
+      if (selectedPathRef.current !== node.path) return false;
+
+      try {
+        const raw = await invoke<string>("read_file", { path: node.path });
+        if (selectedPathRef.current !== node.path) return false;
+        const { frontmatter, body } = parseFrontmatter(raw);
+        frontmatterRef.current = frontmatter;
+        pendingMarkdownRef.current = null;
+        setWordCount(0);
+        setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
+        setSaveStatus("saved");
+        setFileContent(body);
+        setSelectedFile(node);
+        return true;
+      } catch (err) {
+        console.error("Failed to reload file:", err);
+        showToast("Failed to reload file — check console for details");
+        return false;
+      }
+    },
+    [showToast]
+  );
+
   function handleEditorChange(markdown: string) {
     if (!selectedFile) return;
     const pathToSave = selectedFile.path;
@@ -244,6 +269,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
     resetFileState,
     handleCloseFile,
     handleSelectFile,
+    reloadSelectedFileFromDisk,
     handleEditorChange,
     handleEditorDirty,
     handleFieldChange,
