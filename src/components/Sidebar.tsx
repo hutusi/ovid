@@ -83,10 +83,13 @@ function FileItem({
   async function showDirContextMenu() {
     const menu = await Menu.new({
       items: [
-        await MenuItem.new({ text: "New file here", action: () => onNewFile(node.path) }),
+        await MenuItem.new({
+          text: t("sidebar.new_file_here"),
+          action: () => onNewFile(node.path),
+        }),
         await PredefinedMenuItem.new({ item: "Separator" }),
-        await MenuItem.new({ text: "Rename", action: () => onRename(node) }),
-        await MenuItem.new({ text: "Delete", action: () => onDelete(node) }),
+        await MenuItem.new({ text: t("sidebar.rename"), action: () => onRename(node) }),
+        await MenuItem.new({ text: t("sidebar.delete"), action: () => onDelete(node) }),
       ],
     });
     await menu.popup();
@@ -156,11 +159,14 @@ function FileItem({
   async function showFileContextMenu() {
     const menu = await Menu.new({
       items: [
-        await MenuItem.new({ text: "Make a Copy", action: () => onDuplicate(node) }),
-        await MenuItem.new({ text: "New from Existing", action: () => onNewFromExisting(node) }),
+        await MenuItem.new({ text: t("sidebar.make_copy"), action: () => onDuplicate(node) }),
+        await MenuItem.new({
+          text: t("sidebar.new_from_existing"),
+          action: () => onNewFromExisting(node),
+        }),
         await PredefinedMenuItem.new({ item: "Separator" }),
-        await MenuItem.new({ text: "Rename", action: () => onRename(node) }),
-        await MenuItem.new({ text: "Delete", action: () => onDelete(node) }),
+        await MenuItem.new({ text: t("sidebar.rename"), action: () => onRename(node) }),
+        await MenuItem.new({ text: t("sidebar.delete"), action: () => onDelete(node) }),
       ],
     });
     await menu.popup();
