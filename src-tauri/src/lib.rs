@@ -968,6 +968,32 @@ fn normalize_path(path: &Path) -> PathBuf {
     out
 }
 
+/// Validate that a prospective directory path is absolute and rooted inside the
+/// workspace, even when some trailing directories do not exist yet.
+fn validate_new_dir_path(workspace_root: &Path, requested: &str) -> Result<PathBuf, String> {
+    let canonical_root =
+        std::fs::canonicalize(workspace_root).map_err(|e| format!("workspace root: {e}"))?;
+    let new_path = normalize_path(Path::new(requested));
+    if !new_path.is_absolute() {
+        return Err("path must be absolute".to_string());
+    }
+
+    let mut existing_ancestor = new_path.as_path();
+    while !existing_ancestor.exists() {
+        existing_ancestor = existing_ancestor
+            .parent()
+            .ok_or("path has no parent directory")?;
+    }
+
+    let canonical_ancestor = std::fs::canonicalize(existing_ancestor)
+        .map_err(|e| format!("invalid parent path: {e}"))?;
+    if !canonical_ancestor.starts_with(&canonical_root) {
+        return Err("path is outside the opened workspace".to_string());
+    }
+
+    Ok(new_path)
+}
+
 /// Create a directory (and all ancestors) inside the workspace, succeeding if
 /// it already exists. Unlike `create_dir`, the parent need not exist yet.
 #[tauri::command]
@@ -975,15 +1001,7 @@ fn ensure_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), Stri
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
     drop(root_guard);
-    let canonical_root =
-        std::fs::canonicalize(&root).map_err(|e| format!("workspace root: {e}"))?;
-    let new_path = normalize_path(Path::new(&path));
-    if !new_path.is_absolute() {
-        return Err("path must be absolute".to_string());
-    }
-    if !new_path.starts_with(&canonical_root) {
-        return Err("path is outside the opened workspace".to_string());
-    }
+    let new_path = validate_new_dir_path(&root, &path)?;
     std::fs::create_dir_all(&new_path).map_err(|e| e.to_string())
 }
 
@@ -2685,6 +2703,29 @@ mod tests {
         assert_eq!(
             normalize_path(Path::new("/a/../../etc/passwd")),
             PathBuf::from("/etc/passwd")
+        );
+    }
+
+    #[test]
+    fn validate_new_dir_path_allows_missing_nested_directory_inside_workspace() {
+        let dir = TempDir::new().unwrap();
+        fs::create_dir_all(dir.path().join("posts")).unwrap();
+        let target = dir.path().join("posts").join("hello-new");
+
+        assert_eq!(
+            validate_new_dir_path(dir.path(), &target.to_string_lossy()).unwrap(),
+            target
+        );
+    }
+
+    #[test]
+    fn validate_new_dir_path_rejects_parent_escape() {
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("..").join("outside").join("hello-new");
+
+        assert_eq!(
+            validate_new_dir_path(dir.path(), &target.to_string_lossy()),
+            Err("path is outside the opened workspace".to_string())
         );
     }
 
