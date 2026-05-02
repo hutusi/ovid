@@ -132,6 +132,7 @@ function App() {
   const previousSaveStatusRef = useRef<"saved" | "unsaved">("saved");
   const workspaceRevisionRef = useRef<string | null>(null);
   const workspaceRefreshInFlightRef = useRef(false);
+  const workspaceRefreshFailureToastRef = useRef<string | null>(null);
   const externalUnsavedToastRevisionRef = useRef<string | null>(null);
   const tabSyncRef = useRef<{
     renameTab: (oldPath: string, newPath: string) => void;
@@ -525,6 +526,7 @@ function App() {
   useEffect(() => {
     if (!workspaceRoot) {
       workspaceRevisionRef.current = null;
+      workspaceRefreshFailureToastRef.current = null;
       return;
     }
 
@@ -540,10 +542,14 @@ function App() {
 
         if (workspaceRevisionRef.current === null) {
           workspaceRevisionRef.current = revision;
+          workspaceRefreshFailureToastRef.current = null;
           return;
         }
 
-        if (revision === workspaceRevisionRef.current) return;
+        if (revision === workspaceRevisionRef.current) {
+          workspaceRefreshFailureToastRef.current = null;
+          return;
+        }
 
         const updatedTree = await refreshTree();
         if (!mounted) return;
@@ -559,7 +565,7 @@ function App() {
         switch (activeFileAction.type) {
           case "warn-unsaved":
             externalUnsavedToastRevisionRef.current = activeFileAction.revision;
-            showToast("Workspace changed on disk while you have unsaved edits.");
+            showToast(t("workspace_refresh.changed_with_unsaved"));
             break;
           case "reload-active-file": {
             const reloaded = await reloadSelectedFileFromDisk(activeFileAction.node);
@@ -574,7 +580,7 @@ function App() {
               });
               if (closeAction.type === "close-active-file") {
                 await handleCloseFile();
-                showToast("The active file was removed on disk.");
+                showToast(t("workspace_refresh.active_file_removed"));
               }
             }
             break;
@@ -588,10 +594,14 @@ function App() {
           void refreshGitStatus();
         }
 
+        workspaceRefreshFailureToastRef.current = null;
         workspaceRevisionRef.current = revision;
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        showToast(`Failed to refresh workspace: ${message}`);
+        if (workspaceRefreshFailureToastRef.current !== message) {
+          workspaceRefreshFailureToastRef.current = message;
+          showToast(t("workspace_refresh.refresh_failed", { message }));
+        }
         console.error("Failed to refresh workspace changes:", err);
       } finally {
         workspaceRefreshInFlightRef.current = false;
@@ -605,6 +615,7 @@ function App() {
       mounted = false;
       window.clearInterval(interval);
       workspaceRevisionRef.current = null;
+      workspaceRefreshFailureToastRef.current = null;
       externalUnsavedToastRevisionRef.current = null;
     };
   }, [
@@ -614,6 +625,7 @@ function App() {
     handleCloseFile,
     refreshGitStatus,
     showToast,
+    t,
   ]);
 
   // Refresh remote-tracking refs when the window regains focus so ahead/behind stays current.
