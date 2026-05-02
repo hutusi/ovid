@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -434,6 +435,62 @@ fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>
     nodes
 }
 
+fn hash_workspace_entry(path: &Path, root: &Path, hasher: &mut DefaultHasher) {
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return;
+    };
+
+    path.strip_prefix(root).unwrap_or(path).hash(hasher);
+    metadata.is_dir().hash(hasher);
+    metadata.len().hash(hasher);
+    if let Ok(modified) = metadata.modified() {
+        modified.hash(hasher);
+    }
+}
+
+fn hash_workspace_dir(path: &Path, root: &Path, hasher: &mut DefaultHasher) {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
+
+    let mut entries: Vec<_> = entries.flatten().collect();
+    entries.sort_by_key(|entry| entry.path());
+
+    for entry in entries {
+        let entry_path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        if name.starts_with('.') {
+            continue;
+        }
+
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+
+        if file_type.is_symlink() {
+            continue;
+        }
+
+        if file_type.is_dir() {
+            hash_workspace_entry(&entry_path, root, hasher);
+            hash_workspace_dir(&entry_path, root, hasher);
+            continue;
+        }
+
+        if is_markdown_path(&entry_path) {
+            hash_workspace_entry(&entry_path, root, hasher);
+        }
+    }
+}
+
+fn compute_workspace_revision(root: &Path) -> String {
+    let mut hasher = DefaultHasher::new();
+    hash_workspace_entry(root, root, &mut hasher);
+    hash_workspace_dir(root, root, &mut hasher);
+    hasher.finish().to_string()
+}
+
 /// Canonicalize `requested` and verify it is inside `workspace_root`.
 fn validate_path(workspace_root: &Path, requested: &str) -> Result<PathBuf, String> {
     let canonical_root =
@@ -708,6 +765,13 @@ fn list_workspace_children(
         &[("path", to_slash(&dir)), ("nodes", tree.len().to_string())],
     );
     Ok(tree)
+}
+
+#[tauri::command]
+fn get_workspace_revision(state: State<'_, WorkspaceState>) -> Result<String, String> {
+    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root = root_guard.as_ref().ok_or("no workspace open")?;
+    Ok(compute_workspace_revision(root))
 }
 
 #[tauri::command]
@@ -2621,6 +2685,7 @@ pub fn run() {
             open_workspace_at_path,
             list_workspace,
             list_workspace_children,
+            get_workspace_revision,
             read_file,
             write_file,
             create_file,
@@ -2745,6 +2810,41 @@ mod tests {
 
         assert_eq!(fs::read_to_string(dest.join("index.md")).unwrap(), "# Hello");
         assert_eq!(fs::read_to_string(dest.join("images").join("cover.png")).unwrap(), "png");
+    }
+
+    #[test]
+    fn compute_workspace_revision_changes_for_markdown_edits() {
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("hello.md");
+        fs::write(&file, "# Hello").unwrap();
+        let before = compute_workspace_revision(dir.path());
+
+        fs::write(&file, "# Hello\n\nUpdated").unwrap();
+
+        assert_ne!(compute_workspace_revision(dir.path()), before);
+    }
+
+    #[test]
+    fn compute_workspace_revision_changes_for_tree_edits() {
+        let dir = TempDir::new().unwrap();
+        let before = compute_workspace_revision(dir.path());
+
+        fs::create_dir_all(dir.path().join("posts")).unwrap();
+        fs::write(dir.path().join("posts").join("hello.md"), "# Hello").unwrap();
+
+        assert_ne!(compute_workspace_revision(dir.path()), before);
+    }
+
+    #[test]
+    fn compute_workspace_revision_ignores_non_markdown_file_edits() {
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("image.png");
+        fs::write(&file, "png").unwrap();
+        let before = compute_workspace_revision(dir.path());
+
+        fs::write(&file, "updated").unwrap();
+
+        assert_eq!(compute_workspace_revision(dir.path()), before);
     }
 
     // ── resolve_images_dir ───────────────────────────────────────────────────

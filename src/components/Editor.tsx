@@ -113,6 +113,7 @@ export function Editor({
   const latestEditorRef = useRef<ReturnType<typeof useEditor>>(null);
   const pendingRestoreTimersRef = useRef<number[]>([]);
   const pendingRestoreFramesRef = useRef<number[]>([]);
+  const lastAppliedContentRef = useRef(content);
   useEffect(() => {
     typewriterRef.current = typewriterMode;
   }, [typewriterMode]);
@@ -460,6 +461,15 @@ export function Editor({
   useEffect(() => {
     latestEditorRef.current = editor;
   }, [editor]);
+
+  useEffect(() => {
+    if (!editor || content === lastAppliedContentRef.current) return;
+    lastAppliedContentRef.current = content;
+    clearPendingRestore();
+    editor.commands.setContent(content, { emitUpdate: false });
+    const text = editor.getText();
+    onWordCount?.(text.trim() ? text.trim().split(/\s+/).length : 0);
+  }, [clearPendingRestore, content, editor, onWordCount]);
 
   useEffect(() => {
     const scrollEl = scrollRef.current;

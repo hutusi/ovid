@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
@@ -32,6 +33,7 @@ import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspace } from "./lib/useWorkspace";
+import { getExternalWorkspaceChangeAction } from "./lib/workspaceRefresh";
 import "./styles/global.css";
 import "./App.css";
 
@@ -46,6 +48,7 @@ type EditorViewState = { selection: number; scrollTop: number };
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
 const SAVE_GIT_REFRESH_DELAY_MS = 400;
+const WORKSPACE_REVISION_POLL_MS = 2000;
 
 const loadEditor = async () => import("./components/Editor");
 const Editor = lazy(async () => ({
@@ -127,6 +130,10 @@ function App() {
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
   const saveRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSaveStatusRef = useRef<"saved" | "unsaved">("saved");
+  const workspaceRevisionRef = useRef<string | null>(null);
+  const workspaceRefreshInFlightRef = useRef(false);
+  const workspaceRefreshFailureToastRef = useRef<string | null>(null);
+  const externalUnsavedToastRevisionRef = useRef<string | null>(null);
   const tabSyncRef = useRef<{
     renameTab: (oldPath: string, newPath: string) => void;
     removeTab: (path: string) => void;
@@ -149,11 +156,18 @@ function App() {
     resetFileState,
     handleCloseFile,
     handleSelectFile,
+    reloadSelectedFileFromDisk,
     handleEditorChange,
     handleEditorDirty,
     handleFieldChange,
     registerEditorFlush,
   } = useFileEditor({ showToast });
+  const selectedFileRef = useRef<FileNode | null>(selectedFile);
+  const saveStatusRef = useRef<"saved" | "unsaved">(saveStatus);
+  const isGitRepoRef = useRef(false);
+
+  selectedFileRef.current = selectedFile;
+  saveStatusRef.current = saveStatus;
 
   const {
     tree,
@@ -171,6 +185,7 @@ function App() {
     handleDuplicate,
     handleNewFromExisting,
     handleDelete,
+    refreshTree,
     loadDirectoryChildren,
   } = useWorkspace({
     showToast,
@@ -245,6 +260,7 @@ function App() {
     getRemoteBranches,
     getRemoteInfo,
   } = useGit(workspaceRoot);
+  isGitRepoRef.current = isGitRepo;
   const contentTypes = useContentTypes(workspaceRoot, isAmytisWorkspace);
   const {
     commitDialog,
@@ -505,6 +521,112 @@ function App() {
       }
     };
   }, [saveStatus, isGitRepo, refreshGitStatus]);
+
+  // Pick up files changed outside Ovid (Git pulls, another editor, generators).
+  useEffect(() => {
+    if (!workspaceRoot) {
+      workspaceRevisionRef.current = null;
+      workspaceRefreshFailureToastRef.current = null;
+      return;
+    }
+
+    let mounted = true;
+
+    async function refreshForExternalChanges() {
+      if (workspaceRefreshInFlightRef.current) return;
+      workspaceRefreshInFlightRef.current = true;
+
+      try {
+        const revision = await invoke<string>("get_workspace_revision");
+        if (!mounted) return;
+
+        if (workspaceRevisionRef.current === null) {
+          workspaceRevisionRef.current = revision;
+          workspaceRefreshFailureToastRef.current = null;
+          return;
+        }
+
+        if (revision === workspaceRevisionRef.current) {
+          workspaceRefreshFailureToastRef.current = null;
+          return;
+        }
+
+        const updatedTree = await refreshTree();
+        if (!mounted) return;
+
+        const activeFileAction = getExternalWorkspaceChangeAction({
+          activeFile: selectedFileRef.current,
+          revision,
+          tree: updatedTree,
+          saveStatus: saveStatusRef.current,
+          lastWarnedRevision: externalUnsavedToastRevisionRef.current,
+        });
+
+        switch (activeFileAction.type) {
+          case "warn-unsaved":
+            externalUnsavedToastRevisionRef.current = activeFileAction.revision;
+            showToast(t("workspace_refresh.changed_with_unsaved"));
+            break;
+          case "reload-active-file": {
+            const reloaded = await reloadSelectedFileFromDisk(activeFileAction.node);
+            if (!reloaded) {
+              const closeAction = getExternalWorkspaceChangeAction({
+                activeFile: selectedFileRef.current,
+                revision,
+                tree: updatedTree,
+                saveStatus: saveStatusRef.current,
+                reloadSucceeded: false,
+                lastWarnedRevision: externalUnsavedToastRevisionRef.current,
+              });
+              if (closeAction.type === "close-active-file") {
+                await handleCloseFile();
+                showToast(t("workspace_refresh.active_file_removed"));
+              }
+            }
+            break;
+          }
+          case "none":
+          case "close-active-file":
+            break;
+        }
+
+        if (isGitRepoRef.current) {
+          void refreshGitStatus();
+        }
+
+        workspaceRefreshFailureToastRef.current = null;
+        workspaceRevisionRef.current = revision;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (workspaceRefreshFailureToastRef.current !== message) {
+          workspaceRefreshFailureToastRef.current = message;
+          showToast(t("workspace_refresh.refresh_failed", { message }));
+        }
+        console.error("Failed to refresh workspace changes:", err);
+      } finally {
+        workspaceRefreshInFlightRef.current = false;
+      }
+    }
+
+    void refreshForExternalChanges();
+    const interval = window.setInterval(refreshForExternalChanges, WORKSPACE_REVISION_POLL_MS);
+
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      workspaceRevisionRef.current = null;
+      workspaceRefreshFailureToastRef.current = null;
+      externalUnsavedToastRevisionRef.current = null;
+    };
+  }, [
+    workspaceRoot,
+    refreshTree,
+    reloadSelectedFileFromDisk,
+    handleCloseFile,
+    refreshGitStatus,
+    showToast,
+    t,
+  ]);
 
   // Refresh remote-tracking refs when the window regains focus so ahead/behind stays current.
   useEffect(() => {

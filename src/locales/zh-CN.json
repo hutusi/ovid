@@ -29,6 +29,11 @@
     "theme_toggle": "切换主题",
     "language": "语言"
   },
+  "workspace_refresh": {
+    "changed_with_unsaved": "工作区已在磁盘上更改，但你有未保存的编辑。",
+    "active_file_removed": "当前文件已从磁盘移除。",
+    "refresh_failed": "刷新工作区失败：{{message}}"
+  },
   "font_settings": {
     "editor_settings": "编辑器设置（字体、拼写检查、本次目标）",
     "editor_settings_label": "编辑器设置",

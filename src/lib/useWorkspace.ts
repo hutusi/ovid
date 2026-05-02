@@ -334,6 +334,7 @@ export function useWorkspace({
     handleDuplicate,
     handleNewFromExisting,
     handleDelete,
+    refreshTree,
     loadDirectoryChildren,
   };
 }

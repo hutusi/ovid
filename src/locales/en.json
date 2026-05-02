@@ -29,6 +29,11 @@
     "theme_toggle": "Toggle theme",
     "language": "Language"
   },
+  "workspace_refresh": {
+    "changed_with_unsaved": "Workspace changed on disk while you have unsaved edits.",
+    "active_file_removed": "The active file was removed on disk.",
+    "refresh_failed": "Failed to refresh workspace: {{message}}"
+  },
   "font_settings": {
     "editor_settings": "Editor settings (font, spell check, session goal)",
     "editor_settings_label": "Editor settings",
