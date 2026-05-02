@@ -371,7 +371,11 @@ fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec
     nodes
 }
 
-fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec<FileNode> {
+fn list_dir_shallow(
+    path: &Path,
+    all_files: bool,
+    cache: &mut HashMap<PathBuf, CachedFrontmatter>,
+) -> Vec<FileNode> {
     let Ok(entries) = std::fs::read_dir(path) else {
         return Vec::new();
     };
@@ -416,15 +420,24 @@ fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("");
-        if ext == "md" || ext == "mdx" {
-            let (title, draft, content_type) = read_frontmatter_meta_cached(&entry_path, cache);
+        let is_markdown = ext == "md" || ext == "mdx";
+        if is_markdown || all_files {
+            let (title, draft, content_type) = if is_markdown {
+                read_frontmatter_meta_cached(&entry_path, cache)
+            } else {
+                (None, None, None)
+            };
             nodes.push(FileNode {
                 name,
                 path: to_slash(&entry_path),
                 is_directory: false,
                 children: None,
                 children_loaded: None,
-                extension: Some(format!(".{}", ext)),
+                extension: if ext.is_empty() {
+                    None
+                } else {
+                    Some(format!(".{}", ext))
+                },
                 title,
                 draft,
                 content_type,
@@ -601,7 +614,7 @@ async fn open_workspace_at_path(
         root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        list_dir_shallow(&tree_root, &mut cache)
+        list_dir_shallow(&tree_root, false, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
@@ -681,7 +694,7 @@ async fn open_workspace(
         root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        list_dir_shallow(&tree_root, &mut cache)
+        list_dir_shallow(&tree_root, false, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
@@ -743,6 +756,7 @@ fn list_workspace(state: State<'_, WorkspaceState>) -> Result<Vec<FileNode>, Str
 #[tauri::command]
 fn list_workspace_children(
     path: String,
+    all_files: Option<bool>,
     state: State<'_, WorkspaceState>,
 ) -> Result<Vec<FileNode>, String> {
     let root = {
@@ -757,7 +771,7 @@ fn list_workspace_children(
     let started = Instant::now();
     let tree = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        list_dir_shallow(&dir, &mut cache)
+        list_dir_shallow(&dir, all_files.unwrap_or(false), &mut cache)
     };
     log_perf(
         "list_workspace_children",
@@ -3385,7 +3399,7 @@ mod tests {
         write_markdown_file(&content_root.join("readme.md"), "Readme", "body");
 
         let mut cache = HashMap::new();
-        let results = list_dir_shallow(&content_root, &mut cache);
+        let results = list_dir_shallow(&content_root, false, &mut cache);
 
         assert_eq!(results.len(), 2);
         let dir_node = results.iter().find(|node| node.is_directory).unwrap();

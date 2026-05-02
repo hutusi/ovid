@@ -110,6 +110,19 @@ function makeFileNodeFromPath(path: string): FileNode {
   };
 }
 
+function mergeFilesTreeChildren(
+  nodes: FileNode[],
+  dirPath: string,
+  children: FileNode[]
+): FileNode[] {
+  return nodes.map((node) => {
+    if (node.path === dirPath && node.isDirectory)
+      return { ...node, children, childrenLoaded: true };
+    if (!node.children) return node;
+    return { ...node, children: mergeFilesTreeChildren(node.children, dirPath, children) };
+  });
+}
+
 function App() {
   const { t } = useTranslation();
   const { resolvedTheme, setPreference } = useTheme();
@@ -118,6 +131,7 @@ function App() {
   );
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("content");
   const [fileViewerNode, setFileViewerNode] = useState<import("./lib/types").FileNode | null>(null);
+  const [filesTree, setFilesTree] = useState<FileNode[]>([]);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
@@ -219,6 +233,31 @@ function App() {
     [loadDirectoryChildren]
   );
 
+  const loadFilesTree = useCallback(async () => {
+    if (!workspaceRoot) return;
+    try {
+      const nodes = await invoke<FileNode[]>("list_workspace_children", {
+        path: workspaceRoot,
+        allFiles: true,
+      });
+      setFilesTree(nodes);
+    } catch (err) {
+      console.error("Failed to load files tree:", err);
+    }
+  }, [workspaceRoot]);
+
+  const handleLoadDirectoryChildrenFiles = useCallback(async (dirPath: string) => {
+    try {
+      const children = await invoke<FileNode[]>("list_workspace_children", {
+        path: dirPath,
+        allFiles: true,
+      });
+      setFilesTree((current) => mergeFilesTreeChildren(current, dirPath, children));
+    } catch (err) {
+      console.error("Failed to load directory children:", err);
+    }
+  }, []);
+
   // Sidebar mode: persist per workspace
   useEffect(() => {
     const key = workspaceRootPath
@@ -234,8 +273,13 @@ function App() {
       ? `${SIDEBAR_MODE_KEY_PREFIX}:${workspaceRootPath}`
       : SIDEBAR_MODE_KEY_PREFIX;
     localStorage.setItem(key, sidebarMode);
-    if (sidebarMode === "content") setFileViewerNode(null);
-  }, [sidebarMode, workspaceRootPath]);
+    if (sidebarMode === "content") {
+      setFileViewerNode(null);
+      setFilesTree([]);
+    } else {
+      void loadFilesTree();
+    }
+  }, [sidebarMode, workspaceRootPath, loadFilesTree]);
 
   function handleToggleSidebarMode() {
     setSidebarMode((prev) => (prev === "content" ? "files" : "content"));
@@ -923,7 +967,7 @@ function App() {
           </Suspense>
         ) : (
           <Sidebar
-            tree={tree}
+            tree={sidebarMode === "files" ? filesTree : tree}
             workspaceKey={workspaceRootPath}
             selectedPath={fileViewerNode?.path ?? selectedFile?.path ?? null}
             visible={sidebarVisible}
@@ -935,7 +979,11 @@ function App() {
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => setWorkspaceSwitcherOpen(true)}
             onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
-            onLoadDirectoryChildren={handleLoadDirectoryChildren}
+            onLoadDirectoryChildren={
+              sidebarMode === "files"
+                ? (dirPath) => void handleLoadDirectoryChildrenFiles(dirPath)
+                : handleLoadDirectoryChildren
+            }
             onRename={(node) => setModal({ type: "rename-path", node })}
             onDuplicate={(node) => setModal({ type: "duplicate-file", node })}
             onNewFromExisting={(node) => setModal({ type: "new-from-existing", node })}
