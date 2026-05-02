@@ -467,7 +467,8 @@ export function Editor({
     lastAppliedContentRef.current = content;
     clearPendingRestore();
     editor.commands.setContent(content, { emitUpdate: false });
-    onWordCount?.(content.trim() ? content.trim().split(/\s+/).length : 0);
+    const text = editor.getText();
+    onWordCount?.(text.trim() ? text.trim().split(/\s+/).length : 0);
   }, [clearPendingRestore, content, editor, onWordCount]);
 
   useEffect(() => {

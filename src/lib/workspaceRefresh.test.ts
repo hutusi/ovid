@@ -104,4 +104,19 @@ describe("getExternalWorkspaceChangeAction", () => {
       })
     ).toEqual({ type: "close-active-file" });
   });
+
+  test("keeps the active file open when disk reload fails but the file still exists", () => {
+    const activeFile = makeFile("/workspace/posts/hello.md");
+
+    expect(
+      getExternalWorkspaceChangeAction({
+        activeFile,
+        revision: "6",
+        tree: [makeDir("/workspace/posts", [activeFile])],
+        saveStatus: "saved",
+        reloadSucceeded: false,
+        lastWarnedRevision: null,
+      })
+    ).toEqual({ type: "none" });
+  });
 });

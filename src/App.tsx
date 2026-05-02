@@ -551,7 +551,6 @@ function App() {
         }
 
         if (revision === workspaceRevisionRef.current) return;
-        workspaceRevisionRef.current = revision;
 
         const updatedTree = await refreshTree();
         if (!mounted) return;
@@ -595,6 +594,8 @@ function App() {
         if (isGitRepoRef.current) {
           void refreshGitStatus();
         }
+
+        workspaceRevisionRef.current = revision;
       } catch (err) {
         console.error("Failed to refresh workspace changes:", err);
       } finally {

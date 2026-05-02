@@ -30,7 +30,7 @@ export function getExternalWorkspaceChangeAction({
   }
 
   if (reloadSucceeded === false) {
-    return { type: "close-active-file" };
+    return findNodeByPath(tree, activeFile.path) ? { type: "none" } : { type: "close-active-file" };
   }
 
   return {
