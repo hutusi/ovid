@@ -168,7 +168,7 @@ function FileItem({
 
   const ext = (node.extension?.replace(".", "") ?? node.name.split(".").pop() ?? "").toLowerCase();
   const isImage = IMAGE_EXTS.has(ext);
-  const displayName = isMarkdown ? getSidebarDisplayName(node) : node.name;
+  const displayName = !filesMode && isMarkdown ? getSidebarDisplayName(node) : node.name;
   const gitStatus = gitStatusMap.get(node.path);
 
   async function showMarkdownContextMenu() {
