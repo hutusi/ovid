@@ -71,7 +71,17 @@
     "open_folder": "Open folder",
     "resize": "Resize sidebar",
     "no_workspace_name": "No workspace",
-    "changes_inside": "{{status}} changes inside"
+    "changes_inside": "{{status}} changes inside",
+    "mode_content": "Content",
+    "mode_files": "Files",
+    "toggle_mode_to_files": "Switch to Files view",
+    "toggle_mode_to_content": "Switch to Content view"
+  },
+  "file_viewer": {
+    "close": "Close preview",
+    "loading": "Loading…",
+    "image_alt": "Image: {{name}}",
+    "cannot_open": "This file type cannot be opened in Ovid."
   },
   "file_switcher": {
     "title": "Quick file switcher",

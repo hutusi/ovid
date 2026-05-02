@@ -5,7 +5,9 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { FileViewer, getFileViewKind } from "./components/FileViewer";
 import { PropertiesPanel } from "./components/PropertiesPanel";
+import type { SidebarMode } from "./components/Sidebar";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
@@ -46,6 +48,7 @@ type ModalState =
 type EditorViewState = { selection: number; scrollTop: number };
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
+const SIDEBAR_MODE_KEY_PREFIX = "ovid:sidebarMode";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
 const SAVE_GIT_REFRESH_DELAY_MS = 400;
 const WORKSPACE_REVISION_POLL_MS = 2000;
@@ -113,6 +116,8 @@ function App() {
   const [sidebarVisible, setSidebarVisible] = useState(
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("content");
+  const [fileViewerNode, setFileViewerNode] = useState<import("./lib/types").FileNode | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
@@ -213,6 +218,47 @@ function App() {
     },
     [loadDirectoryChildren]
   );
+
+  // Sidebar mode: persist per workspace
+  useEffect(() => {
+    const key = workspaceRootPath
+      ? `${SIDEBAR_MODE_KEY_PREFIX}:${workspaceRootPath}`
+      : SIDEBAR_MODE_KEY_PREFIX;
+    const stored = localStorage.getItem(key);
+    setSidebarMode(stored === "files" ? "files" : "content");
+    setFileViewerNode(null);
+  }, [workspaceRootPath]);
+
+  useEffect(() => {
+    const key = workspaceRootPath
+      ? `${SIDEBAR_MODE_KEY_PREFIX}:${workspaceRootPath}`
+      : SIDEBAR_MODE_KEY_PREFIX;
+    localStorage.setItem(key, sidebarMode);
+    if (sidebarMode === "content") setFileViewerNode(null);
+  }, [sidebarMode, workspaceRootPath]);
+
+  function handleToggleSidebarMode() {
+    setSidebarMode((prev) => (prev === "content" ? "files" : "content"));
+  }
+
+  function handleSidebarSelect(node: import("./lib/types").FileNode) {
+    const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
+    if (sidebarMode === "content" || isMarkdown) {
+      setFileViewerNode(null);
+      void handleSelectFile(node);
+      if (!node.isDirectory) {
+        pushRecent(node);
+        openTab(node.path);
+      }
+      return;
+    }
+    const kind = getFileViewKind(node);
+    if (kind === null) {
+      showToast(t("file_viewer.cannot_open"));
+      return;
+    }
+    setFileViewerNode(node);
+  }
 
   const closeActiveTabOrFile = useCallback(() => {
     if (selectedFile && tabs.includes(selectedFile.path)) {
@@ -853,6 +899,7 @@ function App() {
 
   function handleSelectFromTab(path: string) {
     const node = findNodeByPath(tree, path) ?? makeFileNodeFromPath(path);
+    setFileViewerNode(null);
     void handleSelectFile(node);
     pushRecent(node);
   }
@@ -878,17 +925,13 @@ function App() {
           <Sidebar
             tree={tree}
             workspaceKey={workspaceRootPath}
-            selectedPath={selectedFile?.path ?? null}
+            selectedPath={fileViewerNode?.path ?? selectedFile?.path ?? null}
             visible={sidebarVisible}
             workspaceName={workspaceName}
             gitStatusMap={gitStatusMap}
-            onSelect={(node) => {
-              void handleSelectFile(node);
-              if (!node.isDirectory) {
-                pushRecent(node);
-                openTab(node.path);
-              }
-            }}
+            mode={sidebarMode}
+            onToggleMode={handleToggleSidebarMode}
+            onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => setWorkspaceSwitcherOpen(true)}
             onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
@@ -919,7 +962,9 @@ function App() {
               />
             </div>
           )}
-          {selectedFile ? (
+          {fileViewerNode ? (
+            <FileViewer node={fileViewerNode} onClose={() => setFileViewerNode(null)} />
+          ) : selectedFile ? (
             <ErrorBoundary key={selectedFile.path}>
               <Suspense fallback={<div className="editor-loading">Loading editor…</div>}>
                 <Editor

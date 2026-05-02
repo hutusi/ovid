@@ -1,0 +1,97 @@
+.file-viewer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.file-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 36px;
+  min-height: 36px;
+  border-bottom: 1px solid var(--color-border);
+  gap: 8px;
+}
+
+.file-viewer-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.file-viewer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border-radius: 4px;
+  color: var(--color-fg-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.file-viewer-close:hover {
+  color: var(--color-fg);
+  background: var(--color-surface-hover);
+}
+
+.file-viewer-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.file-viewer-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 32px;
+}
+
+.file-viewer-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.file-viewer-text {
+  margin: 0;
+  padding: 24px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--color-fg);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.file-viewer-text code {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.file-viewer-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 120px;
+  font-size: 13px;
+  color: var(--color-fg-muted);
+}
+
+.file-viewer-error {
+  color: var(--color-warning);
+}

@@ -1,5 +1,5 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
-import { Folder, FolderOpen, Search, X } from "lucide-react";
+import { BookOpen, FileImage, Files, FileText, Folder, FolderOpen, Search, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
@@ -13,15 +13,21 @@ import {
   shouldDefaultExpand,
 } from "../lib/sidebarExpansion";
 import {
+  filterNoiseDirs,
   filterTree,
   getSidebarDisplayName,
   needsPageDivider,
   rollupGitStatus,
   sortTree,
+  sortTreeAlpha,
 } from "../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../lib/types";
 import { ContentTypeIcon } from "./ContentTypeIcon";
 import "./Sidebar.css";
+
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"]);
+
+export type SidebarMode = "content" | "files";
 
 interface SidebarProps {
   tree: FileNode[];
@@ -30,6 +36,8 @@ interface SidebarProps {
   visible: boolean;
   workspaceName: string | null;
   gitStatusMap: Map<string, GitStatus>;
+  mode: SidebarMode;
+  onToggleMode: () => void;
   onSelect: (node: FileNode) => void;
   onOpenWorkspace: () => void;
   onOpenSwitcher: () => void;
@@ -49,6 +57,7 @@ interface FileItemProps {
   selectedPath: string | null;
   gitStatusMap: Map<string, GitStatus>;
   forceExpand?: boolean;
+  filesMode: boolean;
   onSelect: (node: FileNode) => void;
   onNewFile: (dirPath: string) => void;
   onLoadDirectoryChildren: (dirPath: string) => void;
@@ -66,6 +75,7 @@ function FileItem({
   selectedPath,
   gitStatusMap,
   forceExpand = false,
+  filesMode,
   onSelect,
   onNewFile,
   onLoadDirectoryChildren,
@@ -128,7 +138,9 @@ function FileItem({
         {expanded &&
           (node.children ?? []).map((child, idx, sorted) => (
             <Fragment key={child.path}>
-              {needsPageDivider(sorted, idx) && <div className="sidebar-section-divider" />}
+              {!filesMode && needsPageDivider(sorted, idx) && (
+                <div className="sidebar-section-divider" />
+              )}
               <FileItem
                 node={child}
                 depth={depth + 1}
@@ -137,6 +149,7 @@ function FileItem({
                 selectedPath={selectedPath}
                 gitStatusMap={gitStatusMap}
                 forceExpand={forceExpand}
+                filesMode={filesMode}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
                 onLoadDirectoryChildren={onLoadDirectoryChildren}
@@ -151,12 +164,14 @@ function FileItem({
     );
   }
 
-  if (!isMarkdown) return null;
+  if (!isMarkdown && !filesMode) return null;
 
-  const displayName = getSidebarDisplayName(node);
+  const ext = (node.extension?.replace(".", "") ?? node.name.split(".").pop() ?? "").toLowerCase();
+  const isImage = IMAGE_EXTS.has(ext);
+  const displayName = isMarkdown ? getSidebarDisplayName(node) : node.name;
   const gitStatus = gitStatusMap.get(node.path);
 
-  async function showFileContextMenu() {
+  async function showMarkdownContextMenu() {
     const menu = await Menu.new({
       items: [
         await MenuItem.new({ text: t("sidebar.make_copy"), action: () => onDuplicate(node) }),
@@ -172,13 +187,24 @@ function FileItem({
     await menu.popup();
   }
 
+  async function showNonMarkdownContextMenu() {
+    const menu = await Menu.new({
+      items: [
+        await MenuItem.new({ text: t("sidebar.rename"), action: () => onRename(node) }),
+        await MenuItem.new({ text: t("sidebar.delete"), action: () => onDelete(node) }),
+      ],
+    });
+    await menu.popup();
+  }
+
   return (
     <div
       role="none"
       className={`sidebar-file-row ${isSelected ? "selected" : ""}`}
       onContextMenu={(e) => {
         e.preventDefault();
-        showFileContextMenu();
+        if (isMarkdown) showMarkdownContextMenu();
+        else showNonMarkdownContextMenu();
       }}
     >
       <button
@@ -191,7 +217,13 @@ function FileItem({
         }}
       >
         <span className="sidebar-file-icon-wrap">
-          <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
+          {isMarkdown ? (
+            <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
+          ) : isImage ? (
+            <FileImage size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
+          ) : (
+            <FileText size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
+          )}
         </span>
         <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
           {displayName}
@@ -214,6 +246,8 @@ export function Sidebar({
   visible,
   workspaceName,
   gitStatusMap,
+  mode,
+  onToggleMode,
   onSelect,
   onOpenWorkspace,
   onOpenSwitcher,
@@ -225,6 +259,7 @@ export function Sidebar({
   onDelete,
 }: SidebarProps) {
   const { t } = useTranslation();
+  const filesMode = mode === "files";
   const renderStartedAtRef = useRef(0);
   renderStartedAtRef.current = performance.now();
   const [filterQuery, setFilterQuery] = useState("");
@@ -277,13 +312,17 @@ export function Sidebar({
     () =>
       measureSync(
         "sidebar.renderedNodes",
-        () => sortTree(filterQuery ? filterTree(tree, filterQuery) : tree),
+        () => {
+          const base = filesMode ? filterNoiseDirs(tree) : tree;
+          const filtered = filterQuery ? filterTree(base, filterQuery) : base;
+          return filesMode ? sortTreeAlpha(filtered) : sortTree(filtered);
+        },
         {
           treeNodes: tree.length,
           filterLength: filterQuery.length,
         }
       ),
-    [filterQuery, tree]
+    [filterQuery, tree, filesMode]
   );
 
   useEffect(() => {
@@ -380,6 +419,20 @@ export function Sidebar({
         <div className="sidebar-header-actions">
           <button
             type="button"
+            className="sidebar-mode-btn"
+            onClick={onToggleMode}
+            title={
+              filesMode ? t("sidebar.toggle_mode_to_content") : t("sidebar.toggle_mode_to_files")
+            }
+            aria-label={
+              filesMode ? t("sidebar.toggle_mode_to_content") : t("sidebar.toggle_mode_to_files")
+            }
+            aria-pressed={filesMode}
+          >
+            {filesMode ? <BookOpen size={13} /> : <Files size={13} />}
+          </button>
+          <button
+            type="button"
             className="sidebar-open-btn"
             onClick={onOpenWorkspace}
             title={t("sidebar.open_workspace")}
@@ -433,7 +486,9 @@ export function Sidebar({
         ) : (
           renderedNodes.map((node, idx, sorted) => (
             <Fragment key={node.path}>
-              {needsPageDivider(sorted, idx) && <div className="sidebar-section-divider" />}
+              {!filesMode && needsPageDivider(sorted, idx) && (
+                <div className="sidebar-section-divider" />
+              )}
               <FileItem
                 node={node}
                 depth={0}
@@ -442,6 +497,7 @@ export function Sidebar({
                 selectedPath={selectedPath}
                 gitStatusMap={gitStatusMap}
                 forceExpand={filterQuery.length > 0}
+                filesMode={filesMode}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
                 onLoadDirectoryChildren={onLoadDirectoryChildren}
