@@ -161,17 +161,12 @@ function App() {
     handleFieldChange,
     registerEditorFlush,
   } = useFileEditor({ showToast });
-  const selectedFileRef = useRef<FileNode | null>(null);
-  const saveStatusRef = useRef<"saved" | "unsaved">("saved");
+  const selectedFileRef = useRef<FileNode | null>(selectedFile);
+  const saveStatusRef = useRef<"saved" | "unsaved">(saveStatus);
   const isGitRepoRef = useRef(false);
 
-  useEffect(() => {
-    selectedFileRef.current = selectedFile;
-  }, [selectedFile]);
-
-  useEffect(() => {
-    saveStatusRef.current = saveStatus;
-  }, [saveStatus]);
+  selectedFileRef.current = selectedFile;
+  saveStatusRef.current = saveStatus;
 
   const {
     tree,
@@ -264,9 +259,7 @@ function App() {
     getRemoteBranches,
     getRemoteInfo,
   } = useGit(workspaceRoot);
-  useEffect(() => {
-    isGitRepoRef.current = isGitRepo;
-  }, [isGitRepo]);
+  isGitRepoRef.current = isGitRepo;
   const contentTypes = useContentTypes(workspaceRoot, isAmytisWorkspace);
   const {
     commitDialog,
@@ -597,6 +590,8 @@ function App() {
 
         workspaceRevisionRef.current = revision;
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        showToast(`Failed to refresh workspace: ${message}`);
         console.error("Failed to refresh workspace changes:", err);
       } finally {
         workspaceRefreshInFlightRef.current = false;
