@@ -2423,6 +2423,8 @@ fn build_app_menu<R: tauri::Runtime>(
             &MenuItemBuilder::with_id("close-file", get("file_close_file"))
                 .accelerator("CmdOrCtrl+W")
                 .build(app)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItemBuilder::with_id("wechat-copy", get("file_wechat_copy")).build(app)?,
         ])
         .build()?;
 
@@ -2604,6 +2606,7 @@ fn default_menu_labels() -> HashMap<String, String> {
         ("file_switch_workspace", "Switch Workspace\u{2026}"),
         ("file_save", "Save"),
         ("file_close_file", "Close File"),
+        ("file_wechat_copy", "Copy for WeChat"),
         ("edit_find_in_workspace", "Find in Workspace\u{2026}"),
         ("edit_open_quickly", "Open Quickly\u{2026}"),
         ("insert_link", "Link\u{2026}"),

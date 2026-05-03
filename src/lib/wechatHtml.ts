@@ -1,0 +1,101 @@
+import { Editor } from "@tiptap/core";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
+import StarterKit from "@tiptap/starter-kit";
+import { Markdown } from "tiptap-markdown";
+
+// Inline styles applied to each HTML tag for WeChat compatibility.
+// WeChat Official Account articles must use inline styles; external CSS is stripped.
+const TAG_STYLES: Partial<Record<string, string>> = {
+  p: "margin: 0 0 1.2em; padding: 0; line-height: 1.75; font-size: 16px; color: #333333;",
+  h1: "font-size: 1.6em; font-weight: bold; line-height: 1.4; color: #1a1a1a; margin: 1.4em 0 0.6em; padding: 0;",
+  h2: "font-size: 1.4em; font-weight: bold; line-height: 1.4; color: #1a1a1a; margin: 1.2em 0 0.5em; padding-left: 10px; border-left: 4px solid #576b95;",
+  h3: "font-size: 1.2em; font-weight: bold; line-height: 1.4; color: #222222; margin: 1.1em 0 0.4em; padding: 0;",
+  h4: "font-size: 1.1em; font-weight: bold; line-height: 1.4; color: #222222; margin: 1em 0 0.4em; padding: 0;",
+  h5: "font-size: 1.05em; font-weight: bold; line-height: 1.4; color: #333333; margin: 0.9em 0 0.3em; padding: 0;",
+  h6: "font-size: 1em; font-weight: bold; line-height: 1.4; color: #555555; margin: 0.9em 0 0.3em; padding: 0;",
+  blockquote:
+    "border-left: 4px solid #d1d5db; padding: 0.5em 1em; margin: 1em 0; color: #6b7280; background: #f9fafb;",
+  pre: "background: #1e1e1e; color: #d4d4d4; padding: 1em 1.2em; border-radius: 6px; overflow-x: auto; margin: 1em 0; font-size: 14px; line-height: 1.6;",
+  ul: "padding-left: 1.8em; margin: 0.8em 0;",
+  ol: "padding-left: 1.8em; margin: 0.8em 0;",
+  li: "margin: 0.3em 0; line-height: 1.75; font-size: 16px; color: #333333;",
+  img: "max-width: 100%; height: auto; display: block; margin: 1em auto;",
+  a: "color: #576b95; text-decoration: none;",
+  hr: "border: none; border-top: 1px solid #e5e7eb; margin: 1.5em 0;",
+  table: "border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 15px;",
+  th: "border: 1px solid #d1d5db; padding: 8px 12px; background: #f3f4f6; font-weight: bold; text-align: left;",
+  td: "border: 1px solid #d1d5db; padding: 8px 12px; line-height: 1.6;",
+  strong: "font-weight: bold;",
+  em: "font-style: italic;",
+  s: "text-decoration: line-through;",
+  code: "font-family: 'Courier New', Courier, monospace; font-size: 0.875em; background: #f6f8fa; padding: 2px 5px; border-radius: 3px; color: #e83e8c;",
+};
+
+// Inline style for <code> inside <pre> (overrides the default code style)
+const PRE_CODE_STYLE =
+  "font-family: 'Courier New', Courier, monospace; font-size: 14px; background: transparent; padding: 0; border-radius: 0; color: inherit;";
+
+function applyStyles(el: Element, insidePre = false): void {
+  const tag = el.tagName.toLowerCase();
+
+  if (tag === "pre") {
+    el.setAttribute("style", TAG_STYLES.pre ?? "");
+    // Style the inner <code> block differently from inline code
+    const codeChild = el.querySelector("code");
+    if (codeChild) {
+      codeChild.setAttribute("style", PRE_CODE_STYLE);
+    }
+    return; // don't recurse — the code child is already handled above
+  }
+
+  if (tag === "code" && insidePre) {
+    el.setAttribute("style", PRE_CODE_STYLE);
+  } else {
+    const style = TAG_STYLES[tag];
+    if (style) el.setAttribute("style", style);
+  }
+
+  const isNowInsidePre = insidePre || tag === "pre";
+  for (const child of Array.from(el.children)) {
+    applyStyles(child, isNowInsidePre);
+  }
+}
+
+function applyWechatStyles(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  applyStyles(doc.body);
+  return doc.body.innerHTML;
+}
+
+function parseMarkdown(markdown: string): string {
+  const el = document.createElement("div");
+  const editor = new Editor({
+    element: el,
+    extensions: [StarterKit, TaskList, TaskItem, Markdown],
+    content: markdown,
+  });
+  const html = editor.getHTML();
+  editor.destroy();
+  return html;
+}
+
+/**
+ * Converts a markdown string to WeChat-compatible inline-styled HTML.
+ * Math blocks ($$…$$) are stripped with a warning since WeChat cannot render LaTeX.
+ */
+export function markdownToWechatHtml(markdown: string): {
+  html: string;
+  hasMath: boolean;
+} {
+  const mathPattern = /\$\$[\s\S]*?\$\$|\$[^$\n]+\$/g;
+  const hasMath = mathPattern.test(markdown);
+
+  const cleaned = hasMath
+    ? markdown.replace(/\$\$[\s\S]*?\$\$/g, "").replace(/\$[^$\n]+\$/g, "")
+    : markdown;
+
+  const rawHtml = parseMarkdown(cleaned);
+  const html = applyWechatStyles(rawHtml);
+  return { html, hasMath };
+}

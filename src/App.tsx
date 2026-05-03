@@ -12,6 +12,7 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
 import { findNodeByPath, loadLastRecentFilePath } from "./lib/appRestore";
+import { parseFrontmatter } from "./lib/frontmatter";
 import { AUTO_FETCH_COOLDOWN_MS, runAutoFetchOnFocus } from "./lib/gitAutoFetch";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { resolveImageSrc } from "./lib/imageUtils";
@@ -35,6 +36,7 @@ import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspace } from "./lib/useWorkspace";
+import { markdownToWechatHtml } from "./lib/wechatHtml";
 import { getExternalWorkspaceChangeAction } from "./lib/workspaceRefresh";
 import "./styles/global.css";
 import "./App.css";
@@ -171,6 +173,7 @@ function App() {
     parsedFrontmatter,
     saveStatus,
     selectedPathRef,
+    pendingMarkdownRef,
     flushPendingSave,
     resetFileState,
     handleCloseFile,
@@ -788,6 +791,25 @@ function App() {
     };
   }, [workspaceRoot, isGitRepo, handleFetch]);
 
+  const handleWechatCopy = useCallback(async () => {
+    const markdown = pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body;
+    if (!markdown.trim()) {
+      showToast(t("menu.file_wechat_copy_no_content"));
+      return;
+    }
+    const { html, hasMath } = markdownToWechatHtml(markdown);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }) }),
+      ]);
+    } catch {
+      await navigator.clipboard.writeText(html);
+    }
+    showToast(
+      hasMath ? t("menu.file_wechat_copy_math_warning") : t("menu.file_wechat_copy_success")
+    );
+  }, [pendingMarkdownRef, fileContent, showToast, t]);
+
   // Forward native menu events to the same handlers as keyboard shortcuts
   useEffect(() => {
     let mounted = true;
@@ -898,6 +920,11 @@ function App() {
             void runGitAction("fetch", handleFetch, "Fetched remote updates");
           }
           break;
+        case "wechat-copy":
+          if (selectedFile) {
+            void handleWechatCopy();
+          }
+          break;
       }
     }).then((fn) => {
       if (mounted) {
@@ -938,6 +965,8 @@ function App() {
     closeActiveTabOrFile,
     handleOpenWorkspace,
     handleNewTodayFlow,
+    handleWechatCopy,
+    selectedFile,
     prefs,
     updatePrefs,
   ]);
