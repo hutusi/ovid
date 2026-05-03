@@ -34,6 +34,9 @@
     "active_file_removed": "当前文件已从磁盘移除。",
     "refresh_failed": "刷新工作区失败：{{message}}"
   },
+  "workspace": {
+    "load_files_error": "加载文件失败：{{message}}"
+  },
   "font_settings": {
     "editor_settings": "编辑器设置（字体、拼写检查、本次目标）",
     "editor_settings_label": "编辑器设置",

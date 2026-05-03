@@ -34,6 +34,9 @@
     "active_file_removed": "The active file was removed on disk.",
     "refresh_failed": "Failed to refresh workspace: {{message}}"
   },
+  "workspace": {
+    "load_files_error": "Failed to load files: {{message}}"
+  },
   "font_settings": {
     "editor_settings": "Editor settings (font, spell check, session goal)",
     "editor_settings_label": "Editor settings",

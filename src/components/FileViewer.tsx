@@ -83,13 +83,23 @@ export function FileViewer({ node, onClose }: FileViewerProps) {
 
   useEffect(() => {
     if (kind !== "text") return;
+    let cancelled = false;
     setLoading(true);
     setContent(null);
     setError(null);
     invoke<string>("read_file", { path: node.path })
-      .then((c) => setContent(c))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
-      .finally(() => setLoading(false));
+      .then((c) => {
+        if (!cancelled) setContent(c);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [node.path, kind]);
 
   return (

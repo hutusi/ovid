@@ -242,21 +242,32 @@ function App() {
       });
       setFilesTree(nodes);
     } catch (err) {
-      console.error("Failed to load files tree:", err);
+      showToast(
+        t("workspace.load_files_error", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
     }
-  }, [workspaceRoot]);
+  }, [workspaceRoot, showToast, t]);
 
-  const handleLoadDirectoryChildrenFiles = useCallback(async (dirPath: string) => {
-    try {
-      const children = await invoke<FileNode[]>("list_workspace_children", {
-        path: dirPath,
-        allFiles: true,
-      });
-      setFilesTree((current) => mergeFilesTreeChildren(current, dirPath, children));
-    } catch (err) {
-      console.error("Failed to load directory children:", err);
-    }
-  }, []);
+  const handleLoadDirectoryChildrenFiles = useCallback(
+    async (dirPath: string) => {
+      try {
+        const children = await invoke<FileNode[]>("list_workspace_children", {
+          path: dirPath,
+          allFiles: true,
+        });
+        setFilesTree((current) => mergeFilesTreeChildren(current, dirPath, children));
+      } catch (err) {
+        showToast(
+          t("workspace.load_files_error", {
+            message: err instanceof Error ? err.message : String(err),
+          })
+        );
+      }
+    },
+    [showToast, t]
+  );
 
   // Sidebar mode: persist per workspace
   useEffect(() => {
@@ -301,6 +312,7 @@ function App() {
       showToast(t("file_viewer.cannot_open"));
       return;
     }
+    void handleCloseFile();
     setFileViewerNode(node);
   }
 
