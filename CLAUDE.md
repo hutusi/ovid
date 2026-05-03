@@ -62,6 +62,7 @@ Three-zone layout managed by `src/App.tsx`:
 - Git UI: `GitSyncPopover.tsx`, `BranchSwitcher.tsx`, `NewBranchDialog.tsx`, `RenameBranchDialog.tsx`, `DeleteBranchDialog.tsx`, `CommitDialog.tsx` — surface the Tauri git commands; coordinated by `useGitUiController`
 - File lifecycle: `NewFileDialog.tsx`, `RenamePathDialog.tsx` — create/rename via Tauri commands
 - `UpdateDialog.tsx` — surfaces Tauri updater state
+- `WechatPublishDialog.tsx` — multi-phase dialog for publishing to WeChat Official Account: credential entry (stored in OS keychain via Rust), publish, and success/error states. Lazily imported in `App.tsx`. Calls `get_wechat_credentials_status`, `set_wechat_credentials`, `clear_wechat_credentials`, and `wechat_publish_draft` Tauri commands.
 - `LinkDialog.tsx`, `WorkspaceSwitcher.tsx` — plain-CSS modal dialogs
 - `FontSettings.tsx`, `CodeBlockView.tsx` — Custom CSS-positioned panels (no Portal); code blocks support copy and custom language labels
 - `FileViewer.tsx` — Read-only preview for non-markdown files selected in Files mode. `getFileViewKind(node)` maps file extension to `"image" | "text" | null`; images use `convertFileSrc`, text is loaded via `read_file` with a stale-async guard. Shown in place of the editor when `fileViewerNode` is set.
@@ -98,6 +99,7 @@ Pure helpers:
 - `appRestore.ts` — last-workspace and last-file restoration on launch
 - `sidebarUtils.ts` — `collapseIndexNodes` (fold index-only dirs into a single node), `filterNoiseDirs` (strip `node_modules`, `dist`, `.git`, etc. for Files mode), `sortTreeAlpha` (dirs-first alpha sort for Files mode), `sortTree` / `sortNodes` (content-type priority sort for Content mode), `rollupGitStatus`, `filterTree`, `getSidebarDisplayName`, `needsPageDivider`
 - `fileSearch.ts`, `markdown.ts`, `codeBlockLanguages.ts`, `imageUtils.ts`, `postPath.ts`, `sidebarExpansion.ts`, `gitAutoFetch.ts`, `gitUi.ts`, `utils.ts`, `perf.ts`
+- `wechatHtml.ts` — `markdownToWechatHtml(markdown)`: converts Markdown to inline-styled HTML suitable for WeChat articles. Uses a headless Tiptap editor + `DOMParser` to parse, then walks the DOM tree applying `style=""` attributes from a static tag-style map. Math blocks are stripped with a `hasMath` flag. Requires browser DOM; not unit-testable in the current Bun test environment.
 
 **`src/theme.ts`** — Static theme constants consumed by components alongside the `useTheme` hook.
 
@@ -138,6 +140,12 @@ Git (graceful no-op when no `.git` is found):
 - Read: `get_git_status`, `get_git_commit_changes`, `get_git_branch`, `get_git_branches`, `get_git_remote_branches`, `get_git_remote_info`
 - Write: `git_commit`, `git_push`, `git_pull`, `git_fetch`, `git_switch_branch`, `git_create_branch`, `git_rename_branch`, `git_delete_branch`, `git_checkout_remote_branch`
 - `open_git_remote` — open the remote URL for the current repo in the system browser
+
+WeChat integration (requires valid OS keychain access):
+- `get_wechat_credentials_status` — returns `{ app_id: Option<String>, has_secret: bool }` without exposing the secret
+- `set_wechat_credentials` — saves AppID and AppSecret to the OS keychain via the `keyring` crate
+- `clear_wechat_credentials` — removes stored credentials from the keychain
+- `wechat_publish_draft` — full publish pipeline: fetch/cache access token, upload body images to WeChat CDN, upload cover image as permanent material, create draft via WeChat MP API; returns `{ media_id: String }`
 
 App lifecycle:
 - `restart_app` — used by the updater after install
