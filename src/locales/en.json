@@ -379,6 +379,7 @@
   },
   "wechat": {
     "title": "Save to WeChat Drafts",
+    "loading": "Loading…",
     "credentials_header": "WeChat Official Account",
     "credentials_desc": "Enter your AppID and AppSecret. They are stored securely in your system keychain.",
     "app_id_label": "AppID",

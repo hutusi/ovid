@@ -44,6 +44,7 @@ export function WechatPublishDialog({
   const [credError, setCredError] = useState("");
   const [resultMediaId, setResultMediaId] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [hasMathStripped, setHasMathStripped] = useState(false);
 
   useEffect(() => {
     invoke<WechatCredStatus>("get_wechat_credentials_status")
@@ -77,9 +78,7 @@ export function WechatPublishDialog({
     setPhase("publishing");
     try {
       const { html, hasMath } = markdownToWechatHtml(markdown);
-      if (hasMath) {
-        // Math was stripped — we still proceed, the toast on the copy action already warned
-      }
+      setHasMathStripped(hasMath);
       const result = await invoke<WechatPublishResult>("wechat_publish_draft", {
         title,
         author,
@@ -96,14 +95,17 @@ export function WechatPublishDialog({
   }
 
   async function handleClearCredentials() {
-    await invoke("clear_wechat_credentials");
-    setCredStatus(null);
-    setAppId("");
-    setAppSecret("");
-    setCredError("");
-    setPhase("credentials");
-    // Focus the AppID input after state updates
-    setTimeout(() => appIdRef.current?.focus(), 0);
+    try {
+      await invoke("clear_wechat_credentials");
+      setCredStatus(null);
+      setAppId("");
+      setAppSecret("");
+      setCredError("");
+      setPhase("credentials");
+      setTimeout(() => appIdRef.current?.focus(), 0);
+    } catch (err) {
+      setCredError(String(err));
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -132,7 +134,7 @@ export function WechatPublishDialog({
       >
         <p className="modal-title">{t("wechat.title")}</p>
 
-        {phase === "loading" && <p className="modal-copy">{t("wechat.publishing")}</p>}
+        {phase === "loading" && <p className="modal-copy">{t("wechat.loading")}</p>}
 
         {phase === "credentials" && (
           <>
@@ -156,11 +158,7 @@ export function WechatPublishDialog({
               onChange={(e) => setAppSecret(e.target.value)}
               autoComplete="new-password"
             />
-            {credError && (
-              <p className="modal-copy" style={{ color: "var(--color-warning)" }}>
-                {credError}
-              </p>
-            )}
+            {credError && <p className="modal-copy modal-copy-warning">{credError}</p>}
             <div className="modal-actions">
               <div className="modal-spacer" />
               <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
@@ -187,9 +185,7 @@ export function WechatPublishDialog({
               </p>
             )}
             {!coverImagePath && (
-              <p className="modal-copy" style={{ color: "var(--color-warning)" }}>
-                {t("wechat.no_cover_warning")}
-              </p>
+              <p className="modal-copy modal-copy-warning">{t("wechat.no_cover_warning")}</p>
             )}
             <div className="modal-actions">
               <button
@@ -221,6 +217,11 @@ export function WechatPublishDialog({
           <>
             <p className="modal-copy">{t("wechat.success_title")}</p>
             <p className="modal-copy">{t("wechat.success_media_id", { mediaId: resultMediaId })}</p>
+            {hasMathStripped && (
+              <p className="modal-copy modal-copy-warning">
+                {t("menu.file_wechat_copy_math_warning")}
+              </p>
+            )}
             <p className="modal-copy">{t("wechat.success_note")}</p>
             <div className="modal-actions">
               <div className="modal-spacer" />
@@ -233,7 +234,7 @@ export function WechatPublishDialog({
 
         {phase === "error" && (
           <>
-            <p className="modal-copy" style={{ color: "var(--color-warning)" }}>
+            <p className="modal-copy modal-copy-warning">
               {t("wechat.error_prefix", { error: errorMsg })}
             </p>
             <div className="modal-actions">

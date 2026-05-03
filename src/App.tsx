@@ -807,7 +807,12 @@ function App() {
         new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }) }),
       ]);
     } catch {
-      await navigator.clipboard.writeText(html);
+      try {
+        await navigator.clipboard.writeText(html);
+      } catch (fallbackErr) {
+        showToast(String(fallbackErr));
+        return;
+      }
     }
     showToast(
       hasMath ? t("menu.file_wechat_copy_math_warning") : t("menu.file_wechat_copy_success")

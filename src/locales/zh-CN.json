@@ -379,6 +379,7 @@
   },
   "wechat": {
     "title": "保存到微信草稿箱",
+    "loading": "加载中…",
     "credentials_header": "微信公众号",
     "credentials_desc": "请输入 AppID 和 AppSecret，将安全存储在系统钥匙串中。",
     "app_id_label": "AppID",

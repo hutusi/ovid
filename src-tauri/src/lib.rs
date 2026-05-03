@@ -2491,7 +2491,8 @@ async fn wechat_upload_body_image(
     token: &str,
     path: &Path,
 ) -> Result<String, String> {
-    let bytes = std::fs::read(path)
+    let bytes = tokio::fs::read(path)
+        .await
         .map_err(|e| format!("Cannot read image {}: {}", path.display(), e))?;
     let file_name = path
         .file_name()
@@ -2534,7 +2535,8 @@ async fn wechat_upload_thumb(
     token: &str,
     path: &Path,
 ) -> Result<String, String> {
-    let bytes = std::fs::read(path)
+    let bytes = tokio::fs::read(path)
+        .await
         .map_err(|e| format!("Cannot read cover image {}: {}", path.display(), e))?;
     let file_name = path
         .file_name()
@@ -2602,7 +2604,7 @@ async fn wechat_publish_draft(
     cover_image_path: Option<String>,
     wechat_state: State<'_, WechatState>,
 ) -> Result<WechatPublishResult, String> {
-    let thumb_media_id = match cover_image_path {
+    let cover_path_str = match cover_image_path {
         Some(ref p) if !p.is_empty() => p.clone(),
         _ => {
             return Err(
@@ -2616,10 +2618,10 @@ async fn wechat_publish_draft(
     let base = Path::new(&base_dir);
 
     // Upload cover image as permanent material to get thumb_media_id
-    let cover_path = if Path::new(&thumb_media_id).is_absolute() {
-        PathBuf::from(&thumb_media_id)
+    let cover_path = if Path::new(&cover_path_str).is_absolute() {
+        PathBuf::from(&cover_path_str)
     } else {
-        base.join(&thumb_media_id)
+        base.join(&cover_path_str)
     };
     if !cover_path.exists() {
         return Err(format!(
