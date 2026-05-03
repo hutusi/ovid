@@ -99,9 +99,18 @@ describe("findAncestorPaths", () => {
     );
   });
 
-  it("returns an empty set when the selected path is missing", () => {
+  it("returns an empty set when the selected path is above the tree root", () => {
     expect(findAncestorPaths([makeDir("/workspace/posts", [])], "/workspace/missing.md")).toEqual(
       new Set()
+    );
+  });
+
+  it("returns the ancestor chain even when tree branches have unloaded children", () => {
+    const unloadedYear = makeUnloadedDir("/workspace/posts/2024");
+    const posts = makeDir("/workspace/posts", [unloadedYear]);
+
+    expect(findAncestorPaths([posts], "/workspace/posts/2024/hello.md")).toEqual(
+      new Set(["/workspace/posts", "/workspace/posts/2024"])
     );
   });
 });

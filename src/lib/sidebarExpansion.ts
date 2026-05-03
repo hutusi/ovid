@@ -34,18 +34,21 @@ export function findAncestorPaths(nodes: FileNode[], selectedPath: string | null
   const ancestors = new Set<string>();
   if (!selectedPath) return ancestors;
 
-  function visit(node: FileNode, lineage: string[]): boolean {
-    if (node.path === selectedPath) {
-      for (const path of lineage) ancestors.add(path);
-      return true;
-    }
-    if (!node.isDirectory) return false;
-    const nextLineage = [...lineage, node.path];
-    return (node.children ?? []).some((child) => visit(child, nextLineage));
-  }
+  // Derive ancestors from path segments rather than tree traversal so that
+  // branches with children: null (lazy-loaded dirs) don't break sidebar reveal.
+  // Bound by the depth of the shallowest top-level node to avoid adding paths
+  // that are above the visible tree root.
+  const minDepth =
+    nodes.length > 0 ? Math.min(...nodes.map((n) => n.path.split("/").filter(Boolean).length)) : 0;
 
-  for (const node of nodes) {
-    if (visit(node, [])) break;
+  let dir = selectedPath.substring(0, selectedPath.lastIndexOf("/"));
+  while (dir.length > 0) {
+    const depth = dir.split("/").filter(Boolean).length;
+    if (depth < minDepth) break;
+    ancestors.add(dir);
+    const parent = dir.substring(0, dir.lastIndexOf("/"));
+    if (parent === dir || parent.length <= 1) break;
+    dir = parent;
   }
   return ancestors;
 }
