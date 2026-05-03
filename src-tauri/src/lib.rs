@@ -376,12 +376,16 @@ fn has_markdown_descendant(path: &Path) -> bool {
         return false;
     };
     for entry in entries.flatten() {
+        let Ok(ft) = entry.file_type() else { continue };
+        if ft.is_symlink() {
+            continue;
+        }
         let p = entry.path();
-        if p.is_dir() {
+        if ft.is_dir() {
             if has_markdown_descendant(&p) {
                 return true;
             }
-        } else {
+        } else if ft.is_file() {
             let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
             if ext == "md" || ext == "mdx" {
                 return true;
@@ -409,7 +413,7 @@ fn list_dir_shallow(
         let entry_path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
 
-        if name.starts_with('.') {
+        if !all_files && name.starts_with('.') {
             continue;
         }
 
