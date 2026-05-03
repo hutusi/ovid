@@ -2380,106 +2380,115 @@ fn save_asset_from_bytes(
 // WeChat publish
 // ──────────────────────────────────────────────────────────────────────────
 
-const WECHAT_KEYRING_SERVICE: &str = "ovid-wechat";
-const WECHAT_APP_ID_KEY: &str = "app-id";
-const WECHAT_APP_SECRET_KEY: &str = "app-secret";
+const WECHAT_APP_ID_KEY: &str = "app_id";
+const WECHAT_APP_SECRET_KEY: &str = "app_secret";
 
-// On macOS, use the Data Protection Keychain (SecItemAdd + kSecUseDataProtectionKeychain)
-// instead of the legacy Keychain Services API. The legacy API ties item ACLs to the
-// creating application's binary — any recompile (or different code-signature) triggers
-// repeated "Ovid wants to use your confidential information" prompts. The Data Protection
-// Keychain is accessible to any process running as the same user when the keychain is
-// unlocked, with no per-app identity restriction.
-#[cfg(target_os = "macos")]
-fn wechat_get_cred(account: &str) -> Result<Option<String>, String> {
-    use security_framework::passwords::{generic_password, PasswordOptions};
-    let mut opts = PasswordOptions::new_generic_password(WECHAT_KEYRING_SERVICE, account);
-    opts.use_protected_keychain();
-    match generic_password(opts) {
-        Ok(bytes) => String::from_utf8(bytes).map(Some).map_err(|e| e.to_string()),
-        Err(e) if e.code() == -25300 => Ok(None), // errSecItemNotFound
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn wechat_set_cred(account: &str, value: &str) -> Result<(), String> {
-    use security_framework::passwords::{set_generic_password_options, PasswordOptions};
-    let mut opts = PasswordOptions::new_generic_password(WECHAT_KEYRING_SERVICE, account);
-    opts.use_protected_keychain();
-    set_generic_password_options(value.as_bytes(), opts).map_err(|e| e.to_string())
-}
-
-#[cfg(target_os = "macos")]
-fn wechat_del_cred(account: &str) -> Result<(), String> {
-    use security_framework::passwords::{delete_generic_password_options, PasswordOptions};
-    let mut opts = PasswordOptions::new_generic_password(WECHAT_KEYRING_SERVICE, account);
-    opts.use_protected_keychain();
-    match delete_generic_password_options(opts) {
-        Ok(()) => Ok(()),
-        Err(e) if e.code() == -25300 => Ok(()), // errSecItemNotFound — already gone
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn wechat_get_cred(account: &str) -> Result<Option<String>, String> {
-    match keyring::Entry::new(WECHAT_KEYRING_SERVICE, account).map_err(|e| e.to_string())?.get_password() {
-        Ok(p) => Ok(Some(p)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn wechat_set_cred(account: &str, value: &str) -> Result<(), String> {
-    keyring::Entry::new(WECHAT_KEYRING_SERVICE, account)
-        .map_err(|e| e.to_string())?
-        .set_password(value)
+// Credentials are stored as a plain JSON file in the app config directory
+// (e.g. ~/Library/Application Support/com.hutusi.ovid/wechat_credentials.json).
+// This avoids macOS Keychain ACL prompts that arise from per-app-binary access
+// policies — which break in dev mode and are fragile across code-signature changes.
+fn wechat_creds_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|d| d.join("wechat_credentials.json"))
         .map_err(|e| e.to_string())
 }
 
-#[cfg(not(target_os = "macos"))]
-fn wechat_del_cred(account: &str) -> Result<(), String> {
-    match keyring::Entry::new(WECHAT_KEYRING_SERVICE, account)
-        .map_err(|e| e.to_string())?
-        .delete_credential()
-    {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
+fn wechat_get_cred(path: &Path, key: &str) -> Result<Option<String>, String> {
+    if !path.exists() {
+        return Ok(None);
     }
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let map: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(&content).unwrap_or_default();
+    Ok(map.get(key).and_then(|v| v.as_str()).map(|s| s.to_string()))
+}
+
+fn wechat_set_cred(path: &Path, key: &str, value: &str) -> Result<(), String> {
+    let mut map: serde_json::Map<String, serde_json::Value> = if path.exists() {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        serde_json::Map::new()
+    };
+    map.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let content = serde_json::to_string_pretty(&map).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    // Restrict to owner read/write only
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn wechat_del_cred(path: &Path, key: &str) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let mut map: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(&content).unwrap_or_default();
+    map.remove(key);
+    if map.is_empty() {
+        let _ = std::fs::remove_file(path);
+    } else {
+        let content = serde_json::to_string_pretty(&map).map_err(|e| e.to_string())?;
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
+        std::fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
-fn get_wechat_credentials_status() -> Result<WechatCredStatus, String> {
-    let app_id = wechat_get_cred(WECHAT_APP_ID_KEY)?;
-    let has_secret = wechat_get_cred(WECHAT_APP_SECRET_KEY)?.is_some();
+fn get_wechat_credentials_status(app: tauri::AppHandle) -> Result<WechatCredStatus, String> {
+    let path = wechat_creds_path(&app)?;
+    let app_id = wechat_get_cred(&path, WECHAT_APP_ID_KEY)?;
+    let has_secret = wechat_get_cred(&path, WECHAT_APP_SECRET_KEY)?.is_some();
     Ok(WechatCredStatus { app_id, has_secret })
 }
 
 #[tauri::command]
 fn set_wechat_credentials(
+    app: tauri::AppHandle,
     app_id: String,
     app_secret: String,
     wechat_state: State<'_, WechatState>,
 ) -> Result<(), String> {
-    wechat_set_cred(WECHAT_APP_ID_KEY, &app_id)?;
-    wechat_set_cred(WECHAT_APP_SECRET_KEY, &app_secret)?;
+    let path = wechat_creds_path(&app)?;
+    wechat_set_cred(&path, WECHAT_APP_ID_KEY, &app_id)?;
+    wechat_set_cred(&path, WECHAT_APP_SECRET_KEY, &app_secret)?;
     *wechat_state.token_cache.lock().map_err(|e| e.to_string())? = None;
     Ok(())
 }
 
 #[tauri::command]
-fn clear_wechat_credentials(wechat_state: State<'_, WechatState>) -> Result<(), String> {
+fn clear_wechat_credentials(
+    app: tauri::AppHandle,
+    wechat_state: State<'_, WechatState>,
+) -> Result<(), String> {
     *wechat_state.token_cache.lock().map_err(|e| e.to_string())? = None;
-    wechat_del_cred(WECHAT_APP_ID_KEY)?;
-    wechat_del_cred(WECHAT_APP_SECRET_KEY)?;
+    let path = wechat_creds_path(&app)?;
+    wechat_del_cred(&path, WECHAT_APP_ID_KEY)?;
+    wechat_del_cred(&path, WECHAT_APP_SECRET_KEY)?;
     Ok(())
 }
 
-async fn wechat_get_or_refresh_token(wechat_state: &WechatState) -> Result<String, String> {
-    let app_id = wechat_get_cred(WECHAT_APP_ID_KEY)?
+async fn wechat_get_or_refresh_token(
+    creds_path: &Path,
+    wechat_state: &WechatState,
+) -> Result<String, String> {
+    let app_id = wechat_get_cred(creds_path, WECHAT_APP_ID_KEY)?
         .ok_or_else(|| "WeChat credentials not configured. Use File > Save Draft to WeChat to set up your AppID and AppSecret.".to_string())?;
 
     {
@@ -2491,7 +2500,7 @@ async fn wechat_get_or_refresh_token(wechat_state: &WechatState) -> Result<Strin
         }
     }
 
-    let app_secret = wechat_get_cred(WECHAT_APP_SECRET_KEY)?
+    let app_secret = wechat_get_cred(creds_path, WECHAT_APP_SECRET_KEY)?
         .ok_or_else(|| "WeChat credentials not configured.".to_string())?;
 
     let url = format!(
@@ -2669,6 +2678,7 @@ fn resolve_wechat_asset_path(
 
 #[tauri::command]
 async fn wechat_publish_draft(
+    app: tauri::AppHandle,
     title: String,
     author: String,
     html: String,
@@ -2693,7 +2703,8 @@ async fn wechat_publish_draft(
         }
     };
 
-    let token = wechat_get_or_refresh_token(&wechat_state).await?;
+    let creds_path = wechat_creds_path(&app)?;
+    let token = wechat_get_or_refresh_token(&creds_path, &wechat_state).await?;
     let client = reqwest::Client::new();
     let base = validate_path(&workspace_root, &base_dir)?;
 
