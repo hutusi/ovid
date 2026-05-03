@@ -80,7 +80,7 @@ export function getPathDisplayLabel(node: FileNode): string {
     return node.name;
   }
   const folderPath = node.containerDirPath ?? getNodeParentPath(node.path);
-  return `${getPathBaseName(folderPath)}/${node.name}`;
+  return `${getPathBaseName(folderPath)}/${getPathBaseName(node.path)}`;
 }
 
 export function getRenamePathDialogState(node: FileNode): {
@@ -107,9 +107,10 @@ export function getRenamePathDialogState(node: FileNode): {
 
   const folderPath = node.containerDirPath ?? getNodeParentPath(node.path);
   const folderName = getPathBaseName(folderPath);
+  const fileName = getPathBaseName(node.path);
   return {
-    currentPath: `${folderName}/${node.name}`,
+    currentPath: `${folderName}/${fileName}`,
     currentName: folderName,
-    suffix: `/${node.name}`,
+    suffix: `/${fileName}`,
   };
 }
