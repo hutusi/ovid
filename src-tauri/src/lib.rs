@@ -2384,16 +2384,77 @@ const WECHAT_KEYRING_SERVICE: &str = "ovid-wechat";
 const WECHAT_APP_ID_KEY: &str = "app-id";
 const WECHAT_APP_SECRET_KEY: &str = "app-secret";
 
+// On macOS, use the Data Protection Keychain (SecItemAdd + kSecUseDataProtectionKeychain)
+// instead of the legacy Keychain Services API. The legacy API ties item ACLs to the
+// creating application's binary — any recompile (or different code-signature) triggers
+// repeated "Ovid wants to use your confidential information" prompts. The Data Protection
+// Keychain is accessible to any process running as the same user when the keychain is
+// unlocked, with no per-app identity restriction.
+#[cfg(target_os = "macos")]
+fn wechat_get_cred(account: &str) -> Result<Option<String>, String> {
+    use security_framework::passwords::{generic_password, PasswordOptions};
+    let mut opts = PasswordOptions::new_generic_password(WECHAT_KEYRING_SERVICE, account);
+    opts.use_protected_keychain();
+    match generic_password(opts) {
+        Ok(bytes) => String::from_utf8(bytes).map(Some).map_err(|e| e.to_string()),
+        Err(e) if e.code() == -25300 => Ok(None), // errSecItemNotFound
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn wechat_set_cred(account: &str, value: &str) -> Result<(), String> {
+    use security_framework::passwords::{set_generic_password_options, PasswordOptions};
+    let mut opts = PasswordOptions::new_generic_password(WECHAT_KEYRING_SERVICE, account);
+    opts.use_protected_keychain();
+    set_generic_password_options(value.as_bytes(), opts).map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn wechat_del_cred(account: &str) -> Result<(), String> {
+    use security_framework::passwords::{delete_generic_password_options, PasswordOptions};
+    let mut opts = PasswordOptions::new_generic_password(WECHAT_KEYRING_SERVICE, account);
+    opts.use_protected_keychain();
+    match delete_generic_password_options(opts) {
+        Ok(()) => Ok(()),
+        Err(e) if e.code() == -25300 => Ok(()), // errSecItemNotFound — already gone
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn wechat_get_cred(account: &str) -> Result<Option<String>, String> {
+    match keyring::Entry::new(WECHAT_KEYRING_SERVICE, account).map_err(|e| e.to_string())?.get_password() {
+        Ok(p) => Ok(Some(p)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn wechat_set_cred(account: &str, value: &str) -> Result<(), String> {
+    keyring::Entry::new(WECHAT_KEYRING_SERVICE, account)
+        .map_err(|e| e.to_string())?
+        .set_password(value)
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn wechat_del_cred(account: &str) -> Result<(), String> {
+    match keyring::Entry::new(WECHAT_KEYRING_SERVICE, account)
+        .map_err(|e| e.to_string())?
+        .delete_credential()
+    {
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[tauri::command]
 fn get_wechat_credentials_status() -> Result<WechatCredStatus, String> {
-    let app_id = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
-        .map_err(|e| e.to_string())?
-        .get_password()
-        .ok();
-    let has_secret = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
-        .map_err(|e| e.to_string())?
-        .get_password()
-        .is_ok();
+    let app_id = wechat_get_cred(WECHAT_APP_ID_KEY)?;
+    let has_secret = wechat_get_cred(WECHAT_APP_SECRET_KEY)?.is_some();
     Ok(WechatCredStatus { app_id, has_secret })
 }
 
@@ -2403,44 +2464,23 @@ fn set_wechat_credentials(
     app_secret: String,
     wechat_state: State<'_, WechatState>,
 ) -> Result<(), String> {
-    keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
-        .map_err(|e| e.to_string())?
-        .set_password(&app_id)
-        .map_err(|e| e.to_string())?;
-    keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
-        .map_err(|e| e.to_string())?
-        .set_password(&app_secret)
-        .map_err(|e| e.to_string())?;
+    wechat_set_cred(WECHAT_APP_ID_KEY, &app_id)?;
+    wechat_set_cred(WECHAT_APP_SECRET_KEY, &app_secret)?;
     *wechat_state.token_cache.lock().map_err(|e| e.to_string())? = None;
     Ok(())
-}
-
-fn wechat_ignore_missing(e: keyring::Error) -> Result<(), String> {
-    match e {
-        keyring::Error::NoEntry => Ok(()),
-        other => Err(other.to_string()),
-    }
 }
 
 #[tauri::command]
 fn clear_wechat_credentials(wechat_state: State<'_, WechatState>) -> Result<(), String> {
     *wechat_state.token_cache.lock().map_err(|e| e.to_string())? = None;
-    keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
-        .map_err(|e| e.to_string())?
-        .delete_credential()
-        .or_else(wechat_ignore_missing)?;
-    keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
-        .map_err(|e| e.to_string())?
-        .delete_credential()
-        .or_else(wechat_ignore_missing)?;
+    wechat_del_cred(WECHAT_APP_ID_KEY)?;
+    wechat_del_cred(WECHAT_APP_SECRET_KEY)?;
     Ok(())
 }
 
 async fn wechat_get_or_refresh_token(wechat_state: &WechatState) -> Result<String, String> {
-    let app_id = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
-        .map_err(|e| e.to_string())?
-        .get_password()
-        .map_err(|_| "WeChat credentials not configured. Use File > Save Draft to WeChat to set up your AppID and AppSecret.".to_string())?;
+    let app_id = wechat_get_cred(WECHAT_APP_ID_KEY)?
+        .ok_or_else(|| "WeChat credentials not configured. Use File > Save Draft to WeChat to set up your AppID and AppSecret.".to_string())?;
 
     {
         let cache = wechat_state.token_cache.lock().map_err(|e| e.to_string())?;
@@ -2451,10 +2491,8 @@ async fn wechat_get_or_refresh_token(wechat_state: &WechatState) -> Result<Strin
         }
     }
 
-    let app_secret = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
-        .map_err(|e| e.to_string())?
-        .get_password()
-        .map_err(|_| "WeChat credentials not configured.".to_string())?;
+    let app_secret = wechat_get_cred(WECHAT_APP_SECRET_KEY)?
+        .ok_or_else(|| "WeChat credentials not configured.".to_string())?;
 
     let url = format!(
         "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={}&secret={}",
