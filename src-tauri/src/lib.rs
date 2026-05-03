@@ -4266,4 +4266,67 @@ mod tests {
             Err("selected remote is no longer configured".to_string())
         );
     }
+
+    // ── wechat_mime_type ─────────────────────────────────────────────────────
+
+    #[test]
+    fn wechat_mime_type_returns_png_for_png() {
+        assert_eq!(wechat_mime_type(Path::new("image.png")), "image/png");
+    }
+
+    #[test]
+    fn wechat_mime_type_returns_gif_for_gif() {
+        assert_eq!(wechat_mime_type(Path::new("anim.gif")), "image/gif");
+    }
+
+    #[test]
+    fn wechat_mime_type_returns_webp_for_webp() {
+        assert_eq!(wechat_mime_type(Path::new("photo.webp")), "image/webp");
+    }
+
+    #[test]
+    fn wechat_mime_type_defaults_to_jpeg_for_jpg() {
+        assert_eq!(wechat_mime_type(Path::new("photo.jpg")), "image/jpeg");
+    }
+
+    #[test]
+    fn wechat_mime_type_defaults_to_jpeg_for_unknown() {
+        assert_eq!(wechat_mime_type(Path::new("photo.bmp")), "image/jpeg");
+    }
+
+    #[test]
+    fn wechat_mime_type_is_case_insensitive() {
+        assert_eq!(wechat_mime_type(Path::new("image.PNG")), "image/png");
+    }
+
+    // ── extract_img_srcs ─────────────────────────────────────────────────────
+
+    #[test]
+    fn extract_img_srcs_returns_empty_for_no_images() {
+        assert_eq!(extract_img_srcs("<p>hello</p>"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn extract_img_srcs_finds_single_src() {
+        let srcs = extract_img_srcs(r#"<img src="https://cdn.example.com/a.jpg">"#);
+        assert_eq!(srcs, vec!["https://cdn.example.com/a.jpg"]);
+    }
+
+    #[test]
+    fn extract_img_srcs_finds_multiple_srcs() {
+        let html = r#"<img src="a.png"><p>text</p><img src="b.jpg">"#;
+        assert_eq!(extract_img_srcs(html), vec!["a.png", "b.jpg"]);
+    }
+
+    #[test]
+    fn extract_img_srcs_skips_img_without_src() {
+        let html = r#"<img alt="no src"><img src="real.png">"#;
+        assert_eq!(extract_img_srcs(html), vec!["real.png"]);
+    }
+
+    #[test]
+    fn extract_img_srcs_handles_inline_img() {
+        let html = r#"<p>before <img src="inline.png" style="max-width:100%"> after</p>"#;
+        assert_eq!(extract_img_srcs(html), vec!["inline.png"]);
+    }
 }
