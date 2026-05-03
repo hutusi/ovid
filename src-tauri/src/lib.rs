@@ -4401,4 +4401,90 @@ mod tests {
         let html = r#"<p>before <img src="inline.png" style="max-width:100%"> after</p>"#;
         assert_eq!(extract_img_srcs(html), vec!["inline.png"]);
     }
+
+    // ── wechat credential file helpers ───────────────────────────────────────
+
+    #[test]
+    fn wechat_get_cred_returns_none_when_file_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        assert_eq!(wechat_get_cred(&path, "app_id").unwrap(), None);
+    }
+
+    #[test]
+    fn wechat_set_cred_creates_file_and_get_returns_value() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        assert_eq!(
+            wechat_get_cred(&path, "app_id").unwrap(),
+            Some("wx123".to_string())
+        );
+    }
+
+    #[test]
+    fn wechat_set_cred_two_keys_coexist() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        wechat_set_cred(&path, "app_secret", "secret456").unwrap();
+        assert_eq!(
+            wechat_get_cred(&path, "app_id").unwrap(),
+            Some("wx123".to_string())
+        );
+        assert_eq!(
+            wechat_get_cred(&path, "app_secret").unwrap(),
+            Some("secret456".to_string())
+        );
+    }
+
+    #[test]
+    fn wechat_set_cred_overwrites_existing_value() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "old").unwrap();
+        wechat_set_cred(&path, "app_id", "new").unwrap();
+        assert_eq!(
+            wechat_get_cred(&path, "app_id").unwrap(),
+            Some("new".to_string())
+        );
+    }
+
+    #[test]
+    fn wechat_del_cred_removes_key_and_leaves_other() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        wechat_set_cred(&path, "app_secret", "secret456").unwrap();
+        wechat_del_cred(&path, "app_id").unwrap();
+        assert_eq!(wechat_get_cred(&path, "app_id").unwrap(), None);
+        assert_eq!(
+            wechat_get_cred(&path, "app_secret").unwrap(),
+            Some("secret456".to_string())
+        );
+    }
+
+    #[test]
+    fn wechat_del_cred_removes_file_when_last_key_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        wechat_del_cred(&path, "app_id").unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn wechat_del_cred_is_noop_when_file_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        assert!(wechat_del_cred(&path, "app_id").is_ok());
+    }
+
+    #[test]
+    fn wechat_get_cred_returns_none_for_missing_key_in_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        assert_eq!(wechat_get_cred(&path, "app_secret").unwrap(), None);
+    }
 }
