@@ -26,6 +26,27 @@ struct AboutState {
     body_template: Mutex<String>,
 }
 
+// Caches the WeChat access token so we don't refetch it on every publish.
+struct WechatState {
+    token_cache: Mutex<Option<WechatTokenCache>>,
+}
+
+struct WechatTokenCache {
+    access_token: String,
+    expires_at: Instant,
+}
+
+#[derive(Serialize)]
+struct WechatCredStatus {
+    app_id: Option<String>,
+    has_secret: bool,
+}
+
+#[derive(Serialize)]
+struct WechatPublishResult {
+    media_id: String,
+}
+
 #[derive(Clone)]
 struct CachedFrontmatter {
     modified: Option<SystemTime>,
@@ -2355,6 +2376,329 @@ fn save_asset_from_bytes(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// WeChat publish
+// ──────────────────────────────────────────────────────────────────────────
+
+const WECHAT_KEYRING_SERVICE: &str = "ovid-wechat";
+const WECHAT_APP_ID_KEY: &str = "app-id";
+const WECHAT_APP_SECRET_KEY: &str = "app-secret";
+
+#[tauri::command]
+fn get_wechat_credentials_status() -> Result<WechatCredStatus, String> {
+    let app_id = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
+        .map_err(|e| e.to_string())?
+        .get_password()
+        .ok();
+    let has_secret = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
+        .map_err(|e| e.to_string())?
+        .get_password()
+        .is_ok();
+    Ok(WechatCredStatus { app_id, has_secret })
+}
+
+#[tauri::command]
+fn set_wechat_credentials(app_id: String, app_secret: String) -> Result<(), String> {
+    keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
+        .map_err(|e| e.to_string())?
+        .set_password(&app_id)
+        .map_err(|e| e.to_string())?;
+    keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
+        .map_err(|e| e.to_string())?
+        .set_password(&app_secret)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_wechat_credentials() -> Result<(), String> {
+    let _ = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
+        .map(|e| e.delete_credential());
+    let _ = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
+        .map(|e| e.delete_credential());
+    Ok(())
+}
+
+async fn wechat_get_or_refresh_token(wechat_state: &WechatState) -> Result<String, String> {
+    {
+        let cache = wechat_state.token_cache.lock().map_err(|e| e.to_string())?;
+        if let Some(ref cached) = *cache {
+            if cached.expires_at > Instant::now() {
+                return Ok(cached.access_token.clone());
+            }
+        }
+    }
+
+    let app_id = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
+        .map_err(|e| e.to_string())?
+        .get_password()
+        .map_err(|_| "WeChat credentials not configured. Use File > Publish to WeChat to set up your AppID and AppSecret.".to_string())?;
+    let app_secret = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
+        .map_err(|e| e.to_string())?
+        .get_password()
+        .map_err(|_| "WeChat credentials not configured.".to_string())?;
+
+    let url = format!(
+        "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={}&secret={}",
+        app_id, app_secret
+    );
+    let resp: serde_json::Value = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Network error fetching WeChat token: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse WeChat token response: {}", e))?;
+
+    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
+        if errcode != 0 {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("WeChat token error {}: {}", errcode, errmsg));
+        }
+    }
+
+    let token = resp
+        .get("access_token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("No access_token in WeChat response: {}", resp))?
+        .to_string();
+
+    let mut cache = wechat_state.token_cache.lock().map_err(|e| e.to_string())?;
+    *cache = Some(WechatTokenCache {
+        access_token: token.clone(),
+        // Expire 200 seconds before the real 7200s window for safety
+        expires_at: Instant::now() + std::time::Duration::from_secs(7000),
+    });
+
+    Ok(token)
+}
+
+fn wechat_mime_type(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => "image/jpeg",
+    }
+}
+
+async fn wechat_upload_body_image(
+    client: &reqwest::Client,
+    token: &str,
+    path: &Path,
+) -> Result<String, String> {
+    let bytes = std::fs::read(path)
+        .map_err(|e| format!("Cannot read image {}: {}", path.display(), e))?;
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("image.jpg")
+        .to_string();
+    let part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(file_name)
+        .mime_str(wechat_mime_type(path))
+        .map_err(|e| e.to_string())?;
+    let form = reqwest::multipart::Form::new().part("media", part);
+    let url = format!(
+        "https://api.weixin.qq.com/cgi-bin/media/uploadimg?access_token={}",
+        token
+    );
+    let resp: serde_json::Value = client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Image upload network error: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("Image upload parse error: {}", e))?;
+
+    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
+        if errcode != 0 {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("WeChat image upload error {}: {}", errcode, errmsg));
+        }
+    }
+    resp.get("url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("No url in WeChat image upload response: {}", resp))
+}
+
+async fn wechat_upload_thumb(
+    client: &reqwest::Client,
+    token: &str,
+    path: &Path,
+) -> Result<String, String> {
+    let bytes = std::fs::read(path)
+        .map_err(|e| format!("Cannot read cover image {}: {}", path.display(), e))?;
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("cover.jpg")
+        .to_string();
+    let media_part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(file_name)
+        .mime_str(wechat_mime_type(path))
+        .map_err(|e| e.to_string())?;
+    let form = reqwest::multipart::Form::new()
+        .text("type", "image")
+        .part("media", media_part);
+    let url = format!(
+        "https://api.weixin.qq.com/cgi-bin/material/add_material?access_token={}&type=image",
+        token
+    );
+    let resp: serde_json::Value = client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Cover upload network error: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("Cover upload parse error: {}", e))?;
+
+    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
+        if errcode != 0 {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("WeChat cover upload error {}: {}", errcode, errmsg));
+        }
+    }
+    resp.get("media_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("No media_id in WeChat cover upload response: {}", resp))
+}
+
+/// Extract `src` values from `<img src="...">` tags in the HTML string.
+fn extract_img_srcs(html: &str) -> Vec<String> {
+    let mut srcs = Vec::new();
+    let mut search = html;
+    while let Some(img_pos) = search.find("<img") {
+        search = &search[img_pos + 4..];
+        // Find the closing '>' to limit our search
+        let tag_end = search.find('>').unwrap_or(search.len());
+        let tag_slice = &search[..tag_end];
+        if let Some(src_pos) = tag_slice.find("src=\"") {
+            let after = &tag_slice[src_pos + 5..];
+            if let Some(end) = after.find('"') {
+                srcs.push(after[..end].to_string());
+            }
+        }
+    }
+    srcs
+}
+
+#[tauri::command]
+async fn wechat_publish_draft(
+    title: String,
+    author: String,
+    html: String,
+    base_dir: String,
+    cover_image_path: Option<String>,
+    wechat_state: State<'_, WechatState>,
+) -> Result<WechatPublishResult, String> {
+    let thumb_media_id = match cover_image_path {
+        Some(ref p) if !p.is_empty() => p.clone(),
+        _ => {
+            return Err(
+                "A cover image is required. Add coverImage to the file's frontmatter.".to_string(),
+            )
+        }
+    };
+
+    let token = wechat_get_or_refresh_token(&wechat_state).await?;
+    let client = reqwest::Client::new();
+    let base = Path::new(&base_dir);
+
+    // Upload cover image as permanent material to get thumb_media_id
+    let cover_path = if Path::new(&thumb_media_id).is_absolute() {
+        PathBuf::from(&thumb_media_id)
+    } else {
+        base.join(&thumb_media_id)
+    };
+    if !cover_path.exists() {
+        return Err(format!(
+            "Cover image not found: {}",
+            cover_path.display()
+        ));
+    }
+    let thumb_id = wechat_upload_thumb(&client, &token, &cover_path).await?;
+
+    // Upload body images (local paths only) and replace src attributes
+    let srcs = extract_img_srcs(&html);
+    let mut processed_html = html;
+    for src in srcs {
+        if src.starts_with("http://") || src.starts_with("https://") {
+            continue;
+        }
+        let img_path = if Path::new(&src).is_absolute() {
+            PathBuf::from(&src)
+        } else {
+            base.join(&src)
+        };
+        if !img_path.exists() {
+            continue;
+        }
+        match wechat_upload_body_image(&client, &token, &img_path).await {
+            Ok(wechat_url) => {
+                processed_html = processed_html.replace(
+                    &format!("src=\"{}\"", src),
+                    &format!("src=\"{}\"", wechat_url),
+                );
+            }
+            Err(e) => eprintln!("Skipping image upload for {}: {}", src, e),
+        }
+    }
+
+    // Create draft via WeChat API
+    let draft_body = serde_json::json!({
+        "articles": [{
+            "title": title,
+            "author": author,
+            "content": processed_html,
+            "content_source_url": "",
+            "thumb_media_id": thumb_id,
+            "need_open_comment": 0,
+            "only_fans_can_comment": 0
+        }]
+    });
+
+    let url = format!(
+        "https://api.weixin.qq.com/cgi-bin/draft/add?access_token={}",
+        token
+    );
+    let resp: serde_json::Value = client
+        .post(&url)
+        .json(&draft_body)
+        .send()
+        .await
+        .map_err(|e| format!("Draft creation network error: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("Draft creation parse error: {}", e))?;
+
+    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
+        if errcode != 0 {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("WeChat draft creation error {}: {}", errcode, errmsg));
+        }
+    }
+
+    let media_id = resp
+        .get("media_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("No media_id in WeChat draft response: {}", resp))?
+        .to_string();
+
+    Ok(WechatPublishResult { media_id })
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Menu building
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -2425,6 +2769,7 @@ fn build_app_menu<R: tauri::Runtime>(
                 .build(app)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItemBuilder::with_id("wechat-copy", get("file_wechat_copy")).build(app)?,
+            &MenuItemBuilder::with_id("wechat-publish", get("file_wechat_publish")).build(app)?,
         ])
         .build()?;
 
@@ -2607,6 +2952,7 @@ fn default_menu_labels() -> HashMap<String, String> {
         ("file_save", "Save"),
         ("file_close_file", "Close File"),
         ("file_wechat_copy", "Copy for WeChat"),
+        ("file_wechat_publish", "Publish to WeChat\u{2026}"),
         ("edit_find_in_workspace", "Find in Workspace\u{2026}"),
         ("edit_open_quickly", "Open Quickly\u{2026}"),
         ("insert_link", "Link\u{2026}"),
@@ -2686,6 +3032,9 @@ pub fn run() {
             body_template: Mutex::new(
                 "A minimalist desktop Markdown editor\nfor Amytis workspaces.".to_string(),
             ),
+        })
+        .manage(WechatState {
+            token_cache: Mutex::new(None),
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -2769,6 +3118,10 @@ pub fn run() {
             pick_image_file,
             restart_app,
             set_menu_language,
+            get_wechat_credentials_status,
+            set_wechat_credentials,
+            clear_wechat_credentials,
+            wechat_publish_draft,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
