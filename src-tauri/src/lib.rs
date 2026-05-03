@@ -62,6 +62,7 @@ struct CachedSearchFile {
     modified: Option<SystemTime>,
     len: u64,
     title: Option<String>,
+    draft: bool,
     lines: Vec<String>,
 }
 
@@ -77,6 +78,7 @@ struct SearchMatch {
 struct SearchResult {
     path: String,
     title: Option<String>,
+    draft: bool,
     matches: Vec<SearchMatch>,
     total_matches: usize,
     has_more_matches: bool,
@@ -268,15 +270,20 @@ fn load_search_file_cached(
     }
 
     let content = std::fs::read_to_string(path).ok()?;
-    let title = frontmatter_cache
+    let (title, draft) = if let Some(cached) = frontmatter_cache
         .get(path)
         .filter(|cached| cached.modified == modified && cached.len == len)
-        .and_then(|cached| cached.title.clone())
-        .or_else(|| read_frontmatter_meta_from_str(&content).0);
+    {
+        (cached.title.clone(), cached.draft.unwrap_or(false))
+    } else {
+        let (t, d, _) = read_frontmatter_meta_from_str(&content);
+        (t, d.unwrap_or(false))
+    };
     let entry = CachedSearchFile {
         modified,
         len,
         title,
+        draft,
         lines: content.lines().map(|line| line.to_string()).collect(),
     };
     cache.insert(path.to_path_buf(), entry.clone());
@@ -1005,6 +1012,7 @@ fn search_dir(
                 results.push(SearchResult {
                     path: to_slash(&entry_path),
                     title: file.title.clone(),
+                    draft: file.draft,
                     matches,
                     total_matches,
                     has_more_matches: total_matches > MAX_SEARCH_MATCHES_PER_FILE,
@@ -3961,6 +3969,7 @@ mod tests {
         SearchResult {
             path: path.to_string(),
             title: title.map(str::to_string),
+            draft: false,
             matches: Vec::new(),
             total_matches,
             has_more_matches: false,

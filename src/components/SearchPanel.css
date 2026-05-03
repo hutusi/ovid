@@ -87,6 +87,10 @@
   color: var(--color-accent);
 }
 
+.search-result-file[data-draft="true"] {
+  opacity: 0.5;
+}
+
 .search-result-match {
   display: flex;
   align-items: baseline;

@@ -77,6 +77,7 @@ export interface SearchMatch {
 export interface SearchResult {
   path: string;
   title?: string;
+  draft: boolean;
   matches: SearchMatch[];
   totalMatches: number;
   hasMoreMatches: boolean;
