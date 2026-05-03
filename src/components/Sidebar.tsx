@@ -419,20 +419,28 @@ export function Sidebar({
           {workspaceName ?? t("sidebar.no_workspace_name")}
         </button>
         <div className="sidebar-header-actions">
-          <button
-            type="button"
-            className="sidebar-mode-btn"
-            onClick={onToggleMode}
-            title={
-              filesMode ? t("sidebar.toggle_mode_to_content") : t("sidebar.toggle_mode_to_files")
-            }
-            aria-label={
-              filesMode ? t("sidebar.toggle_mode_to_content") : t("sidebar.toggle_mode_to_files")
-            }
-            aria-pressed={filesMode}
-          >
-            {filesMode ? <BookOpen size={13} /> : <Files size={13} />}
-          </button>
+          <fieldset className="sidebar-mode-switcher">
+            <button
+              type="button"
+              className="sidebar-mode-btn"
+              onClick={() => !filesMode || onToggleMode()}
+              title={t("sidebar.mode_content")}
+              aria-label={t("sidebar.mode_content")}
+              aria-pressed={!filesMode}
+            >
+              <BookOpen size={13} />
+            </button>
+            <button
+              type="button"
+              className="sidebar-mode-btn"
+              onClick={() => filesMode || onToggleMode()}
+              title={t("sidebar.mode_files")}
+              aria-label={t("sidebar.mode_files")}
+              aria-pressed={filesMode}
+            >
+              <Files size={13} />
+            </button>
+          </fieldset>
           <button
             type="button"
             className="sidebar-open-btn"
