@@ -371,6 +371,26 @@ fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec
     nodes
 }
 
+fn has_markdown_descendant(path: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() {
+            if has_markdown_descendant(&p) {
+                return true;
+            }
+        } else {
+            let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if ext == "md" || ext == "mdx" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn list_dir_shallow(
     path: &Path,
     all_files: bool,
@@ -402,6 +422,9 @@ fn list_dir_shallow(
         }
 
         if file_type.is_dir() {
+            if !all_files && !has_markdown_descendant(&entry_path) {
+                continue;
+            }
             nodes.push(FileNode {
                 name,
                 path: to_slash(&entry_path),
@@ -3397,6 +3420,8 @@ mod tests {
         let content_root = dir.path().join("content");
         fs::create_dir_all(content_root.join("posts")).unwrap();
         write_markdown_file(&content_root.join("readme.md"), "Readme", "body");
+        // posts/ must have a markdown descendant or it will be filtered out in content mode
+        write_markdown_file(&content_root.join("posts/first.md"), "First", "body");
 
         let mut cache = HashMap::new();
         let results = list_dir_shallow(&content_root, false, &mut cache);
