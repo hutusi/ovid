@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import type { MutableRefObject } from "react";
 import { useCallback, useState } from "react";
+import { type FlatFile, flattenTree } from "./fileSearch";
 import {
   createAmytisFrontmatter,
   createTodayFlowFrontmatter,
@@ -80,6 +81,7 @@ export function useWorkspace({
   onPathRemoved,
 }: UseWorkspaceOptions) {
   const [tree, setTree] = useState<FileNode[]>([]);
+  const [flatFiles, setFlatFiles] = useState<FlatFile[]>([]);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
   const [workspaceRootPath, setWorkspaceRootPath] = useState<string | null>(null);
@@ -94,6 +96,7 @@ export function useWorkspace({
         invoke<FileNode[]>("list_workspace")
       );
       setTree(updated);
+      setFlatFiles(flattenTree(updated));
       return updated;
     } catch (err) {
       console.error("Failed to refresh tree:", err);
@@ -132,6 +135,7 @@ export function useWorkspace({
   const applyWorkspaceResult = useCallback(
     (result: WorkspaceResult) => {
       setTree(result.tree);
+      setFlatFiles(flattenTree(result.tree));
       setWorkspaceName(result.name);
       setWorkspaceRoot(result.treeRoot);
       setWorkspaceRootPath(result.rootPath);
@@ -320,6 +324,7 @@ export function useWorkspace({
 
   return {
     tree,
+    flatFiles,
     workspaceName,
     workspaceRoot,
     workspaceRootPath,

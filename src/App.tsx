@@ -197,6 +197,7 @@ function App() {
 
   const {
     tree,
+    flatFiles,
     workspaceName,
     workspaceRoot,
     workspaceRootPath,
@@ -1248,7 +1249,7 @@ function App() {
       {switcherOpen && (
         <Suspense fallback={null}>
           <FileSwitcher
-            tree={tree}
+            files={flatFiles}
             recentFiles={recentFiles}
             onSelect={(node) => {
               void handleSelectFile(node);

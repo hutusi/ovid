@@ -1,7 +1,7 @@
 import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { compareFiles, type FlatFile, flattenTree, score } from "../lib/fileSearch";
+import { compareFiles, type FlatFile, score } from "../lib/fileSearch";
 import type { FileNode, RecentFile } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { Input } from "./ui/input";
@@ -9,7 +9,7 @@ import "./Modal.css";
 import "./FileSwitcher.css";
 
 interface FileSwitcherProps {
-  tree: FileNode[];
+  files: FlatFile[];
   recentFiles: RecentFile[];
   onSelect: (node: FileNode) => void;
   onClose: () => void;
@@ -41,7 +41,7 @@ function buildItemGroups(
   return { recentResults: [] as FlatFile[], otherResults };
 }
 
-export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitcherProps) {
+export function FileSwitcher({ files, recentFiles, onSelect, onClose }: FileSwitcherProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -52,7 +52,7 @@ export function FileSwitcher({ tree, recentFiles, onSelect, onClose }: FileSwitc
     inputRef.current?.select();
   }, []);
 
-  const allFiles = useMemo(() => flattenTree(tree), [tree]);
+  const allFiles = files;
 
   const filesByPath = useMemo(() => {
     const map = new Map<string, FlatFile>();
