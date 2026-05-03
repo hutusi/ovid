@@ -46,14 +46,14 @@ Three-zone layout managed by `src/App.tsx`:
 └─────────────────────────────────────────────────┘
 ```
 
-**`src/App.tsx`** — Root component; composes top-level state from custom hooks (`useWorkspace`, `useFileEditor`, `useGit`, `useGitUiController`, `useTheme`, `useToast`, `useEditorPreferences`, `useWordCountGoal`, `useRecentFiles`, `useRecentWorkspaces`, `useOpenTabs`, `useContentTypes`) and owns local UI flags (sidebar/properties visibility, zen/typewriter mode, dialog open states).
+**`src/App.tsx`** — Root component; composes top-level state from custom hooks (`useWorkspace`, `useFileEditor`, `useGit`, `useGitUiController`, `useTheme`, `useToast`, `useEditorPreferences`, `useWordCountGoal`, `useRecentFiles`, `useRecentWorkspaces`, `useOpenTabs`, `useContentTypes`) and owns local UI flags (sidebar/properties visibility, zen/typewriter mode, dialog open states). Also manages `sidebarMode` (`"content" | "files"` persisted per workspace in `localStorage`), `filesTree` (separate `FileNode[]` for Files mode loaded via `loadFilesTree`), and `fileViewerNode` (non-markdown file selected for `FileViewer` preview). `handleSidebarSelect` routes non-markdown selections to `FileViewer`; `closeActiveTabOrFile` closes the FileViewer first when it is active.
 
 **`src/components/`** — UI components (list is representative, not exhaustive)
 - `Editor.tsx` — Tiptap WYSIWYG editor; StarterKit + Markdown + Typography + Link + Table (+ TableCell/Header/Row) + Mathematics + Placeholder + CodeBlockLowlight + TaskList/TaskItem (from `@tiptap/extension-list`) + custom extensions in `src/lib/tiptap/`
 - `BubbleMenu.tsx` — Floating formatting toolbar (Bold, Italic, Strike, Code, Link) shown on text selection
 - `FindReplaceBar.tsx` — Find & replace bar (`Cmd+H`); live match highlighting, navigate, replace one/all
 - `TableControls.tsx` — Floating table toolbar (add/delete rows and columns) shown when cursor is in a table
-- `Sidebar.tsx` — File tree; shows only `.md` / `.mdx` files
+- `Sidebar.tsx` — Dual-mode file tree with a segmented Content / Files toggle. Content mode shows only `.md` / `.mdx` files (with `collapseIndexNodes` and `sortTree`). Files mode shows the full project tree (via `filterNoiseDirs` + `sortTreeAlpha`); non-markdown files show a generic icon and reduced context menu. Mode is persisted per workspace in `localStorage`.
 - `TabBar.tsx` — Open-file tab strip above the editor; drag-to-reorder, middle-click or close button to close, hidden in zen mode and only rendered with 2+ tabs
 - `StatusBar.tsx` — Filename, word count, dark mode toggle, zen/typewriter toggles
 - `PropertiesPanel.tsx` — Collapsible bar above editor for frontmatter metadata; always shown for any open markdown file; displays an empty state with add-field prompts when the file has no frontmatter
@@ -64,6 +64,7 @@ Three-zone layout managed by `src/App.tsx`:
 - `UpdateDialog.tsx` — surfaces Tauri updater state
 - `LinkDialog.tsx`, `WorkspaceSwitcher.tsx` — plain-CSS modal dialogs
 - `FontSettings.tsx`, `CodeBlockView.tsx` — Custom CSS-positioned panels (no Portal); code blocks support copy and custom language labels
+- `FileViewer.tsx` — Read-only preview for non-markdown files selected in Files mode. `getFileViewKind(node)` maps file extension to `"image" | "text" | null`; images use `convertFileSrc`, text is loaded via `read_file` with a stale-async guard. Shown in place of the editor when `fileViewerNode` is set.
 - `ContentTypeIcon.tsx`, `EmptyState.tsx`, `PerfPanel.tsx` — icons, no-workspace state, perf overlay (gated by `isPerfLoggingEnabled`)
 - `ErrorBoundary.tsx` — React error boundary wrapping the editor; surfaces render errors instead of blank screen
 - `Modal.css` — Shared plain-CSS primitives for all modal dialogs (overlay, panel, buttons, inputs, badge, checkbox label)
@@ -71,7 +72,8 @@ Three-zone layout managed by `src/App.tsx`:
 - `ui/input.tsx` — Plain input wrapper used by Sidebar filter and SearchPanel
 
 Sidebar/session behavior:
-- Folders containing only `index.md` or `index.mdx` are presented as a single content item in the sidebar and file switcher
+- **Dual mode** — Content mode shows only markdown files; Files mode shows the full project tree rooted at `workspace_root` (not `tree_root`). Mode is toggled via a segmented two-button control and persisted per workspace.
+- Folders containing only `index.md` or `index.mdx` are presented as a single content item in the sidebar and file switcher (via `collapseIndexNodes`); the node carries `containerDirPath` and a small badge indicator. Status bar path and rename dialog use the actual file path, not the folder name.
 - Sidebar expansion is selective: shallow folders open by default, deeper branches fold by default, and manual collapse overrides auto-expansion
 - On launch, the app auto-reopens the last workspace and attempts to restore the most recently opened file in that workspace
 
@@ -94,7 +96,8 @@ Pure helpers:
 - `types.ts` — Shared interfaces (`FileNode`, `WorkspaceState`)
 - `frontmatter.ts` / `frontmatterSchema.ts` — `parseFrontmatter` / `joinFrontmatter` (raw round-trip), `parseYamlFrontmatter` (js-yaml), and Amytis-aware schema lookups
 - `appRestore.ts` — last-workspace and last-file restoration on launch
-- `fileSearch.ts`, `markdown.ts`, `codeBlockLanguages.ts`, `imageUtils.ts`, `postPath.ts`, `sidebarExpansion.ts`, `sidebarUtils.ts`, `gitAutoFetch.ts`, `gitUi.ts`, `utils.ts`, `perf.ts`
+- `sidebarUtils.ts` — `collapseIndexNodes` (fold index-only dirs into a single node), `filterNoiseDirs` (strip `node_modules`, `dist`, `.git`, etc. for Files mode), `sortTreeAlpha` (dirs-first alpha sort for Files mode), `sortTree` / `sortNodes` (content-type priority sort for Content mode), `rollupGitStatus`, `filterTree`, `getSidebarDisplayName`, `needsPageDivider`
+- `fileSearch.ts`, `markdown.ts`, `codeBlockLanguages.ts`, `imageUtils.ts`, `postPath.ts`, `sidebarExpansion.ts`, `gitAutoFetch.ts`, `gitUi.ts`, `utils.ts`, `perf.ts`
 
 **`src/theme.ts`** — Static theme constants consumed by components alongside the `useTheme` hook.
 
@@ -117,11 +120,15 @@ Pure helpers:
 
 Workspace and file lifecycle:
 - `open_workspace` (folder picker) / `open_workspace_at_path` — async, tokio oneshot; walks the file tree
-- `list_workspace`, `list_workspace_children` — initial tree and lazy directory expansion
-- `read_file`, `write_file` — atomic saves via temp-file + rename
+- `list_workspace`, `list_workspace_children` — initial tree and lazy directory expansion; `list_workspace_children` accepts `allFiles: Option<bool>`: when `false` (Content mode) it validates against `tree_root` and filters non-markdown/dotfiles; when `true` (Files mode) it validates against `workspace_root` and includes all files including dotfiles
+- `read_file`, `write_file` — `read_file` validates against `workspace_root` (not `tree_root`) so files outside the Amytis `content/` subtree can be previewed; `write_file` uses atomic temp-file + rename
 - `create_file`, `create_dir`, `ensure_dir` — new files/folders inside the workspace
 - `rename_file`, `duplicate_entry`, `trash_file` — rename, copy, and OS-trash operations
 - `save_asset`, `save_asset_from_bytes`, `pick_image_file` — image asset import: `save_asset` copies a file-path source (drag-and-drop), `save_asset_from_bytes` writes raw bytes (clipboard paste); both save to the active file's sibling `images/` directory, falling back to `<workspace_root>/images/`
+
+Private helpers (not Tauri commands):
+- `list_dir_shallow(path, all_files, cache)` — shallow directory listing; when `all_files=false` skips dotfiles and directories with no markdown descendants; when `all_files=true` includes all files and dotfiles
+- `has_markdown_descendant(path)` — recursively checks if a directory contains any `.md`/`.mdx` file; skips dotfiles and symlinks to avoid infinite loops
 
 Search and content metadata:
 - `search_workspace` — full-text search; ranked results

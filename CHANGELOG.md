@@ -5,6 +5,28 @@ All notable changes to Ovid will be documented in this file.
 The format is based on Keep a Changelog, adapted to match the project's
 release cadence and Conventional Commit history.
 
+## 0.13.0 - 2026-05-03
+
+### Added
+- **Dual-mode sidebar**: toggle between Content view (markdown files only, with content-type
+  sorting) and Files view (full project tree including non-markdown files and dotfiles). Mode
+  is persisted per workspace. The toggle is a segmented two-button control in the sidebar header.
+- **File previewer**: selecting a non-markdown file in Files mode opens a read-only preview panel.
+  Images are rendered inline; text files (source code, config, etc.) are shown in a scrollable
+  code block. Supports a wide range of extensions.
+- **Folder-backed post collapsing**: a directory containing only `index.md` or `index.mdx` is
+  presented as a single post item in Content mode (with a small badge indicator), removing the
+  visual noise of the redundant nested file. The actual file path is used in the status bar and
+  rename dialog.
+
+### Changed
+- Files mode tree is rooted at the actual project root (`workspace_root`), not the Amytis
+  `content/` subtree, so `site.config.ts`, `src/`, and other top-level project files are visible.
+- `read_file` now validates against `workspace_root` instead of `tree_root`, allowing non-markdown
+  files outside `content/` to be read and previewed.
+- Well-known build/tooling directories (`node_modules`, `dist`, `target`, `.next`, etc.) are
+  filtered from Files mode to reduce noise.
+
 ## 0.12.0 - 2026-04-30
 
 ### Added
