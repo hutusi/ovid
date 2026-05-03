@@ -34,6 +34,9 @@
     "active_file_removed": "当前文件已从磁盘移除。",
     "refresh_failed": "刷新工作区失败：{{message}}"
   },
+  "workspace": {
+    "load_files_error": "加载文件失败：{{message}}"
+  },
   "font_settings": {
     "editor_settings": "编辑器设置（字体、拼写检查、本次目标）",
     "editor_settings_label": "编辑器设置",
@@ -71,7 +74,17 @@
     "open_folder": "打开文件夹",
     "resize": "调整侧栏宽度",
     "no_workspace_name": "未打开工作区",
-    "changes_inside": "{{status}} 更改在内"
+    "changes_inside": "{{status}} 更改在内",
+    "mode_content": "内容",
+    "mode_files": "文件",
+    "toggle_mode_to_files": "切换到文件视图",
+    "toggle_mode_to_content": "切换到内容视图"
+  },
+  "file_viewer": {
+    "close": "关闭预览",
+    "loading": "加载中…",
+    "image_alt": "图片：{{name}}",
+    "cannot_open": "此文件类型无法在 Ovid 中打开。"
   },
   "file_switcher": {
     "title": "快速切换文件",

@@ -371,7 +371,39 @@ fn walk_dir(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec
     nodes
 }
 
-fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>) -> Vec<FileNode> {
+fn has_markdown_descendant(path: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let Ok(ft) = entry.file_type() else { continue };
+        if ft.is_symlink() {
+            continue;
+        }
+        let p = entry.path();
+        if ft.is_dir() {
+            if has_markdown_descendant(&p) {
+                return true;
+            }
+        } else if ft.is_file() {
+            let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if ext == "md" || ext == "mdx" {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn list_dir_shallow(
+    path: &Path,
+    all_files: bool,
+    cache: &mut HashMap<PathBuf, CachedFrontmatter>,
+) -> Vec<FileNode> {
     let Ok(entries) = std::fs::read_dir(path) else {
         return Vec::new();
     };
@@ -385,7 +417,7 @@ fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>
         let entry_path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
 
-        if name.starts_with('.') {
+        if !all_files && name.starts_with('.') {
             continue;
         }
 
@@ -398,6 +430,9 @@ fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>
         }
 
         if file_type.is_dir() {
+            if !all_files && !has_markdown_descendant(&entry_path) {
+                continue;
+            }
             nodes.push(FileNode {
                 name,
                 path: to_slash(&entry_path),
@@ -416,15 +451,24 @@ fn list_dir_shallow(path: &Path, cache: &mut HashMap<PathBuf, CachedFrontmatter>
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("");
-        if ext == "md" || ext == "mdx" {
-            let (title, draft, content_type) = read_frontmatter_meta_cached(&entry_path, cache);
+        let is_markdown = ext == "md" || ext == "mdx";
+        if is_markdown || all_files {
+            let (title, draft, content_type) = if is_markdown {
+                read_frontmatter_meta_cached(&entry_path, cache)
+            } else {
+                (None, None, None)
+            };
             nodes.push(FileNode {
                 name,
                 path: to_slash(&entry_path),
                 is_directory: false,
                 children: None,
                 children_loaded: None,
-                extension: Some(format!(".{}", ext)),
+                extension: if ext.is_empty() {
+                    None
+                } else {
+                    Some(format!(".{}", ext))
+                },
                 title,
                 draft,
                 content_type,
@@ -601,7 +645,7 @@ async fn open_workspace_at_path(
         root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        list_dir_shallow(&tree_root, &mut cache)
+        list_dir_shallow(&tree_root, false, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
@@ -681,7 +725,7 @@ async fn open_workspace(
         root.join("site.config.ts").is_file() && root.join("content").is_dir();
     let tree = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        list_dir_shallow(&tree_root, &mut cache)
+        list_dir_shallow(&tree_root, false, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
 
@@ -743,9 +787,14 @@ fn list_workspace(state: State<'_, WorkspaceState>) -> Result<Vec<FileNode>, Str
 #[tauri::command]
 fn list_workspace_children(
     path: String,
+    all_files: Option<bool>,
     state: State<'_, WorkspaceState>,
 ) -> Result<Vec<FileNode>, String> {
-    let root = {
+    let use_all = all_files.unwrap_or(false);
+    let root = if use_all {
+        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
+        root_guard.as_ref().ok_or("no workspace open")?.clone()
+    } else {
         let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
         root_guard.as_ref().ok_or("no workspace open")?.clone()
     };
@@ -757,7 +806,7 @@ fn list_workspace_children(
     let started = Instant::now();
     let tree = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        list_dir_shallow(&dir, &mut cache)
+        list_dir_shallow(&dir, use_all, &mut cache)
     };
     log_perf(
         "list_workspace_children",
@@ -776,7 +825,7 @@ fn get_workspace_revision(state: State<'_, WorkspaceState>) -> Result<String, St
 
 #[tauri::command]
 fn read_file(path: String, state: State<'_, WorkspaceState>) -> Result<String, String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
     std::fs::read_to_string(&canonical).map_err(|e| e.to_string())
@@ -3383,9 +3432,11 @@ mod tests {
         let content_root = dir.path().join("content");
         fs::create_dir_all(content_root.join("posts")).unwrap();
         write_markdown_file(&content_root.join("readme.md"), "Readme", "body");
+        // posts/ must have a markdown descendant or it will be filtered out in content mode
+        write_markdown_file(&content_root.join("posts/first.md"), "First", "body");
 
         let mut cache = HashMap::new();
-        let results = list_dir_shallow(&content_root, &mut cache);
+        let results = list_dir_shallow(&content_root, false, &mut cache);
 
         assert_eq!(results.len(), 2);
         let dir_node = results.iter().find(|node| node.is_directory).unwrap();
@@ -3397,6 +3448,85 @@ mod tests {
         assert_eq!(file_node.name, "readme.md");
         assert_eq!(file_node.title.as_deref(), Some("Readme"));
         assert_eq!(file_node.children_loaded, None);
+    }
+
+    #[test]
+    fn list_dir_shallow_all_files_includes_non_markdown_and_empty_dirs() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("config.ts"), "export default {}").unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/index.ts"), "").unwrap();
+        write_markdown_file(&root.join("readme.md"), "Readme", "body");
+
+        let mut cache = HashMap::new();
+        let results = list_dir_shallow(root, true, &mut cache);
+
+        let names: Vec<&str> = results.iter().map(|n| n.name.as_str()).collect();
+        assert!(names.contains(&"config.ts"), "should include config.ts");
+        assert!(names.contains(&"readme.md"), "should include readme.md");
+        assert!(names.contains(&"src"), "should include src dir");
+    }
+
+    #[test]
+    fn list_dir_shallow_content_mode_excludes_non_markdown_files() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("config.ts"), "export default {}").unwrap();
+        write_markdown_file(&root.join("readme.md"), "Readme", "body");
+
+        let mut cache = HashMap::new();
+        let results = list_dir_shallow(root, false, &mut cache);
+
+        let names: Vec<&str> = results.iter().map(|n| n.name.as_str()).collect();
+        assert!(!names.contains(&"config.ts"), "should exclude config.ts");
+        assert!(names.contains(&"readme.md"), "should include readme.md");
+    }
+
+    #[test]
+    fn list_dir_shallow_all_files_includes_dotfiles() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join(".env"), "SECRET=1").unwrap();
+        fs::write(root.join(".gitignore"), "dist/").unwrap();
+        fs::write(root.join("readme.md"), "# hi").unwrap();
+
+        let mut cache = HashMap::new();
+        let results = list_dir_shallow(root, true, &mut cache);
+
+        let names: Vec<&str> = results.iter().map(|n| n.name.as_str()).collect();
+        assert!(names.contains(&".env"), "should include .env");
+        assert!(names.contains(&".gitignore"), "should include .gitignore");
+    }
+
+    #[test]
+    fn list_dir_shallow_content_mode_excludes_dotfiles() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join(".env"), "SECRET=1").unwrap();
+        write_markdown_file(&root.join("readme.md"), "Readme", "body");
+
+        let mut cache = HashMap::new();
+        let results = list_dir_shallow(root, false, &mut cache);
+
+        let names: Vec<&str> = results.iter().map(|n| n.name.as_str()).collect();
+        assert!(!names.contains(&".env"), "should exclude .env");
+        assert!(names.contains(&"readme.md"), "should include readme.md");
+    }
+
+    #[test]
+    fn has_markdown_descendant_ignores_dotfile_directories() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        // Place a markdown file only inside a hidden directory — should not count
+        let hidden = root.join(".hidden");
+        fs::create_dir_all(&hidden).unwrap();
+        write_markdown_file(&hidden.join("post.md"), "Hidden", "body");
+
+        assert!(
+            !has_markdown_descendant(root),
+            "dotfile dirs should not make a directory appear in content mode"
+        );
     }
 
     fn make_search_result(path: &str, title: Option<&str>, total_matches: usize) -> SearchResult {

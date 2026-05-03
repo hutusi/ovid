@@ -34,6 +34,9 @@
     "active_file_removed": "The active file was removed on disk.",
     "refresh_failed": "Failed to refresh workspace: {{message}}"
   },
+  "workspace": {
+    "load_files_error": "Failed to load files: {{message}}"
+  },
   "font_settings": {
     "editor_settings": "Editor settings (font, spell check, session goal)",
     "editor_settings_label": "Editor settings",
@@ -71,7 +74,17 @@
     "open_folder": "Open folder",
     "resize": "Resize sidebar",
     "no_workspace_name": "No workspace",
-    "changes_inside": "{{status}} changes inside"
+    "changes_inside": "{{status}} changes inside",
+    "mode_content": "Content",
+    "mode_files": "Files",
+    "toggle_mode_to_files": "Switch to Files view",
+    "toggle_mode_to_content": "Switch to Content view"
+  },
+  "file_viewer": {
+    "close": "Close preview",
+    "loading": "Loading…",
+    "image_alt": "Image: {{name}}",
+    "cannot_open": "This file type cannot be opened in Ovid."
   },
   "file_switcher": {
     "title": "Quick file switcher",

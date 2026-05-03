@@ -5,7 +5,9 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { FileViewer, getFileViewKind } from "./components/FileViewer";
 import { PropertiesPanel } from "./components/PropertiesPanel";
+import type { SidebarMode } from "./components/Sidebar";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
@@ -46,6 +48,7 @@ type ModalState =
 type EditorViewState = { selection: number; scrollTop: number };
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
+const SIDEBAR_MODE_KEY_PREFIX = "ovid:sidebarMode";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
 const SAVE_GIT_REFRESH_DELAY_MS = 400;
 const WORKSPACE_REVISION_POLL_MS = 2000;
@@ -107,12 +110,28 @@ function makeFileNodeFromPath(path: string): FileNode {
   };
 }
 
+function mergeFilesTreeChildren(
+  nodes: FileNode[],
+  dirPath: string,
+  children: FileNode[]
+): FileNode[] {
+  return nodes.map((node) => {
+    if (node.path === dirPath && node.isDirectory)
+      return { ...node, children, childrenLoaded: true };
+    if (!node.children) return node;
+    return { ...node, children: mergeFilesTreeChildren(node.children, dirPath, children) };
+  });
+}
+
 function App() {
   const { t } = useTranslation();
   const { resolvedTheme, setPreference } = useTheme();
   const [sidebarVisible, setSidebarVisible] = useState(
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("content");
+  const [fileViewerNode, setFileViewerNode] = useState<import("./lib/types").FileNode | null>(null);
+  const [filesTree, setFilesTree] = useState<FileNode[]>([]);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
@@ -214,7 +233,95 @@ function App() {
     [loadDirectoryChildren]
   );
 
+  const loadFilesTree = useCallback(async () => {
+    if (!workspaceRootPath) return;
+    try {
+      const nodes = await invoke<FileNode[]>("list_workspace_children", {
+        path: workspaceRootPath,
+        allFiles: true,
+      });
+      setFilesTree(nodes);
+    } catch (err) {
+      showToast(
+        t("workspace.load_files_error", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
+  }, [workspaceRootPath, showToast, t]);
+
+  const handleLoadDirectoryChildrenFiles = useCallback(
+    async (dirPath: string) => {
+      try {
+        const children = await invoke<FileNode[]>("list_workspace_children", {
+          path: dirPath,
+          allFiles: true,
+        });
+        setFilesTree((current) => mergeFilesTreeChildren(current, dirPath, children));
+      } catch (err) {
+        showToast(
+          t("workspace.load_files_error", {
+            message: err instanceof Error ? err.message : String(err),
+          })
+        );
+      }
+    },
+    [showToast, t]
+  );
+
+  // Sidebar mode: persist per workspace
+  useEffect(() => {
+    const key = workspaceRootPath
+      ? `${SIDEBAR_MODE_KEY_PREFIX}:${workspaceRootPath}`
+      : SIDEBAR_MODE_KEY_PREFIX;
+    const stored = localStorage.getItem(key);
+    setSidebarMode(stored === "files" ? "files" : "content");
+    setFileViewerNode(null);
+    setFilesTree([]);
+  }, [workspaceRootPath]);
+
+  useEffect(() => {
+    const key = workspaceRootPath
+      ? `${SIDEBAR_MODE_KEY_PREFIX}:${workspaceRootPath}`
+      : SIDEBAR_MODE_KEY_PREFIX;
+    localStorage.setItem(key, sidebarMode);
+    if (sidebarMode === "content") {
+      setFileViewerNode(null);
+      setFilesTree([]);
+    } else {
+      void loadFilesTree();
+    }
+  }, [sidebarMode, workspaceRootPath, loadFilesTree]);
+
+  function handleToggleSidebarMode() {
+    setSidebarMode((prev) => (prev === "content" ? "files" : "content"));
+  }
+
+  function handleSidebarSelect(node: import("./lib/types").FileNode) {
+    const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
+    if (sidebarMode === "content" || isMarkdown) {
+      setFileViewerNode(null);
+      void handleSelectFile(node);
+      if (!node.isDirectory) {
+        pushRecent(node);
+        openTab(node.path);
+      }
+      return;
+    }
+    const kind = getFileViewKind(node);
+    if (kind === null) {
+      showToast(t("file_viewer.cannot_open"));
+      return;
+    }
+    void handleCloseFile();
+    setFileViewerNode(node);
+  }
+
   const closeActiveTabOrFile = useCallback(() => {
+    if (fileViewerNode) {
+      setFileViewerNode(null);
+      return;
+    }
     if (selectedFile && tabs.includes(selectedFile.path)) {
       const { neighbor } = closeTab(selectedFile.path);
       if (neighbor) {
@@ -225,7 +332,16 @@ function App() {
       }
     }
     void handleCloseFile();
-  }, [selectedFile, tabs, closeTab, tree, handleSelectFile, pushRecent, handleCloseFile]);
+  }, [
+    fileViewerNode,
+    selectedFile,
+    tabs,
+    closeTab,
+    tree,
+    handleSelectFile,
+    pushRecent,
+    handleCloseFile,
+  ]);
 
   const handleEditorViewStateChange = useCallback(
     (viewState: EditorViewState) => {
@@ -853,6 +969,7 @@ function App() {
 
   function handleSelectFromTab(path: string) {
     const node = findNodeByPath(tree, path) ?? makeFileNodeFromPath(path);
+    setFileViewerNode(null);
     void handleSelectFile(node);
     pushRecent(node);
   }
@@ -876,23 +993,23 @@ function App() {
           </Suspense>
         ) : (
           <Sidebar
-            tree={tree}
+            tree={sidebarMode === "files" ? filesTree : tree}
             workspaceKey={workspaceRootPath}
-            selectedPath={selectedFile?.path ?? null}
+            selectedPath={fileViewerNode?.path ?? selectedFile?.path ?? null}
             visible={sidebarVisible}
             workspaceName={workspaceName}
             gitStatusMap={gitStatusMap}
-            onSelect={(node) => {
-              void handleSelectFile(node);
-              if (!node.isDirectory) {
-                pushRecent(node);
-                openTab(node.path);
-              }
-            }}
+            mode={sidebarMode}
+            onToggleMode={handleToggleSidebarMode}
+            onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => setWorkspaceSwitcherOpen(true)}
             onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
-            onLoadDirectoryChildren={handleLoadDirectoryChildren}
+            onLoadDirectoryChildren={
+              sidebarMode === "files"
+                ? (dirPath) => void handleLoadDirectoryChildrenFiles(dirPath)
+                : handleLoadDirectoryChildren
+            }
             onRename={(node) => setModal({ type: "rename-path", node })}
             onDuplicate={(node) => setModal({ type: "duplicate-file", node })}
             onNewFromExisting={(node) => setModal({ type: "new-from-existing", node })}
@@ -919,7 +1036,9 @@ function App() {
               />
             </div>
           )}
-          {selectedFile ? (
+          {fileViewerNode ? (
+            <FileViewer node={fileViewerNode} onClose={() => setFileViewerNode(null)} />
+          ) : selectedFile ? (
             <ErrorBoundary key={selectedFile.path}>
               <Suspense fallback={<div className="editor-loading">Loading editor…</div>}>
                 <Editor

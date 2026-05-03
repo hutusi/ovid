@@ -101,6 +101,15 @@ describe("postPath", () => {
     expect(getPathDisplayLabel(makeNode("/workspace/posts/hello/index.mdx"))).toBe(
       "hello/index.mdx"
     );
+    // collapsed node: name is overwritten to folder name by collapseIndexNodes
+    expect(
+      getPathDisplayLabel(
+        makeNode("/workspace/posts/hello/index.md", {
+          name: "hello",
+          containerDirPath: "/workspace/posts/hello",
+        })
+      )
+    ).toBe("hello/index.md");
   });
 
   test("builds rename dialog state with fixed suffixes", () => {
@@ -124,6 +133,19 @@ describe("postPath", () => {
       currentPath: "hello/index.mdx",
       currentName: "hello",
       suffix: "/index.mdx",
+    });
+    // collapsed node: name is overwritten to folder name by collapseIndexNodes
+    expect(
+      getRenamePathDialogState(
+        makeNode("/workspace/posts/hello/index.md", {
+          name: "hello",
+          containerDirPath: "/workspace/posts/hello",
+        })
+      )
+    ).toEqual({
+      currentPath: "hello/index.md",
+      currentName: "hello",
+      suffix: "/index.md",
     });
   });
 

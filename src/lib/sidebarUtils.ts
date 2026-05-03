@@ -98,6 +98,48 @@ export function sortTree(nodes: FileNode[]): FileNode[] {
   });
 }
 
+const NOISE_DIRS = new Set([
+  ".git",
+  "node_modules",
+  "target",
+  "dist",
+  "build",
+  ".next",
+  ".nuxt",
+  ".svelte-kit",
+  "vendor",
+  ".cache",
+  "__pycache__",
+  ".tox",
+  ".venv",
+  "venv",
+  "out",
+  ".turbo",
+  ".vercel",
+  ".parcel-cache",
+]);
+
+/** Remove well-known build/tooling directories from the tree for Files mode. */
+export function filterNoiseDirs(nodes: FileNode[]): FileNode[] {
+  return nodes.flatMap((node) => {
+    if (node.isDirectory && NOISE_DIRS.has(node.name)) return [];
+    if (!node.isDirectory) return [node];
+    return [{ ...node, children: filterNoiseDirs(node.children ?? []) }];
+  });
+}
+
+/** Sort tree alphabetically: directories first, then all files by name. */
+export function sortTreeAlpha(nodes: FileNode[]): FileNode[] {
+  const sorted = [...nodes].sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  return sorted.map((node) => {
+    if (!node.isDirectory) return node;
+    return { ...node, children: sortTreeAlpha(node.children ?? []) };
+  });
+}
+
 /** Returns true when a divider should be rendered before `nodes[index]`:
  *  the node is the first `page`-type file and there are non-page files
  *  earlier in the same list. */
