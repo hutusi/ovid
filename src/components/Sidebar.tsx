@@ -13,6 +13,7 @@ import {
   shouldDefaultExpand,
 } from "../lib/sidebarExpansion";
 import {
+  collapseIndexNodes,
   filterNoiseDirs,
   filterTree,
   getSidebarDisplayName,
@@ -313,7 +314,7 @@ export function Sidebar({
       measureSync(
         "sidebar.renderedNodes",
         () => {
-          const base = filesMode ? filterNoiseDirs(tree) : tree;
+          const base = filesMode ? filterNoiseDirs(tree) : collapseIndexNodes(tree);
           const filtered = filterQuery ? filterTree(base, filterQuery) : base;
           return filesMode ? sortTreeAlpha(filtered) : sortTree(filtered);
         },
