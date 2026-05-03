@@ -3450,6 +3450,85 @@ mod tests {
         assert_eq!(file_node.children_loaded, None);
     }
 
+    #[test]
+    fn list_dir_shallow_all_files_includes_non_markdown_and_empty_dirs() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("config.ts"), "export default {}").unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src/index.ts"), "").unwrap();
+        write_markdown_file(&root.join("readme.md"), "Readme", "body");
+
+        let mut cache = HashMap::new();
+        let results = list_dir_shallow(root, true, &mut cache);
+
+        let names: Vec<&str> = results.iter().map(|n| n.name.as_str()).collect();
+        assert!(names.contains(&"config.ts"), "should include config.ts");
+        assert!(names.contains(&"readme.md"), "should include readme.md");
+        assert!(names.contains(&"src"), "should include src dir");
+    }
+
+    #[test]
+    fn list_dir_shallow_content_mode_excludes_non_markdown_files() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("config.ts"), "export default {}").unwrap();
+        write_markdown_file(&root.join("readme.md"), "Readme", "body");
+
+        let mut cache = HashMap::new();
+        let results = list_dir_shallow(root, false, &mut cache);
+
+        let names: Vec<&str> = results.iter().map(|n| n.name.as_str()).collect();
+        assert!(!names.contains(&"config.ts"), "should exclude config.ts");
+        assert!(names.contains(&"readme.md"), "should include readme.md");
+    }
+
+    #[test]
+    fn list_dir_shallow_all_files_includes_dotfiles() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join(".env"), "SECRET=1").unwrap();
+        fs::write(root.join(".gitignore"), "dist/").unwrap();
+        fs::write(root.join("readme.md"), "# hi").unwrap();
+
+        let mut cache = HashMap::new();
+        let results = list_dir_shallow(root, true, &mut cache);
+
+        let names: Vec<&str> = results.iter().map(|n| n.name.as_str()).collect();
+        assert!(names.contains(&".env"), "should include .env");
+        assert!(names.contains(&".gitignore"), "should include .gitignore");
+    }
+
+    #[test]
+    fn list_dir_shallow_content_mode_excludes_dotfiles() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join(".env"), "SECRET=1").unwrap();
+        write_markdown_file(&root.join("readme.md"), "Readme", "body");
+
+        let mut cache = HashMap::new();
+        let results = list_dir_shallow(root, false, &mut cache);
+
+        let names: Vec<&str> = results.iter().map(|n| n.name.as_str()).collect();
+        assert!(!names.contains(&".env"), "should exclude .env");
+        assert!(names.contains(&"readme.md"), "should include readme.md");
+    }
+
+    #[test]
+    fn has_markdown_descendant_ignores_dotfile_directories() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        // Place a markdown file only inside a hidden directory — should not count
+        let hidden = root.join(".hidden");
+        fs::create_dir_all(&hidden).unwrap();
+        write_markdown_file(&hidden.join("post.md"), "Hidden", "body");
+
+        assert!(
+            !has_markdown_descendant(root),
+            "dotfile dirs should not make a directory appear in content mode"
+        );
+    }
+
     fn make_search_result(path: &str, title: Option<&str>, total_matches: usize) -> SearchResult {
         SearchResult {
             path: path.to_string(),

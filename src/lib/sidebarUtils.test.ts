@@ -1,12 +1,14 @@
 import { describe, expect, it } from "bun:test";
 import {
   collapseIndexNodes,
+  filterNoiseDirs,
   filterTree,
   getSidebarDisplayName,
   needsPageDivider,
   rollupGitStatus,
   sortNodes,
   sortTree,
+  sortTreeAlpha,
 } from "./sidebarUtils";
 import type { FileNode, GitStatus } from "./types";
 
@@ -432,5 +434,98 @@ describe("getSidebarDisplayName", () => {
   it("falls back to the bare name when index has no parent folder", () => {
     const indexFile = makeFile("index.md", { path: "index.md" });
     expect(getSidebarDisplayName(indexFile)).toBe("index");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// filterNoiseDirs
+// ---------------------------------------------------------------------------
+
+describe("filterNoiseDirs", () => {
+  it("returns empty array for empty input", () => {
+    expect(filterNoiseDirs([])).toEqual([]);
+  });
+
+  it("removes well-known noise directories", () => {
+    const noise = ["node_modules", ".git", "dist", "build", "target", "out", ".next"];
+    for (const name of noise) {
+      const dir: FileNode = { name, path: `/ws/${name}`, isDirectory: true };
+      expect(filterNoiseDirs([dir])).toEqual([]);
+    }
+  });
+
+  it("keeps regular directories", () => {
+    const src: FileNode = { name: "src", path: "/ws/src", isDirectory: true, children: [] };
+    expect(filterNoiseDirs([src])).toEqual([src]);
+  });
+
+  it("keeps plain files regardless of name", () => {
+    const file = makeFile("package.json");
+    expect(filterNoiseDirs([file])).toEqual([file]);
+  });
+
+  it("removes noise dirs nested inside kept dirs", () => {
+    const nm: FileNode = { name: "node_modules", path: "/ws/pkg/node_modules", isDirectory: true };
+    const pkg: FileNode = { name: "pkg", path: "/ws/pkg", isDirectory: true, children: [nm] };
+    const [result] = filterNoiseDirs([pkg]);
+    expect(result.children).toEqual([]);
+  });
+
+  it("preserves non-noise siblings when removing noise", () => {
+    const nm: FileNode = { name: "node_modules", path: "/ws/node_modules", isDirectory: true };
+    const src: FileNode = { name: "src", path: "/ws/src", isDirectory: true, children: [] };
+    const file = makeFile("package.json");
+    const result = filterNoiseDirs([nm, src, file]);
+    expect(result).toHaveLength(2);
+    expect(result.map((n) => n.name)).toEqual(["src", "package.json"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sortTreeAlpha
+// ---------------------------------------------------------------------------
+
+describe("sortTreeAlpha", () => {
+  it("returns empty array for empty input", () => {
+    expect(sortTreeAlpha([])).toEqual([]);
+  });
+
+  it("sorts directories before files", () => {
+    const file = makeFile("alpha.md");
+    const dir: FileNode = { name: "zzz", path: "/ws/zzz", isDirectory: true, children: [] };
+    const result = sortTreeAlpha([file, dir]);
+    expect(result[0].isDirectory).toBe(true);
+    expect(result[1].isDirectory).toBe(false);
+  });
+
+  it("sorts files alphabetically after directories", () => {
+    const c = makeFile("c.md");
+    const a = makeFile("a.md");
+    const b = makeFile("b.md");
+    const result = sortTreeAlpha([c, a, b]);
+    expect(result.map((n) => n.name)).toEqual(["a.md", "b.md", "c.md"]);
+  });
+
+  it("sorts directories alphabetically among themselves", () => {
+    const z: FileNode = { name: "z-dir", path: "/ws/z-dir", isDirectory: true, children: [] };
+    const a: FileNode = { name: "a-dir", path: "/ws/a-dir", isDirectory: true, children: [] };
+    const result = sortTreeAlpha([z, a]);
+    expect(result.map((n) => n.name)).toEqual(["a-dir", "z-dir"]);
+  });
+
+  it("sorts children recursively", () => {
+    const c = makeFile("c.md");
+    const a = makeFile("a.md");
+    const dir: FileNode = { name: "posts", path: "/ws/posts", isDirectory: true, children: [c, a] };
+    const [result] = sortTreeAlpha([dir]);
+    expect(result.children?.map((n) => n.name)).toEqual(["a.md", "c.md"]);
+  });
+
+  it("does not mutate the input array", () => {
+    const b = makeFile("b.md");
+    const a = makeFile("a.md");
+    const nodes = [b, a];
+    sortTreeAlpha(nodes);
+    expect(nodes.map((n) => n.name)).toEqual(["b.md", "a.md"]);
   });
 });
