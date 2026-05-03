@@ -277,6 +277,7 @@ function App() {
     const stored = localStorage.getItem(key);
     setSidebarMode(stored === "files" ? "files" : "content");
     setFileViewerNode(null);
+    setFilesTree([]);
   }, [workspaceRootPath]);
 
   useEffect(() => {
@@ -317,6 +318,10 @@ function App() {
   }
 
   const closeActiveTabOrFile = useCallback(() => {
+    if (fileViewerNode) {
+      setFileViewerNode(null);
+      return;
+    }
     if (selectedFile && tabs.includes(selectedFile.path)) {
       const { neighbor } = closeTab(selectedFile.path);
       if (neighbor) {
@@ -327,7 +332,16 @@ function App() {
       }
     }
     void handleCloseFile();
-  }, [selectedFile, tabs, closeTab, tree, handleSelectFile, pushRecent, handleCloseFile]);
+  }, [
+    fileViewerNode,
+    selectedFile,
+    tabs,
+    closeTab,
+    tree,
+    handleSelectFile,
+    pushRecent,
+    handleCloseFile,
+  ]);
 
   const handleEditorViewStateChange = useCallback(
     (viewState: EditorViewState) => {

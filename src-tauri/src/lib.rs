@@ -376,6 +376,10 @@ fn has_markdown_descendant(path: &Path) -> bool {
         return false;
     };
     for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
         let Ok(ft) = entry.file_type() else { continue };
         if ft.is_symlink() {
             continue;
