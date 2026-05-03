@@ -522,7 +522,8 @@ function App() {
         !renameBranchDialog &&
         !deleteBranchDialog &&
         !workspaceSwitcherOpen &&
-        !updateDialogOpen
+        !updateDialogOpen &&
+        !wechatPublishDialogOpen
       ) {
         setZenMode(false);
         return;
@@ -621,6 +622,7 @@ function App() {
     deleteBranchDialog,
     workspaceSwitcherOpen,
     updateDialogOpen,
+    wechatPublishDialogOpen,
     closeActiveTabOrFile,
   ]);
 

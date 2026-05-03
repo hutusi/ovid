@@ -32,6 +32,7 @@ struct WechatState {
 }
 
 struct WechatTokenCache {
+    app_id: String,
     access_token: String,
     expires_at: Instant,
 }
@@ -2397,7 +2398,11 @@ fn get_wechat_credentials_status() -> Result<WechatCredStatus, String> {
 }
 
 #[tauri::command]
-fn set_wechat_credentials(app_id: String, app_secret: String) -> Result<(), String> {
+fn set_wechat_credentials(
+    app_id: String,
+    app_secret: String,
+    wechat_state: State<'_, WechatState>,
+) -> Result<(), String> {
     keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
         .map_err(|e| e.to_string())?
         .set_password(&app_id)
@@ -2406,32 +2411,46 @@ fn set_wechat_credentials(app_id: String, app_secret: String) -> Result<(), Stri
         .map_err(|e| e.to_string())?
         .set_password(&app_secret)
         .map_err(|e| e.to_string())?;
+    *wechat_state.token_cache.lock().map_err(|e| e.to_string())? = None;
     Ok(())
 }
 
+fn wechat_ignore_missing(e: keyring::Error) -> Result<(), String> {
+    match e {
+        keyring::Error::NoEntry => Ok(()),
+        other => Err(other.to_string()),
+    }
+}
+
 #[tauri::command]
-fn clear_wechat_credentials() -> Result<(), String> {
-    let _ = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
-        .map(|e| e.delete_credential());
-    let _ = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
-        .map(|e| e.delete_credential());
+fn clear_wechat_credentials(wechat_state: State<'_, WechatState>) -> Result<(), String> {
+    *wechat_state.token_cache.lock().map_err(|e| e.to_string())? = None;
+    keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
+        .map_err(|e| e.to_string())?
+        .delete_credential()
+        .or_else(wechat_ignore_missing)?;
+    keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
+        .map_err(|e| e.to_string())?
+        .delete_credential()
+        .or_else(wechat_ignore_missing)?;
     Ok(())
 }
 
 async fn wechat_get_or_refresh_token(wechat_state: &WechatState) -> Result<String, String> {
+    let app_id = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
+        .map_err(|e| e.to_string())?
+        .get_password()
+        .map_err(|_| "WeChat credentials not configured. Use File > Save Draft to WeChat to set up your AppID and AppSecret.".to_string())?;
+
     {
         let cache = wechat_state.token_cache.lock().map_err(|e| e.to_string())?;
         if let Some(ref cached) = *cache {
-            if cached.expires_at > Instant::now() {
+            if cached.app_id == app_id && cached.expires_at > Instant::now() {
                 return Ok(cached.access_token.clone());
             }
         }
     }
 
-    let app_id = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_ID_KEY)
-        .map_err(|e| e.to_string())?
-        .get_password()
-        .map_err(|_| "WeChat credentials not configured. Use File > Publish to WeChat to set up your AppID and AppSecret.".to_string())?;
     let app_secret = keyring::Entry::new(WECHAT_KEYRING_SERVICE, WECHAT_APP_SECRET_KEY)
         .map_err(|e| e.to_string())?
         .get_password()
@@ -2463,6 +2482,7 @@ async fn wechat_get_or_refresh_token(wechat_state: &WechatState) -> Result<Strin
 
     let mut cache = wechat_state.token_cache.lock().map_err(|e| e.to_string())?;
     *cache = Some(WechatTokenCache {
+        app_id,
         access_token: token.clone(),
         // Expire 200 seconds before the real 7200s window for safety
         expires_at: Instant::now() + std::time::Duration::from_secs(7000),
@@ -2595,6 +2615,20 @@ fn extract_img_srcs(html: &str) -> Vec<String> {
     srcs
 }
 
+/// Resolve an asset path relative to `base_dir` and validate it is inside `workspace_root`.
+fn resolve_wechat_asset_path(
+    workspace_root: &Path,
+    base_dir: &Path,
+    requested: &str,
+) -> Result<PathBuf, String> {
+    let candidate = if Path::new(requested).is_absolute() {
+        PathBuf::from(requested)
+    } else {
+        base_dir.join(requested)
+    };
+    validate_path(workspace_root, &candidate.to_string_lossy())
+}
+
 #[tauri::command]
 async fn wechat_publish_draft(
     title: String,
@@ -2602,8 +2636,16 @@ async fn wechat_publish_draft(
     html: String,
     base_dir: String,
     cover_image_path: Option<String>,
+    workspace_state: State<'_, WorkspaceState>,
     wechat_state: State<'_, WechatState>,
 ) -> Result<WechatPublishResult, String> {
+    let workspace_root = workspace_state
+        .workspace_root
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or("no workspace open")?;
+
     let cover_path_str = match cover_image_path {
         Some(ref p) if !p.is_empty() => p.clone(),
         _ => {
@@ -2615,20 +2657,10 @@ async fn wechat_publish_draft(
 
     let token = wechat_get_or_refresh_token(&wechat_state).await?;
     let client = reqwest::Client::new();
-    let base = Path::new(&base_dir);
+    let base = validate_path(&workspace_root, &base_dir)?;
 
     // Upload cover image as permanent material to get thumb_media_id
-    let cover_path = if Path::new(&cover_path_str).is_absolute() {
-        PathBuf::from(&cover_path_str)
-    } else {
-        base.join(&cover_path_str)
-    };
-    if !cover_path.exists() {
-        return Err(format!(
-            "Cover image not found: {}",
-            cover_path.display()
-        ));
-    }
+    let cover_path = resolve_wechat_asset_path(&workspace_root, &base, &cover_path_str)?;
     let thumb_id = wechat_upload_thumb(&client, &token, &cover_path).await?;
 
     // Upload body images (local paths only) and replace src attributes
@@ -2638,23 +2670,12 @@ async fn wechat_publish_draft(
         if src.starts_with("http://") || src.starts_with("https://") {
             continue;
         }
-        let img_path = if Path::new(&src).is_absolute() {
-            PathBuf::from(&src)
-        } else {
-            base.join(&src)
-        };
-        if !img_path.exists() {
-            continue;
-        }
-        match wechat_upload_body_image(&client, &token, &img_path).await {
-            Ok(wechat_url) => {
-                processed_html = processed_html.replace(
-                    &format!("src=\"{}\"", src),
-                    &format!("src=\"{}\"", wechat_url),
-                );
-            }
-            Err(e) => eprintln!("Skipping image upload for {}: {}", src, e),
-        }
+        let img_path = resolve_wechat_asset_path(&workspace_root, &base, &src)?;
+        let wechat_url = wechat_upload_body_image(&client, &token, &img_path).await?;
+        processed_html = processed_html.replace(
+            &format!("src=\"{}\"", src),
+            &format!("src=\"{}\"", wechat_url),
+        );
     }
 
     // Create draft via WeChat API
