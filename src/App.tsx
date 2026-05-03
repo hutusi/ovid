@@ -234,10 +234,10 @@ function App() {
   );
 
   const loadFilesTree = useCallback(async () => {
-    if (!workspaceRoot) return;
+    if (!workspaceRootPath) return;
     try {
       const nodes = await invoke<FileNode[]>("list_workspace_children", {
-        path: workspaceRoot,
+        path: workspaceRootPath,
         allFiles: true,
       });
       setFilesTree(nodes);
@@ -248,7 +248,7 @@ function App() {
         })
       );
     }
-  }, [workspaceRoot, showToast, t]);
+  }, [workspaceRootPath, showToast, t]);
 
   const handleLoadDirectoryChildrenFiles = useCallback(
     async (dirPath: string) => {

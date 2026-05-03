@@ -782,7 +782,11 @@ fn list_workspace_children(
     all_files: Option<bool>,
     state: State<'_, WorkspaceState>,
 ) -> Result<Vec<FileNode>, String> {
-    let root = {
+    let use_all = all_files.unwrap_or(false);
+    let root = if use_all {
+        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
+        root_guard.as_ref().ok_or("no workspace open")?.clone()
+    } else {
         let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
         root_guard.as_ref().ok_or("no workspace open")?.clone()
     };
@@ -794,7 +798,7 @@ fn list_workspace_children(
     let started = Instant::now();
     let tree = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        list_dir_shallow(&dir, all_files.unwrap_or(false), &mut cache)
+        list_dir_shallow(&dir, use_all, &mut cache)
     };
     log_perf(
         "list_workspace_children",
@@ -813,7 +817,7 @@ fn get_workspace_revision(state: State<'_, WorkspaceState>) -> Result<String, St
 
 #[tauri::command]
 fn read_file(path: String, state: State<'_, WorkspaceState>) -> Result<String, String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
     std::fs::read_to_string(&canonical).map_err(|e| e.to_string())
