@@ -12,9 +12,10 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
 import { findNodeByPath, loadLastRecentFilePath } from "./lib/appRestore";
+import { parseFrontmatter } from "./lib/frontmatter";
 import { AUTO_FETCH_COOLDOWN_MS, runAutoFetchOnFocus } from "./lib/gitAutoFetch";
 import { getGitBranchTitle } from "./lib/gitUi";
-import { resolveImageSrc } from "./lib/imageUtils";
+import { resolveImageSrc, resolveRelativePath } from "./lib/imageUtils";
 import { isPerfLoggingEnabled } from "./lib/perf";
 import {
   getDuplicateNameSuggestion,
@@ -35,6 +36,7 @@ import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspace } from "./lib/useWorkspace";
+import { markdownToWechatHtml } from "./lib/wechatHtml";
 import { getExternalWorkspaceChangeAction } from "./lib/workspaceRefresh";
 import "./styles/global.css";
 import "./App.css";
@@ -97,6 +99,9 @@ const UpdateDialog = lazy(async () => ({
 const RenamePathDialog = lazy(async () => ({
   default: (await import("./components/RenamePathDialog")).RenamePathDialog,
 }));
+const WechatPublishDialog = lazy(async () => ({
+  default: (await import("./components/WechatPublishDialog")).WechatPublishDialog,
+}));
 
 function makeFileNodeFromPath(path: string): FileNode {
   const normalizedPath = path.replace(/\\/g, "/");
@@ -142,6 +147,7 @@ function App() {
   const [workspaceSwitcherOpen, setWorkspaceSwitcherOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
+  const [wechatPublishDialogOpen, setWechatPublishDialogOpen] = useState(false);
   const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
   const lastAutoFetchAtRef = useRef(0);
@@ -171,6 +177,7 @@ function App() {
     parsedFrontmatter,
     saveStatus,
     selectedPathRef,
+    pendingMarkdownRef,
     flushPendingSave,
     resetFileState,
     handleCloseFile,
@@ -515,7 +522,8 @@ function App() {
         !renameBranchDialog &&
         !deleteBranchDialog &&
         !workspaceSwitcherOpen &&
-        !updateDialogOpen
+        !updateDialogOpen &&
+        !wechatPublishDialogOpen
       ) {
         setZenMode(false);
         return;
@@ -614,6 +622,7 @@ function App() {
     deleteBranchDialog,
     workspaceSwitcherOpen,
     updateDialogOpen,
+    wechatPublishDialogOpen,
     closeActiveTabOrFile,
   ]);
 
@@ -788,6 +797,30 @@ function App() {
     };
   }, [workspaceRoot, isGitRepo, handleFetch]);
 
+  const handleWechatCopy = useCallback(async () => {
+    const markdown = pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body;
+    if (!markdown.trim()) {
+      showToast(t("menu.file_wechat_copy_no_content"));
+      return;
+    }
+    const { html, hasMath } = markdownToWechatHtml(markdown);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }) }),
+      ]);
+    } catch {
+      try {
+        await navigator.clipboard.writeText(html);
+      } catch (fallbackErr) {
+        showToast(String(fallbackErr));
+        return;
+      }
+    }
+    showToast(
+      hasMath ? t("menu.file_wechat_copy_math_warning") : t("menu.file_wechat_copy_success")
+    );
+  }, [pendingMarkdownRef, fileContent, showToast, t]);
+
   // Forward native menu events to the same handlers as keyboard shortcuts
   useEffect(() => {
     let mounted = true;
@@ -802,7 +835,8 @@ function App() {
         renameBranchDialog !== null ||
         deleteBranchDialog !== null ||
         workspaceSwitcherOpen ||
-        updateDialogOpen;
+        updateDialogOpen ||
+        wechatPublishDialogOpen;
       switch (event.payload) {
         case "new-post":
         case "new-flow":
@@ -898,6 +932,16 @@ function App() {
             void runGitAction("fetch", handleFetch, "Fetched remote updates");
           }
           break;
+        case "wechat-copy":
+          if (selectedFile) {
+            void handleWechatCopy();
+          }
+          break;
+        case "wechat-publish":
+          if (!hasBlockingOverlay && selectedFile) {
+            setWechatPublishDialogOpen(true);
+          }
+          break;
       }
     }).then((fn) => {
       if (mounted) {
@@ -920,6 +964,7 @@ function App() {
     deleteBranchDialog,
     workspaceSwitcherOpen,
     updateDialogOpen,
+    wechatPublishDialogOpen,
     workspaceRoot,
     tree,
     isGitRepo,
@@ -938,6 +983,8 @@ function App() {
     closeActiveTabOrFile,
     handleOpenWorkspace,
     handleNewTodayFlow,
+    handleWechatCopy,
+    selectedFile,
     prefs,
     updatePrefs,
   ]);
@@ -946,6 +993,18 @@ function App() {
     parsedFrontmatter.coverImage != null && parsedFrontmatter.coverImage !== ""
       ? String(parsedFrontmatter.coverImage)
       : undefined;
+
+  // Values passed to WechatPublishDialog when opened
+  const wechatBaseDir = selectedFile
+    ? selectedFile.path.substring(0, selectedFile.path.lastIndexOf("/"))
+    : (workspaceRootPath ?? "");
+  const wechatCoverImagePath =
+    coverImagePath && selectedFile
+      ? resolveRelativePath(
+          selectedFile.path.substring(0, selectedFile.path.lastIndexOf("/")),
+          coverImagePath
+        )
+      : null;
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
@@ -1155,6 +1214,22 @@ function App() {
           <UpdateDialog
             onBeforeRestart={flushPendingSave}
             onClose={() => setUpdateDialogOpen(false)}
+          />
+        </Suspense>
+      )}
+      {wechatPublishDialogOpen && selectedFile && (
+        <Suspense fallback={null}>
+          <WechatPublishDialog
+            title={
+              parsedFrontmatter.title != null
+                ? String(parsedFrontmatter.title)
+                : selectedFile.name.replace(/\.mdx?$/, "")
+            }
+            author={parsedFrontmatter.author != null ? String(parsedFrontmatter.author) : ""}
+            markdown={pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body}
+            baseDir={wechatBaseDir}
+            coverImagePath={wechatCoverImagePath}
+            onClose={() => setWechatPublishDialogOpen(false)}
           />
         </Suspense>
       )}

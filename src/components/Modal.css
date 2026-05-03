@@ -53,6 +53,10 @@
   margin: 0;
 }
 
+.modal-copy-warning {
+  color: var(--color-warning);
+}
+
 /* ── Input / Textarea ─────────────────────────── */
 .modal-input,
 .modal-textarea {

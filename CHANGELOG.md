@@ -18,6 +18,13 @@ release cadence and Conventional Commit history.
   presented as a single post item in Content mode (with a small badge indicator), removing the
   visual noise of the redundant nested file. The actual file path is used in the status bar and
   rename dialog.
+- **WeChat copy**: `File → Copy for WeChat` converts the active Markdown document to
+  WeChat-compatible inline-styled HTML and copies it to the clipboard. Math blocks (LaTeX) are
+  stripped with a warning toast since WeChat cannot render them.
+- **WeChat publish**: `File → Save Draft to WeChat…` opens a dialog to save the active document
+  as a draft to a WeChat Official Account. Credentials (AppID/AppSecret) are stored securely in
+  the app config directory. Body images are uploaded to the WeChat CDN and the cover image is
+  uploaded as a permanent material. Access tokens are cached in-memory with automatic refresh.
 
 ### Changed
 - Files mode tree is rooted at the actual project root (`workspace_root`), not the Amytis

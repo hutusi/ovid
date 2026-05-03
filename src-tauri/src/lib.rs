@@ -26,6 +26,28 @@ struct AboutState {
     body_template: Mutex<String>,
 }
 
+// Caches the WeChat access token so we don't refetch it on every publish.
+struct WechatState {
+    token_cache: Mutex<Option<WechatTokenCache>>,
+}
+
+struct WechatTokenCache {
+    app_id: String,
+    access_token: String,
+    expires_at: Instant,
+}
+
+#[derive(Serialize)]
+struct WechatCredStatus {
+    app_id: Option<String>,
+    has_secret: bool,
+}
+
+#[derive(Serialize)]
+struct WechatPublishResult {
+    media_id: String,
+}
+
 #[derive(Clone)]
 struct CachedFrontmatter {
     modified: Option<SystemTime>,
@@ -2355,6 +2377,400 @@ fn save_asset_from_bytes(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// WeChat publish
+// ──────────────────────────────────────────────────────────────────────────
+
+const WECHAT_APP_ID_KEY: &str = "app_id";
+const WECHAT_APP_SECRET_KEY: &str = "app_secret";
+
+// Credentials are stored as a plain JSON file in the app config directory
+// (e.g. ~/Library/Application Support/com.hutusi.ovid/wechat_credentials.json).
+// This avoids macOS Keychain ACL prompts that arise from per-app-binary access
+// policies — which break in dev mode and are fragile across code-signature changes.
+fn wechat_creds_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|d| d.join("wechat_credentials.json"))
+        .map_err(|e| e.to_string())
+}
+
+fn wechat_get_cred(path: &Path, key: &str) -> Result<Option<String>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let map: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(&content).unwrap_or_default();
+    Ok(map.get(key).and_then(|v| v.as_str()).map(|s| s.to_string()))
+}
+
+fn wechat_set_cred(path: &Path, key: &str, value: &str) -> Result<(), String> {
+    let mut map: serde_json::Map<String, serde_json::Value> = if path.exists() {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        serde_json::Map::new()
+    };
+    map.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let content = serde_json::to_string_pretty(&map).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    // Restrict to owner read/write only
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn wechat_del_cred(path: &Path, key: &str) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let mut map: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_str(&content).unwrap_or_default();
+    map.remove(key);
+    if map.is_empty() {
+        let _ = std::fs::remove_file(path);
+    } else {
+        let content = serde_json::to_string_pretty(&map).map_err(|e| e.to_string())?;
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
+        std::fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn get_wechat_credentials_status(app: tauri::AppHandle) -> Result<WechatCredStatus, String> {
+    let path = wechat_creds_path(&app)?;
+    let app_id = wechat_get_cred(&path, WECHAT_APP_ID_KEY)?;
+    let has_secret = wechat_get_cred(&path, WECHAT_APP_SECRET_KEY)?.is_some();
+    Ok(WechatCredStatus { app_id, has_secret })
+}
+
+#[tauri::command]
+fn set_wechat_credentials(
+    app: tauri::AppHandle,
+    app_id: String,
+    app_secret: String,
+    wechat_state: State<'_, WechatState>,
+) -> Result<(), String> {
+    let path = wechat_creds_path(&app)?;
+    wechat_set_cred(&path, WECHAT_APP_ID_KEY, &app_id)?;
+    wechat_set_cred(&path, WECHAT_APP_SECRET_KEY, &app_secret)?;
+    *wechat_state.token_cache.lock().map_err(|e| e.to_string())? = None;
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_wechat_credentials(
+    app: tauri::AppHandle,
+    wechat_state: State<'_, WechatState>,
+) -> Result<(), String> {
+    *wechat_state.token_cache.lock().map_err(|e| e.to_string())? = None;
+    let path = wechat_creds_path(&app)?;
+    wechat_del_cred(&path, WECHAT_APP_ID_KEY)?;
+    wechat_del_cred(&path, WECHAT_APP_SECRET_KEY)?;
+    Ok(())
+}
+
+async fn wechat_get_or_refresh_token(
+    creds_path: &Path,
+    wechat_state: &WechatState,
+) -> Result<String, String> {
+    let app_id = wechat_get_cred(creds_path, WECHAT_APP_ID_KEY)?
+        .ok_or_else(|| "WeChat credentials not configured. Use File > Save Draft to WeChat to set up your AppID and AppSecret.".to_string())?;
+
+    {
+        let cache = wechat_state.token_cache.lock().map_err(|e| e.to_string())?;
+        if let Some(ref cached) = *cache {
+            if cached.app_id == app_id && cached.expires_at > Instant::now() {
+                return Ok(cached.access_token.clone());
+            }
+        }
+    }
+
+    let app_secret = wechat_get_cred(creds_path, WECHAT_APP_SECRET_KEY)?
+        .ok_or_else(|| "WeChat credentials not configured.".to_string())?;
+
+    let url = format!(
+        "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={}&secret={}",
+        app_id, app_secret
+    );
+    let resp: serde_json::Value = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Network error fetching WeChat token: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse WeChat token response: {}", e))?;
+
+    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
+        if errcode != 0 {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("WeChat token error {}: {}", errcode, errmsg));
+        }
+    }
+
+    let token = resp
+        .get("access_token")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("No access_token in WeChat response: {}", resp))?
+        .to_string();
+
+    let mut cache = wechat_state.token_cache.lock().map_err(|e| e.to_string())?;
+    *cache = Some(WechatTokenCache {
+        app_id,
+        access_token: token.clone(),
+        // Expire 200 seconds before the real 7200s window for safety
+        expires_at: Instant::now() + std::time::Duration::from_secs(7000),
+    });
+
+    Ok(token)
+}
+
+fn wechat_mime_type(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => "image/jpeg",
+    }
+}
+
+async fn wechat_upload_body_image(
+    client: &reqwest::Client,
+    token: &str,
+    path: &Path,
+) -> Result<String, String> {
+    let bytes = tokio::fs::read(path)
+        .await
+        .map_err(|e| format!("Cannot read image {}: {}", path.display(), e))?;
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("image.jpg")
+        .to_string();
+    let part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(file_name)
+        .mime_str(wechat_mime_type(path))
+        .map_err(|e| e.to_string())?;
+    let form = reqwest::multipart::Form::new().part("media", part);
+    let url = format!(
+        "https://api.weixin.qq.com/cgi-bin/media/uploadimg?access_token={}",
+        token
+    );
+    let resp: serde_json::Value = client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Image upload network error: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("Image upload parse error: {}", e))?;
+
+    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
+        if errcode != 0 {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("WeChat image upload error {}: {}", errcode, errmsg));
+        }
+    }
+    resp.get("url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("No url in WeChat image upload response: {}", resp))
+}
+
+async fn wechat_upload_thumb(
+    client: &reqwest::Client,
+    token: &str,
+    path: &Path,
+) -> Result<String, String> {
+    let bytes = tokio::fs::read(path)
+        .await
+        .map_err(|e| format!("Cannot read cover image {}: {}", path.display(), e))?;
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("cover.jpg")
+        .to_string();
+    let media_part = reqwest::multipart::Part::bytes(bytes)
+        .file_name(file_name)
+        .mime_str(wechat_mime_type(path))
+        .map_err(|e| e.to_string())?;
+    let form = reqwest::multipart::Form::new()
+        .text("type", "image")
+        .part("media", media_part);
+    let url = format!(
+        "https://api.weixin.qq.com/cgi-bin/material/add_material?access_token={}&type=image",
+        token
+    );
+    let resp: serde_json::Value = client
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Cover upload network error: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("Cover upload parse error: {}", e))?;
+
+    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
+        if errcode != 0 {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("WeChat cover upload error {}: {}", errcode, errmsg));
+        }
+    }
+    resp.get("media_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("No media_id in WeChat cover upload response: {}", resp))
+}
+
+/// Extract `src` values from `<img src="...">` tags in the HTML string.
+fn extract_img_srcs(html: &str) -> Vec<String> {
+    let mut srcs = Vec::new();
+    let mut search = html;
+    while let Some(img_pos) = search.find("<img") {
+        search = &search[img_pos + 4..];
+        // Find the closing '>' to limit our search
+        let tag_end = search.find('>').unwrap_or(search.len());
+        let tag_slice = &search[..tag_end];
+        if let Some(src_pos) = tag_slice.find("src=\"") {
+            let after = &tag_slice[src_pos + 5..];
+            if let Some(end) = after.find('"') {
+                srcs.push(after[..end].to_string());
+            }
+        }
+    }
+    srcs
+}
+
+/// Resolve an asset path relative to `base_dir` and validate it is inside `workspace_root`.
+fn resolve_wechat_asset_path(
+    workspace_root: &Path,
+    base_dir: &Path,
+    requested: &str,
+) -> Result<PathBuf, String> {
+    let candidate = if Path::new(requested).is_absolute() {
+        PathBuf::from(requested)
+    } else {
+        base_dir.join(requested)
+    };
+    validate_path(workspace_root, &candidate.to_string_lossy())
+}
+
+#[tauri::command]
+async fn wechat_publish_draft(
+    app: tauri::AppHandle,
+    title: String,
+    author: String,
+    html: String,
+    base_dir: String,
+    cover_image_path: Option<String>,
+    workspace_state: State<'_, WorkspaceState>,
+    wechat_state: State<'_, WechatState>,
+) -> Result<WechatPublishResult, String> {
+    let workspace_root = workspace_state
+        .workspace_root
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or("no workspace open")?;
+
+    let cover_path_str = match cover_image_path {
+        Some(ref p) if !p.is_empty() => p.clone(),
+        _ => {
+            return Err(
+                "A cover image is required. Add coverImage to the file's frontmatter.".to_string(),
+            )
+        }
+    };
+
+    let creds_path = wechat_creds_path(&app)?;
+    let token = wechat_get_or_refresh_token(&creds_path, &wechat_state).await?;
+    let client = reqwest::Client::new();
+    let base = validate_path(&workspace_root, &base_dir)?;
+
+    // Upload cover image as permanent material to get thumb_media_id
+    let cover_path = resolve_wechat_asset_path(&workspace_root, &base, &cover_path_str)?;
+    let thumb_id = wechat_upload_thumb(&client, &token, &cover_path).await?;
+
+    // Upload body images (local paths only) and replace src attributes
+    let srcs = extract_img_srcs(&html);
+    let mut processed_html = html;
+    for src in srcs {
+        if src.starts_with("http://") || src.starts_with("https://") {
+            continue;
+        }
+        let img_path = resolve_wechat_asset_path(&workspace_root, &base, &src)?;
+        let wechat_url = wechat_upload_body_image(&client, &token, &img_path).await?;
+        processed_html = processed_html.replace(
+            &format!("src=\"{}\"", src),
+            &format!("src=\"{}\"", wechat_url),
+        );
+    }
+
+    // Create draft via WeChat API
+    let draft_body = serde_json::json!({
+        "articles": [{
+            "title": title,
+            "author": author,
+            "content": processed_html,
+            "content_source_url": "",
+            "thumb_media_id": thumb_id,
+            "need_open_comment": 0,
+            "only_fans_can_comment": 0
+        }]
+    });
+
+    let url = format!(
+        "https://api.weixin.qq.com/cgi-bin/draft/add?access_token={}",
+        token
+    );
+    let resp: serde_json::Value = client
+        .post(&url)
+        .json(&draft_body)
+        .send()
+        .await
+        .map_err(|e| format!("Draft creation network error: {}", e))?
+        .json()
+        .await
+        .map_err(|e| format!("Draft creation parse error: {}", e))?;
+
+    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
+        if errcode != 0 {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("WeChat draft creation error {}: {}", errcode, errmsg));
+        }
+    }
+
+    let media_id = resp
+        .get("media_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("No media_id in WeChat draft response: {}", resp))?
+        .to_string();
+
+    Ok(WechatPublishResult { media_id })
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Menu building
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -2423,6 +2839,9 @@ fn build_app_menu<R: tauri::Runtime>(
             &MenuItemBuilder::with_id("close-file", get("file_close_file"))
                 .accelerator("CmdOrCtrl+W")
                 .build(app)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItemBuilder::with_id("wechat-copy", get("file_wechat_copy")).build(app)?,
+            &MenuItemBuilder::with_id("wechat-publish", get("file_wechat_publish")).build(app)?,
         ])
         .build()?;
 
@@ -2604,6 +3023,8 @@ fn default_menu_labels() -> HashMap<String, String> {
         ("file_switch_workspace", "Switch Workspace\u{2026}"),
         ("file_save", "Save"),
         ("file_close_file", "Close File"),
+        ("file_wechat_copy", "Copy for WeChat"),
+        ("file_wechat_publish", "Publish to WeChat\u{2026}"),
         ("edit_find_in_workspace", "Find in Workspace\u{2026}"),
         ("edit_open_quickly", "Open Quickly\u{2026}"),
         ("insert_link", "Link\u{2026}"),
@@ -2683,6 +3104,9 @@ pub fn run() {
             body_template: Mutex::new(
                 "A minimalist desktop Markdown editor\nfor Amytis workspaces.".to_string(),
             ),
+        })
+        .manage(WechatState {
+            token_cache: Mutex::new(None),
         })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -2766,6 +3190,10 @@ pub fn run() {
             pick_image_file,
             restart_app,
             set_menu_language,
+            get_wechat_credentials_status,
+            set_wechat_credentials,
+            clear_wechat_credentials,
+            wechat_publish_draft,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application")
@@ -3909,5 +4337,154 @@ mod tests {
             git_push_args(&remote, "feature/test", Some("publish")),
             Err("selected remote is no longer configured".to_string())
         );
+    }
+
+    // ── wechat_mime_type ─────────────────────────────────────────────────────
+
+    #[test]
+    fn wechat_mime_type_returns_png_for_png() {
+        assert_eq!(wechat_mime_type(Path::new("image.png")), "image/png");
+    }
+
+    #[test]
+    fn wechat_mime_type_returns_gif_for_gif() {
+        assert_eq!(wechat_mime_type(Path::new("anim.gif")), "image/gif");
+    }
+
+    #[test]
+    fn wechat_mime_type_returns_webp_for_webp() {
+        assert_eq!(wechat_mime_type(Path::new("photo.webp")), "image/webp");
+    }
+
+    #[test]
+    fn wechat_mime_type_defaults_to_jpeg_for_jpg() {
+        assert_eq!(wechat_mime_type(Path::new("photo.jpg")), "image/jpeg");
+    }
+
+    #[test]
+    fn wechat_mime_type_defaults_to_jpeg_for_unknown() {
+        assert_eq!(wechat_mime_type(Path::new("photo.bmp")), "image/jpeg");
+    }
+
+    #[test]
+    fn wechat_mime_type_is_case_insensitive() {
+        assert_eq!(wechat_mime_type(Path::new("image.PNG")), "image/png");
+    }
+
+    // ── extract_img_srcs ─────────────────────────────────────────────────────
+
+    #[test]
+    fn extract_img_srcs_returns_empty_for_no_images() {
+        assert_eq!(extract_img_srcs("<p>hello</p>"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn extract_img_srcs_finds_single_src() {
+        let srcs = extract_img_srcs(r#"<img src="https://cdn.example.com/a.jpg">"#);
+        assert_eq!(srcs, vec!["https://cdn.example.com/a.jpg"]);
+    }
+
+    #[test]
+    fn extract_img_srcs_finds_multiple_srcs() {
+        let html = r#"<img src="a.png"><p>text</p><img src="b.jpg">"#;
+        assert_eq!(extract_img_srcs(html), vec!["a.png", "b.jpg"]);
+    }
+
+    #[test]
+    fn extract_img_srcs_skips_img_without_src() {
+        let html = r#"<img alt="no src"><img src="real.png">"#;
+        assert_eq!(extract_img_srcs(html), vec!["real.png"]);
+    }
+
+    #[test]
+    fn extract_img_srcs_handles_inline_img() {
+        let html = r#"<p>before <img src="inline.png" style="max-width:100%"> after</p>"#;
+        assert_eq!(extract_img_srcs(html), vec!["inline.png"]);
+    }
+
+    // ── wechat credential file helpers ───────────────────────────────────────
+
+    #[test]
+    fn wechat_get_cred_returns_none_when_file_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        assert_eq!(wechat_get_cred(&path, "app_id").unwrap(), None);
+    }
+
+    #[test]
+    fn wechat_set_cred_creates_file_and_get_returns_value() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        assert_eq!(
+            wechat_get_cred(&path, "app_id").unwrap(),
+            Some("wx123".to_string())
+        );
+    }
+
+    #[test]
+    fn wechat_set_cred_two_keys_coexist() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        wechat_set_cred(&path, "app_secret", "secret456").unwrap();
+        assert_eq!(
+            wechat_get_cred(&path, "app_id").unwrap(),
+            Some("wx123".to_string())
+        );
+        assert_eq!(
+            wechat_get_cred(&path, "app_secret").unwrap(),
+            Some("secret456".to_string())
+        );
+    }
+
+    #[test]
+    fn wechat_set_cred_overwrites_existing_value() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "old").unwrap();
+        wechat_set_cred(&path, "app_id", "new").unwrap();
+        assert_eq!(
+            wechat_get_cred(&path, "app_id").unwrap(),
+            Some("new".to_string())
+        );
+    }
+
+    #[test]
+    fn wechat_del_cred_removes_key_and_leaves_other() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        wechat_set_cred(&path, "app_secret", "secret456").unwrap();
+        wechat_del_cred(&path, "app_id").unwrap();
+        assert_eq!(wechat_get_cred(&path, "app_id").unwrap(), None);
+        assert_eq!(
+            wechat_get_cred(&path, "app_secret").unwrap(),
+            Some("secret456".to_string())
+        );
+    }
+
+    #[test]
+    fn wechat_del_cred_removes_file_when_last_key_deleted() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        wechat_del_cred(&path, "app_id").unwrap();
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn wechat_del_cred_is_noop_when_file_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        assert!(wechat_del_cred(&path, "app_id").is_ok());
+    }
+
+    #[test]
+    fn wechat_get_cred_returns_none_for_missing_key_in_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_id", "wx123").unwrap();
+        assert_eq!(wechat_get_cred(&path, "app_secret").unwrap(), None);
     }
 }
