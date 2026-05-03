@@ -225,6 +225,7 @@ function FileItem({
           ) : (
             <FileText size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
           )}
+          {node.containerDirPath && <span className="sidebar-file-icon-badge" />}
         </span>
         <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
           {displayName}
