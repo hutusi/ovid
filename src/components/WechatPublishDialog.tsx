@@ -17,6 +17,7 @@ interface WechatPublishResult {
 interface Props {
   title: string;
   author: string;
+  excerpt: string;
   markdown: string;
   baseDir: string;
   assetRoot: string | undefined;
@@ -29,6 +30,7 @@ type Phase = "loading" | "credentials" | "ready" | "publishing" | "success" | "e
 export function WechatPublishDialog({
   title,
   author,
+  excerpt,
   markdown,
   baseDir,
   assetRoot,
@@ -49,7 +51,7 @@ export function WechatPublishDialog({
   const [hasMathStripped, setHasMathStripped] = useState(false);
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftAuthor, setDraftAuthor] = useState(author);
-  const [draftDigest, setDraftDigest] = useState("");
+  const [draftDigest, setDraftDigest] = useState(excerpt.slice(0, 54));
 
   useEffect(() => {
     invoke<WechatCredStatus>("get_wechat_credentials_status")

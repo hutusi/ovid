@@ -36,7 +36,7 @@ import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspace } from "./lib/useWorkspace";
-import { markdownToWechatHtml } from "./lib/wechatHtml";
+import { extractExcerpt, markdownToWechatHtml } from "./lib/wechatHtml";
 import { getExternalWorkspaceChangeAction } from "./lib/workspaceRefresh";
 import "./styles/global.css";
 import "./App.css";
@@ -204,6 +204,7 @@ function App() {
     isAmytisWorkspace,
     assetRoot,
     cdnBase,
+    defaultAuthor,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
@@ -1014,6 +1015,20 @@ function App() {
   // Pass the raw coverImage frontmatter value to Rust; Rust resolves root-relative
   // paths (/images/…) against assetRoot and relative paths against wechatBaseDir.
   const wechatCoverImagePath = coverImagePath ?? null;
+  // Author: frontmatter author → site.config default → empty
+  const wechatAuthor =
+    parsedFrontmatter.author != null
+      ? String(parsedFrontmatter.author)
+      : (defaultAuthor ?? "");
+  // Digest: frontmatter excerpt/description → auto-extract from body
+  const wechatDigest = (() => {
+    if (parsedFrontmatter.excerpt != null && String(parsedFrontmatter.excerpt).trim())
+      return String(parsedFrontmatter.excerpt).trim();
+    if (parsedFrontmatter.description != null && String(parsedFrontmatter.description).trim())
+      return String(parsedFrontmatter.description).trim();
+    const body = pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body;
+    return extractExcerpt(body);
+  })();
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
@@ -1231,7 +1246,8 @@ function App() {
                 ? String(parsedFrontmatter.title)
                 : selectedFile.name.replace(/\.mdx?$/, "")
             }
-            author={parsedFrontmatter.author != null ? String(parsedFrontmatter.author) : ""}
+            author={wechatAuthor}
+            excerpt={wechatDigest}
             markdown={pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body}
             baseDir={wechatBaseDir}
             assetRoot={assetRoot}

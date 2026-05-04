@@ -129,6 +129,32 @@ function parseMarkdown(markdown: string): string {
 }
 
 /**
+ * Extract a short plain-text excerpt from a markdown body for use as the
+ * WeChat article digest (max 54 characters per WeChat API limit).
+ * Strips markdown syntax and returns the first non-empty line of content.
+ */
+export function extractExcerpt(markdown: string, maxLen = 54): string {
+  const text = markdown
+    .replace(/```[\s\S]*?```/g, "") // fenced code blocks
+    .replace(/`[^`\n]+`/g, "") // inline code
+    .replace(/^\s*#{1,6}\s+/gm, "") // ATX headings
+    .replace(/^>\s*/gm, "") // blockquote markers
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "") // images
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // links → label text
+    .replace(/[*_~]{1,2}([^*_~\n]+)[*_~]{1,2}/g, "$1") // bold/italic/strike
+    .replace(/^\s*[-*+]\s+/gm, "") // unordered list markers
+    .replace(/^\s*\d+\.\s+/gm, "") // ordered list markers
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) return trimmed.slice(0, maxLen);
+  }
+  return "";
+}
+
+/**
  * Converts a markdown string to WeChat-compatible inline-styled HTML.
  * Math blocks ($$...$$) are stripped with a warning since WeChat cannot render LaTeX.
  */

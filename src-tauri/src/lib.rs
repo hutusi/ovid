@@ -303,6 +303,8 @@ struct WorkspaceResult {
     tree: Vec<FileNode>,
     is_amytis_workspace: bool,
     cdn_base: Option<String>,
+    /// First entry from `posts.authors.default` in `site.config.ts`, if present.
+    default_author: Option<String>,
 }
 
 fn is_markdown_path(path: &Path) -> bool {
@@ -677,6 +679,8 @@ async fn open_workspace_at_path(
         list_dir_shallow(&tree_root, false, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
+    let config_path = root.join("site.config.ts");
+    let default_author = parse_default_author(&config_path);
 
     // Grant asset protocol access to the entire workspace root so that both
     // root-relative paths (resolved inside public/) and relative paths
@@ -693,6 +697,7 @@ async fn open_workspace_at_path(
         tree,
         is_amytis_workspace,
         cdn_base,
+        default_author,
     };
     log_perf(
         "open_workspace_at_path",
@@ -757,6 +762,8 @@ async fn open_workspace(
         list_dir_shallow(&tree_root, false, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
+    let config_path = root.join("site.config.ts");
+    let default_author = parse_default_author(&config_path);
 
     // Grant asset protocol access to the entire workspace root so that both
     // root-relative paths (resolved inside public/) and relative paths
@@ -777,6 +784,7 @@ async fn open_workspace(
         tree,
         is_amytis_workspace,
         cdn_base,
+        default_author,
     };
     log_perf(
         "open_workspace",
@@ -1216,6 +1224,31 @@ fn parse_cdn_base(config_path: &Path) -> Option<String> {
                 if let Some(url) = extract_quoted_string(rest) {
                     if url.starts_with("http://") || url.starts_with("https://") {
                         return Some(url);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Best-effort scanner: read the first entry from `posts.authors.default` in
+/// `site.config.ts`. Returns `None` on any parse failure so callers degrade
+/// gracefully when the workspace has no site config.
+fn parse_default_author(config_path: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(config_path).ok()?;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') {
+            continue;
+        }
+        // Match: `default: ["Author Name"]` — the authors.default array
+        if let Some(rest) = trimmed.strip_prefix("default:") {
+            let rest = rest.trim();
+            if let Some(inner) = rest.strip_prefix('[') {
+                if let Some(author) = extract_quoted_string(inner) {
+                    if !author.is_empty() {
+                        return Some(author);
                     }
                 }
             }
