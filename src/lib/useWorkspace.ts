@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import type { MutableRefObject } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { type FlatFile, flattenTree } from "./fileSearch";
 import {
   createAmytisFrontmatter,
@@ -89,12 +89,15 @@ export function useWorkspace({
   const [assetRoot, setAssetRoot] = useState<string | undefined>(undefined);
   const [cdnBase, setCdnBase] = useState<string | undefined>(undefined);
   const loadingDirectoryRequestsRef = useState(() => new Map<string, Promise<FileNode[]>>())[0];
+  const refreshIdRef = useRef(0);
 
   const refreshTree = useCallback(async (): Promise<FileNode[]> => {
+    const requestId = ++refreshIdRef.current;
     try {
       const updated = await measureAsync("list_workspace.invoke", () =>
         invoke<FileNode[]>("list_workspace")
       );
+      if (requestId !== refreshIdRef.current) return updated;
       setTree(updated);
       setFlatFiles(flattenTree(updated));
       return updated;
