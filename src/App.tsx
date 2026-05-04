@@ -11,7 +11,7 @@ import type { SidebarMode } from "./components/Sidebar";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
-import { findNodeByPath, loadLastRecentFilePath } from "./lib/appRestore";
+import { loadLastRecentFilePath } from "./lib/appRestore";
 import { parseFrontmatter } from "./lib/frontmatter";
 import { AUTO_FETCH_COOLDOWN_MS, runAutoFetchOnFocus } from "./lib/gitAutoFetch";
 import { getGitBranchTitle } from "./lib/gitUi";
@@ -197,6 +197,7 @@ function App() {
 
   const {
     tree,
+    flatFiles,
     workspaceName,
     workspaceRoot,
     workspaceRootPath,
@@ -238,6 +239,21 @@ function App() {
       void loadDirectoryChildren(dirPath);
     },
     [loadDirectoryChildren]
+  );
+
+  // Canonical open-by-path: looks up the full FileNode from the complete flat index
+  // (never from the hierarchical tree, which can become incomplete after sidebar interactions),
+  // then selects, records, and tabs the file in one consistent step.
+  const openFileByPath = useCallback(
+    (path: string) => {
+      const node = flatFiles.find((f) => f.node.path === path)?.node ?? makeFileNodeFromPath(path);
+      if (node.isDirectory) return;
+      setFileViewerNode(null);
+      void handleSelectFile(node);
+      pushRecent(node);
+      openTab(path);
+    },
+    [flatFiles, handleSelectFile, pushRecent, openTab]
   );
 
   const loadFilesTree = useCallback(async () => {
@@ -332,7 +348,8 @@ function App() {
     if (selectedFile && tabs.includes(selectedFile.path)) {
       const { neighbor } = closeTab(selectedFile.path);
       if (neighbor) {
-        const node = findNodeByPath(tree, neighbor) ?? makeFileNodeFromPath(neighbor);
+        const node =
+          flatFiles.find((f) => f.node.path === neighbor)?.node ?? makeFileNodeFromPath(neighbor);
         void handleSelectFile(node);
         pushRecent(node);
         return;
@@ -344,7 +361,7 @@ function App() {
     selectedFile,
     tabs,
     closeTab,
-    tree,
+    flatFiles,
     handleSelectFile,
     pushRecent,
     handleCloseFile,
@@ -482,13 +499,9 @@ function App() {
   useEffect(() => {
     const path = pendingAutoOpenPath.current;
     if (!path || tree.length === 0 || selectedFile) return;
-    const node = findNodeByPath(tree, path) ?? makeFileNodeFromPath(path);
     pendingAutoOpenPath.current = null;
-    if (!node || node.isDirectory) return;
-    void handleSelectFile(node);
-    pushRecent(node);
-    openTab(node.path);
-  }, [tree, selectedFile, handleSelectFile, pushRecent, openTab]);
+    openFileByPath(path);
+  }, [tree, selectedFile, openFileByPath]);
 
   // Reset per-file UI state when switching files (selectedFile is the trigger, not used in body)
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedFile is the intended trigger
@@ -1019,15 +1032,12 @@ function App() {
   }
 
   function handleOpenByPath(path: string) {
-    const node = findNodeByPath(tree, path) ?? makeFileNodeFromPath(path);
-    void handleSelectFile(node);
-    pushRecent(node);
-    openTab(node.path);
+    openFileByPath(path);
     setSearchOpen(false);
   }
 
   function handleSelectFromTab(path: string) {
-    const node = findNodeByPath(tree, path) ?? makeFileNodeFromPath(path);
+    const node = flatFiles.find((f) => f.node.path === path)?.node ?? makeFileNodeFromPath(path);
     setFileViewerNode(null);
     void handleSelectFile(node);
     pushRecent(node);
@@ -1248,12 +1258,10 @@ function App() {
       {switcherOpen && (
         <Suspense fallback={null}>
           <FileSwitcher
-            tree={tree}
+            files={flatFiles}
             recentFiles={recentFiles}
             onSelect={(node) => {
-              void handleSelectFile(node);
-              pushRecent(node);
-              openTab(node.path);
+              openFileByPath(node.path);
               setSwitcherOpen(false);
             }}
             onClose={() => setSwitcherOpen(false)}

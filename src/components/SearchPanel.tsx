@@ -134,6 +134,7 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
               <button
                 type="button"
                 className="search-result-file"
+                data-draft={result.draft ? "true" : undefined}
                 onClick={() => onOpenFile(result.path)}
               >
                 {displayName}

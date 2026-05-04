@@ -46,7 +46,7 @@ Three-zone layout managed by `src/App.tsx`:
 └─────────────────────────────────────────────────┘
 ```
 
-**`src/App.tsx`** — Root component; composes top-level state from custom hooks (`useWorkspace`, `useFileEditor`, `useGit`, `useGitUiController`, `useTheme`, `useToast`, `useEditorPreferences`, `useWordCountGoal`, `useRecentFiles`, `useRecentWorkspaces`, `useOpenTabs`, `useContentTypes`) and owns local UI flags (sidebar/properties visibility, zen/typewriter mode, dialog open states). Also manages `sidebarMode` (`"content" | "files"` persisted per workspace in `localStorage`), `filesTree` (separate `FileNode[]` for Files mode loaded via `loadFilesTree`), and `fileViewerNode` (non-markdown file selected for `FileViewer` preview). `handleSidebarSelect` routes non-markdown selections to `FileViewer`; `closeActiveTabOrFile` closes the FileViewer first when it is active.
+**`src/App.tsx`** — Root component; composes top-level state from custom hooks (`useWorkspace`, `useFileEditor`, `useGit`, `useGitUiController`, `useTheme`, `useToast`, `useEditorPreferences`, `useWordCountGoal`, `useRecentFiles`, `useRecentWorkspaces`, `useOpenTabs`, `useContentTypes`) and owns local UI flags (sidebar/properties visibility, zen/typewriter mode, dialog open states). Also manages `sidebarMode` (`"content" | "files"` persisted per workspace in `localStorage`), `filesTree` (separate `FileNode[]` for Files mode loaded via `loadFilesTree`), and `fileViewerNode` (non-markdown file selected for `FileViewer` preview). `handleSidebarSelect` routes non-markdown selections to `FileViewer`; `closeActiveTabOrFile` closes the FileViewer first when it is active. `openFileByPath` is the canonical single entry point for opening a file by path from any surface (switcher, search, recents, auto-reopen, tab bar); it clears `fileViewerNode`, looks up the node in `flatFiles` (with a synthetic-node fallback), then calls `handleSelectFile` + `pushRecent` + `openTab` in one step.
 
 **`src/components/`** — UI components (list is representative, not exhaustive)
 - `Editor.tsx` — Tiptap WYSIWYG editor; StarterKit + Markdown + Typography + Link + Table (+ TableCell/Header/Row) + Mathematics + Placeholder + CodeBlockLowlight + TaskList/TaskItem (from `@tiptap/extension-list`) + custom extensions in `src/lib/tiptap/`
@@ -57,8 +57,8 @@ Three-zone layout managed by `src/App.tsx`:
 - `TabBar.tsx` — Open-file tab strip above the editor; drag-to-reorder, middle-click or close button to close, hidden in zen mode and only rendered with 2+ tabs
 - `StatusBar.tsx` — Filename, word count, dark mode toggle, zen/typewriter toggles
 - `PropertiesPanel.tsx` — Collapsible bar above editor for frontmatter metadata; always shown for any open markdown file; displays an empty state with add-field prompts when the file has no frontmatter
-- `SearchPanel.tsx` — Full-text search panel (replaces sidebar); queries run in Rust
-- `FileSwitcher.tsx` — `Cmd+P` command palette; wraps `cmdk`
+- `SearchPanel.tsx` — Full-text search panel (replaces sidebar); queries run in Rust; draft files are displayed with reduced opacity to match sidebar and switcher styling
+- `FileSwitcher.tsx` — `Cmd+P` command palette; receives `files: FlatFile[]` (the independent flat index from `useWorkspace`) rather than the hierarchical tree, so lazy sidebar loads never make discovery incomplete
 - Git UI: `GitSyncPopover.tsx`, `BranchSwitcher.tsx`, `NewBranchDialog.tsx`, `RenameBranchDialog.tsx`, `DeleteBranchDialog.tsx`, `CommitDialog.tsx` — surface the Tauri git commands; coordinated by `useGitUiController`
 - File lifecycle: `NewFileDialog.tsx`, `RenamePathDialog.tsx` — create/rename via Tauri commands
 - `UpdateDialog.tsx` — surfaces Tauri updater state
@@ -81,7 +81,7 @@ Sidebar/session behavior:
 **`src/lib/`** — hooks and helpers (representative, not exhaustive)
 
 State hooks (composed in `App.tsx`):
-- `useWorkspace.ts` — workspace open/close, file tree, current path
+- `useWorkspace.ts` — workspace open/close, file tree, current path; also maintains `flatFiles: FlatFile[]` — an independent flat index updated only from full `list_workspace` walks (never from lazy `loadDirectoryChildren` calls) so `Cmd+P` and `openFileByPath` always have the complete file list
 - `useFileEditor.ts` — current file content, dirty tracking, save coordination
 - `useGit.ts` — git state (branch, status, remotes); polls via Tauri commands
 - `useGitUiController.ts` — coordinates git dialogs (commit, branch CRUD, sync popover)
@@ -98,7 +98,7 @@ Pure helpers:
 - `frontmatter.ts` / `frontmatterSchema.ts` — `parseFrontmatter` / `joinFrontmatter` (raw round-trip), `parseYamlFrontmatter` (js-yaml), and Amytis-aware schema lookups
 - `appRestore.ts` — last-workspace and last-file restoration on launch
 - `sidebarUtils.ts` — `collapseIndexNodes` (fold index-only dirs into a single node), `filterNoiseDirs` (strip `node_modules`, `dist`, `.git`, etc. for Files mode), `sortTreeAlpha` (dirs-first alpha sort for Files mode), `sortTree` / `sortNodes` (content-type priority sort for Content mode), `rollupGitStatus`, `filterTree`, `getSidebarDisplayName`, `needsPageDivider`
-- `fileSearch.ts`, `markdown.ts`, `codeBlockLanguages.ts`, `imageUtils.ts`, `postPath.ts`, `sidebarExpansion.ts`, `gitAutoFetch.ts`, `gitUi.ts`, `utils.ts`, `perf.ts`
+- `fileSearch.ts` — `FlatFile` type, `flattenTree` (flattens a `FileNode[]` into `FlatFile[]`, applying `collapseIndexNodes` and skipping unloaded branches), `score` / `compareFiles` (fuzzy ranking with recency tie-breaking) used by `FileSwitcher`; `sidebarExpansion.ts` — `findAncestorPaths` derives ancestor directory paths from path segments (not tree traversal) so sidebar reveal works even when branches have `children: null` from lazy loading; `markdown.ts`, `codeBlockLanguages.ts`, `imageUtils.ts`, `postPath.ts`, `gitAutoFetch.ts`, `gitUi.ts`, `utils.ts`, `perf.ts`
 - `wechatHtml.ts` — `markdownToWechatHtml(markdown)`: converts Markdown to inline-styled HTML suitable for WeChat articles. Uses a headless Tiptap editor + `DOMParser` to parse, then walks the DOM tree applying `style=""` attributes from a static tag-style map. Math blocks are stripped with a `hasMath` flag. Requires browser DOM; not unit-testable in the current Bun test environment.
 
 **`src/theme.ts`** — Static theme constants consumed by components alongside the `useTheme` hook.
@@ -121,7 +121,7 @@ Pure helpers:
 **`src-tauri/`** — Rust backend (Tauri 2). All commands live in `src-tauri/src/lib.rs` and are registered via `tauri::generate_handler!`. For workspace-scoped file operations, path arguments are validated against the open workspace root before filesystem reads/writes.
 
 Workspace and file lifecycle:
-- `open_workspace` (folder picker) / `open_workspace_at_path` — async, tokio oneshot; walks the file tree
+- `open_workspace` (folder picker) / `open_workspace_at_path` — async, tokio oneshot; uses `list_dir_shallow` for a fast initial render, then the frontend fires a background `list_workspace` call to complete the flat index
 - `list_workspace`, `list_workspace_children` — initial tree and lazy directory expansion; `list_workspace_children` accepts `allFiles: Option<bool>`: when `false` (Content mode) it validates against `tree_root` and filters non-markdown/dotfiles; when `true` (Files mode) it validates against `workspace_root` and includes all files including dotfiles
 - `read_file`, `write_file` — `read_file` validates against `workspace_root` (not `tree_root`) so files outside the Amytis `content/` subtree can be previewed; `write_file` uses atomic temp-file + rename
 - `create_file`, `create_dir`, `ensure_dir` — new files/folders inside the workspace

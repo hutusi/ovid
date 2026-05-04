@@ -62,6 +62,7 @@ struct CachedSearchFile {
     modified: Option<SystemTime>,
     len: u64,
     title: Option<String>,
+    draft: bool,
     lines: Vec<String>,
 }
 
@@ -77,6 +78,7 @@ struct SearchMatch {
 struct SearchResult {
     path: String,
     title: Option<String>,
+    draft: bool,
     matches: Vec<SearchMatch>,
     total_matches: usize,
     has_more_matches: bool,
@@ -268,15 +270,20 @@ fn load_search_file_cached(
     }
 
     let content = std::fs::read_to_string(path).ok()?;
-    let title = frontmatter_cache
+    let (title, draft) = if let Some(cached) = frontmatter_cache
         .get(path)
         .filter(|cached| cached.modified == modified && cached.len == len)
-        .and_then(|cached| cached.title.clone())
-        .or_else(|| read_frontmatter_meta_from_str(&content).0);
+    {
+        (cached.title.clone(), cached.draft.unwrap_or(false))
+    } else {
+        let (t, d, _) = read_frontmatter_meta_from_str(&content);
+        (t, d.unwrap_or(false))
+    };
     let entry = CachedSearchFile {
         modified,
         len,
         title,
+        draft,
         lines: content.lines().map(|line| line.to_string()).collect(),
     };
     cache.insert(path.to_path_buf(), entry.clone());
@@ -1005,6 +1012,7 @@ fn search_dir(
                 results.push(SearchResult {
                     path: to_slash(&entry_path),
                     title: file.title.clone(),
+                    draft: file.draft,
                     matches,
                     total_matches,
                     has_more_matches: total_matches > MAX_SEARCH_MATCHES_PER_FILE,
@@ -3833,6 +3841,57 @@ mod tests {
     }
 
     #[test]
+    fn load_search_file_cached_extracts_draft_flag() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("entry.md");
+        let mut cache = HashMap::new();
+        let frontmatter_cache = HashMap::new();
+
+        // Non-draft file
+        write_markdown_file(&path, "Published", "some content");
+        let non_draft = load_search_file_cached(&path, &mut cache, &frontmatter_cache).unwrap();
+        assert!(!non_draft.draft);
+
+        // Draft file (force cache miss by writing more bytes)
+        let draft_content = "---\ntitle: \"Draft Post\"\ndraft: true\n---\n\nsome content here\n";
+        fs::write(&path, draft_content).unwrap();
+        cache.clear();
+        let draft = load_search_file_cached(&path, &mut cache, &frontmatter_cache).unwrap();
+        assert_eq!(draft.title.as_deref(), Some("Draft Post"));
+        assert!(draft.draft);
+    }
+
+    #[test]
+    fn search_dir_propagates_draft_flag_to_results() {
+        let dir = TempDir::new().unwrap();
+        let content_root = dir.path().join("content");
+        fs::create_dir_all(&content_root).unwrap();
+
+        let draft_path = content_root.join("draft.md");
+        let published_path = content_root.join("published.md");
+        fs::write(
+            &draft_path,
+            "---\ntitle: \"Draft\"\ndraft: true\n---\n\nkeyword here\n",
+        )
+        .unwrap();
+        write_markdown_file(&published_path, "Published", "keyword here");
+
+        let mut cache = HashMap::new();
+        let frontmatter_cache = HashMap::new();
+        let mut results = search_dir(&content_root, "keyword", &mut cache, &frontmatter_cache);
+        results.sort_by(|a, b| a.path.cmp(&b.path));
+
+        assert_eq!(results.len(), 2);
+        let draft_result = results.iter().find(|r| r.path.ends_with("draft.md")).unwrap();
+        let published_result = results
+            .iter()
+            .find(|r| r.path.ends_with("published.md"))
+            .unwrap();
+        assert!(draft_result.draft);
+        assert!(!published_result.draft);
+    }
+
+    #[test]
     fn search_dir_caps_returned_matches_per_file_but_keeps_total_count() {
         let dir = TempDir::new().unwrap();
         let content_root = dir.path().join("content");
@@ -3961,6 +4020,7 @@ mod tests {
         SearchResult {
             path: path.to_string(),
             title: title.map(str::to_string),
+            draft: false,
             matches: Vec::new(),
             total_matches,
             has_more_matches: false,

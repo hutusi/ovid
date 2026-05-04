@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { confirm } from "@tauri-apps/plugin-dialog";
 import type { MutableRefObject } from "react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import { type FlatFile, flattenTree } from "./fileSearch";
 import {
   createAmytisFrontmatter,
   createTodayFlowFrontmatter,
@@ -80,6 +81,7 @@ export function useWorkspace({
   onPathRemoved,
 }: UseWorkspaceOptions) {
   const [tree, setTree] = useState<FileNode[]>([]);
+  const [flatFiles, setFlatFiles] = useState<FlatFile[]>([]);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
   const [workspaceRootPath, setWorkspaceRootPath] = useState<string | null>(null);
@@ -87,13 +89,17 @@ export function useWorkspace({
   const [assetRoot, setAssetRoot] = useState<string | undefined>(undefined);
   const [cdnBase, setCdnBase] = useState<string | undefined>(undefined);
   const loadingDirectoryRequestsRef = useState(() => new Map<string, Promise<FileNode[]>>())[0];
+  const refreshIdRef = useRef(0);
 
   const refreshTree = useCallback(async (): Promise<FileNode[]> => {
+    const requestId = ++refreshIdRef.current;
     try {
       const updated = await measureAsync("list_workspace.invoke", () =>
         invoke<FileNode[]>("list_workspace")
       );
+      if (requestId !== refreshIdRef.current) return updated;
       setTree(updated);
+      setFlatFiles(flattenTree(updated));
       return updated;
     } catch (err) {
       console.error("Failed to refresh tree:", err);
@@ -132,6 +138,7 @@ export function useWorkspace({
   const applyWorkspaceResult = useCallback(
     (result: WorkspaceResult) => {
       setTree(result.tree);
+      setFlatFiles(flattenTree(result.tree));
       setWorkspaceName(result.name);
       setWorkspaceRoot(result.treeRoot);
       setWorkspaceRootPath(result.rootPath);
@@ -155,14 +162,18 @@ export function useWorkspace({
           () => invoke<WorkspaceResult | null>("open_workspace_at_path", { path }),
           { path }
         );
-        if (result) applyWorkspaceResult(result);
-        else showToast("Could not open workspace — path may no longer be valid.");
+        if (result) {
+          applyWorkspaceResult(result);
+          // applyWorkspaceResult uses the shallow snapshot for fast initial render;
+          // follow up with a full walk so flatFiles has the complete index.
+          void refreshTree();
+        } else showToast("Could not open workspace — path may no longer be valid.");
       } catch (err) {
         console.error("Failed to open workspace:", err);
         showToast(`Failed to open workspace: ${err}`);
       }
     },
-    [flushPendingSave, showToast, applyWorkspaceResult]
+    [flushPendingSave, showToast, applyWorkspaceResult, refreshTree]
   );
 
   const handleOpenWorkspace = useCallback(async () => {
@@ -171,12 +182,15 @@ export function useWorkspace({
       const result = await measureAsync("open_workspace.invoke", () =>
         invoke<WorkspaceResult | null>("open_workspace")
       );
-      if (result) applyWorkspaceResult(result);
+      if (result) {
+        applyWorkspaceResult(result);
+        void refreshTree();
+      }
     } catch (err) {
       console.error("Failed to open workspace:", err);
       showToast(`Failed to open workspace: ${err}`);
     }
-  }, [flushPendingSave, showToast, applyWorkspaceResult]);
+  }, [flushPendingSave, showToast, applyWorkspaceResult, refreshTree]);
 
   const handleNewTodayFlow = useCallback(async () => {
     if (!workspaceRoot) return;
@@ -320,6 +334,7 @@ export function useWorkspace({
 
   return {
     tree,
+    flatFiles,
     workspaceName,
     workspaceRoot,
     workspaceRootPath,
