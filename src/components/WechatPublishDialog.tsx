@@ -45,6 +45,9 @@ export function WechatPublishDialog({
   const [resultMediaId, setResultMediaId] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [hasMathStripped, setHasMathStripped] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(title);
+  const [draftAuthor, setDraftAuthor] = useState(author);
+  const [draftDigest, setDraftDigest] = useState("");
 
   useEffect(() => {
     invoke<WechatCredStatus>("get_wechat_credentials_status")
@@ -80,8 +83,9 @@ export function WechatPublishDialog({
       const { html, hasMath } = markdownToWechatHtml(markdown);
       setHasMathStripped(hasMath);
       const result = await invoke<WechatPublishResult>("wechat_publish_draft", {
-        title,
-        author,
+        title: draftTitle,
+        author: draftAuthor,
+        digest: draftDigest || null,
         html,
         baseDir,
         coverImagePath,
@@ -184,6 +188,31 @@ export function WechatPublishDialog({
                 {t("wechat.current_account", { appId: credStatus.app_id })}
               </p>
             )}
+            <input
+              className="modal-input"
+              aria-label={t("wechat.title_label")}
+              placeholder={t("wechat.title_label")}
+              value={draftTitle}
+              onChange={(e) => setDraftTitle(e.target.value)}
+              autoComplete="off"
+            />
+            <input
+              className="modal-input"
+              aria-label={t("wechat.author_label")}
+              placeholder={t("wechat.author_label")}
+              value={draftAuthor}
+              onChange={(e) => setDraftAuthor(e.target.value)}
+              autoComplete="off"
+            />
+            <input
+              className="modal-input"
+              aria-label={t("wechat.digest_label")}
+              placeholder={t("wechat.digest_placeholder")}
+              value={draftDigest}
+              maxLength={54}
+              onChange={(e) => setDraftDigest(e.target.value)}
+              autoComplete="off"
+            />
             {!coverImagePath && (
               <p className="modal-copy modal-copy-warning">{t("wechat.no_cover_warning")}</p>
             )}
@@ -202,7 +231,7 @@ export function WechatPublishDialog({
               <button
                 type="button"
                 className="modal-btn modal-btn-primary"
-                disabled={!coverImagePath}
+                disabled={!draftTitle.trim()}
                 onClick={handlePublish}
               >
                 {t("wechat.publish_draft")}

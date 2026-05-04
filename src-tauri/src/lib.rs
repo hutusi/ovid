@@ -2689,6 +2689,7 @@ async fn wechat_publish_draft(
     app: tauri::AppHandle,
     title: String,
     author: String,
+    digest: Option<String>,
     html: String,
     base_dir: String,
     cover_image_path: Option<String>,
@@ -2702,23 +2703,19 @@ async fn wechat_publish_draft(
         .clone()
         .ok_or("no workspace open")?;
 
-    let cover_path_str = match cover_image_path {
-        Some(ref p) if !p.is_empty() => p.clone(),
-        _ => {
-            return Err(
-                "A cover image is required. Add coverImage to the file's frontmatter.".to_string(),
-            )
-        }
-    };
-
     let creds_path = wechat_creds_path(&app)?;
     let token = wechat_get_or_refresh_token(&creds_path, &wechat_state).await?;
     let client = reqwest::Client::new();
     let base = validate_path(&workspace_root, &base_dir)?;
 
-    // Upload cover image as permanent material to get thumb_media_id
-    let cover_path = resolve_wechat_asset_path(&workspace_root, &base, &cover_path_str)?;
-    let thumb_id = wechat_upload_thumb(&client, &token, &cover_path).await?;
+    // Upload cover image as permanent material to get thumb_media_id (optional)
+    let thumb_id = match cover_image_path {
+        Some(ref p) if !p.is_empty() => {
+            let cover_path = resolve_wechat_asset_path(&workspace_root, &base, p)?;
+            Some(wechat_upload_thumb(&client, &token, &cover_path).await?)
+        }
+        _ => None,
+    };
 
     // Upload body images (local paths only) and replace src attributes
     let srcs = extract_img_srcs(&html);
@@ -2735,18 +2732,26 @@ async fn wechat_publish_draft(
         );
     }
 
-    // Create draft via WeChat API
-    let draft_body = serde_json::json!({
-        "articles": [{
-            "title": title,
-            "author": author,
-            "content": processed_html,
-            "content_source_url": "",
-            "thumb_media_id": thumb_id,
-            "need_open_comment": 0,
-            "only_fans_can_comment": 0
-        }]
+    // Build article object; include optional fields only when present
+    let mut article = serde_json::json!({
+        "title": title,
+        "author": author,
+        "content": processed_html,
+        "content_source_url": "",
+        "need_open_comment": 0,
+        "only_fans_can_comment": 0
     });
+    if let Some(ref d) = digest {
+        if !d.is_empty() {
+            article["digest"] = serde_json::Value::String(d.clone());
+        }
+    }
+    if let Some(ref id) = thumb_id {
+        article["thumb_media_id"] = serde_json::Value::String(id.clone());
+    }
+
+    // Create draft via WeChat API
+    let draft_body = serde_json::json!({ "articles": [article] });
 
     let url = format!(
         "https://api.weixin.qq.com/cgi-bin/draft/add?access_token={}",
