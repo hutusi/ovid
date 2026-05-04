@@ -48,6 +48,12 @@ struct WechatPublishResult {
     media_id: String,
 }
 
+#[derive(Serialize, Clone)]
+struct WechatUploadProgress {
+    current: usize,
+    total: usize,
+}
+
 #[derive(Clone)]
 struct CachedFrontmatter {
     modified: Option<SystemTime>,
@@ -2833,6 +2839,17 @@ async fn wechat_publish_draft(
     // Non-local schemes (http, https, asset://, data:, blob:) are skipped.
     // Images that cannot be resolved are skipped rather than aborting the draft.
     let srcs = extract_img_srcs(&html);
+    let local_image_total = srcs
+        .iter()
+        .filter(|s| {
+            !s.starts_with("http://")
+                && !s.starts_with("https://")
+                && !s.starts_with("asset://")
+                && !s.starts_with("data:")
+                && !s.starts_with("blob:")
+        })
+        .count();
+    let mut local_image_current = 0usize;
     let mut processed_html = html;
     for src in srcs {
         if src.starts_with("http://")
@@ -2843,6 +2860,14 @@ async fn wechat_publish_draft(
         {
             continue;
         }
+        local_image_current += 1;
+        let _ = app.emit(
+            "wechat-upload-progress",
+            WechatUploadProgress {
+                current: local_image_current,
+                total: local_image_total,
+            },
+        );
         let img_path = match resolve_wechat_asset_path(
             &workspace_root,
             &base,

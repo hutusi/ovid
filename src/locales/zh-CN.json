@@ -400,6 +400,7 @@
     "change_account": "更换账号",
     "publish_draft": "保存草稿",
     "publishing": "正在保存到微信草稿箱…",
+    "uploading_image": "正在上传第 {{current}} 张图片（共 {{total}} 张）…",
     "success_title": "草稿创建成功。",
     "success_media_id": "Media ID：{{mediaId}}",
     "success_note": "请前往微信公众号后台预览并发布。",

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -55,6 +56,9 @@ export function WechatPublishDialog({
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftAuthor, setDraftAuthor] = useState(author);
   const [draftDigest, setDraftDigest] = useState(excerpt.slice(0, 54));
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
+    null
+  );
 
   useEffect(() => {
     invoke<WechatCredStatus>("get_wechat_credentials_status")
@@ -65,6 +69,20 @@ export function WechatPublishDialog({
       })
       .catch(() => setPhase("credentials"));
   }, []);
+
+  useEffect(() => {
+    if (phase !== "publishing") return;
+    setUploadProgress(null);
+    let unlisten: (() => void) | undefined;
+    listen<{ current: number; total: number }>("wechat-upload-progress", (event) => {
+      setUploadProgress(event.payload);
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [phase]);
 
   async function handleSaveCredentials() {
     if (!appId.trim() || !appSecret.trim()) {
@@ -258,7 +276,16 @@ export function WechatPublishDialog({
           </>
         )}
 
-        {phase === "publishing" && <p className="modal-copy">{t("wechat.publishing")}</p>}
+        {phase === "publishing" && (
+          <p className="modal-copy">
+            {uploadProgress
+              ? t("wechat.uploading_image", {
+                  current: uploadProgress.current,
+                  total: uploadProgress.total,
+                })
+              : t("wechat.publishing")}
+          </p>
+        )}
 
         {phase === "success" && (
           <>

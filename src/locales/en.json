@@ -400,6 +400,7 @@
     "change_account": "Change Account",
     "publish_draft": "Save Draft",
     "publishing": "Saving draft to WeChat…",
+    "uploading_image": "Uploading image {{current}} of {{total}}…",
     "success_title": "Draft created.",
     "success_media_id": "Media ID: {{mediaId}}",
     "success_note": "Go to WeChat MP Manager to preview and publish.",
