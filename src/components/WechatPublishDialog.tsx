@@ -19,6 +19,7 @@ interface Props {
   author: string;
   markdown: string;
   baseDir: string;
+  assetRoot: string | undefined;
   coverImagePath: string | null;
   onClose: () => void;
 }
@@ -30,6 +31,7 @@ export function WechatPublishDialog({
   author,
   markdown,
   baseDir,
+  assetRoot,
   coverImagePath,
   onClose,
 }: Props) {
@@ -88,6 +90,7 @@ export function WechatPublishDialog({
         digest: draftDigest || null,
         html,
         baseDir,
+        assetRoot: assetRoot ?? null,
         coverImagePath,
       });
       setResultMediaId(result.media_id);

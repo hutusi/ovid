@@ -2674,9 +2674,15 @@ fn extract_img_srcs(html: &str) -> Vec<String> {
 fn resolve_wechat_asset_path(
     workspace_root: &Path,
     base_dir: &Path,
+    asset_root: Option<&Path>,
     requested: &str,
 ) -> Result<PathBuf, String> {
-    let candidate = if Path::new(requested).is_absolute() {
+    let candidate = if requested.starts_with('/') {
+        // Root-relative web path: resolve against asset_root (public dir) when available,
+        // otherwise fall back to workspace_root so /images/foo.jpg → <root>/images/foo.jpg.
+        let root = asset_root.unwrap_or(workspace_root);
+        root.join(requested.trim_start_matches('/'))
+    } else if Path::new(requested).is_absolute() {
         PathBuf::from(requested)
     } else {
         base_dir.join(requested)
@@ -2692,6 +2698,7 @@ async fn wechat_publish_draft(
     digest: Option<String>,
     html: String,
     base_dir: String,
+    asset_root: Option<String>,
     cover_image_path: Option<String>,
     workspace_state: State<'_, WorkspaceState>,
     wechat_state: State<'_, WechatState>,
@@ -2708,12 +2715,17 @@ async fn wechat_publish_draft(
     let client = reqwest::Client::new();
     let base = std::fs::canonicalize(&base_dir)
         .map_err(|e| format!("Cannot access file directory \"{base_dir}\": {e}"))?;
+    let asset_root_path = asset_root
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
 
     // Upload cover image as permanent material to get thumb_media_id (optional)
     let thumb_id = match cover_image_path {
         Some(ref p) if !p.is_empty() => {
-            let cover_path = resolve_wechat_asset_path(&workspace_root, &base, p)
-                .map_err(|_| format!("Cover image not found: \"{p}\""))?;
+            let cover_path =
+                resolve_wechat_asset_path(&workspace_root, &base, asset_root_path.as_deref(), p)
+                    .map_err(|_| format!("Cover image not found: \"{p}\""))?;
             Some(wechat_upload_thumb(&client, &token, &cover_path).await?)
         }
         _ => None,
@@ -2733,7 +2745,12 @@ async fn wechat_publish_draft(
         {
             continue;
         }
-        let img_path = match resolve_wechat_asset_path(&workspace_root, &base, &src) {
+        let img_path = match resolve_wechat_asset_path(
+            &workspace_root,
+            &base,
+            asset_root_path.as_deref(),
+            &src,
+        ) {
             Ok(p) => p,
             Err(_) => continue,
         };

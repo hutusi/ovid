@@ -15,7 +15,7 @@ import { loadLastRecentFilePath } from "./lib/appRestore";
 import { parseFrontmatter } from "./lib/frontmatter";
 import { AUTO_FETCH_COOLDOWN_MS, runAutoFetchOnFocus } from "./lib/gitAutoFetch";
 import { getGitBranchTitle } from "./lib/gitUi";
-import { resolveImageSrc, resolveRelativePath } from "./lib/imageUtils";
+import { resolveImageSrc } from "./lib/imageUtils";
 import { isPerfLoggingEnabled } from "./lib/perf";
 import {
   getDuplicateNameSuggestion,
@@ -1011,13 +1011,9 @@ function App() {
   const wechatBaseDir = selectedFile
     ? selectedFile.path.substring(0, selectedFile.path.lastIndexOf("/"))
     : (workspaceRootPath ?? "");
-  const wechatCoverImagePath =
-    coverImagePath && selectedFile
-      ? resolveRelativePath(
-          selectedFile.path.substring(0, selectedFile.path.lastIndexOf("/")),
-          coverImagePath
-        )
-      : null;
+  // Pass the raw coverImage frontmatter value to Rust; Rust resolves root-relative
+  // paths (/images/…) against assetRoot and relative paths against wechatBaseDir.
+  const wechatCoverImagePath = coverImagePath ?? null;
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
@@ -1238,6 +1234,7 @@ function App() {
             author={parsedFrontmatter.author != null ? String(parsedFrontmatter.author) : ""}
             markdown={pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body}
             baseDir={wechatBaseDir}
+            assetRoot={assetRoot}
             coverImagePath={wechatCoverImagePath}
             onClose={() => setWechatPublishDialogOpen(false)}
           />
