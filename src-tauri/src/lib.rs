@@ -3739,6 +3739,56 @@ mod tests {
         );
     }
 
+    // ── parse_default_author ─────────────────────────────────────────────────
+
+    #[test]
+    fn parse_default_author_returns_first_name_from_single_entry_array() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  posts: {\n    authors: {\n      default: [\"John Hu\"] as string[],\n    },\n  },\n};\n",
+        );
+        assert_eq!(parse_default_author(&path), Some("John Hu".to_string()));
+    }
+
+    #[test]
+    fn parse_default_author_returns_first_name_from_multi_entry_array() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  posts: {\n    authors: {\n      default: [\"Alice\", \"Bob\"] as string[],\n    },\n  },\n};\n",
+        );
+        assert_eq!(parse_default_author(&path), Some("Alice".to_string()));
+    }
+
+    #[test]
+    fn parse_default_author_returns_none_when_default_array_is_empty() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  posts: { authors: { default: [] as string[] } },\n};\n",
+        );
+        assert_eq!(parse_default_author(&path), None);
+    }
+
+    #[test]
+    fn parse_default_author_returns_none_when_file_missing() {
+        assert_eq!(
+            parse_default_author(Path::new("/nonexistent/site.config.ts")),
+            None
+        );
+    }
+
+    #[test]
+    fn parse_default_author_ignores_line_comments() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "// default: [\"Fake\"]\nexport const siteConfig = {\n  posts: {\n    authors: {\n      default: [\"Real Author\"],\n    },\n  },\n};\n",
+        );
+        assert_eq!(parse_default_author(&path), Some("Real Author".to_string()));
+    }
+
     // ── derive_workspace_meta ────────────────────────────────────────────────
 
     #[test]
@@ -4524,6 +4574,88 @@ mod tests {
     fn extract_img_srcs_handles_inline_img() {
         let html = r#"<p>before <img src="inline.png" style="max-width:100%"> after</p>"#;
         assert_eq!(extract_img_srcs(html), vec!["inline.png"]);
+    }
+
+    // ── resolve_wechat_asset_path ────────────────────────────────────────────
+
+    #[test]
+    fn resolve_wechat_asset_path_relative_path_joins_base_dir() {
+        let dir = TempDir::new().unwrap();
+        let img = dir.path().join("images").join("cover.jpg");
+        fs::create_dir_all(img.parent().unwrap()).unwrap();
+        fs::write(&img, b"").unwrap();
+
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            None,
+            "images/cover.jpg",
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), img.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn resolve_wechat_asset_path_root_relative_uses_asset_root() {
+        let dir = TempDir::new().unwrap();
+        let public = dir.path().join("public");
+        let img = public.join("images").join("hero.jpg");
+        fs::create_dir_all(img.parent().unwrap()).unwrap();
+        fs::write(&img, b"").unwrap();
+
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            Some(&public),
+            "/images/hero.jpg",
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), img.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn resolve_wechat_asset_path_root_relative_falls_back_to_workspace_root() {
+        let dir = TempDir::new().unwrap();
+        let img = dir.path().join("images").join("hero.jpg");
+        fs::create_dir_all(img.parent().unwrap()).unwrap();
+        fs::write(&img, b"").unwrap();
+
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            None,
+            "/images/hero.jpg",
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), img.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn resolve_wechat_asset_path_rejects_path_outside_workspace() {
+        let dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let img = outside.path().join("secret.jpg");
+        fs::write(&img, b"").unwrap();
+
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            None,
+            &img.to_string_lossy(),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn resolve_wechat_asset_path_returns_err_when_file_not_found() {
+        let dir = TempDir::new().unwrap();
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            None,
+            "nonexistent/image.jpg",
+        );
+        assert!(result.is_err());
     }
 
     // ── wechat credential file helpers ───────────────────────────────────────
