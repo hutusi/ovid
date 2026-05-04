@@ -2765,9 +2765,7 @@ async fn wechat_publish_draft(
     let mut article = serde_json::json!({
         "title": title,
         "author": author,
-        "content": processed_html,
-        "need_open_comment": 0,
-        "only_fans_can_comment": 0
+        "content": processed_html
     });
     if let Some(ref d) = digest {
         if !d.is_empty() {

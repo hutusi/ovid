@@ -68,6 +68,43 @@ function applyWechatStyles(html: string): string {
   return doc.body.innerHTML;
 }
 
+/**
+ * Strip attributes and elements that WeChat rejects.
+ *
+ * - `data-*` and `aria-*` attributes → removed (WeChat whitelist forbids them)
+ * - `id` attributes → removed (unnecessary, may conflict with WeChat's own DOM)
+ * - `<input type="checkbox">` → replaced with ☑/☐ Unicode (task list support)
+ * - `<label>` wrapper elements → unwrapped (keep child nodes, discard the tag)
+ */
+function sanitizeForWechat(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+
+  // Replace checkboxes with Unicode before unwrapping their labels
+  for (const input of Array.from(doc.querySelectorAll('input[type="checkbox"]'))) {
+    const checked = (input as HTMLInputElement).checked;
+    input.replaceWith(doc.createTextNode(checked ? "☑ " : "☐ "));
+  }
+
+  // Unwrap <label> elements — keep their children, discard the tag
+  for (const label of Array.from(doc.querySelectorAll("label"))) {
+    label.replaceWith(...Array.from(label.childNodes));
+  }
+
+  // Strip data-*, aria-*, and id attributes from all remaining elements
+  for (const el of Array.from(doc.querySelectorAll("*"))) {
+    const toRemove: string[] = [];
+    for (const { name } of Array.from(el.attributes)) {
+      if (name.startsWith("data-") || name.startsWith("aria-") || name === "id") {
+        toRemove.push(name);
+      }
+    }
+    for (const name of toRemove) el.removeAttribute(name);
+  }
+
+  return doc.body.innerHTML;
+}
+
 function parseMarkdown(markdown: string): string {
   const el = document.createElement("div");
   const editor = new Editor({
@@ -96,6 +133,7 @@ export function markdownToWechatHtml(markdown: string): {
     : markdown;
 
   const rawHtml = parseMarkdown(cleaned);
-  const html = applyWechatStyles(rawHtml);
+  const styledHtml = applyWechatStyles(rawHtml);
+  const html = sanitizeForWechat(styledHtml);
   return { html, hasMath };
 }
