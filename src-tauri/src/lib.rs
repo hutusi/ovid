@@ -303,6 +303,8 @@ struct WorkspaceResult {
     tree: Vec<FileNode>,
     is_amytis_workspace: bool,
     cdn_base: Option<String>,
+    /// First entry from `posts.authors.default` in `site.config.ts`, if present.
+    default_author: Option<String>,
 }
 
 fn is_markdown_path(path: &Path) -> bool {
@@ -677,6 +679,8 @@ async fn open_workspace_at_path(
         list_dir_shallow(&tree_root, false, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
+    let config_path = root.join("site.config.ts");
+    let default_author = parse_default_author(&config_path);
 
     // Grant asset protocol access to the entire workspace root so that both
     // root-relative paths (resolved inside public/) and relative paths
@@ -693,6 +697,7 @@ async fn open_workspace_at_path(
         tree,
         is_amytis_workspace,
         cdn_base,
+        default_author,
     };
     log_perf(
         "open_workspace_at_path",
@@ -757,6 +762,8 @@ async fn open_workspace(
         list_dir_shallow(&tree_root, false, &mut cache)
     };
     let (asset_root, cdn_base) = derive_workspace_meta(&root);
+    let config_path = root.join("site.config.ts");
+    let default_author = parse_default_author(&config_path);
 
     // Grant asset protocol access to the entire workspace root so that both
     // root-relative paths (resolved inside public/) and relative paths
@@ -777,6 +784,7 @@ async fn open_workspace(
         tree,
         is_amytis_workspace,
         cdn_base,
+        default_author,
     };
     log_perf(
         "open_workspace",
@@ -1222,6 +1230,73 @@ fn parse_cdn_base(config_path: &Path) -> Option<String> {
         }
     }
     None
+}
+
+/// Best-effort scanner: read the first entry from `posts.authors.default` in
+/// `site.config.ts`. Returns `None` on any parse failure so callers degrade
+/// gracefully when the workspace has no site config.
+fn parse_default_author(config_path: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(config_path).ok()?;
+    let mut in_authors = false;
+    let mut brace_depth: i32 = 0;
+    let mut authors_depth: i32 = 0;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') {
+            continue;
+        }
+
+        let opens = trimmed.chars().filter(|&c| c == '{').count() as i32;
+        let closes = trimmed.chars().filter(|&c| c == '}').count() as i32;
+
+        // Exit the authors scope when brace depth returns to entry level
+        if in_authors && brace_depth + opens - closes <= authors_depth {
+            in_authors = false;
+        }
+
+        if !in_authors {
+            // Detect `authors:` key — may appear inline (e.g. `posts: { authors: { ... } }`)
+            if let Some(pos) = trimmed.find("authors:") {
+                // Reject if `authors` is part of a longer identifier (e.g. `defaultAuthors:`)
+                let is_word_boundary =
+                    pos == 0 || !trimmed.as_bytes()[pos - 1].is_ascii_alphanumeric();
+                if is_word_boundary {
+                    in_authors = true;
+                    authors_depth = brace_depth;
+                    // Check for inline `default:` on the same line
+                    if let Some(author) = parse_authors_default(trimmed) {
+                        return Some(author);
+                    }
+                }
+            }
+        } else {
+            // Inside authors block — look for `default: [...]`
+            if let Some(author) = parse_authors_default(trimmed) {
+                return Some(author);
+            }
+        }
+
+        brace_depth += opens - closes;
+    }
+    None
+}
+
+/// Extract the first author name from a line containing `default: ["Author", ...]`.
+fn parse_authors_default(trimmed: &str) -> Option<String> {
+    let pos = trimmed.find("default:")?;
+    // Reject if `default` is part of a longer identifier
+    if pos > 0 && trimmed.as_bytes()[pos - 1].is_ascii_alphanumeric() {
+        return None;
+    }
+    let rest = trimmed[pos + "default:".len()..].trim();
+    let inner = rest.strip_prefix('[')?;
+    let author = extract_quoted_string(inner)?;
+    if author.is_empty() {
+        None
+    } else {
+        Some(author)
+    }
 }
 
 /// Best-effort scanner: find `contentTypes` in `site.config.ts` and extract
@@ -2670,13 +2745,38 @@ fn extract_img_srcs(html: &str) -> Vec<String> {
     srcs
 }
 
+/// Remove the first `<img>` tag whose `src` attribute equals `src` from `html`.
+/// Returns the original string unchanged when no matching tag is found.
+fn remove_img_tag(html: &str, src: &str) -> String {
+    let src_attr = format!("src=\"{}\"", src);
+    let mut search_from = 0;
+    while let Some(rel_start) = html[search_from..].find("<img") {
+        let tag_start = search_from + rel_start;
+        let Some(rel_end) = html[tag_start..].find('>') else {
+            return html.to_string();
+        };
+        let tag_end = tag_start + rel_end + 1;
+        if html[tag_start..tag_end].contains(&src_attr) {
+            return format!("{}{}", &html[..tag_start], &html[tag_end..]);
+        }
+        search_from = tag_end;
+    }
+    html.to_string()
+}
+
 /// Resolve an asset path relative to `base_dir` and validate it is inside `workspace_root`.
 fn resolve_wechat_asset_path(
     workspace_root: &Path,
     base_dir: &Path,
+    asset_root: Option<&Path>,
     requested: &str,
 ) -> Result<PathBuf, String> {
-    let candidate = if Path::new(requested).is_absolute() {
+    let candidate = if requested.starts_with('/') {
+        // Root-relative web path: resolve against asset_root (public dir) when available,
+        // otherwise fall back to workspace_root so /images/foo.jpg → <root>/images/foo.jpg.
+        let root = asset_root.unwrap_or(workspace_root);
+        root.join(requested.trim_start_matches('/'))
+    } else if Path::new(requested).is_absolute() {
         PathBuf::from(requested)
     } else {
         base_dir.join(requested)
@@ -2689,8 +2789,10 @@ async fn wechat_publish_draft(
     app: tauri::AppHandle,
     title: String,
     author: String,
+    digest: Option<String>,
     html: String,
     base_dir: String,
+    asset_root: Option<String>,
     cover_image_path: Option<String>,
     workspace_state: State<'_, WorkspaceState>,
     wechat_state: State<'_, WechatState>,
@@ -2702,32 +2804,59 @@ async fn wechat_publish_draft(
         .clone()
         .ok_or("no workspace open")?;
 
-    let cover_path_str = match cover_image_path {
-        Some(ref p) if !p.is_empty() => p.clone(),
-        _ => {
-            return Err(
-                "A cover image is required. Add coverImage to the file's frontmatter.".to_string(),
-            )
-        }
-    };
-
     let creds_path = wechat_creds_path(&app)?;
     let token = wechat_get_or_refresh_token(&creds_path, &wechat_state).await?;
     let client = reqwest::Client::new();
-    let base = validate_path(&workspace_root, &base_dir)?;
+    let base = if base_dir.trim().is_empty() {
+        workspace_root.clone()
+    } else {
+        std::fs::canonicalize(&base_dir)
+            .map_err(|e| format!("Cannot access file directory \"{base_dir}\": {e}"))?
+    };
+    let asset_root_path = asset_root
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .map(PathBuf::from);
 
-    // Upload cover image as permanent material to get thumb_media_id
-    let cover_path = resolve_wechat_asset_path(&workspace_root, &base, &cover_path_str)?;
-    let thumb_id = wechat_upload_thumb(&client, &token, &cover_path).await?;
+    // Upload cover image as permanent material to get thumb_media_id (optional)
+    let thumb_id = match cover_image_path {
+        Some(ref p) if !p.is_empty() => {
+            let cover_path =
+                resolve_wechat_asset_path(&workspace_root, &base, asset_root_path.as_deref(), p)
+                    .map_err(|_| format!("Cover image not found: \"{p}\""))?;
+            Some(wechat_upload_thumb(&client, &token, &cover_path).await?)
+        }
+        _ => None,
+    };
 
-    // Upload body images (local paths only) and replace src attributes
+    // Upload body images (local file paths only) and replace src attributes.
+    // Non-local schemes (http, https, asset://, data:, blob:) are skipped.
+    // Images that cannot be resolved are skipped rather than aborting the draft.
     let srcs = extract_img_srcs(&html);
     let mut processed_html = html;
     for src in srcs {
-        if src.starts_with("http://") || src.starts_with("https://") {
+        if src.starts_with("http://")
+            || src.starts_with("https://")
+            || src.starts_with("asset://")
+            || src.starts_with("data:")
+            || src.starts_with("blob:")
+        {
             continue;
         }
-        let img_path = resolve_wechat_asset_path(&workspace_root, &base, &src)?;
+        let img_path = match resolve_wechat_asset_path(
+            &workspace_root,
+            &base,
+            asset_root_path.as_deref(),
+            &src,
+        ) {
+            Ok(p) => p,
+            Err(_) => {
+                // Path can't be resolved — strip the <img> tag to avoid sending
+                // a broken local path to WeChat.
+                processed_html = remove_img_tag(&processed_html, &src);
+                continue;
+            }
+        };
         let wechat_url = wechat_upload_body_image(&client, &token, &img_path).await?;
         processed_html = processed_html.replace(
             &format!("src=\"{}\"", src),
@@ -2735,18 +2864,23 @@ async fn wechat_publish_draft(
         );
     }
 
-    // Create draft via WeChat API
-    let draft_body = serde_json::json!({
-        "articles": [{
-            "title": title,
-            "author": author,
-            "content": processed_html,
-            "content_source_url": "",
-            "thumb_media_id": thumb_id,
-            "need_open_comment": 0,
-            "only_fans_can_comment": 0
-        }]
+    // Build article object; include optional fields only when present
+    let mut article = serde_json::json!({
+        "title": title,
+        "author": author,
+        "content": processed_html
     });
+    if let Some(ref d) = digest {
+        if !d.is_empty() {
+            article["digest"] = serde_json::Value::String(d.clone());
+        }
+    }
+    if let Some(ref id) = thumb_id {
+        article["thumb_media_id"] = serde_json::Value::String(id.clone());
+    }
+
+    // Create draft via WeChat API
+    let draft_body = serde_json::json!({ "articles": [article] });
 
     let url = format!(
         "https://api.weixin.qq.com/cgi-bin/draft/add?access_token={}",
@@ -3675,6 +3809,56 @@ mod tests {
         );
     }
 
+    // ── parse_default_author ─────────────────────────────────────────────────
+
+    #[test]
+    fn parse_default_author_returns_first_name_from_single_entry_array() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  posts: {\n    authors: {\n      default: [\"John Hu\"] as string[],\n    },\n  },\n};\n",
+        );
+        assert_eq!(parse_default_author(&path), Some("John Hu".to_string()));
+    }
+
+    #[test]
+    fn parse_default_author_returns_first_name_from_multi_entry_array() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  posts: {\n    authors: {\n      default: [\"Alice\", \"Bob\"] as string[],\n    },\n  },\n};\n",
+        );
+        assert_eq!(parse_default_author(&path), Some("Alice".to_string()));
+    }
+
+    #[test]
+    fn parse_default_author_returns_none_when_default_array_is_empty() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  posts: { authors: { default: [] as string[] } },\n};\n",
+        );
+        assert_eq!(parse_default_author(&path), None);
+    }
+
+    #[test]
+    fn parse_default_author_returns_none_when_file_missing() {
+        assert_eq!(
+            parse_default_author(Path::new("/nonexistent/site.config.ts")),
+            None
+        );
+    }
+
+    #[test]
+    fn parse_default_author_ignores_line_comments() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "// default: [\"Fake\"]\nexport const siteConfig = {\n  posts: {\n    authors: {\n      default: [\"Real Author\"],\n    },\n  },\n};\n",
+        );
+        assert_eq!(parse_default_author(&path), Some("Real Author".to_string()));
+    }
+
     // ── derive_workspace_meta ────────────────────────────────────────────────
 
     #[test]
@@ -4460,6 +4644,88 @@ mod tests {
     fn extract_img_srcs_handles_inline_img() {
         let html = r#"<p>before <img src="inline.png" style="max-width:100%"> after</p>"#;
         assert_eq!(extract_img_srcs(html), vec!["inline.png"]);
+    }
+
+    // ── resolve_wechat_asset_path ────────────────────────────────────────────
+
+    #[test]
+    fn resolve_wechat_asset_path_relative_path_joins_base_dir() {
+        let dir = TempDir::new().unwrap();
+        let img = dir.path().join("images").join("cover.jpg");
+        fs::create_dir_all(img.parent().unwrap()).unwrap();
+        fs::write(&img, b"").unwrap();
+
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            None,
+            "images/cover.jpg",
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), img.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn resolve_wechat_asset_path_root_relative_uses_asset_root() {
+        let dir = TempDir::new().unwrap();
+        let public = dir.path().join("public");
+        let img = public.join("images").join("hero.jpg");
+        fs::create_dir_all(img.parent().unwrap()).unwrap();
+        fs::write(&img, b"").unwrap();
+
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            Some(&public),
+            "/images/hero.jpg",
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), img.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn resolve_wechat_asset_path_root_relative_falls_back_to_workspace_root() {
+        let dir = TempDir::new().unwrap();
+        let img = dir.path().join("images").join("hero.jpg");
+        fs::create_dir_all(img.parent().unwrap()).unwrap();
+        fs::write(&img, b"").unwrap();
+
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            None,
+            "/images/hero.jpg",
+        );
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), img.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn resolve_wechat_asset_path_rejects_path_outside_workspace() {
+        let dir = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let img = outside.path().join("secret.jpg");
+        fs::write(&img, b"").unwrap();
+
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            None,
+            &img.to_string_lossy(),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn resolve_wechat_asset_path_returns_err_when_file_not_found() {
+        let dir = TempDir::new().unwrap();
+        let result = resolve_wechat_asset_path(
+            dir.path(),
+            dir.path(),
+            None,
+            "nonexistent/image.jpg",
+        );
+        assert!(result.is_err());
     }
 
     // ── wechat credential file helpers ───────────────────────────────────────

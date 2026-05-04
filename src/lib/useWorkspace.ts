@@ -22,6 +22,7 @@ export interface WorkspaceResult {
   tree: FileNode[];
   isAmytisWorkspace: boolean;
   cdnBase?: string;
+  defaultAuthor?: string;
 }
 
 interface UseWorkspaceOptions {
@@ -88,6 +89,7 @@ export function useWorkspace({
   const [isAmytisWorkspace, setIsAmytisWorkspace] = useState(false);
   const [assetRoot, setAssetRoot] = useState<string | undefined>(undefined);
   const [cdnBase, setCdnBase] = useState<string | undefined>(undefined);
+  const [defaultAuthor, setDefaultAuthor] = useState<string | undefined>(undefined);
   const loadingDirectoryRequestsRef = useState(() => new Map<string, Promise<FileNode[]>>())[0];
   const refreshIdRef = useRef(0);
 
@@ -145,6 +147,7 @@ export function useWorkspace({
       setIsAmytisWorkspace(result.isAmytisWorkspace);
       setAssetRoot(result.assetRoot);
       setCdnBase(result.cdnBase ?? undefined);
+      setDefaultAuthor(result.defaultAuthor ?? undefined);
       resetFileState();
       if (!result.isAmytisWorkspace) {
         showToast("This folder doesn't look like an Amytis workspace.");
@@ -341,6 +344,7 @@ export function useWorkspace({
     isAmytisWorkspace,
     assetRoot,
     cdnBase,
+    defaultAuthor,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
