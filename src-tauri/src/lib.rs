@@ -2860,14 +2860,6 @@ async fn wechat_publish_draft(
         {
             continue;
         }
-        local_image_current += 1;
-        let _ = app.emit(
-            "wechat-upload-progress",
-            WechatUploadProgress {
-                current: local_image_current,
-                total: local_image_total,
-            },
-        );
         let img_path = match resolve_wechat_asset_path(
             &workspace_root,
             &base,
@@ -2883,6 +2875,14 @@ async fn wechat_publish_draft(
             }
         };
         let wechat_url = wechat_upload_body_image(&client, &token, &img_path).await?;
+        local_image_current += 1;
+        let _ = app.emit(
+            "wechat-upload-progress",
+            WechatUploadProgress {
+                current: local_image_current,
+                total: local_image_total,
+            },
+        );
         processed_html = processed_html.replace(
             &format!("src=\"{}\"", src),
             &format!("src=\"{}\"", wechat_url),

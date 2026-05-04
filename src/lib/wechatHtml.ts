@@ -171,7 +171,13 @@ export function countLocalImages(markdown: string): number {
   let count = 0;
   for (const [, src] of markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)) {
     const url = src.trim().split(/\s+/)[0];
-    if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("data:"))
+    if (
+      !url.startsWith("http://") &&
+      !url.startsWith("https://") &&
+      !url.startsWith("data:") &&
+      !url.startsWith("asset://") &&
+      !url.startsWith("blob:")
+    )
       count++;
   }
   return count;

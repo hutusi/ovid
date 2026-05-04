@@ -152,6 +152,14 @@ describe("countLocalImages", () => {
     expect(countLocalImages("![inline](data:image/png;base64,abc123)")).toBe(0);
   });
 
+  test("excludes asset:// scheme (Tauri asset protocol)", () => {
+    expect(countLocalImages("![asset](asset://localhost/images/photo.png)")).toBe(0);
+  });
+
+  test("excludes blob: URIs", () => {
+    expect(countLocalImages("![blob](blob:https://example.com/abc-123)")).toBe(0);
+  });
+
   test("counts local but not remote in mixed content", () => {
     const md = [
       "![local](images/local.png)",

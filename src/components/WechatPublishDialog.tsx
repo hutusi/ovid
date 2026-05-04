@@ -73,13 +73,23 @@ export function WechatPublishDialog({
   useEffect(() => {
     if (phase !== "publishing") return;
     setUploadProgress(null);
+    let cancelled = false;
     let unlisten: (() => void) | undefined;
     listen<{ current: number; total: number }>("wechat-upload-progress", (event) => {
-      setUploadProgress(event.payload);
-    }).then((fn) => {
-      unlisten = fn;
-    });
+      if (!cancelled) setUploadProgress(event.payload);
+    })
+      .then((fn) => {
+        if (cancelled) {
+          fn();
+        } else {
+          unlisten = fn;
+        }
+      })
+      .catch((err) => {
+        console.error("wechat-upload-progress listener error:", err);
+      });
     return () => {
+      cancelled = true;
       unlisten?.();
     };
   }, [phase]);
