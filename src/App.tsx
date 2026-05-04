@@ -248,6 +248,7 @@ function App() {
     (path: string) => {
       const node = flatFiles.find((f) => f.node.path === path)?.node ?? makeFileNodeFromPath(path);
       if (node.isDirectory) return;
+      setFileViewerNode(null);
       void handleSelectFile(node);
       pushRecent(node);
       openTab(path);

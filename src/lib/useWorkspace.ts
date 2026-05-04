@@ -159,14 +159,18 @@ export function useWorkspace({
           () => invoke<WorkspaceResult | null>("open_workspace_at_path", { path }),
           { path }
         );
-        if (result) applyWorkspaceResult(result);
-        else showToast("Could not open workspace — path may no longer be valid.");
+        if (result) {
+          applyWorkspaceResult(result);
+          // applyWorkspaceResult uses the shallow snapshot for fast initial render;
+          // follow up with a full walk so flatFiles has the complete index.
+          void refreshTree();
+        } else showToast("Could not open workspace — path may no longer be valid.");
       } catch (err) {
         console.error("Failed to open workspace:", err);
         showToast(`Failed to open workspace: ${err}`);
       }
     },
-    [flushPendingSave, showToast, applyWorkspaceResult]
+    [flushPendingSave, showToast, applyWorkspaceResult, refreshTree]
   );
 
   const handleOpenWorkspace = useCallback(async () => {
@@ -175,12 +179,15 @@ export function useWorkspace({
       const result = await measureAsync("open_workspace.invoke", () =>
         invoke<WorkspaceResult | null>("open_workspace")
       );
-      if (result) applyWorkspaceResult(result);
+      if (result) {
+        applyWorkspaceResult(result);
+        void refreshTree();
+      }
     } catch (err) {
       console.error("Failed to open workspace:", err);
       showToast(`Failed to open workspace: ${err}`);
     }
-  }, [flushPendingSave, showToast, applyWorkspaceResult]);
+  }, [flushPendingSave, showToast, applyWorkspaceResult, refreshTree]);
 
   const handleNewTodayFlow = useCallback(async () => {
     if (!workspaceRoot) return;
