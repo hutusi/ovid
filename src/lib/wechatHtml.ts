@@ -71,10 +71,11 @@ function applyWechatStyles(html: string): string {
 /**
  * Strip attributes and elements that WeChat rejects.
  *
- * - `data-*` and `aria-*` attributes → removed (WeChat whitelist forbids them)
- * - `id` attributes → removed (unnecessary, may conflict with WeChat's own DOM)
- * - `<input type="checkbox">` → replaced with ☑/☐ Unicode (task list support)
- * - `<label>` wrapper elements → unwrapped (keep child nodes, discard the tag)
+ * - Non-absolute <a href> values stripped (WeChat only allows http/https links;
+ *   relative/root-relative hrefs trigger error 45166)
+ * - data-*, aria-*, id attributes removed (WeChat content whitelist forbids them)
+ * - <input type="checkbox"> replaced with Unicode checkbox characters
+ * - <label> wrappers unwrapped (children kept, tag discarded)
  */
 function sanitizeForWechat(html: string): string {
   const parser = new DOMParser();
@@ -83,12 +84,22 @@ function sanitizeForWechat(html: string): string {
   // Replace checkboxes with Unicode before unwrapping their labels
   for (const input of Array.from(doc.querySelectorAll('input[type="checkbox"]'))) {
     const checked = (input as HTMLInputElement).checked;
-    input.replaceWith(doc.createTextNode(checked ? "☑ " : "☐ "));
+    const symbol = checked ? "☑ " : "☐ ";
+    input.replaceWith(doc.createTextNode(symbol));
   }
 
   // Unwrap <label> elements — keep their children, discard the tag
   for (const label of Array.from(doc.querySelectorAll("label"))) {
     label.replaceWith(...Array.from(label.childNodes));
+  }
+
+  // Strip href from links that aren't absolute http/https URLs.
+  // WeChat rejects relative, root-relative, and protocol-less hrefs (error 45166).
+  for (const a of Array.from(doc.querySelectorAll("a[href]"))) {
+    const href = a.getAttribute("href") ?? "";
+    if (!href.startsWith("http://") && !href.startsWith("https://")) {
+      a.removeAttribute("href");
+    }
   }
 
   // Strip data-*, aria-*, and id attributes from all remaining elements
@@ -119,7 +130,7 @@ function parseMarkdown(markdown: string): string {
 
 /**
  * Converts a markdown string to WeChat-compatible inline-styled HTML.
- * Math blocks ($$…$$) are stripped with a warning since WeChat cannot render LaTeX.
+ * Math blocks ($$...$$) are stripped with a warning since WeChat cannot render LaTeX.
  */
 export function markdownToWechatHtml(markdown: string): {
   html: string;
