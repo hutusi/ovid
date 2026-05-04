@@ -393,6 +393,7 @@
     "author_label": "Author",
     "digest_label": "Summary",
     "digest_placeholder": "Brief summary shown in feed (optional, max 54 chars)",
+    "math_warning": "Math blocks will be stripped — WeChat cannot render LaTeX.",
     "no_cover_warning": "No cover image — add coverImage to frontmatter for best results.",
     "change_account": "Change Account",
     "publish_draft": "Save Draft",

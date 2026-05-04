@@ -155,6 +155,14 @@ export function extractExcerpt(markdown: string, maxLen = 54): string {
 }
 
 /**
+ * Returns true if the markdown contains any LaTeX math blocks ($$...$$  or $...$).
+ * DOM-free — safe to call outside a browser context.
+ */
+export function hasMathBlocks(markdown: string): boolean {
+  return /\$\$[\s\S]*?\$\$|\$[^$\n]+\$/.test(markdown);
+}
+
+/**
  * Converts a markdown string to WeChat-compatible inline-styled HTML.
  * Math blocks ($$...$$) are stripped with a warning since WeChat cannot render LaTeX.
  */

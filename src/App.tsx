@@ -36,7 +36,7 @@ import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspace } from "./lib/useWorkspace";
-import { extractExcerpt, markdownToWechatHtml } from "./lib/wechatHtml";
+import { extractExcerpt, hasMathBlocks, markdownToWechatHtml } from "./lib/wechatHtml";
 import { getExternalWorkspaceChangeAction } from "./lib/workspaceRefresh";
 import "./styles/global.css";
 import "./App.css";
@@ -1020,14 +1020,15 @@ function App() {
     parsedFrontmatter.author != null ? String(parsedFrontmatter.author).trim() : "";
   const wechatAuthor = frontmatterAuthor || (defaultAuthor ?? "");
   // Digest: frontmatter excerpt/description → auto-extract from body
+  const wechatBody = pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body;
   const wechatDigest = (() => {
     if (parsedFrontmatter.excerpt != null && String(parsedFrontmatter.excerpt).trim())
       return String(parsedFrontmatter.excerpt).trim();
     if (parsedFrontmatter.description != null && String(parsedFrontmatter.description).trim())
       return String(parsedFrontmatter.description).trim();
-    const body = pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body;
-    return extractExcerpt(body);
+    return extractExcerpt(wechatBody);
   })();
+  const wechatHasMath = hasMathBlocks(wechatBody);
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
@@ -1247,6 +1248,7 @@ function App() {
             }
             author={wechatAuthor}
             excerpt={wechatDigest}
+            hasMath={wechatHasMath}
             markdown={pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body}
             baseDir={wechatBaseDir}
             assetRoot={assetRoot}

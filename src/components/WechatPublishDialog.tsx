@@ -18,6 +18,7 @@ interface Props {
   title: string;
   author: string;
   excerpt: string;
+  hasMath: boolean;
   markdown: string;
   baseDir: string;
   assetRoot: string | undefined;
@@ -31,6 +32,7 @@ export function WechatPublishDialog({
   title,
   author,
   excerpt,
+  hasMath,
   markdown,
   baseDir,
   assetRoot,
@@ -48,7 +50,6 @@ export function WechatPublishDialog({
   const [credError, setCredError] = useState("");
   const [resultMediaId, setResultMediaId] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [hasMathStripped, setHasMathStripped] = useState(false);
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftAuthor, setDraftAuthor] = useState(author);
   const [draftDigest, setDraftDigest] = useState(excerpt.slice(0, 54));
@@ -84,8 +85,7 @@ export function WechatPublishDialog({
   async function handlePublish() {
     setPhase("publishing");
     try {
-      const { html, hasMath } = markdownToWechatHtml(markdown);
-      setHasMathStripped(hasMath);
+      const { html } = markdownToWechatHtml(markdown);
       const result = await invoke<WechatPublishResult>("wechat_publish_draft", {
         title: draftTitle,
         author: draftAuthor,
@@ -218,6 +218,7 @@ export function WechatPublishDialog({
               onChange={(e) => setDraftDigest(e.target.value)}
               autoComplete="off"
             />
+            {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
             {!coverImagePath && (
               <p className="modal-copy modal-copy-warning">{t("wechat.no_cover_warning")}</p>
             )}
@@ -251,11 +252,7 @@ export function WechatPublishDialog({
           <>
             <p className="modal-copy">{t("wechat.success_title")}</p>
             <p className="modal-copy">{t("wechat.success_media_id", { mediaId: resultMediaId })}</p>
-            {hasMathStripped && (
-              <p className="modal-copy modal-copy-warning">
-                {t("menu.file_wechat_copy_math_warning")}
-              </p>
-            )}
+            {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
             <p className="modal-copy">{t("wechat.success_note")}</p>
             <div className="modal-actions">
               <div className="modal-spacer" />

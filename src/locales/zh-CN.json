@@ -393,6 +393,7 @@
     "author_label": "作者",
     "digest_label": "摘要",
     "digest_placeholder": "显示在消息列表中的简介（选填，最多 54 字）",
+    "math_warning": "数学公式将被移除——微信不支持 LaTeX 渲染。",
     "no_cover_warning": "未设置封面图，建议在 frontmatter 中添加 coverImage。",
     "change_account": "更换账号",
     "publish_draft": "保存草稿",
