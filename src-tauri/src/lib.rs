@@ -2839,7 +2839,7 @@ async fn wechat_publish_draft(
     // Non-local schemes (http, https, asset://, data:, blob:) are skipped.
     // Images that cannot be resolved are skipped rather than aborting the draft.
     let srcs = extract_img_srcs(&html);
-    let local_image_total = srcs
+    let mut local_image_total = srcs
         .iter()
         .filter(|s| {
             !s.starts_with("http://")
@@ -2869,8 +2869,10 @@ async fn wechat_publish_draft(
             Ok(p) => p,
             Err(_) => {
                 // Path can't be resolved — strip the <img> tag to avoid sending
-                // a broken local path to WeChat.
+                // a broken local path to WeChat. Adjust total so the progress
+                // counter stays consistent with the number of uploads attempted.
                 processed_html = remove_img_tag(&processed_html, &src);
+                local_image_total = local_image_total.saturating_sub(1);
                 continue;
             }
         };

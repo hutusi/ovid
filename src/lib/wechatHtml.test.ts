@@ -125,6 +125,10 @@ describe("hasMathBlocks", () => {
     expect(hasMathBlocks("It costs $5 to enter.")).toBe(false);
   });
 
+  test("returns false for two currency dollar signs on the same line", () => {
+    expect(hasMathBlocks("Save $10 on a $50 purchase")).toBe(false);
+  });
+
   test("returns false for dollar sign at end of line with no closing pair", () => {
     expect(hasMathBlocks("Price: $100\nTax: $10")).toBe(false);
   });

@@ -159,7 +159,7 @@ export function extractExcerpt(markdown: string, maxLen = 54): string {
  * DOM-free — safe to call outside a browser context.
  */
 export function hasMathBlocks(markdown: string): boolean {
-  return /\$\$[\s\S]*?\$\$|\$[^$\n]+\$/.test(markdown);
+  return /\$\$[\s\S]*?\$\$|\$(?!\d)[^$\n]+\$/.test(markdown);
 }
 
 /**
@@ -191,11 +191,11 @@ export function markdownToWechatHtml(markdown: string): {
   html: string;
   hasMath: boolean;
 } {
-  const mathPattern = /\$\$[\s\S]*?\$\$|\$[^$\n]+\$/g;
+  const mathPattern = /\$\$[\s\S]*?\$\$|\$(?!\d)[^$\n]+\$/g;
   const hasMath = mathPattern.test(markdown);
 
   const cleaned = hasMath
-    ? markdown.replace(/\$\$[\s\S]*?\$\$/g, "").replace(/\$[^$\n]+\$/g, "")
+    ? markdown.replace(/\$\$[\s\S]*?\$\$/g, "").replace(/\$(?!\d)[^$\n]+\$/g, "")
     : markdown;
 
   const rawHtml = parseMarkdown(cleaned);
