@@ -191,8 +191,7 @@ export function markdownToWechatHtml(markdown: string): {
   html: string;
   hasMath: boolean;
 } {
-  const mathPattern = /\$\$[\s\S]*?\$\$|\$(?!\d)[^$\n]+\$/g;
-  const hasMath = mathPattern.test(markdown);
+  const hasMath = hasMathBlocks(markdown);
 
   const cleaned = hasMath
     ? markdown.replace(/\$\$[\s\S]*?\$\$/g, "").replace(/\$(?!\d)[^$\n]+\$/g, "")
