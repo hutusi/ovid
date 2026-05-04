@@ -173,12 +173,12 @@ Progress landed so far:
 ## Phase 11 — Workflow Coherence & Path-Based Navigation
 > Goal: make Ovid feel like one continuous writing flow instead of a set of strong but separate features. 🖊 🧠 📢
 
-61. **Independent file index for switcher/search** — decouple `Cmd+P`, path-open flows, and other file discovery from the currently loaded sidebar tree so lazy tree loading never makes discovery incomplete
-62. **Canonical open-by-path flow** — unify how the app opens a file by path from search, switcher, recents, auto-reopen, and future commands; ensure the same code path can hydrate missing directory segments and reveal the file in the sidebar
-63. **Reveal selected file in a lazy tree** — when a deep file is opened outside the currently loaded tree, progressively load and expand ancestor directories so the sidebar reflects the actual current selection
+61. ✅ **Independent file index for switcher/search** — decouple `Cmd+P`, path-open flows, and other file discovery from the currently loaded sidebar tree so lazy tree loading never makes discovery incomplete
+62. ✅ **Canonical open-by-path flow** — unify how the app opens a file by path from search, switcher, recents, auto-reopen, and future commands; ensure the same code path can hydrate missing directory segments and reveal the file in the sidebar
+63. ✅ **Reveal selected file in a lazy tree** — when a deep file is opened outside the currently loaded tree, progressively load and expand ancestor directories so the sidebar reflects the actual current selection
 64. **Workspace/session restore polish** — restore not just the last workspace, but the last useful working context with fewer surprises: recent file, visible editor state, and a calmer handoff after restart or workspace switch
 65. **Publishing flow tightening** — make the draft → edit → publish → commit/push sequence feel more deliberate, with better defaults and fewer small interruptions around metadata, commit message generation, and follow-up Git actions
-66. **Cross-surface consistency pass** — align sidebar, switcher, recents, search, and open-by-path behavior so ranking, reveal rules, and path handling feel like one coherent system rather than feature-by-feature exceptions
+66. ✅ **Cross-surface consistency pass** — align sidebar, switcher, recents, search, and open-by-path behavior so ranking, reveal rules, and path handling feel like one coherent system rather than feature-by-feature exceptions
 
 ---
 
