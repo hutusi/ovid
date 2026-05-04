@@ -2766,7 +2766,6 @@ async fn wechat_publish_draft(
         "title": title,
         "author": author,
         "content": processed_html,
-        "content_source_url": "",
         "need_open_comment": 0,
         "only_fans_can_comment": 0
     });
