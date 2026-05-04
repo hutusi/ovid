@@ -2749,21 +2749,19 @@ fn extract_img_srcs(html: &str) -> Vec<String> {
 /// Returns the original string unchanged when no matching tag is found.
 fn remove_img_tag(html: &str, src: &str) -> String {
     let src_attr = format!("src=\"{}\"", src);
-    let Some(src_pos) = html.find(&src_attr) else {
-        return html.to_string();
-    };
-    let Some(tag_start) = html[..src_pos].rfind('<') else {
-        return html.to_string();
-    };
-    if !html[tag_start..].starts_with("<img") {
-        return html.to_string();
+    let mut search_from = 0;
+    while let Some(rel_start) = html[search_from..].find("<img") {
+        let tag_start = search_from + rel_start;
+        let Some(rel_end) = html[tag_start..].find('>') else {
+            return html.to_string();
+        };
+        let tag_end = tag_start + rel_end + 1;
+        if html[tag_start..tag_end].contains(&src_attr) {
+            return format!("{}{}", &html[..tag_start], &html[tag_end..]);
+        }
+        search_from = tag_end;
     }
-    let after_attr = src_pos + src_attr.len();
-    let Some(close_offset) = html[after_attr..].find('>') else {
-        return html.to_string();
-    };
-    let tag_end = after_attr + close_offset + 1;
-    format!("{}{}", &html[..tag_start], &html[tag_end..])
+    html.to_string()
 }
 
 /// Resolve an asset path relative to `base_dir` and validate it is inside `workspace_root`.

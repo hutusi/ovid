@@ -1015,9 +1015,10 @@ function App() {
   // Pass the raw coverImage frontmatter value to Rust; Rust resolves root-relative
   // paths (/images/…) against assetRoot and relative paths against wechatBaseDir.
   const wechatCoverImagePath = coverImagePath ?? null;
-  // Author: frontmatter author → site.config default → empty
-  const wechatAuthor =
-    parsedFrontmatter.author != null ? String(parsedFrontmatter.author) : (defaultAuthor ?? "");
+  // Author: frontmatter author → site.config default → empty; blank frontmatter treated as missing
+  const frontmatterAuthor =
+    parsedFrontmatter.author != null ? String(parsedFrontmatter.author).trim() : "";
+  const wechatAuthor = frontmatterAuthor || (defaultAuthor ?? "");
   // Digest: frontmatter excerpt/description → auto-extract from body
   const wechatDigest = (() => {
     if (parsedFrontmatter.excerpt != null && String(parsedFrontmatter.excerpt).trim())
