@@ -2706,25 +2706,37 @@ async fn wechat_publish_draft(
     let creds_path = wechat_creds_path(&app)?;
     let token = wechat_get_or_refresh_token(&creds_path, &wechat_state).await?;
     let client = reqwest::Client::new();
-    let base = validate_path(&workspace_root, &base_dir)?;
+    let base = std::fs::canonicalize(&base_dir)
+        .map_err(|e| format!("Cannot access file directory \"{base_dir}\": {e}"))?;
 
     // Upload cover image as permanent material to get thumb_media_id (optional)
     let thumb_id = match cover_image_path {
         Some(ref p) if !p.is_empty() => {
-            let cover_path = resolve_wechat_asset_path(&workspace_root, &base, p)?;
+            let cover_path = resolve_wechat_asset_path(&workspace_root, &base, p)
+                .map_err(|_| format!("Cover image not found: \"{p}\""))?;
             Some(wechat_upload_thumb(&client, &token, &cover_path).await?)
         }
         _ => None,
     };
 
-    // Upload body images (local paths only) and replace src attributes
+    // Upload body images (local file paths only) and replace src attributes.
+    // Non-local schemes (http, https, asset://, data:, blob:) are skipped.
+    // Images that cannot be resolved are skipped rather than aborting the draft.
     let srcs = extract_img_srcs(&html);
     let mut processed_html = html;
     for src in srcs {
-        if src.starts_with("http://") || src.starts_with("https://") {
+        if src.starts_with("http://")
+            || src.starts_with("https://")
+            || src.starts_with("asset://")
+            || src.starts_with("data:")
+            || src.starts_with("blob:")
+        {
             continue;
         }
-        let img_path = resolve_wechat_asset_path(&workspace_root, &base, &src)?;
+        let img_path = match resolve_wechat_asset_path(&workspace_root, &base, &src) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
         let wechat_url = wechat_upload_body_image(&client, &token, &img_path).await?;
         processed_html = processed_html.replace(
             &format!("src=\"{}\"", src),
