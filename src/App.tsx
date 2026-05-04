@@ -36,7 +36,12 @@ import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspace } from "./lib/useWorkspace";
-import { extractExcerpt, hasMathBlocks, markdownToWechatHtml } from "./lib/wechatHtml";
+import {
+  countLocalImages,
+  extractExcerpt,
+  hasMathBlocks,
+  markdownToWechatHtml,
+} from "./lib/wechatHtml";
 import { getExternalWorkspaceChangeAction } from "./lib/workspaceRefresh";
 import "./styles/global.css";
 import "./App.css";
@@ -1029,15 +1034,7 @@ function App() {
     return extractExcerpt(wechatBody);
   })();
   const wechatHasMath = hasMathBlocks(wechatBody);
-  const wechatImageCount = (() => {
-    let count = 0;
-    for (const [, src] of wechatBody.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)) {
-      const url = src.trim().split(/\s+/)[0];
-      if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("data:"))
-        count++;
-    }
-    return count;
-  })();
+  const wechatImageCount = countLocalImages(wechatBody);
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);

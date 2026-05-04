@@ -163,6 +163,21 @@ export function hasMathBlocks(markdown: string): boolean {
 }
 
 /**
+ * Counts markdown images whose source is a local path (not http/https/data:).
+ * Used to warn the user how many images will be uploaded to WeChat CDN.
+ * DOM-free — safe to call outside a browser context.
+ */
+export function countLocalImages(markdown: string): number {
+  let count = 0;
+  for (const [, src] of markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)) {
+    const url = src.trim().split(/\s+/)[0];
+    if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("data:"))
+      count++;
+  }
+  return count;
+}
+
+/**
  * Converts a markdown string to WeChat-compatible inline-styled HTML.
  * Math blocks ($$...$$) are stripped with a warning since WeChat cannot render LaTeX.
  */
