@@ -19,6 +19,7 @@ interface Props {
   author: string;
   excerpt: string;
   hasMath: boolean;
+  imageCount: number;
   markdown: string;
   baseDir: string;
   assetRoot: string | undefined;
@@ -33,6 +34,7 @@ export function WechatPublishDialog({
   author,
   excerpt,
   hasMath,
+  imageCount,
   markdown,
   baseDir,
   assetRoot,
@@ -209,15 +211,25 @@ export function WechatPublishDialog({
               onChange={(e) => setDraftAuthor(e.target.value)}
               autoComplete="off"
             />
-            <input
-              className="modal-input"
-              aria-label={t("wechat.digest_label")}
-              placeholder={t("wechat.digest_placeholder")}
-              value={draftDigest}
-              maxLength={54}
-              onChange={(e) => setDraftDigest(e.target.value)}
-              autoComplete="off"
-            />
+            <div className="modal-input-with-counter">
+              <input
+                className="modal-input"
+                aria-label={t("wechat.digest_label")}
+                placeholder={t("wechat.digest_placeholder")}
+                value={draftDigest}
+                maxLength={54}
+                onChange={(e) => setDraftDigest(e.target.value)}
+                autoComplete="off"
+              />
+              <div className="modal-input-counter">
+                <span className={draftDigest.length >= 50 ? "modal-input-counter--warn" : ""}>
+                  {draftDigest.length}/54
+                </span>
+              </div>
+            </div>
+            {imageCount > 0 && (
+              <p className="modal-copy">{t("wechat.local_images", { count: imageCount })}</p>
+            )}
             {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
             {!coverImagePath && (
               <p className="modal-copy modal-copy-warning">{t("wechat.no_cover_warning")}</p>

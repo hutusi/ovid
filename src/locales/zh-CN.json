@@ -393,6 +393,8 @@
     "author_label": "作者",
     "digest_label": "摘要",
     "digest_placeholder": "显示在消息列表中的简介（选填，最多 54 字）",
+    "local_images_one": "将上传 1 张本地图片。",
+    "local_images_other": "将上传 {{count}} 张本地图片。",
     "math_warning": "数学公式将被移除——微信不支持 LaTeX 渲染。",
     "no_cover_warning": "未设置封面图，建议在 frontmatter 中添加 coverImage。",
     "change_account": "更换账号",

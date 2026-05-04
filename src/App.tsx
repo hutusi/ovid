@@ -1029,6 +1029,15 @@ function App() {
     return extractExcerpt(wechatBody);
   })();
   const wechatHasMath = hasMathBlocks(wechatBody);
+  const wechatImageCount = (() => {
+    let count = 0;
+    for (const [, src] of wechatBody.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)) {
+      const url = src.trim().split(/\s+/)[0];
+      if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("data:"))
+        count++;
+    }
+    return count;
+  })();
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
@@ -1249,6 +1258,7 @@ function App() {
             author={wechatAuthor}
             excerpt={wechatDigest}
             hasMath={wechatHasMath}
+            imageCount={wechatImageCount}
             markdown={pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body}
             baseDir={wechatBaseDir}
             assetRoot={assetRoot}
