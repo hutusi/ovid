@@ -1237,24 +1237,66 @@ fn parse_cdn_base(config_path: &Path) -> Option<String> {
 /// gracefully when the workspace has no site config.
 fn parse_default_author(config_path: &Path) -> Option<String> {
     let content = std::fs::read_to_string(config_path).ok()?;
+    let mut in_authors = false;
+    let mut brace_depth: i32 = 0;
+    let mut authors_depth: i32 = 0;
+
     for line in content.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with("//") || trimmed.starts_with('*') {
             continue;
         }
-        // Match: `default: ["Author Name"]` — the authors.default array
-        if let Some(rest) = trimmed.strip_prefix("default:") {
-            let rest = rest.trim();
-            if let Some(inner) = rest.strip_prefix('[') {
-                if let Some(author) = extract_quoted_string(inner) {
-                    if !author.is_empty() {
+
+        let opens = trimmed.chars().filter(|&c| c == '{').count() as i32;
+        let closes = trimmed.chars().filter(|&c| c == '}').count() as i32;
+
+        // Exit the authors scope when brace depth returns to entry level
+        if in_authors && brace_depth + opens - closes <= authors_depth {
+            in_authors = false;
+        }
+
+        if !in_authors {
+            // Detect `authors:` key — may appear inline (e.g. `posts: { authors: { ... } }`)
+            if let Some(pos) = trimmed.find("authors:") {
+                // Reject if `authors` is part of a longer identifier (e.g. `defaultAuthors:`)
+                let is_word_boundary =
+                    pos == 0 || !trimmed.as_bytes()[pos - 1].is_ascii_alphanumeric();
+                if is_word_boundary {
+                    in_authors = true;
+                    authors_depth = brace_depth;
+                    // Check for inline `default:` on the same line
+                    if let Some(author) = parse_authors_default(trimmed) {
                         return Some(author);
                     }
                 }
             }
+        } else {
+            // Inside authors block — look for `default: [...]`
+            if let Some(author) = parse_authors_default(trimmed) {
+                return Some(author);
+            }
         }
+
+        brace_depth += opens - closes;
     }
     None
+}
+
+/// Extract the first author name from a line containing `default: ["Author", ...]`.
+fn parse_authors_default(trimmed: &str) -> Option<String> {
+    let pos = trimmed.find("default:")?;
+    // Reject if `default` is part of a longer identifier
+    if pos > 0 && trimmed.as_bytes()[pos - 1].is_ascii_alphanumeric() {
+        return None;
+    }
+    let rest = trimmed[pos + "default:".len()..].trim();
+    let inner = rest.strip_prefix('[')?;
+    let author = extract_quoted_string(inner)?;
+    if author.is_empty() {
+        None
+    } else {
+        Some(author)
+    }
 }
 
 /// Best-effort scanner: find `contentTypes` in `site.config.ts` and extract
@@ -2703,6 +2745,27 @@ fn extract_img_srcs(html: &str) -> Vec<String> {
     srcs
 }
 
+/// Remove the first `<img>` tag whose `src` attribute equals `src` from `html`.
+/// Returns the original string unchanged when no matching tag is found.
+fn remove_img_tag(html: &str, src: &str) -> String {
+    let src_attr = format!("src=\"{}\"", src);
+    let Some(src_pos) = html.find(&src_attr) else {
+        return html.to_string();
+    };
+    let Some(tag_start) = html[..src_pos].rfind('<') else {
+        return html.to_string();
+    };
+    if !html[tag_start..].starts_with("<img") {
+        return html.to_string();
+    }
+    let after_attr = src_pos + src_attr.len();
+    let Some(close_offset) = html[after_attr..].find('>') else {
+        return html.to_string();
+    };
+    let tag_end = after_attr + close_offset + 1;
+    format!("{}{}", &html[..tag_start], &html[tag_end..])
+}
+
 /// Resolve an asset path relative to `base_dir` and validate it is inside `workspace_root`.
 fn resolve_wechat_asset_path(
     workspace_root: &Path,
@@ -2746,8 +2809,12 @@ async fn wechat_publish_draft(
     let creds_path = wechat_creds_path(&app)?;
     let token = wechat_get_or_refresh_token(&creds_path, &wechat_state).await?;
     let client = reqwest::Client::new();
-    let base = std::fs::canonicalize(&base_dir)
-        .map_err(|e| format!("Cannot access file directory \"{base_dir}\": {e}"))?;
+    let base = if base_dir.trim().is_empty() {
+        workspace_root.clone()
+    } else {
+        std::fs::canonicalize(&base_dir)
+            .map_err(|e| format!("Cannot access file directory \"{base_dir}\": {e}"))?
+    };
     let asset_root_path = asset_root
         .as_deref()
         .filter(|s| !s.is_empty())
@@ -2785,7 +2852,12 @@ async fn wechat_publish_draft(
             &src,
         ) {
             Ok(p) => p,
-            Err(_) => continue,
+            Err(_) => {
+                // Path can't be resolved — strip the <img> tag to avoid sending
+                // a broken local path to WeChat.
+                processed_html = remove_img_tag(&processed_html, &src);
+                continue;
+            }
         };
         let wechat_url = wechat_upload_body_image(&client, &token, &img_path).await?;
         processed_html = processed_html.replace(

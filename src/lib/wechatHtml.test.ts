@@ -12,15 +12,11 @@ describe("extractExcerpt", () => {
   });
 
   test("strips inline code", () => {
-    expect(extractExcerpt("Use `npm install` to install")).toBe(
-      "Use  to install"
-    );
+    expect(extractExcerpt("Use `npm install` to install")).toBe("Use  to install");
   });
 
   test("strips ATX headings", () => {
-    expect(extractExcerpt("## My Heading\n\nParagraph text.")).toBe(
-      "My Heading"
-    );
+    expect(extractExcerpt("## My Heading\n\nParagraph text.")).toBe("My Heading");
   });
 
   test("strips all heading levels", () => {
@@ -33,9 +29,7 @@ describe("extractExcerpt", () => {
   });
 
   test("strips image syntax", () => {
-    expect(extractExcerpt("![alt text](image.png)\n\nContent below.")).toBe(
-      "Content below."
-    );
+    expect(extractExcerpt("![alt text](image.png)\n\nContent below.")).toBe("Content below.");
   });
 
   test("replaces links with label text", () => {
@@ -53,9 +47,7 @@ describe("extractExcerpt", () => {
   });
 
   test("strips strikethrough markers", () => {
-    expect(extractExcerpt("This is ~~struck~~ text")).toBe(
-      "This is struck text"
-    );
+    expect(extractExcerpt("This is ~~struck~~ text")).toBe("This is struck text");
   });
 
   test("strips unordered list markers", () => {
@@ -85,9 +77,7 @@ describe("extractExcerpt", () => {
   });
 
   test("skips blank lines to find first non-empty line", () => {
-    expect(extractExcerpt("\n\n\nHere is the content")).toBe(
-      "Here is the content"
-    );
+    expect(extractExcerpt("\n\n\nHere is the content")).toBe("Here is the content");
   });
 
   test("skips code block that leaves only blank lines before real text", () => {
@@ -101,8 +91,7 @@ describe("extractExcerpt", () => {
   });
 
   test("handles content with mixed markdown in a single line", () => {
-    const md =
-      "## Intro to **Rust** and [its ecosystem](https://rust-lang.org)";
+    const md = "## Intro to **Rust** and [its ecosystem](https://rust-lang.org)";
     expect(extractExcerpt(md)).toBe("Intro to Rust and its ecosystem");
   });
 });

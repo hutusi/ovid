@@ -1017,9 +1017,7 @@ function App() {
   const wechatCoverImagePath = coverImagePath ?? null;
   // Author: frontmatter author → site.config default → empty
   const wechatAuthor =
-    parsedFrontmatter.author != null
-      ? String(parsedFrontmatter.author)
-      : (defaultAuthor ?? "");
+    parsedFrontmatter.author != null ? String(parsedFrontmatter.author) : (defaultAuthor ?? "");
   // Digest: frontmatter excerpt/description → auto-extract from body
   const wechatDigest = (() => {
     if (parsedFrontmatter.excerpt != null && String(parsedFrontmatter.excerpt).trim())
