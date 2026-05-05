@@ -199,6 +199,15 @@ export function Editor({
         addNodeView() {
           return ReactNodeViewRenderer(CodeBlockView);
         },
+        addKeyboardShortcuts() {
+          return {
+            Tab: () => {
+              if (!this.editor.isActive("codeBlock")) return false;
+              this.editor.commands.insertContent("  ");
+              return true;
+            },
+          };
+        },
       }).configure({ lowlight }),
       TaskList,
       TaskItem.configure({
