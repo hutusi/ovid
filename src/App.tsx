@@ -1035,6 +1035,10 @@ function App() {
   })();
   const wechatHasMath = hasMathBlocks(wechatBody);
   const wechatImageCount = countLocalImages(wechatBody);
+  const wechatMediaId =
+    parsedFrontmatter.wechatMediaId != null && String(parsedFrontmatter.wechatMediaId).trim()
+      ? String(parsedFrontmatter.wechatMediaId).trim()
+      : null;
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
@@ -1260,7 +1264,9 @@ function App() {
             baseDir={wechatBaseDir}
             assetRoot={assetRoot}
             coverImagePath={wechatCoverImagePath}
+            existingMediaId={wechatMediaId}
             onClose={() => setWechatPublishDialogOpen(false)}
+            onSuccess={(mediaId) => handleFieldChange("wechatMediaId", mediaId)}
           />
         </Suspense>
       )}

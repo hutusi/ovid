@@ -15,7 +15,7 @@ const TAG_STYLES: Partial<Record<string, string>> = {
   h6: "font-size: 1em; font-weight: bold; line-height: 1.4; color: #555555; margin: 0.9em 0 0.3em; padding: 0;",
   blockquote:
     "border-left: 4px solid #d1d5db; padding: 0.5em 1em; margin: 1em 0; color: #6b7280; background: #f9fafb;",
-  pre: "background: #1e1e1e; color: #d4d4d4; padding: 1em 1.2em; border-radius: 6px; overflow-x: auto; margin: 1em 0; font-size: 14px; line-height: 1.6;",
+  pre: "background: #1e1e1e; color: #d4d4d4; padding: 1em 1.2em; border-radius: 6px; margin: 1em 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-all;",
   ul: "padding-left: 1.8em; margin: 0.8em 0;",
   ol: "padding-left: 1.8em; margin: 0.8em 0;",
   li: "margin: 0.3em 0; line-height: 1.75; font-size: 16px; color: #333333;",
@@ -33,17 +33,39 @@ const TAG_STYLES: Partial<Record<string, string>> = {
 
 // Inline style for <code> inside <pre> (overrides the default code style)
 const PRE_CODE_STYLE =
-  "font-family: 'Courier New', Courier, monospace; font-size: 14px; background: transparent; padding: 0; border-radius: 0; color: inherit;";
+  "font-family: 'Courier New', Courier, monospace; font-size: 14px; background: transparent; padding: 0; border-radius: 0; color: inherit; white-space: inherit;";
+
+function replaceNewlinesWithBr(el: Element): void {
+  const doc = el.ownerDocument;
+  const walker = doc.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  let node = walker.nextNode();
+  while (node) {
+    if ((node as Text).nodeValue?.includes("\n")) textNodes.push(node as Text);
+    node = walker.nextNode();
+  }
+  for (const textNode of textNodes) {
+    const lines = (textNode.nodeValue ?? "").split(/\r?\n/);
+    const frag = doc.createDocumentFragment();
+    for (let i = 0; i < lines.length; i++) {
+      frag.appendChild(doc.createTextNode(lines[i]));
+      if (i < lines.length - 1) frag.appendChild(doc.createElement("br"));
+    }
+    textNode.parentNode?.replaceChild(frag, textNode);
+  }
+}
 
 function applyStyles(el: Element, insidePre = false): void {
   const tag = el.tagName.toLowerCase();
 
   if (tag === "pre") {
     el.setAttribute("style", TAG_STYLES.pre ?? "");
-    // Style the inner <code> block differently from inline code
     const codeChild = el.querySelector("code");
     if (codeChild) {
       codeChild.setAttribute("style", PRE_CODE_STYLE);
+      // WeChat strips white-space from inline styles, so \n in text nodes renders
+      // as a space. Replace every newline with a <br> so line breaks are preserved.
+      replaceNewlinesWithBr(codeChild);
     }
     return; // don't recurse — the code child is already handled above
   }

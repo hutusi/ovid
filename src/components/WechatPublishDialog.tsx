@@ -13,6 +13,7 @@ interface WechatCredStatus {
 
 interface WechatPublishResult {
   media_id: string;
+  updated: boolean;
 }
 
 interface Props {
@@ -25,7 +26,9 @@ interface Props {
   baseDir: string;
   assetRoot: string | undefined;
   coverImagePath: string | null;
+  existingMediaId: string | null;
   onClose: () => void;
+  onSuccess: (mediaId: string, updated: boolean) => Promise<void> | void;
 }
 
 type Phase = "loading" | "credentials" | "ready" | "publishing" | "success" | "error";
@@ -40,11 +43,20 @@ export function WechatPublishDialog({
   baseDir,
   assetRoot,
   coverImagePath,
+  existingMediaId,
   onClose,
+  onSuccess,
 }: Props) {
   const { t } = useTranslation();
   const dialogRef = useFocusTrap<HTMLDivElement>();
   const appIdRef = useRef<HTMLInputElement>(null);
+
+  const dismissedRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      dismissedRef.current = true;
+    };
+  }, []);
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [credStatus, setCredStatus] = useState<WechatCredStatus | null>(null);
@@ -52,10 +64,14 @@ export function WechatPublishDialog({
   const [appSecret, setAppSecret] = useState("");
   const [credError, setCredError] = useState("");
   const [resultMediaId, setResultMediaId] = useState("");
+  const [resultUpdated, setResultUpdated] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftAuthor, setDraftAuthor] = useState(author);
   const [draftDigest, setDraftDigest] = useState(excerpt.slice(0, 54));
+  const [contentSourceUrl, setContentSourceUrl] = useState("");
+  const [needOpenComment, setNeedOpenComment] = useState(false);
+  const [canReward, setCanReward] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
     null
   );
@@ -124,10 +140,19 @@ export function WechatPublishDialog({
         baseDir,
         assetRoot: assetRoot ?? null,
         coverImagePath,
+        existingMediaId: existingMediaId ?? null,
+        contentSourceUrl: contentSourceUrl.trim() || null,
+        needOpenComment,
+        canReward,
       });
+      if (dismissedRef.current) return;
       setResultMediaId(result.media_id);
+      setResultUpdated(result.updated);
+      await onSuccess(result.media_id, result.updated);
+      if (dismissedRef.current) return;
       setPhase("success");
     } catch (err) {
+      if (dismissedRef.current) return;
       setErrorMsg(String(err));
       setPhase("error");
     }
@@ -153,6 +178,8 @@ export function WechatPublishDialog({
       onClose();
     }
   }
+
+  const isUpdate = !!existingMediaId;
 
   return (
     <div className="modal-overlay" role="presentation">
@@ -255,6 +282,36 @@ export function WechatPublishDialog({
                 </span>
               </div>
             </div>
+            <input
+              className="modal-input"
+              aria-label={t("wechat.content_source_url_label")}
+              placeholder={t("wechat.content_source_url_placeholder")}
+              value={contentSourceUrl}
+              onChange={(e) => setContentSourceUrl(e.target.value)}
+              autoComplete="off"
+              type="url"
+            />
+            <label className="modal-checkbox-label">
+              <input
+                type="checkbox"
+                checked={needOpenComment}
+                onChange={(e) => setNeedOpenComment(e.target.checked)}
+              />
+              {t("wechat.open_comment_label")}
+            </label>
+            <div>
+              <label className="modal-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={canReward}
+                  onChange={(e) => setCanReward(e.target.checked)}
+                />
+                {t("wechat.can_reward_label")}
+              </label>
+              <p className="modal-copy" style={{ paddingLeft: 20, marginTop: 3 }}>
+                {t("wechat.can_reward_hint")}
+              </p>
+            </div>
             {imageCount > 0 && (
               <p className="modal-copy">{t("wechat.local_images", { count: imageCount })}</p>
             )}
@@ -280,7 +337,7 @@ export function WechatPublishDialog({
                 disabled={!draftTitle.trim()}
                 onClick={handlePublish}
               >
-                {t("wechat.publish_draft")}
+                {isUpdate ? t("wechat.update_draft") : t("wechat.publish_draft")}
               </button>
             </div>
           </>
@@ -293,13 +350,17 @@ export function WechatPublishDialog({
                   current: uploadProgress.current,
                   total: uploadProgress.total,
                 })
-              : t("wechat.publishing")}
+              : isUpdate
+                ? t("wechat.updating")
+                : t("wechat.publishing")}
           </p>
         )}
 
         {phase === "success" && (
           <>
-            <p className="modal-copy">{t("wechat.success_title")}</p>
+            <p className="modal-copy">
+              {resultUpdated ? t("wechat.success_updated_title") : t("wechat.success_title")}
+            </p>
             <p className="modal-copy">{t("wechat.success_media_id", { mediaId: resultMediaId })}</p>
             {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
             <p className="modal-copy">{t("wechat.success_note")}</p>

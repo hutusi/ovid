@@ -46,6 +46,7 @@ struct WechatCredStatus {
 #[derive(Serialize)]
 struct WechatPublishResult {
     media_id: String,
+    updated: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -2800,6 +2801,10 @@ async fn wechat_publish_draft(
     base_dir: String,
     asset_root: Option<String>,
     cover_image_path: Option<String>,
+    existing_media_id: Option<String>,
+    content_source_url: Option<String>,
+    need_open_comment: bool,
+    can_reward: bool,
     workspace_state: State<'_, WorkspaceState>,
     wechat_state: State<'_, WechatState>,
 ) -> Result<WechatPublishResult, String> {
@@ -2898,6 +2903,54 @@ async fn wechat_publish_draft(
     if let Some(ref id) = thumb_id {
         article["thumb_media_id"] = serde_json::Value::String(id.clone());
     }
+    if let Some(ref url) = content_source_url {
+        if !url.is_empty() {
+            article["content_source_url"] = serde_json::Value::String(url.clone());
+        }
+    }
+    article["need_open_comment"] = serde_json::json!(if need_open_comment { 1 } else { 0 });
+    article["can_reward"] = serde_json::json!(if can_reward { 1 } else { 0 });
+
+    // Update existing draft if a media_id was provided
+    if let Some(ref existing_id) = existing_media_id {
+        let update_body = serde_json::json!({
+            "media_id": existing_id,
+            "index": 0,
+            "articles": article
+        });
+        let update_url = format!(
+            "https://api.weixin.qq.com/cgi-bin/draft/update?access_token={}",
+            token
+        );
+        let update_resp: serde_json::Value = client
+            .post(&update_url)
+            .json(&update_body)
+            .send()
+            .await
+            .map_err(|e| format!("Draft update network error: {}", e))?
+            .json()
+            .await
+            .map_err(|e| format!("Draft update parse error: {}", e))?;
+
+        let errcode = update_resp
+            .get("errcode")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        if errcode == 0 {
+            return Ok(WechatPublishResult {
+                media_id: existing_id.clone(),
+                updated: true,
+            });
+        } else if errcode != 40007 {
+            // 40007 = invalid/expired media_id — fall through to create a new draft.
+            // All other errors are real failures worth surfacing.
+            let errmsg = update_resp
+                .get("errmsg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            return Err(format!("WeChat draft update error {}: {}", errcode, errmsg));
+        }
+    }
 
     // Create draft via WeChat API
     let draft_body = serde_json::json!({ "articles": [article] });
@@ -2929,7 +2982,10 @@ async fn wechat_publish_draft(
         .ok_or_else(|| format!("No media_id in WeChat draft response: {}", resp))?
         .to_string();
 
-    Ok(WechatPublishResult { media_id })
+    Ok(WechatPublishResult {
+        media_id,
+        updated: false,
+    })
 }
 
 // ──────────────────────────────────────────────────────────────────────────
