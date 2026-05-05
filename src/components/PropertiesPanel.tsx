@@ -968,7 +968,7 @@ export function PropertiesPanel({
                 fieldKey={key}
                 value={value}
                 onSave={(fieldKey, value) => onFieldChange?.(fieldKey, value)}
-                onRemove={key === "draft" ? undefined : () => onFieldChange?.(key, null)}
+                onRemove={() => onFieldChange?.(key, null)}
               />
             ))}
           </section>
