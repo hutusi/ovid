@@ -707,29 +707,35 @@ function App() {
           lastWarnedRevision: externalUnsavedToastRevisionRef.current,
         });
 
-        switch (activeFileAction.type) {
-          case "warn-unsaved": {
-            // Before warning, verify the active file actually changed externally.
-            // If the disk content matches what we last wrote, the revision bump was
-            // caused by our own auto-save — not an external edit — so skip the toast.
-            const activePath = selectedFileRef.current?.path;
-            let externallyChanged = true;
-            if (activePath && lastSavedContentRef.current !== null) {
-              try {
-                const diskContent = await invoke<string>("read_file", { path: activePath });
-                if (diskContent === lastSavedContentRef.current) externallyChanged = false;
-              } catch {
-                // Can't read file — conservatively treat as external change
+        // If the revision bump was caused by our own auto-save (disk content matches
+        // what we last wrote), skip both the warn toast and the editor reload —
+        // reloading would replace the live document with the markdown-serialized
+        // version, which strips trailing whitespace and trailing empty paragraphs.
+        if (
+          activeFileAction.type === "warn-unsaved" ||
+          activeFileAction.type === "reload-active-file"
+        ) {
+          const activePath = selectedFileRef.current?.path;
+          if (activePath && lastSavedContentRef.current !== null) {
+            try {
+              const diskContent = await invoke<string>("read_file", { path: activePath });
+              if (diskContent === lastSavedContentRef.current) {
+                workspaceRefreshFailureToastRef.current = null;
+                workspaceRevisionRef.current = revision;
+                if (isGitRepoRef.current) void refreshGitStatus();
+                return;
               }
+            } catch {
+              // Can't read file — fall through to the normal action flow
             }
-            if (externallyChanged) {
-              externalUnsavedToastRevisionRef.current = activeFileAction.revision;
-              showToast(t("workspace_refresh.changed_with_unsaved"));
-            } else {
-              workspaceRevisionRef.current = revision;
-            }
-            break;
           }
+        }
+
+        switch (activeFileAction.type) {
+          case "warn-unsaved":
+            externalUnsavedToastRevisionRef.current = activeFileAction.revision;
+            showToast(t("workspace_refresh.changed_with_unsaved"));
+            break;
           case "reload-active-file": {
             const reloaded = await reloadSelectedFileFromDisk(activeFileAction.node);
             if (!reloaded) {
