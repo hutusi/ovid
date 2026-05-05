@@ -171,23 +171,33 @@ pub(crate) async fn wechat_publish_draft(
             .await
             .map_err(|e| format!("Draft update parse error: {}", e.without_url()))?;
 
-        let errcode = update_resp
-            .get("errcode")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
-        if errcode == 0 {
-            return Ok(WechatPublishResult {
-                media_id: existing_id.clone(),
-                updated: true,
-            });
-        } else if errcode != 40007 {
-            // 40007 = invalid/expired media_id — fall through to create a new draft.
-            // All other errors are real failures worth surfacing.
-            let errmsg = update_resp
-                .get("errmsg")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-            return Err(format!("WeChat draft update error {}: {}", errcode, errmsg));
+        // Require an explicit errcode in the response. A missing errcode
+        // (e.g. a malformed body, an HTML error page) must not be silently
+        // treated as success — that would write a bogus media_id to
+        // frontmatter while no update actually happened.
+        match update_resp.get("errcode").and_then(|v| v.as_i64()) {
+            Some(0) => {
+                return Ok(WechatPublishResult {
+                    media_id: existing_id.clone(),
+                    updated: true,
+                });
+            }
+            Some(40007) => {
+                // Invalid/expired media_id — fall through to create a new draft.
+            }
+            Some(errcode) => {
+                let errmsg = update_resp
+                    .get("errmsg")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("unknown");
+                return Err(format!("WeChat draft update error {}: {}", errcode, errmsg));
+            }
+            None => {
+                return Err(format!(
+                    "Malformed WeChat draft update response (no errcode): {}",
+                    update_resp
+                ));
+            }
         }
     }
 
