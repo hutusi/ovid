@@ -45,7 +45,7 @@ function replaceNewlinesWithBr(el: Element): void {
     node = walker.nextNode();
   }
   for (const textNode of textNodes) {
-    const lines = (textNode.nodeValue ?? "").split("\n");
+    const lines = (textNode.nodeValue ?? "").split(/\r?\n/);
     const frag = doc.createDocumentFragment();
     for (let i = 0; i < lines.length; i++) {
       frag.appendChild(doc.createTextNode(lines[i]));

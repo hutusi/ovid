@@ -1266,9 +1266,7 @@ function App() {
             coverImagePath={wechatCoverImagePath}
             existingMediaId={wechatMediaId}
             onClose={() => setWechatPublishDialogOpen(false)}
-            onSuccess={(mediaId) => {
-              void handleFieldChange("wechatMediaId", mediaId);
-            }}
+            onSuccess={(mediaId) => handleFieldChange("wechatMediaId", mediaId)}
           />
         </Suspense>
       )}

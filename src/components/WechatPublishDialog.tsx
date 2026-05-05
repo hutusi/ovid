@@ -28,7 +28,7 @@ interface Props {
   coverImagePath: string | null;
   existingMediaId: string | null;
   onClose: () => void;
-  onSuccess: (mediaId: string, updated: boolean) => void;
+  onSuccess: (mediaId: string, updated: boolean) => Promise<void> | void;
 }
 
 type Phase = "loading" | "credentials" | "ready" | "publishing" | "success" | "error";
@@ -50,6 +50,13 @@ export function WechatPublishDialog({
   const { t } = useTranslation();
   const dialogRef = useFocusTrap<HTMLDivElement>();
   const appIdRef = useRef<HTMLInputElement>(null);
+
+  const dismissedRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      dismissedRef.current = true;
+    };
+  }, []);
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [credStatus, setCredStatus] = useState<WechatCredStatus | null>(null);
@@ -138,11 +145,14 @@ export function WechatPublishDialog({
         needOpenComment,
         canReward,
       });
+      if (dismissedRef.current) return;
       setResultMediaId(result.media_id);
       setResultUpdated(result.updated);
-      onSuccess(result.media_id, result.updated);
+      await onSuccess(result.media_id, result.updated);
+      if (dismissedRef.current) return;
       setPhase("success");
     } catch (err) {
+      if (dismissedRef.current) return;
       setErrorMsg(String(err));
       setPhase("error");
     }
