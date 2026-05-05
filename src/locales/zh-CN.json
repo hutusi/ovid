@@ -384,7 +384,8 @@
   "editor": {
     "h1_warning": "⚠ 此文档已有标题。建议将此处改为 ## 二级标题。",
     "paste_image_error": "粘贴图片失败：{{reason}}",
-    "drop_image_error": "拖放图片失败：{{reason}}"
+    "drop_image_error": "拖放图片失败：{{reason}}",
+    "loading": "加载编辑器…"
   },
   "wechat": {
     "title": "保存到微信草稿箱",

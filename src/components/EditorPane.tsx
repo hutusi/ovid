@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { resolveImageSrc } from "../lib/imageUtils";
 import type { FileNode, RecentFile, SaveStatus } from "../lib/types";
@@ -97,6 +98,8 @@ export function EditorPane({
   propertiesOpen,
   onToggleCoverImage,
 }: EditorPaneProps) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     if (!workspaceRootPath && !selectedFile) return;
     const timer = window.setTimeout(() => {
@@ -133,7 +136,7 @@ export function EditorPane({
           <FileViewer node={fileViewerNode} onClose={onCloseFileViewer} />
         ) : selectedFile ? (
           <ErrorBoundary key={selectedFile.path}>
-            <Suspense fallback={<div className="editor-loading">Loading editor…</div>}>
+            <Suspense fallback={<div className="editor-loading">{t("editor.loading")}</div>}>
               <Editor
                 key={selectedFile.path}
                 content={fileContent}

@@ -368,7 +368,11 @@ export function AppDialogs({
             onRenameBranch={(branch) => setRenameBranchDialog({ branch })}
             onDeleteBranch={(branch) => setDeleteBranchDialog({ branch })}
             onPushAndTrack={(remoteName) =>
-              void runGitAction("push", () => handlePush(remoteName), "Pushed and set upstream")
+              void runGitAction(
+                "push",
+                () => handlePush(remoteName),
+                t("git.push_success_upstream")
+              )
             }
             onOpenRemote={(remoteName) => void openRemote(remoteName)}
             onCopyRemoteUrl={(remoteName) => void copyRemoteUrl(remoteName)}

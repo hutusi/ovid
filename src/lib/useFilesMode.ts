@@ -53,13 +53,16 @@ export function useFilesMode({ workspaceRootPath, showToast, t }: UseFilesModeOp
 
   const handleLoadDirectoryChildrenFiles = useCallback(
     async (dirPath: string) => {
+      const thisGen = loadGenRef.current;
       try {
         const children = await invoke<FileNode[]>("list_workspace_children", {
           path: dirPath,
           allFiles: true,
         });
+        if (loadGenRef.current !== thisGen) return;
         setFilesTree((current) => mergeFilesTreeChildren(current, dirPath, children));
       } catch (err) {
+        if (loadGenRef.current !== thisGen) return;
         showToast(
           t("workspace.load_files_error", {
             message: err instanceof Error ? err.message : String(err),
@@ -79,6 +82,7 @@ export function useFilesMode({ workspaceRootPath, showToast, t }: UseFilesModeOp
     setSidebarMode(stored === "files" ? "files" : "content");
     setFileViewerNode(null);
     setFilesTree([]);
+    loadGenRef.current += 1;
   }, [workspaceRootPath]);
 
   // Persist sidebarMode and load / clear the files tree accordingly
@@ -88,6 +92,7 @@ export function useFilesMode({ workspaceRootPath, showToast, t }: UseFilesModeOp
       : SIDEBAR_MODE_KEY_PREFIX;
     localStorage.setItem(key, sidebarMode);
     if (sidebarMode === "content") {
+      loadGenRef.current += 1;
       setFileViewerNode(null);
       setFilesTree([]);
     } else {
