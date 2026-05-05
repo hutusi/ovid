@@ -155,6 +155,35 @@ export function extractExcerpt(markdown: string, maxLen = 54): string {
 }
 
 /**
+ * Returns true if the markdown contains any LaTeX math blocks ($$...$$  or $...$).
+ * DOM-free — safe to call outside a browser context.
+ */
+export function hasMathBlocks(markdown: string): boolean {
+  return /\$\$[\s\S]*?\$\$|\$(?!\d)[^$\n]+\$/.test(markdown);
+}
+
+/**
+ * Counts markdown images whose source is a local path (not http/https/data:).
+ * Used to warn the user how many images will be uploaded to WeChat CDN.
+ * DOM-free — safe to call outside a browser context.
+ */
+export function countLocalImages(markdown: string): number {
+  let count = 0;
+  for (const [, src] of markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)) {
+    const url = src.trim().split(/\s+/)[0];
+    if (
+      !url.startsWith("http://") &&
+      !url.startsWith("https://") &&
+      !url.startsWith("data:") &&
+      !url.startsWith("asset://") &&
+      !url.startsWith("blob:")
+    )
+      count++;
+  }
+  return count;
+}
+
+/**
  * Converts a markdown string to WeChat-compatible inline-styled HTML.
  * Math blocks ($$...$$) are stripped with a warning since WeChat cannot render LaTeX.
  */
@@ -162,11 +191,10 @@ export function markdownToWechatHtml(markdown: string): {
   html: string;
   hasMath: boolean;
 } {
-  const mathPattern = /\$\$[\s\S]*?\$\$|\$[^$\n]+\$/g;
-  const hasMath = mathPattern.test(markdown);
+  const hasMath = hasMathBlocks(markdown);
 
   const cleaned = hasMath
-    ? markdown.replace(/\$\$[\s\S]*?\$\$/g, "").replace(/\$[^$\n]+\$/g, "")
+    ? markdown.replace(/\$\$[\s\S]*?\$\$/g, "").replace(/\$(?!\d)[^$\n]+\$/g, "")
     : markdown;
 
   const rawHtml = parseMarkdown(cleaned);

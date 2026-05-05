@@ -278,3 +278,21 @@
   font-size: 11.5px;
   color: var(--color-fg-muted);
 }
+
+/* ── Input with character counter ─────────────── */
+.modal-input-with-counter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.modal-input-counter {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 11px;
+  color: var(--color-fg-subtle);
+}
+
+.modal-input-counter--warn {
+  color: var(--color-warning);
+}

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { extractExcerpt } from "./wechatHtml";
+import { countLocalImages, extractExcerpt, hasMathBlocks } from "./wechatHtml";
 
 describe("extractExcerpt", () => {
   test("returns first non-empty line of plain text", () => {
@@ -93,5 +93,99 @@ describe("extractExcerpt", () => {
   test("handles content with mixed markdown in a single line", () => {
     const md = "## Intro to **Rust** and [its ecosystem](https://rust-lang.org)";
     expect(extractExcerpt(md)).toBe("Intro to Rust and its ecosystem");
+  });
+});
+
+describe("hasMathBlocks", () => {
+  test("detects block math", () => {
+    expect(hasMathBlocks("$$E = mc^2$$")).toBe(true);
+  });
+
+  test("detects inline math", () => {
+    expect(hasMathBlocks("The value $x = 5$ is interesting.")).toBe(true);
+  });
+
+  test("detects block math spanning multiple lines", () => {
+    expect(hasMathBlocks("$$\n\\int_0^\\infty f(x)\\,dx\n$$")).toBe(true);
+  });
+
+  test("detects math mixed with prose", () => {
+    expect(hasMathBlocks("Here is a formula: $a^2 + b^2 = c^2$ for right triangles.")).toBe(true);
+  });
+
+  test("returns false for plain text", () => {
+    expect(hasMathBlocks("No math here, just words.")).toBe(false);
+  });
+
+  test("returns false for empty string", () => {
+    expect(hasMathBlocks("")).toBe(false);
+  });
+
+  test("returns false for a single dollar sign (currency)", () => {
+    expect(hasMathBlocks("It costs $5 to enter.")).toBe(false);
+  });
+
+  test("returns false for two currency dollar signs on the same line", () => {
+    expect(hasMathBlocks("Save $10 on a $50 purchase")).toBe(false);
+  });
+
+  test("returns false for dollar sign at end of line with no closing pair", () => {
+    expect(hasMathBlocks("Price: $100\nTax: $10")).toBe(false);
+  });
+});
+
+describe("countLocalImages", () => {
+  test("counts a single local image", () => {
+    expect(countLocalImages("![alt](images/photo.png)")).toBe(1);
+  });
+
+  test("counts multiple local images", () => {
+    const md = "![a](images/a.png)\n\n![b](images/b.jpg)\n\n![c](images/c.webp)";
+    expect(countLocalImages(md)).toBe(3);
+  });
+
+  test("excludes http images", () => {
+    expect(countLocalImages("![remote](http://example.com/img.png)")).toBe(0);
+  });
+
+  test("excludes https images", () => {
+    expect(countLocalImages("![remote](https://example.com/img.png)")).toBe(0);
+  });
+
+  test("excludes data: URIs", () => {
+    expect(countLocalImages("![inline](data:image/png;base64,abc123)")).toBe(0);
+  });
+
+  test("excludes asset:// scheme (Tauri asset protocol)", () => {
+    expect(countLocalImages("![asset](asset://localhost/images/photo.png)")).toBe(0);
+  });
+
+  test("excludes blob: URIs", () => {
+    expect(countLocalImages("![blob](blob:https://example.com/abc-123)")).toBe(0);
+  });
+
+  test("counts local but not remote in mixed content", () => {
+    const md = [
+      "![local](images/local.png)",
+      "![remote](https://cdn.example.com/remote.jpg)",
+      "![also local](./assets/other.png)",
+    ].join("\n");
+    expect(countLocalImages(md)).toBe(2);
+  });
+
+  test("handles root-relative paths as local", () => {
+    expect(countLocalImages("![cover](/images/cover.jpg)")).toBe(1);
+  });
+
+  test("returns 0 for markdown with no images", () => {
+    expect(countLocalImages("Just some text with no images.")).toBe(0);
+  });
+
+  test("returns 0 for empty string", () => {
+    expect(countLocalImages("")).toBe(0);
+  });
+
+  test("ignores title text inside image syntax", () => {
+    expect(countLocalImages('![alt](images/photo.png "My title")')).toBe(1);
   });
 });

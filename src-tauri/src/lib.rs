@@ -48,6 +48,12 @@ struct WechatPublishResult {
     media_id: String,
 }
 
+#[derive(Serialize, Clone)]
+struct WechatUploadProgress {
+    current: usize,
+    total: usize,
+}
+
 #[derive(Clone)]
 struct CachedFrontmatter {
     modified: Option<SystemTime>,
@@ -2833,14 +2839,18 @@ async fn wechat_publish_draft(
     // Non-local schemes (http, https, asset://, data:, blob:) are skipped.
     // Images that cannot be resolved are skipped rather than aborting the draft.
     let srcs = extract_img_srcs(&html);
+    let is_non_local_src = |s: &str| {
+        s.starts_with("http://")
+            || s.starts_with("https://")
+            || s.starts_with("asset://")
+            || s.starts_with("data:")
+            || s.starts_with("blob:")
+    };
+    let mut local_image_total = srcs.iter().filter(|s| !is_non_local_src(s)).count();
+    let mut local_image_current = 0usize;
     let mut processed_html = html;
     for src in srcs {
-        if src.starts_with("http://")
-            || src.starts_with("https://")
-            || src.starts_with("asset://")
-            || src.starts_with("data:")
-            || src.starts_with("blob:")
-        {
+        if is_non_local_src(&src) {
             continue;
         }
         let img_path = match resolve_wechat_asset_path(
@@ -2852,12 +2862,22 @@ async fn wechat_publish_draft(
             Ok(p) => p,
             Err(_) => {
                 // Path can't be resolved — strip the <img> tag to avoid sending
-                // a broken local path to WeChat.
+                // a broken local path to WeChat. Adjust total so the progress
+                // counter stays consistent with the number of uploads attempted.
                 processed_html = remove_img_tag(&processed_html, &src);
+                local_image_total = local_image_total.saturating_sub(1);
                 continue;
             }
         };
         let wechat_url = wechat_upload_body_image(&client, &token, &img_path).await?;
+        local_image_current += 1;
+        let _ = app.emit(
+            "wechat-upload-progress",
+            WechatUploadProgress {
+                current: local_image_current,
+                total: local_image_total,
+            },
+        );
         processed_html = processed_html.replace(
             &format!("src=\"{}\"", src),
             &format!("src=\"{}\"", wechat_url),

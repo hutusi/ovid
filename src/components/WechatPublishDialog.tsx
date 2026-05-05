@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useFocusTrap } from "../lib/useFocusTrap";
@@ -18,6 +19,8 @@ interface Props {
   title: string;
   author: string;
   excerpt: string;
+  hasMath: boolean;
+  imageCount: number;
   markdown: string;
   baseDir: string;
   assetRoot: string | undefined;
@@ -31,6 +34,8 @@ export function WechatPublishDialog({
   title,
   author,
   excerpt,
+  hasMath,
+  imageCount,
   markdown,
   baseDir,
   assetRoot,
@@ -48,10 +53,12 @@ export function WechatPublishDialog({
   const [credError, setCredError] = useState("");
   const [resultMediaId, setResultMediaId] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [hasMathStripped, setHasMathStripped] = useState(false);
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftAuthor, setDraftAuthor] = useState(author);
   const [draftDigest, setDraftDigest] = useState(excerpt.slice(0, 54));
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
+    null
+  );
 
   useEffect(() => {
     invoke<WechatCredStatus>("get_wechat_credentials_status")
@@ -62,6 +69,30 @@ export function WechatPublishDialog({
       })
       .catch(() => setPhase("credentials"));
   }, []);
+
+  useEffect(() => {
+    if (phase !== "publishing") return;
+    setUploadProgress(null);
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
+    listen<{ current: number; total: number }>("wechat-upload-progress", (event) => {
+      if (!cancelled) setUploadProgress(event.payload);
+    })
+      .then((fn) => {
+        if (cancelled) {
+          fn();
+        } else {
+          unlisten = fn;
+        }
+      })
+      .catch((err) => {
+        console.error("wechat-upload-progress listener error:", err);
+      });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [phase]);
 
   async function handleSaveCredentials() {
     if (!appId.trim() || !appSecret.trim()) {
@@ -84,8 +115,7 @@ export function WechatPublishDialog({
   async function handlePublish() {
     setPhase("publishing");
     try {
-      const { html, hasMath } = markdownToWechatHtml(markdown);
-      setHasMathStripped(hasMath);
+      const { html } = markdownToWechatHtml(markdown);
       const result = await invoke<WechatPublishResult>("wechat_publish_draft", {
         title: draftTitle,
         author: draftAuthor,
@@ -209,15 +239,26 @@ export function WechatPublishDialog({
               onChange={(e) => setDraftAuthor(e.target.value)}
               autoComplete="off"
             />
-            <input
-              className="modal-input"
-              aria-label={t("wechat.digest_label")}
-              placeholder={t("wechat.digest_placeholder")}
-              value={draftDigest}
-              maxLength={54}
-              onChange={(e) => setDraftDigest(e.target.value)}
-              autoComplete="off"
-            />
+            <div className="modal-input-with-counter">
+              <input
+                className="modal-input"
+                aria-label={t("wechat.digest_label")}
+                placeholder={t("wechat.digest_placeholder")}
+                value={draftDigest}
+                maxLength={54}
+                onChange={(e) => setDraftDigest(e.target.value)}
+                autoComplete="off"
+              />
+              <div className="modal-input-counter">
+                <span className={draftDigest.length >= 50 ? "modal-input-counter--warn" : ""}>
+                  {draftDigest.length}/54
+                </span>
+              </div>
+            </div>
+            {imageCount > 0 && (
+              <p className="modal-copy">{t("wechat.local_images", { count: imageCount })}</p>
+            )}
+            {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
             {!coverImagePath && (
               <p className="modal-copy modal-copy-warning">{t("wechat.no_cover_warning")}</p>
             )}
@@ -245,17 +286,22 @@ export function WechatPublishDialog({
           </>
         )}
 
-        {phase === "publishing" && <p className="modal-copy">{t("wechat.publishing")}</p>}
+        {phase === "publishing" && (
+          <p className="modal-copy">
+            {uploadProgress
+              ? t("wechat.uploading_image", {
+                  current: uploadProgress.current,
+                  total: uploadProgress.total,
+                })
+              : t("wechat.publishing")}
+          </p>
+        )}
 
         {phase === "success" && (
           <>
             <p className="modal-copy">{t("wechat.success_title")}</p>
             <p className="modal-copy">{t("wechat.success_media_id", { mediaId: resultMediaId })}</p>
-            {hasMathStripped && (
-              <p className="modal-copy modal-copy-warning">
-                {t("menu.file_wechat_copy_math_warning")}
-              </p>
-            )}
+            {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
             <p className="modal-copy">{t("wechat.success_note")}</p>
             <div className="modal-actions">
               <div className="modal-spacer" />
