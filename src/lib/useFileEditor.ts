@@ -253,13 +253,13 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       }
     }
 
+    const filePath = selectedFile.path;
     try {
       const fullContent = joinFrontmatter(newFrontmatter, body);
-      await invoke("write_file", {
-        path: selectedFile.path,
-        content: fullContent,
-      });
-      lastSavedContentRef.current = fullContent;
+      await invoke("write_file", { path: filePath, content: fullContent });
+      if (selectedPathRef.current === filePath) {
+        lastSavedContentRef.current = fullContent;
+      }
     } catch (err) {
       console.error("Failed to save frontmatter:", err);
       showToast("Failed to save — check console for details");

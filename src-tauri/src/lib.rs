@@ -555,10 +555,10 @@ fn hash_workspace_dir(path: &Path, root: &Path, hasher: &mut DefaultHasher) {
         }
 
         if file_type.is_dir() {
-            // Hash only the directory name, not its mtime.
-            // Directory mtime changes on any file addition/deletion inside it,
-            // which causes spurious revision changes for non-markdown file ops.
-            name.hash(hasher);
+            // Don't hash the directory entry itself: markdown file paths already
+            // encode directory structure (via strip_prefix), so hashing dir names
+            // would only produce spurious revision bumps when non-markdown-only
+            // directories are added, removed, or renamed.
             hash_workspace_dir(&entry_path, root, hasher);
             continue;
         }
