@@ -26,7 +26,9 @@ import { useFileEditor } from "./lib/useFileEditor";
 import { useFilesMode } from "./lib/useFilesMode";
 import { useGit } from "./lib/useGit";
 import { useGitFocusFetch } from "./lib/useGitFocusFetch";
+import { useGitRefreshOnSave } from "./lib/useGitRefreshOnSave";
 import { useGitUiController } from "./lib/useGitUiController";
+import { useKeyboardShortcuts } from "./lib/useKeyboardShortcuts";
 import { useMenuActions } from "./lib/useMenuActions";
 import { useOpenTabs } from "./lib/useOpenTabs";
 import { useRecentFiles } from "./lib/useRecentFiles";
@@ -50,7 +52,6 @@ type EditorViewState = { selection: number; scrollTop: number };
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
-const SAVE_GIT_REFRESH_DELAY_MS = 400;
 
 const loadEditor = async () => import("./components/Editor");
 const Editor = lazy(async () => ({
@@ -120,8 +121,6 @@ function App() {
   const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
-  const saveRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const previousSaveStatusRef = useRef<"saved" | "unsaved">("saved");
   const tabSyncRef = useRef<{
     renameTab: (oldPath: string, newPath: string) => void;
     removeTab: (path: string) => void;
@@ -430,113 +429,7 @@ function App() {
     }
   }, [wordCount, baselineCaptured]);
 
-  // Global keyboard shortcuts
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const key = e.key?.toLowerCase();
-      // Escape exits zen mode (before other guards)
-      if (
-        key === "escape" &&
-        zenMode &&
-        !modal &&
-        !commitDialog &&
-        !switcherOpen &&
-        !branchSwitcher &&
-        !newBranchDialogOpen &&
-        !renameBranchDialog &&
-        !deleteBranchDialog &&
-        !workspaceSwitcherOpen &&
-        !updateDialogOpen &&
-        !wechatPublishDialogOpen
-      ) {
-        setZenMode(false);
-        return;
-      }
-      if (!e.metaKey && !e.ctrlKey) return;
-      // Ctrl+Cmd+Z — zen mode (macOS); avoids conflict with Redo (Cmd+Shift+Z)
-      if (e.metaKey && e.ctrlKey && key === "z") {
-        e.preventDefault();
-        setZenMode((v) => !v);
-        return;
-      }
-      // Mode toggles work even when editor has focus
-      if (e.shiftKey && key === "p") {
-        e.preventDefault();
-        setPropertiesOpen((v) => !v);
-        return;
-      }
-      if (e.shiftKey && key === "f") {
-        e.preventDefault();
-        if (workspaceRoot) setSearchOpen((v) => !v);
-        return;
-      }
-      const target = e.target as HTMLElement;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target.isContentEditable
-      )
-        return;
-      switch (key) {
-        case "\\":
-          e.preventDefault();
-          setSidebarVisible((v) => {
-            const next = !v;
-            localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(next));
-            return next;
-          });
-          break;
-        case "o":
-          e.preventDefault();
-          if (e.shiftKey) {
-            setWorkspaceSwitcherOpen(true);
-          } else {
-            void handleOpenWorkspace();
-          }
-          break;
-        case "g":
-          if (e.shiftKey && isGitRepo) {
-            e.preventDefault();
-            void openCommitDialog(defaultCommitMessage);
-          }
-          break;
-        case "p":
-          e.preventDefault();
-          if (tree.length > 0) setSwitcherOpen(true);
-          break;
-        case "n":
-          e.preventDefault();
-          if (workspaceRoot)
-            setModal({ type: "new-file", dirPath: workspaceRoot, contentType: "post" });
-          break;
-        case "t":
-          if (e.shiftKey) {
-            e.preventDefault();
-            if (workspaceRoot) void handleNewTodayFlow();
-          }
-          break;
-        case "s":
-          e.preventDefault();
-          void flushPendingSave();
-          break;
-        case "w":
-          e.preventDefault();
-          closeActiveTabOrFile();
-          break;
-      }
-    }
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [
-    flushPendingSave,
-    handleOpenWorkspace,
-    handleNewTodayFlow,
-    workspaceRoot,
-    tree,
-    isGitRepo,
-    openCommitDialog,
-    defaultCommitMessage,
-    zenMode,
+  useKeyboardShortcuts({
     modal,
     commitDialog,
     switcherOpen,
@@ -547,29 +440,26 @@ function App() {
     workspaceSwitcherOpen,
     updateDialogOpen,
     wechatPublishDialogOpen,
+    zenMode,
+    workspaceRoot,
+    tree,
+    isGitRepo,
+    defaultCommitMessage,
+    flushPendingSave,
     closeActiveTabOrFile,
-  ]);
+    handleOpenWorkspace,
+    handleNewTodayFlow,
+    openCommitDialog,
+    setModal,
+    setSidebarVisible,
+    setPropertiesOpen,
+    setSearchOpen,
+    setZenMode,
+    setWorkspaceSwitcherOpen,
+    setSwitcherOpen,
+  });
 
-  // Refresh git status after each save completes
-  useEffect(() => {
-    const previousSaveStatus = previousSaveStatusRef.current;
-    previousSaveStatusRef.current = saveStatus;
-
-    if (!isGitRepo || saveStatus !== "saved" || previousSaveStatus !== "unsaved") return;
-
-    if (saveRefreshTimerRef.current) clearTimeout(saveRefreshTimerRef.current);
-    saveRefreshTimerRef.current = setTimeout(() => {
-      saveRefreshTimerRef.current = null;
-      void refreshGitStatus();
-    }, SAVE_GIT_REFRESH_DELAY_MS);
-
-    return () => {
-      if (saveRefreshTimerRef.current) {
-        clearTimeout(saveRefreshTimerRef.current);
-        saveRefreshTimerRef.current = null;
-      }
-    };
-  }, [saveStatus, isGitRepo, refreshGitStatus]);
+  useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus });
 
   useWorkspaceRevisionPoll({
     workspaceRoot,
