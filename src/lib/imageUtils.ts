@@ -1,5 +1,15 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 
+export const ALLOWED_IMAGE_EXTENSIONS: ReadonlySet<string> = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "avif",
+  "svg",
+]);
+
 /**
  * Convert an image MIME type to a lowercase file extension.
  * Handles parameterized types (e.g. "image/png; charset=utf-8"),
@@ -13,6 +23,18 @@ export function mimeTypeToImageExtension(mimeType: string): string {
   if (subtype === "svg+xml") return "svg";
   if (subtype === "jpeg") return "jpg";
   return subtype;
+}
+
+/**
+ * Resolve the file extension to use when saving an image.
+ * Prefers a recognized extension from the filename; falls back to the
+ * extension derived from the MIME type when the filename has no usable extension
+ * (e.g. clipboard pastes, where `name` is often empty).
+ */
+export function resolveImageExtension(file: { name: string; type: string }): string {
+  const candidate = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (candidate && ALLOWED_IMAGE_EXTENSIONS.has(candidate)) return candidate;
+  return mimeTypeToImageExtension(file.type);
 }
 
 export function resolveRelativePath(baseDir: string, relative: string): string {

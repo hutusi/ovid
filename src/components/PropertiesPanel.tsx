@@ -15,7 +15,7 @@ import {
   readBooleanFrontmatterValue,
   resolveKnownFrontmatterFieldKey,
 } from "../lib/frontmatterSchema";
-import { mimeTypeToImageExtension, resolveImageSrc } from "../lib/imageUtils";
+import { resolveImageExtension, resolveImageSrc } from "../lib/imageUtils";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 import "./PropertiesPanel.css";
@@ -47,7 +47,6 @@ const METADATA_TEXT_INPUT_PROPS = {
   spellCheck: false,
 };
 const IMAGE_MIME_RE = /^image\/(png|jpe?g|gif|webp|avif|svg\+xml)$/;
-const ALLOWED_IMAGE_EXT_SET = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"]);
 
 function formatDate(value: string): string {
   try {
@@ -677,10 +676,7 @@ function EyeIcon({ open }: { open: boolean }) {
 }
 
 async function uploadImageBytes(file: File, filePath: string | undefined): Promise<string> {
-  const candidateExt = file.name.split(".").pop()?.toLowerCase() ?? "";
-  const ext = ALLOWED_IMAGE_EXT_SET.has(candidateExt)
-    ? candidateExt
-    : mimeTypeToImageExtension(file.type);
+  const ext = resolveImageExtension(file);
   const buf = await file.arrayBuffer();
   const bytes = Array.from(new Uint8Array(buf));
   return invoke<string>("save_asset_from_bytes", {

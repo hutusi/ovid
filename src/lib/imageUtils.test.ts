@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { mimeTypeToImageExtension, resolveImageSrc, resolveRelativePath } from "./imageUtils";
+import {
+  mimeTypeToImageExtension,
+  resolveImageExtension,
+  resolveImageSrc,
+  resolveRelativePath,
+} from "./imageUtils";
 
 // ---------------------------------------------------------------------------
 // mimeTypeToImageExtension
@@ -40,6 +45,36 @@ describe("mimeTypeToImageExtension", () => {
 
   it("handles empty subtype after slash", () => {
     expect(mimeTypeToImageExtension("image/")).toBe("png");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveImageExtension
+// ---------------------------------------------------------------------------
+
+describe("resolveImageExtension", () => {
+  it("uses the filename extension when it is in the allow-list", () => {
+    expect(resolveImageExtension({ name: "photo.PNG", type: "image/jpeg" })).toBe("png");
+  });
+
+  it("normalizes the filename extension to lowercase", () => {
+    expect(resolveImageExtension({ name: "Hero.WEBP", type: "image/png" })).toBe("webp");
+  });
+
+  it("falls back to MIME-derived extension when filename has no extension", () => {
+    expect(resolveImageExtension({ name: "pasted-image", type: "image/png" })).toBe("png");
+  });
+
+  it("falls back to MIME-derived extension when filename is empty", () => {
+    expect(resolveImageExtension({ name: "", type: "image/jpeg" })).toBe("jpg");
+  });
+
+  it("falls back to MIME when filename extension is not in the allow-list", () => {
+    expect(resolveImageExtension({ name: "weird.bin", type: "image/png" })).toBe("png");
+  });
+
+  it("handles svg+xml MIME via fallback", () => {
+    expect(resolveImageExtension({ name: "icon", type: "image/svg+xml" })).toBe("svg");
   });
 });
 
