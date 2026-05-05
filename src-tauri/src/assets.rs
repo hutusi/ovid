@@ -4,7 +4,7 @@ use tauri::State;
 use tauri_plugin_dialog::DialogExt;
 
 use crate::app::relative_path_from;
-use crate::paths::{normalize_path, to_slash};
+use crate::paths::to_slash;
 use crate::state::WorkspaceState;
 
 /// Copy an image from an arbitrary path into `<workspace>/assets/` and return
@@ -41,13 +41,21 @@ pub(crate) async fn pick_image_file(app: tauri::AppHandle) -> Result<Option<Stri
 /// Resolve the `images/` directory for saving an asset.
 /// Uses the active file's sibling `images/` when available; falls back to
 /// `<workspace_root>/images/`.
+///
+/// Both the parent directory and the workspace root are canonicalized before
+/// the prefix check so a symlink under the workspace cannot be used to escape
+/// it. If canonicalization fails (e.g. the active file does not exist) or the
+/// resolved parent is not actually under the workspace root, falls back to
+/// `<workspace_root>/images/`.
 pub(crate) fn resolve_images_dir(active_file_path: Option<&str>, root: &Path) -> PathBuf {
     if let Some(p) = active_file_path {
         if let Some(parent) = Path::new(p).parent() {
-            let norm_parent = normalize_path(parent);
-            let norm_root = normalize_path(root);
-            if norm_parent.starts_with(&norm_root) {
-                return norm_parent.join("images");
+            if let (Ok(canonical_parent), Ok(canonical_root)) =
+                (std::fs::canonicalize(parent), std::fs::canonicalize(root))
+            {
+                if canonical_parent.starts_with(&canonical_root) {
+                    return canonical_parent.join("images");
+                }
             }
         }
     }
@@ -174,30 +182,62 @@ mod tests {
 
     #[test]
     fn resolve_images_dir_uses_sibling_when_active_file_given() {
-        let root = Path::new("/workspace");
-        let result = resolve_images_dir(Some("/workspace/content/posts/my-post/index.md"), root);
-        assert_eq!(result, PathBuf::from("/workspace/content/posts/my-post/images"));
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let post_dir = root.join("content/posts/my-post");
+        fs::create_dir_all(&post_dir).unwrap();
+        let active = post_dir.join("index.md");
+        fs::write(&active, "").unwrap();
+
+        let result = resolve_images_dir(Some(active.to_str().unwrap()), root);
+        assert_eq!(result, post_dir.canonicalize().unwrap().join("images"));
     }
 
     #[test]
     fn resolve_images_dir_falls_back_to_root_when_no_active_file() {
-        let root = Path::new("/workspace");
-        let result = resolve_images_dir(None, root);
-        assert_eq!(result, PathBuf::from("/workspace/images"));
+        let dir = TempDir::new().unwrap();
+        let result = resolve_images_dir(None, dir.path());
+        assert_eq!(result, dir.path().join("images"));
     }
 
     #[test]
     fn resolve_images_dir_file_at_root_level_uses_root_images() {
-        let root = Path::new("/workspace");
-        let result = resolve_images_dir(Some("/workspace/README.md"), root);
-        assert_eq!(result, PathBuf::from("/workspace/images"));
+        let dir = TempDir::new().unwrap();
+        let active = dir.path().join("README.md");
+        fs::write(&active, "").unwrap();
+
+        let result = resolve_images_dir(Some(active.to_str().unwrap()), dir.path());
+        assert_eq!(result, dir.path().canonicalize().unwrap().join("images"));
     }
 
     #[test]
     fn resolve_images_dir_rejects_path_traversal_outside_workspace() {
-        let root = Path::new("/workspace");
-        let result = resolve_images_dir(Some("/workspace/../etc/passwd"), root);
-        assert_eq!(result, PathBuf::from("/workspace/images"));
+        let dir = TempDir::new().unwrap();
+        let outside_dir = TempDir::new().unwrap();
+        let outside_file = outside_dir.path().join("passwd.md");
+        fs::write(&outside_file, "").unwrap();
+
+        // Active file is outside the workspace — must not write inside it.
+        let result = resolve_images_dir(Some(outside_file.to_str().unwrap()), dir.path());
+        assert_eq!(result, dir.path().join("images"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_images_dir_rejects_symlink_pointing_outside_workspace() {
+        // A symlink under the workspace pointing outside it must not be used as
+        // an asset target — without canonicalization, a string-prefix check
+        // would happily accept the symlink path and lead a write outside.
+        let workspace = TempDir::new().unwrap();
+        let outside = TempDir::new().unwrap();
+        let escape_link = workspace.path().join("escape");
+        std::os::unix::fs::symlink(outside.path(), &escape_link).unwrap();
+        let active = escape_link.join("post.md");
+        fs::write(&active, "").unwrap();
+
+        let result = resolve_images_dir(Some(active.to_str().unwrap()), workspace.path());
+        // Falls back to root images, not into the symlinked outside directory.
+        assert_eq!(result, workspace.path().join("images"));
     }
 
     // ── reserve_unique_name ──────────────────────────────────────────────────
