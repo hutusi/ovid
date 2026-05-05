@@ -17,6 +17,27 @@ pub(crate) fn wechat_creds_path(app: &tauri::AppHandle) -> Result<PathBuf, Strin
         .map_err(|e| e.to_string())
 }
 
+/// Atomically write the credentials JSON file with restrictive permissions.
+/// The tmp file is chmodded to 0o600 *before* the rename so the destination
+/// is never readable by other local users (rename preserves perms; setting
+/// them after rename leaves a TOCTOU window where the secret is world-readable).
+fn write_creds_atomic(path: &Path, content: &str) -> Result<(), String> {
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600)).map_err(|e| {
+            let _ = std::fs::remove_file(&tmp);
+            e.to_string()
+        })?;
+    }
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        e.to_string()
+    })
+}
+
 pub(crate) fn wechat_get_cred(path: &Path, key: &str) -> Result<Option<String>, String> {
     if !path.exists() {
         return Ok(None);
@@ -41,17 +62,7 @@ pub(crate) fn wechat_set_cred(path: &Path, key: &str, value: &str) -> Result<(),
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let content = serde_json::to_string_pretty(&map).map_err(|e| e.to_string())?;
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, path).map_err(|e| e.to_string())?;
-    // Restrict to owner read/write only
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    write_creds_atomic(path, &content)
 }
 
 pub(crate) fn wechat_del_cred(path: &Path, key: &str) -> Result<(), String> {
@@ -66,9 +77,7 @@ pub(crate) fn wechat_del_cred(path: &Path, key: &str) -> Result<(), String> {
         let _ = std::fs::remove_file(path);
     } else {
         let content = serde_json::to_string_pretty(&map).map_err(|e| e.to_string())?;
-        let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
-        std::fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+        write_creds_atomic(path, &content)?;
     }
     Ok(())
 }
@@ -129,6 +138,17 @@ mod tests {
             wechat_get_cred(&path, "app_id").unwrap(),
             Some("wx123".to_string())
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn wechat_set_cred_writes_file_with_owner_only_perms() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("creds.json");
+        wechat_set_cred(&path, "app_secret", "very-secret").unwrap();
+        let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
 
     #[test]
