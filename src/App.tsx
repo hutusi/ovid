@@ -183,6 +183,7 @@ function App() {
     saveStatus,
     selectedPathRef,
     pendingMarkdownRef,
+    lastSavedContentRef,
     flushPendingSave,
     resetFileState,
     handleCloseFile,
@@ -706,6 +707,30 @@ function App() {
           lastWarnedRevision: externalUnsavedToastRevisionRef.current,
         });
 
+        // If the revision bump was caused by our own auto-save (disk content matches
+        // what we last wrote), skip both the warn toast and the editor reload —
+        // reloading would replace the live document with the markdown-serialized
+        // version, which strips trailing whitespace and trailing empty paragraphs.
+        if (
+          activeFileAction.type === "warn-unsaved" ||
+          activeFileAction.type === "reload-active-file"
+        ) {
+          const activePath = selectedFileRef.current?.path;
+          if (activePath && lastSavedContentRef.current !== null) {
+            try {
+              const diskContent = await invoke<string>("read_file", { path: activePath });
+              if (diskContent === lastSavedContentRef.current) {
+                workspaceRefreshFailureToastRef.current = null;
+                workspaceRevisionRef.current = revision;
+                if (isGitRepoRef.current) void refreshGitStatus();
+                return;
+              }
+            } catch {
+              // Can't read file — fall through to the normal action flow
+            }
+          }
+        }
+
         switch (activeFileAction.type) {
           case "warn-unsaved":
             externalUnsavedToastRevisionRef.current = activeFileAction.revision;
@@ -770,6 +795,7 @@ function App() {
     refreshGitStatus,
     showToast,
     t,
+    lastSavedContentRef,
   ]);
 
   // Refresh remote-tracking refs when the window regains focus so ahead/behind stays current.

@@ -28,6 +28,9 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
   const pendingMarkdownRef = useRef<string | null>(null);
   const editorFlushRef = useRef<(() => void) | null>(null);
   const inFlightWritesRef = useRef(new Set<Promise<void>>());
+  // Tracks the full file content (frontmatter + body) as last written to or read from disk.
+  // Used to distinguish our own saves from external changes in the workspace refresh loop.
+  const lastSavedContentRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -66,6 +69,9 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
           perfName,
           async () => {
             await invoke("write_file", { path, content: diskContent });
+            if (selectedPathRef.current === path) {
+              lastSavedContentRef.current = diskContent;
+            }
           },
           {
             contentLength: diskContent.length,
@@ -135,6 +141,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
     frontmatterRef.current = "";
     selectedPathRef.current = null;
     pendingMarkdownRef.current = null;
+    lastSavedContentRef.current = null;
   }, []);
 
   const handleCloseFile = useCallback(async () => {
@@ -153,6 +160,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       if (selectedPathRef.current !== node.path) return;
       const { frontmatter, body } = parseFrontmatter(raw);
       frontmatterRef.current = frontmatter;
+      lastSavedContentRef.current = raw;
       // Update all state only after a successful read so a failure leaves the
       // previous file's metadata intact on screen.
       setWordCount(0);
@@ -176,6 +184,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
         if (selectedPathRef.current !== node.path) return false;
         const { frontmatter, body } = parseFrontmatter(raw);
         frontmatterRef.current = frontmatter;
+        lastSavedContentRef.current = raw;
         pendingMarkdownRef.current = null;
         setWordCount(0);
         setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
@@ -244,11 +253,13 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       }
     }
 
+    const filePath = selectedFile.path;
     try {
-      await invoke("write_file", {
-        path: selectedFile.path,
-        content: joinFrontmatter(newFrontmatter, body),
-      });
+      const fullContent = joinFrontmatter(newFrontmatter, body);
+      await invoke("write_file", { path: filePath, content: fullContent });
+      if (selectedPathRef.current === filePath) {
+        lastSavedContentRef.current = fullContent;
+      }
     } catch (err) {
       console.error("Failed to save frontmatter:", err);
       showToast("Failed to save — check console for details");
@@ -265,6 +276,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
     saveStatus,
     selectedPathRef,
     pendingMarkdownRef,
+    lastSavedContentRef,
     flushPendingSave,
     resetFileState,
     handleCloseFile,

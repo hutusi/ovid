@@ -253,7 +253,24 @@ export function Editor({
     ],
     content,
     editorProps: {
-      attributes: { spellcheck: spellCheck ? "true" : "false" },
+      attributes: {
+        spellcheck: spellCheck ? "true" : "false",
+        autocorrect: "off",
+        autocapitalize: "none",
+      },
+      handleKeyDown(view, event) {
+        if (event.key !== "Tab") return false;
+        const { state } = view;
+        const { $from } = state.selection;
+        for (let d = $from.depth; d >= 0; d--) {
+          if ($from.node(d).type.name === "codeBlock") {
+            event.preventDefault();
+            view.dispatch(state.tr.insertText("  "));
+            return true;
+          }
+        }
+        return false;
+      },
       handlePaste(view, event) {
         const imageFiles = Array.from(event.clipboardData?.files ?? []).filter((f) =>
           IMAGE_MIME.test(f.type)
