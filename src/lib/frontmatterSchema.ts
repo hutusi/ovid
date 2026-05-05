@@ -16,7 +16,13 @@ export interface FrontmatterFieldSchema {
 export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = {
   title: { key: "title", label: "Title", kind: "text" },
   type: { key: "type", label: "Type", kind: "text", hidden: true },
-  draft: { key: "draft", label: "Draft", kind: "boolean" },
+  draft: {
+    key: "draft",
+    label: "Draft",
+    kind: "boolean",
+    addable: true,
+    defaultValue: false,
+  },
   featured: {
     key: "featured",
     label: "Featured",
