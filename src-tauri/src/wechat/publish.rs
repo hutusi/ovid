@@ -11,6 +11,14 @@ use super::upload::{
     wechat_upload_thumb,
 };
 
+/// Return the items in `input` with duplicates removed, preserving first-occurrence order.
+/// Used to dedupe `<img src>` values before upload — `String::replace` rewrites every
+/// occurrence at once, so re-iterating duplicates would waste API quota and discard URLs.
+fn dedupe_preserving_order(input: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    input.into_iter().filter(|s| seen.insert(s.clone())).collect()
+}
+
 #[tauri::command]
 pub(crate) async fn wechat_publish_draft(
     app: tauri::AppHandle,
@@ -68,11 +76,7 @@ pub(crate) async fn wechat_publish_draft(
     // every occurrence of a pattern at once, so two `<img>` tags pointing at the
     // same local path would otherwise be uploaded twice — wasting WeChat quota
     // and discarding the second URL (the `replace` finds no remaining matches).
-    let mut seen = std::collections::HashSet::new();
-    let srcs: Vec<String> = extract_img_srcs(&html)
-        .into_iter()
-        .filter(|s| seen.insert(s.clone()))
-        .collect();
+    let srcs = dedupe_preserving_order(extract_img_srcs(&html));
     let is_non_local_src = |s: &str| {
         s.starts_with("http://")
             || s.starts_with("https://")
@@ -215,4 +219,40 @@ pub(crate) async fn wechat_publish_draft(
         media_id,
         updated: false,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn s(v: &[&str]) -> Vec<String> {
+        v.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn dedupe_preserving_order_removes_repeated_entries_keeping_first() {
+        let result = dedupe_preserving_order(s(&["a.png", "b.png", "a.png", "c.png", "b.png"]));
+        assert_eq!(result, s(&["a.png", "b.png", "c.png"]));
+    }
+
+    #[test]
+    fn dedupe_preserving_order_leaves_unique_input_unchanged() {
+        let input = s(&["a.png", "b.png", "c.png"]);
+        assert_eq!(dedupe_preserving_order(input.clone()), input);
+    }
+
+    #[test]
+    fn dedupe_preserving_order_handles_empty_input() {
+        assert_eq!(dedupe_preserving_order(Vec::<String>::new()), Vec::<String>::new());
+    }
+
+    #[test]
+    fn dedupe_preserving_order_collapses_duplicate_img_srcs_from_html() {
+        // End-to-end check: the publish loop's input pipeline (extract_img_srcs
+        // → dedupe) must yield each unique src exactly once, otherwise a single
+        // local file would be uploaded multiple times to WeChat.
+        let html = r#"<p><img src="images/a.png"/><img src="images/b.png"/><img src="images/a.png"/></p>"#;
+        let result = dedupe_preserving_order(extract_img_srcs(html));
+        assert_eq!(result, s(&["images/a.png", "images/b.png"]));
+    }
 }
