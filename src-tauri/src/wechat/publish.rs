@@ -63,7 +63,16 @@ pub(crate) async fn wechat_publish_draft(
     // Upload body images (local file paths only) and replace src attributes.
     // Non-local schemes (http, https, asset://, data:, blob:) are skipped.
     // Images that cannot be resolved are skipped rather than aborting the draft.
-    let srcs = extract_img_srcs(&html);
+    //
+    // Dedupe srcs preserving first-occurrence order: `String::replace` rewrites
+    // every occurrence of a pattern at once, so two `<img>` tags pointing at the
+    // same local path would otherwise be uploaded twice — wasting WeChat quota
+    // and discarding the second URL (the `replace` finds no remaining matches).
+    let mut seen = std::collections::HashSet::new();
+    let srcs: Vec<String> = extract_img_srcs(&html)
+        .into_iter()
+        .filter(|s| seen.insert(s.clone()))
+        .collect();
     let is_non_local_src = |s: &str| {
         s.starts_with("http://")
             || s.starts_with("https://")
