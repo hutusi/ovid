@@ -183,6 +183,7 @@ function App() {
     saveStatus,
     selectedPathRef,
     pendingMarkdownRef,
+    lastSavedContentRef,
     flushPendingSave,
     resetFileState,
     handleCloseFile,
@@ -707,10 +708,28 @@ function App() {
         });
 
         switch (activeFileAction.type) {
-          case "warn-unsaved":
-            externalUnsavedToastRevisionRef.current = activeFileAction.revision;
-            showToast(t("workspace_refresh.changed_with_unsaved"));
+          case "warn-unsaved": {
+            // Before warning, verify the active file actually changed externally.
+            // If the disk content matches what we last wrote, the revision bump was
+            // caused by our own auto-save — not an external edit — so skip the toast.
+            const activePath = selectedFileRef.current?.path;
+            let externallyChanged = true;
+            if (activePath && lastSavedContentRef.current !== null) {
+              try {
+                const diskContent = await invoke<string>("read_file", { path: activePath });
+                if (diskContent === lastSavedContentRef.current) externallyChanged = false;
+              } catch {
+                // Can't read file — conservatively treat as external change
+              }
+            }
+            if (externallyChanged) {
+              externalUnsavedToastRevisionRef.current = activeFileAction.revision;
+              showToast(t("workspace_refresh.changed_with_unsaved"));
+            } else {
+              workspaceRevisionRef.current = revision;
+            }
             break;
+          }
           case "reload-active-file": {
             const reloaded = await reloadSelectedFileFromDisk(activeFileAction.node);
             if (!reloaded) {
@@ -770,6 +789,7 @@ function App() {
     refreshGitStatus,
     showToast,
     t,
+    lastSavedContentRef,
   ]);
 
   // Refresh remote-tracking refs when the window regains focus so ahead/behind stays current.

@@ -555,7 +555,10 @@ fn hash_workspace_dir(path: &Path, root: &Path, hasher: &mut DefaultHasher) {
         }
 
         if file_type.is_dir() {
-            hash_workspace_entry(&entry_path, root, hasher);
+            // Hash only the directory name, not its mtime.
+            // Directory mtime changes on any file addition/deletion inside it,
+            // which causes spurious revision changes for non-markdown file ops.
+            name.hash(hasher);
             hash_workspace_dir(&entry_path, root, hasher);
             continue;
         }
@@ -3538,6 +3541,23 @@ mod tests {
         let before = compute_workspace_revision(dir.path());
 
         fs::write(&file, "updated").unwrap();
+
+        assert_eq!(compute_workspace_revision(dir.path()), before);
+    }
+
+    #[test]
+    fn compute_workspace_revision_ignores_non_markdown_file_creation_in_subdir() {
+        // Creating a non-markdown file inside a subdirectory used to change the
+        // directory's mtime and thus bump the revision even though no markdown
+        // content changed. Regression test for the directory-mtime fix.
+        let dir = TempDir::new().unwrap();
+        let subdir = dir.path().join("assets");
+        fs::create_dir_all(&subdir).unwrap();
+        fs::write(subdir.join("style.css"), "body {}").unwrap();
+        let before = compute_workspace_revision(dir.path());
+
+        // Adding a new non-markdown file must not change the revision.
+        fs::write(subdir.join("extra.css"), "h1 {}").unwrap();
 
         assert_eq!(compute_workspace_revision(dir.path()), before);
     }
