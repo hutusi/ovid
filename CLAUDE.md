@@ -118,7 +118,7 @@ Pure helpers:
 - `global.css` — Tailwind `@theme` block (single source of truth for design tokens + utility classes); `[data-theme="dark"]` overrides; `:root` for non-theme constants (font sizes, layout, shadows)
 - `editor.css` — ProseMirror / Tiptap prose typography
 
-**`src-tauri/`** — Rust backend (Tauri 2). All commands live in `src-tauri/src/lib.rs` and are registered via `tauri::generate_handler!`. For workspace-scoped file operations, path arguments are validated against the open workspace root before filesystem reads/writes.
+**`src-tauri/`** — Rust backend (Tauri 2). Code is split by domain: `state.rs` (shared `WorkspaceState` / `WechatState` / cache types), `paths.rs` (path validation + atomic write helpers), `perf.rs`, `workspace/` (`FileNode`, tree walking, frontmatter cache, workspace commands), `files.rs` (read/write/create/rename/trash), `search.rs`, `content_types.rs`, `git/` (commands, parsers, error classifiers, push/branch arg builders), `assets.rs`, `wechat/` (creds, token, upload, publish), `menu.rs` (`AboutState` + menu building), `app.rs`. `lib.rs` is a thin coordinator: it declares modules, owns `run()`, and registers every Tauri command via `tauri::generate_handler!`. For workspace-scoped file operations, path arguments are validated against the open workspace root before filesystem reads/writes.
 
 Workspace and file lifecycle:
 - `open_workspace` (folder picker) / `open_workspace_at_path` — async, tokio oneshot; uses `list_dir_shallow` for a fast initial render, then the frontend fires a background `list_workspace` call to complete the flat index
@@ -236,7 +236,7 @@ Supported languages: **English** (`en`) and **Simplified Chinese** (`zh-CN`). La
 
 **CSS-only text** (the H1-duplicate warning in `editor.css`): `content: var(--h1-warning-text, "…fallback…")`. `src/lib/i18n.ts` sets `--h1-warning-text` on `<html>` via `JSON.stringify(i18n.t("editor.h1_warning"))` after init and on every `languageChanged` event.
 
-**Rust native menus**: the frontend calls `invoke("set_menu_language", { labels })` after i18n initialises and again on language toggle. `labels` is a `Record<string, string>` built by `buildMenuLabels(t)` in `src/lib/menuLabels.ts`. On startup (before the WebView loads), `initial_menu_labels()` in `src-tauri/src/lib.rs` uses `sys-locale` to read the OS locale and parses `src/locales/*.json` (embedded via `include_str!`) to seed the menu in the right language from frame one.
+**Rust native menus**: the frontend calls `invoke("set_menu_language", { labels })` after i18n initialises and again on language toggle. `labels` is a `Record<string, string>` built by `buildMenuLabels(t)` in `src/lib/menuLabels.ts`. On startup (before the WebView loads), `initial_menu_labels()` in `src-tauri/src/menu.rs` uses `sys-locale` to read the OS locale and parses `src/locales/*.json` (embedded via `include_str!`) to seed the menu in the right language from frame one.
 
 **Adding a translation key**:
 1. Add the key to **both** `en.json` and `zh-CN.json` under the appropriate section.
