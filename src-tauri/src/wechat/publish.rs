@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 use tauri::{Emitter, State};
 
@@ -45,7 +46,12 @@ pub(crate) async fn wechat_publish_draft(
 
     let creds_path = wechat_creds_path(&app)?;
     let token = wechat_get_or_refresh_token(&creds_path, &wechat_state).await?;
-    let client = reqwest::Client::new();
+    // Bound network calls so a stalled WeChat endpoint surfaces as an error
+    // rather than hanging the publish action indefinitely.
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to initialize WeChat HTTP client: {e}"))?;
     let base = if base_dir.trim().is_empty() {
         workspace_root.clone()
     } else {
