@@ -253,7 +253,11 @@ export function Editor({
     ],
     content,
     editorProps: {
-      attributes: { spellcheck: spellCheck ? "true" : "false" },
+      attributes: {
+        spellcheck: spellCheck ? "true" : "false",
+        autocorrect: "off",
+        autocapitalize: "none",
+      },
       handlePaste(view, event) {
         const imageFiles = Array.from(event.clipboardData?.files ?? []).filter((f) =>
           IMAGE_MIME.test(f.type)
