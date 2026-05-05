@@ -46,7 +46,7 @@ Three-zone layout managed by `src/App.tsx`:
 └─────────────────────────────────────────────────┘
 ```
 
-**`src/App.tsx`** — Root component; composes top-level state from custom hooks (`useWorkspace`, `useFileEditor`, `useGit`, `useGitUiController`, `useTheme`, `useToast`, `useEditorPreferences`, `useWordCountGoal`, `useRecentFiles`, `useRecentWorkspaces`, `useOpenTabs`, `useContentTypes`) and owns local UI flags (sidebar/properties visibility, zen/typewriter mode, dialog open states). Also manages `sidebarMode` (`"content" | "files"` persisted per workspace in `localStorage`), `filesTree` (separate `FileNode[]` for Files mode loaded via `loadFilesTree`), and `fileViewerNode` (non-markdown file selected for `FileViewer` preview). `handleSidebarSelect` routes non-markdown selections to `FileViewer`; `closeActiveTabOrFile` closes the FileViewer first when it is active. `openFileByPath` is the canonical single entry point for opening a file by path from any surface (switcher, search, recents, auto-reopen, tab bar); it clears `fileViewerNode`, looks up the node in `flatFiles` (with a synthetic-node fallback), then calls `handleSelectFile` + `pushRecent` + `openTab` in one step.
+**`src/App.tsx`** — Root component; composes top-level state from custom hooks (`useWorkspace`, `useFileEditor`, `useGit`, `useGitUiController`, `useFilesMode`, `useWorkspaceRevisionPoll`, `useGitFocusFetch`, `useMenuActions`, `useTheme`, `useToast`, `useEditorPreferences`, `useWordCountGoal`, `useRecentFiles`, `useRecentWorkspaces`, `useOpenTabs`, `useContentTypes`) and owns local UI flags (sidebar/properties visibility, zen/typewriter mode, dialog open states). `handleSidebarSelect` routes non-markdown selections to `FileViewer`; `closeActiveTabOrFile` closes the FileViewer first when it is active. `openFileByPath` is the canonical single entry point for opening a file by path from any surface (switcher, search, recents, auto-reopen, tab bar); it clears `fileViewerNode`, looks up the node in `flatFiles` (with a synthetic-node fallback), then calls `handleSelectFile` + `pushRecent` + `openTab` in one step.
 
 **`src/components/`** — UI components (list is representative, not exhaustive)
 - `Editor.tsx` — Tiptap WYSIWYG editor; StarterKit + Markdown + Typography + Link + Table (+ TableCell/Header/Row) + Mathematics + Placeholder + CodeBlockLowlight + TaskList/TaskItem (from `@tiptap/extension-list`) + custom extensions in `src/lib/tiptap/`
@@ -85,6 +85,10 @@ State hooks (composed in `App.tsx`):
 - `useFileEditor.ts` — current file content, dirty tracking, save coordination
 - `useGit.ts` — git state (branch, status, remotes); polls via Tauri commands
 - `useGitUiController.ts` — coordinates git dialogs (commit, branch CRUD, sync popover)
+- `useFilesMode.ts` — owns `sidebarMode`, `fileViewerNode`, and `filesTree` state; persists mode per workspace in `localStorage`; loads the full files tree when switching to Files mode
+- `useWorkspaceRevisionPoll.ts` — polls `get_workspace_revision` every 2 s; reloads the tree and optionally the active file when the workspace changes on disk
+- `useGitFocusFetch.ts` — triggers a background `git fetch` when the app window regains focus, subject to a cooldown
+- `useMenuActions.ts` — subscribes to the native `menu-action` Tauri event and dispatches each action to the appropriate handler; also owns `handleWechatCopy`
 - `useContentTypes.ts` — Amytis content type discovery (only when workspace is Amytis)
 - `useRecentFiles.ts` / `useRecentWorkspaces.ts` — per-workspace and global MRU lists
 - `useOpenTabs.ts` — per-workspace open-file tab list (cap 8) with localStorage persistence; `useWorkspace` keeps it in sync via `onPathRenamed`/`onPathRemoved` callbacks
@@ -95,6 +99,7 @@ State hooks (composed in `App.tsx`):
 
 Pure helpers:
 - `types.ts` — Shared interfaces (`FileNode`, `WorkspaceState`)
+- `fileNode.ts` — `makeFileNodeFromPath`: construct a minimal `FileNode` from a plain path string (used when the full tree index is unavailable)
 - `frontmatter.ts` / `frontmatterSchema.ts` — `parseFrontmatter` / `joinFrontmatter` (raw round-trip), `parseYamlFrontmatter` (js-yaml), and Amytis-aware schema lookups
 - `appRestore.ts` — last-workspace and last-file restoration on launch
 - `sidebarUtils.ts` — `collapseIndexNodes` (fold index-only dirs into a single node), `filterNoiseDirs` (strip `node_modules`, `dist`, `.git`, etc. for Files mode), `sortTreeAlpha` (dirs-first alpha sort for Files mode), `sortTree` / `sortNodes` (content-type priority sort for Content mode), `rollupGitStatus`, `filterTree`, `getSidebarDisplayName`, `needsPageDivider`
