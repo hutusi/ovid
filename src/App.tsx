@@ -1196,6 +1196,9 @@ function App() {
             visible={propertiesOpen}
             slug={selectedFile.name.replace(/\.mdx?$/, "")}
             coverImageVisible={coverImageVisible}
+            filePath={selectedFile.path}
+            assetRoot={assetRoot}
+            cdnBase={cdnBase}
             onFieldChange={handlePublishAwareFieldChange}
             onToggleCoverImage={() => setCoverImageVisible((v) => !v)}
             onError={showToast}
