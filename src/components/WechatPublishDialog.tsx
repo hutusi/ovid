@@ -13,6 +13,7 @@ interface WechatCredStatus {
 
 interface WechatPublishResult {
   media_id: string;
+  updated: boolean;
 }
 
 interface Props {
@@ -25,7 +26,9 @@ interface Props {
   baseDir: string;
   assetRoot: string | undefined;
   coverImagePath: string | null;
+  existingMediaId: string | null;
   onClose: () => void;
+  onSuccess: (mediaId: string, updated: boolean) => void;
 }
 
 type Phase = "loading" | "credentials" | "ready" | "publishing" | "success" | "error";
@@ -40,7 +43,9 @@ export function WechatPublishDialog({
   baseDir,
   assetRoot,
   coverImagePath,
+  existingMediaId,
   onClose,
+  onSuccess,
 }: Props) {
   const { t } = useTranslation();
   const dialogRef = useFocusTrap<HTMLDivElement>();
@@ -52,6 +57,7 @@ export function WechatPublishDialog({
   const [appSecret, setAppSecret] = useState("");
   const [credError, setCredError] = useState("");
   const [resultMediaId, setResultMediaId] = useState("");
+  const [resultUpdated, setResultUpdated] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftAuthor, setDraftAuthor] = useState(author);
@@ -124,8 +130,11 @@ export function WechatPublishDialog({
         baseDir,
         assetRoot: assetRoot ?? null,
         coverImagePath,
+        existingMediaId: existingMediaId ?? null,
       });
       setResultMediaId(result.media_id);
+      setResultUpdated(result.updated);
+      onSuccess(result.media_id, result.updated);
       setPhase("success");
     } catch (err) {
       setErrorMsg(String(err));
@@ -153,6 +162,8 @@ export function WechatPublishDialog({
       onClose();
     }
   }
+
+  const isUpdate = !!existingMediaId;
 
   return (
     <div className="modal-overlay" role="presentation">
@@ -280,7 +291,7 @@ export function WechatPublishDialog({
                 disabled={!draftTitle.trim()}
                 onClick={handlePublish}
               >
-                {t("wechat.publish_draft")}
+                {isUpdate ? t("wechat.update_draft") : t("wechat.publish_draft")}
               </button>
             </div>
           </>
@@ -293,13 +304,17 @@ export function WechatPublishDialog({
                   current: uploadProgress.current,
                   total: uploadProgress.total,
                 })
-              : t("wechat.publishing")}
+              : isUpdate
+                ? t("wechat.updating")
+                : t("wechat.publishing")}
           </p>
         )}
 
         {phase === "success" && (
           <>
-            <p className="modal-copy">{t("wechat.success_title")}</p>
+            <p className="modal-copy">
+              {resultUpdated ? t("wechat.success_updated_title") : t("wechat.success_title")}
+            </p>
             <p className="modal-copy">{t("wechat.success_media_id", { mediaId: resultMediaId })}</p>
             {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
             <p className="modal-copy">{t("wechat.success_note")}</p>
