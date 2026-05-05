@@ -15,7 +15,7 @@ import {
   readBooleanFrontmatterValue,
   resolveKnownFrontmatterFieldKey,
 } from "../lib/frontmatterSchema";
-import { resolveImageExtension, resolveImageSrc } from "../lib/imageUtils";
+import { resolveImageExtension, resolveImageSrc, toAssetRootRelative } from "../lib/imageUtils";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 import "./PropertiesPanel.css";
@@ -740,6 +740,13 @@ function CoverImageField({
     try {
       const srcPath = await invoke<string | null>("pick_image_file");
       if (!srcPath) return;
+
+      const rootRelative = toAssetRootRelative(srcPath, assetRoot);
+      if (rootRelative !== null) {
+        onSave(rootRelative);
+        return;
+      }
+
       const relPath = await invoke<string>("save_asset", {
         srcPath,
         activeFilePath: filePath,

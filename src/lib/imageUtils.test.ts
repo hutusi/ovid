@@ -4,6 +4,7 @@ import {
   resolveImageExtension,
   resolveImageSrc,
   resolveRelativePath,
+  toAssetRootRelative,
 } from "./imageUtils";
 
 // ---------------------------------------------------------------------------
@@ -81,6 +82,54 @@ describe("resolveImageExtension", () => {
 
   it("defaults to png when both MIME and filename are unusable", () => {
     expect(resolveImageExtension({ name: "weird.bin", type: "" })).toBe("png");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// toAssetRootRelative
+// ---------------------------------------------------------------------------
+
+describe("toAssetRootRelative", () => {
+  it("returns null when assetRoot is undefined", () => {
+    expect(toAssetRootRelative("/workspace/public/cover.jpg", undefined)).toBeNull();
+  });
+
+  it("returns null when assetRoot is empty", () => {
+    expect(toAssetRootRelative("/workspace/public/cover.jpg", "")).toBeNull();
+  });
+
+  it("returns the root-relative path for a file directly under assetRoot", () => {
+    expect(toAssetRootRelative("/workspace/public/cover.jpg", "/workspace/public")).toBe(
+      "/cover.jpg"
+    );
+  });
+
+  it("returns the root-relative path for a nested file", () => {
+    expect(toAssetRootRelative("/workspace/public/images/hero.jpg", "/workspace/public")).toBe(
+      "/images/hero.jpg"
+    );
+  });
+
+  it("tolerates a trailing slash on assetRoot", () => {
+    expect(toAssetRootRelative("/workspace/public/cover.jpg", "/workspace/public/")).toBe(
+      "/cover.jpg"
+    );
+  });
+
+  it("returns null when path is outside assetRoot", () => {
+    expect(
+      toAssetRootRelative("/workspace/content/posts/cover.jpg", "/workspace/public")
+    ).toBeNull();
+  });
+
+  it("rejects a sibling with a similar prefix (directory boundary required)", () => {
+    expect(
+      toAssetRootRelative("/workspace/public-other/cover.jpg", "/workspace/public")
+    ).toBeNull();
+  });
+
+  it("returns null when path equals assetRoot exactly (no file segment)", () => {
+    expect(toAssetRootRelative("/workspace/public", "/workspace/public")).toBeNull();
   });
 });
 

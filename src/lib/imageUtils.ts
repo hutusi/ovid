@@ -26,6 +26,29 @@ export function mimeTypeToImageExtension(mimeType: string): string {
 }
 
 /**
+ * If `absolutePath` lives inside `assetRoot`, return the root-relative path
+ * (always starts with `/`). Otherwise return `null`.
+ *
+ * Used to skip copying an image into the active file's `images/` directory
+ * when the user picks something already inside the workspace's static asset
+ * root (typically `<workspace>/public/`); the existing path can be referenced
+ * directly via a root-relative URL.
+ *
+ * Both inputs must use forward slashes. Trailing slashes on `assetRoot` are
+ * tolerated. The match requires a directory boundary, so a sibling like
+ * `/foo/public-other/x.png` is correctly rejected against `/foo/public`.
+ */
+export function toAssetRootRelative(
+  absolutePath: string,
+  assetRoot: string | undefined
+): string | null {
+  if (!assetRoot) return null;
+  const root = assetRoot.replace(/\/+$/, "");
+  if (!root || !absolutePath.startsWith(`${root}/`)) return null;
+  return absolutePath.slice(root.length);
+}
+
+/**
  * Resolve the file extension to use when saving an image.
  * Prefers the MIME-derived extension since the bytes determine the actual format
  * (a `.png` filename can wrap JPEG bytes). Falls back to the filename extension
