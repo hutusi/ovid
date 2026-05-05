@@ -199,15 +199,6 @@ export function Editor({
         addNodeView() {
           return ReactNodeViewRenderer(CodeBlockView);
         },
-        addKeyboardShortcuts() {
-          return {
-            Tab: () => {
-              if (!this.editor.isActive("codeBlock")) return false;
-              this.editor.commands.insertContent("  ");
-              return true;
-            },
-          };
-        },
       }).configure({ lowlight }),
       TaskList,
       TaskItem.configure({
@@ -266,6 +257,19 @@ export function Editor({
         spellcheck: spellCheck ? "true" : "false",
         autocorrect: "off",
         autocapitalize: "none",
+      },
+      handleKeyDown(view, event) {
+        if (event.key !== "Tab") return false;
+        const { state } = view;
+        const { $from } = state.selection;
+        for (let d = $from.depth; d >= 0; d--) {
+          if ($from.node(d).type.name === "codeBlock") {
+            event.preventDefault();
+            view.dispatch(state.tr.insertText("  "));
+            return true;
+          }
+        }
+        return false;
       },
       handlePaste(view, event) {
         const imageFiles = Array.from(event.clipboardData?.files ?? []).filter((f) =>
