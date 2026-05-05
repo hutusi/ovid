@@ -46,9 +46,11 @@ Three-zone layout managed by `src/App.tsx`:
 └─────────────────────────────────────────────────┘
 ```
 
-**`src/App.tsx`** — Root component; composes top-level state from custom hooks (`useWorkspace`, `useFileEditor`, `useGit`, `useGitUiController`, `useFilesMode`, `useWorkspaceRevisionPoll`, `useGitFocusFetch`, `useMenuActions`, `useTheme`, `useToast`, `useEditorPreferences`, `useWordCountGoal`, `useRecentFiles`, `useRecentWorkspaces`, `useOpenTabs`, `useContentTypes`) and owns local UI flags (sidebar/properties visibility, zen/typewriter mode, dialog open states). `handleSidebarSelect` routes non-markdown selections to `FileViewer`; `closeActiveTabOrFile` closes the FileViewer first when it is active. `openFileByPath` is the canonical single entry point for opening a file by path from any surface (switcher, search, recents, auto-reopen, tab bar); it clears `fileViewerNode`, looks up the node in `flatFiles` (with a synthetic-node fallback), then calls `handleSelectFile` + `pushRecent` + `openTab` in one step.
+**`src/App.tsx`** — Root component; composes top-level state from custom hooks (`useWorkspace`, `useFileEditor`, `useGit`, `useGitUiController`, `useFilesMode`, `useWorkspaceRevisionPoll`, `useGitFocusFetch`, `useMenuActions`, `useKeyboardShortcuts`, `useGitRefreshOnSave`, `useTheme`, `useToast`, `useEditorPreferences`, `useWordCountGoal`, `useRecentFiles`, `useRecentWorkspaces`, `useOpenTabs`, `useContentTypes`) and owns local UI flags (sidebar/properties visibility, zen/typewriter mode, dialog open states). Render output is composed from four top-level components: `Sidebar`/`SearchPanel` (left column), `EditorPane` (editor + properties), `StatusBar`, and `AppDialogs` (all overlays). `handleSidebarSelect` routes non-markdown selections to `FileViewer`; `closeActiveTabOrFile` closes the FileViewer first when it is active. `openFileByPath` is the canonical single entry point for opening a file by path from any surface (switcher, search, recents, auto-reopen, tab bar); it clears `fileViewerNode`, looks up the node in `flatFiles` (with a synthetic-node fallback), then calls `handleSelectFile` + `pushRecent` + `openTab` in one step.
 
 **`src/components/`** — UI components (list is representative, not exhaustive)
+- `EditorPane.tsx` — Editor column + PropertiesPanel composite; owns the lazy `Editor` import and its preload effect; renders `TabBar`, cover-image banner, and the `FileViewer`/`Editor`/`EmptyState` trio. Exports `EditorViewState` type used by `App.tsx`.
+- `AppDialogs.tsx` — All overlay/dialog rendering; 13 lazily-imported dialog components (`WorkspaceSwitcher`, `FileSwitcher`, `NewFileDialog`, `CommitDialog`, `BranchSwitcher`, `NewBranchDialog`, `RenameBranchDialog`, `DeleteBranchDialog`, `GitSyncPopover`, `PerfPanel`, `UpdateDialog`, `RenamePathDialog`, `WechatPublishDialog`) plus the toast container. Keeps App.tsx's render output flat.
 - `Editor.tsx` — Tiptap WYSIWYG editor; StarterKit + Markdown + Typography + Link + Table (+ TableCell/Header/Row) + Mathematics + Placeholder + CodeBlockLowlight + TaskList/TaskItem (from `@tiptap/extension-list`) + custom extensions in `src/lib/tiptap/`
 - `BubbleMenu.tsx` — Floating formatting toolbar (Bold, Italic, Strike, Code, Link) shown on text selection
 - `FindReplaceBar.tsx` — Find & replace bar (`Cmd+H`); live match highlighting, navigate, replace one/all
@@ -88,6 +90,8 @@ State hooks (composed in `App.tsx`):
 - `useFilesMode.ts` — owns `sidebarMode`, `fileViewerNode`, and `filesTree` state; persists mode per workspace in `localStorage`; loads the full files tree when switching to Files mode
 - `useWorkspaceRevisionPoll.ts` — polls `get_workspace_revision` every 2 s; reloads the tree and optionally the active file when the workspace changes on disk
 - `useGitFocusFetch.ts` — triggers a background `git fetch` when the app window regains focus, subject to a cooldown
+- `useKeyboardShortcuts.ts` — wires all global `keydown` shortcuts to app-level state and actions; takes overlay-open flags as inputs so shortcuts are suppressed when any dialog is open
+- `useGitRefreshOnSave.ts` — debounces a git-status refresh on the `unsaved → saved` transition; owns the debounce timer and previous-status refs internally
 - `useMenuActions.ts` — subscribes to the native `menu-action` Tauri event and dispatches each action to the appropriate handler; also owns `handleWechatCopy`
 - `useContentTypes.ts` — Amytis content type discovery (only when workspace is Amytis)
 - `useRecentFiles.ts` / `useRecentWorkspaces.ts` — per-workspace and global MRU lists
@@ -98,7 +102,7 @@ State hooks (composed in `App.tsx`):
 - `useFocusTrap.ts` — modal dialogs: auto-focus first element, trap Tab/Shift+Tab, restore focus on close
 
 Pure helpers:
-- `types.ts` — Shared interfaces (`FileNode`, `WorkspaceState`)
+- `types.ts` — Shared interfaces (`FileNode`, `WorkspaceState`, `ModalState`)
 - `fileNode.ts` — `makeFileNodeFromPath`: construct a minimal `FileNode` from a plain path string (used when the full tree index is unavailable)
 - `frontmatter.ts` / `frontmatterSchema.ts` — `parseFrontmatter` / `joinFrontmatter` (raw round-trip), `parseYamlFrontmatter` (js-yaml), and Amytis-aware schema lookups
 - `appRestore.ts` — last-workspace and last-file restoration on launch
