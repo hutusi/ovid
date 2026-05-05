@@ -62,6 +62,9 @@ export function WechatPublishDialog({
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftAuthor, setDraftAuthor] = useState(author);
   const [draftDigest, setDraftDigest] = useState(excerpt.slice(0, 54));
+  const [contentSourceUrl, setContentSourceUrl] = useState("");
+  const [needOpenComment, setNeedOpenComment] = useState(false);
+  const [canReward, setCanReward] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
     null
   );
@@ -131,6 +134,9 @@ export function WechatPublishDialog({
         assetRoot: assetRoot ?? null,
         coverImagePath,
         existingMediaId: existingMediaId ?? null,
+        contentSourceUrl: contentSourceUrl.trim() || null,
+        needOpenComment,
+        canReward,
       });
       setResultMediaId(result.media_id);
       setResultUpdated(result.updated);
@@ -265,6 +271,36 @@ export function WechatPublishDialog({
                   {draftDigest.length}/54
                 </span>
               </div>
+            </div>
+            <input
+              className="modal-input"
+              aria-label={t("wechat.content_source_url_label")}
+              placeholder={t("wechat.content_source_url_placeholder")}
+              value={contentSourceUrl}
+              onChange={(e) => setContentSourceUrl(e.target.value)}
+              autoComplete="off"
+              type="url"
+            />
+            <label className="modal-checkbox-label">
+              <input
+                type="checkbox"
+                checked={needOpenComment}
+                onChange={(e) => setNeedOpenComment(e.target.checked)}
+              />
+              {t("wechat.open_comment_label")}
+            </label>
+            <div>
+              <label className="modal-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={canReward}
+                  onChange={(e) => setCanReward(e.target.checked)}
+                />
+                {t("wechat.can_reward_label")}
+              </label>
+              <p className="modal-copy" style={{ paddingLeft: 20, marginTop: 3 }}>
+                {t("wechat.can_reward_hint")}
+              </p>
             </div>
             {imageCount > 0 && (
               <p className="modal-copy">{t("wechat.local_images", { count: imageCount })}</p>

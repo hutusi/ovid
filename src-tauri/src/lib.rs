@@ -2802,6 +2802,9 @@ async fn wechat_publish_draft(
     asset_root: Option<String>,
     cover_image_path: Option<String>,
     existing_media_id: Option<String>,
+    content_source_url: Option<String>,
+    need_open_comment: bool,
+    can_reward: bool,
     workspace_state: State<'_, WorkspaceState>,
     wechat_state: State<'_, WechatState>,
 ) -> Result<WechatPublishResult, String> {
@@ -2900,6 +2903,13 @@ async fn wechat_publish_draft(
     if let Some(ref id) = thumb_id {
         article["thumb_media_id"] = serde_json::Value::String(id.clone());
     }
+    if let Some(ref url) = content_source_url {
+        if !url.is_empty() {
+            article["content_source_url"] = serde_json::Value::String(url.clone());
+        }
+    }
+    article["need_open_comment"] = serde_json::json!(if need_open_comment { 1 } else { 0 });
+    article["can_reward"] = serde_json::json!(if can_reward { 1 } else { 0 });
 
     // Update existing draft if a media_id was provided
     if let Some(ref existing_id) = existing_media_id {
