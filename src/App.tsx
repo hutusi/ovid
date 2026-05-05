@@ -1,19 +1,15 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FileViewer, getFileViewKind } from "./components/FileViewer";
 import { PropertiesPanel } from "./components/PropertiesPanel";
-import type { SidebarMode } from "./components/Sidebar";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
 import { loadLastRecentFilePath } from "./lib/appRestore";
+import { makeFileNodeFromPath } from "./lib/fileNode";
 import { parseFrontmatter } from "./lib/frontmatter";
-import { AUTO_FETCH_COOLDOWN_MS, runAutoFetchOnFocus } from "./lib/gitAutoFetch";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { resolveImageSrc } from "./lib/imageUtils";
 import { isPerfLoggingEnabled } from "./lib/perf";
@@ -27,8 +23,11 @@ import type { FileNode } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
+import { useFilesMode } from "./lib/useFilesMode";
 import { useGit } from "./lib/useGit";
+import { useGitFocusFetch } from "./lib/useGitFocusFetch";
 import { useGitUiController } from "./lib/useGitUiController";
+import { useMenuActions } from "./lib/useMenuActions";
 import { useOpenTabs } from "./lib/useOpenTabs";
 import { useRecentFiles } from "./lib/useRecentFiles";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
@@ -36,13 +35,8 @@ import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspace } from "./lib/useWorkspace";
-import {
-  countLocalImages,
-  extractExcerpt,
-  hasMathBlocks,
-  markdownToWechatHtml,
-} from "./lib/wechatHtml";
-import { getExternalWorkspaceChangeAction } from "./lib/workspaceRefresh";
+import { useWorkspaceRevisionPoll } from "./lib/useWorkspaceRevisionPoll";
+import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtml";
 import "./styles/global.css";
 import "./App.css";
 
@@ -55,10 +49,8 @@ type ModalState =
 type EditorViewState = { selection: number; scrollTop: number };
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
-const SIDEBAR_MODE_KEY_PREFIX = "ovid:sidebarMode";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
 const SAVE_GIT_REFRESH_DELAY_MS = 400;
-const WORKSPACE_REVISION_POLL_MS = 2000;
 
 const loadEditor = async () => import("./components/Editor");
 const Editor = lazy(async () => ({
@@ -108,40 +100,12 @@ const WechatPublishDialog = lazy(async () => ({
   default: (await import("./components/WechatPublishDialog")).WechatPublishDialog,
 }));
 
-function makeFileNodeFromPath(path: string): FileNode {
-  const normalizedPath = path.replace(/\\/g, "/");
-  const name = normalizedPath.split("/").pop() ?? path;
-  const extension = name.endsWith(".mdx") ? ".mdx" : name.endsWith(".md") ? ".md" : undefined;
-  return {
-    name,
-    path,
-    isDirectory: false,
-    extension,
-  };
-}
-
-function mergeFilesTreeChildren(
-  nodes: FileNode[],
-  dirPath: string,
-  children: FileNode[]
-): FileNode[] {
-  return nodes.map((node) => {
-    if (node.path === dirPath && node.isDirectory)
-      return { ...node, children, childrenLoaded: true };
-    if (!node.children) return node;
-    return { ...node, children: mergeFilesTreeChildren(node.children, dirPath, children) };
-  });
-}
-
 function App() {
   const { t } = useTranslation();
   const { resolvedTheme, setPreference } = useTheme();
   const [sidebarVisible, setSidebarVisible] = useState(
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode>("content");
-  const [fileViewerNode, setFileViewerNode] = useState<import("./lib/types").FileNode | null>(null);
-  const [filesTree, setFilesTree] = useState<FileNode[]>([]);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
@@ -155,15 +119,9 @@ function App() {
   const [wechatPublishDialogOpen, setWechatPublishDialogOpen] = useState(false);
   const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
-  const lastAutoFetchAtRef = useRef(0);
-  const autoFetchInFlightRef = useRef(false);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
   const saveRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSaveStatusRef = useRef<"saved" | "unsaved">("saved");
-  const workspaceRevisionRef = useRef<string | null>(null);
-  const workspaceRefreshInFlightRef = useRef(false);
-  const workspaceRefreshFailureToastRef = useRef<string | null>(null);
-  const externalUnsavedToastRevisionRef = useRef<string | null>(null);
   const tabSyncRef = useRef<{
     renameTab: (oldPath: string, newPath: string) => void;
     removeTab: (path: string) => void;
@@ -241,6 +199,15 @@ function App() {
     tabSyncRef.current = { renameTab, removeTab };
   }, [renameTab, removeTab]);
 
+  const {
+    sidebarMode,
+    fileViewerNode,
+    setFileViewerNode,
+    filesTree,
+    handleToggleSidebarMode,
+    handleLoadDirectoryChildrenFiles,
+  } = useFilesMode({ workspaceRootPath, showToast, t });
+
   const handleLoadDirectoryChildren = useCallback(
     (dirPath: string) => {
       void loadDirectoryChildren(dirPath);
@@ -260,72 +227,8 @@ function App() {
       pushRecent(node);
       openTab(path);
     },
-    [flatFiles, handleSelectFile, pushRecent, openTab]
+    [flatFiles, handleSelectFile, pushRecent, openTab, setFileViewerNode]
   );
-
-  const loadFilesTree = useCallback(async () => {
-    if (!workspaceRootPath) return;
-    try {
-      const nodes = await invoke<FileNode[]>("list_workspace_children", {
-        path: workspaceRootPath,
-        allFiles: true,
-      });
-      setFilesTree(nodes);
-    } catch (err) {
-      showToast(
-        t("workspace.load_files_error", {
-          message: err instanceof Error ? err.message : String(err),
-        })
-      );
-    }
-  }, [workspaceRootPath, showToast, t]);
-
-  const handleLoadDirectoryChildrenFiles = useCallback(
-    async (dirPath: string) => {
-      try {
-        const children = await invoke<FileNode[]>("list_workspace_children", {
-          path: dirPath,
-          allFiles: true,
-        });
-        setFilesTree((current) => mergeFilesTreeChildren(current, dirPath, children));
-      } catch (err) {
-        showToast(
-          t("workspace.load_files_error", {
-            message: err instanceof Error ? err.message : String(err),
-          })
-        );
-      }
-    },
-    [showToast, t]
-  );
-
-  // Sidebar mode: persist per workspace
-  useEffect(() => {
-    const key = workspaceRootPath
-      ? `${SIDEBAR_MODE_KEY_PREFIX}:${workspaceRootPath}`
-      : SIDEBAR_MODE_KEY_PREFIX;
-    const stored = localStorage.getItem(key);
-    setSidebarMode(stored === "files" ? "files" : "content");
-    setFileViewerNode(null);
-    setFilesTree([]);
-  }, [workspaceRootPath]);
-
-  useEffect(() => {
-    const key = workspaceRootPath
-      ? `${SIDEBAR_MODE_KEY_PREFIX}:${workspaceRootPath}`
-      : SIDEBAR_MODE_KEY_PREFIX;
-    localStorage.setItem(key, sidebarMode);
-    if (sidebarMode === "content") {
-      setFileViewerNode(null);
-      setFilesTree([]);
-    } else {
-      void loadFilesTree();
-    }
-  }, [sidebarMode, workspaceRootPath, loadFilesTree]);
-
-  function handleToggleSidebarMode() {
-    setSidebarMode((prev) => (prev === "content" ? "files" : "content"));
-  }
 
   function handleSidebarSelect(node: import("./lib/types").FileNode) {
     const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
@@ -365,6 +268,7 @@ function App() {
     void handleCloseFile();
   }, [
     fileViewerNode,
+    setFileViewerNode,
     selectedFile,
     tabs,
     closeTab,
@@ -667,127 +571,7 @@ function App() {
     };
   }, [saveStatus, isGitRepo, refreshGitStatus]);
 
-  // Pick up files changed outside Ovid (Git pulls, another editor, generators).
-  useEffect(() => {
-    if (!workspaceRoot) {
-      workspaceRevisionRef.current = null;
-      workspaceRefreshFailureToastRef.current = null;
-      return;
-    }
-
-    let mounted = true;
-
-    async function refreshForExternalChanges() {
-      if (workspaceRefreshInFlightRef.current) return;
-      workspaceRefreshInFlightRef.current = true;
-
-      try {
-        const revision = await invoke<string>("get_workspace_revision");
-        if (!mounted) return;
-
-        if (workspaceRevisionRef.current === null) {
-          workspaceRevisionRef.current = revision;
-          workspaceRefreshFailureToastRef.current = null;
-          return;
-        }
-
-        if (revision === workspaceRevisionRef.current) {
-          workspaceRefreshFailureToastRef.current = null;
-          return;
-        }
-
-        const updatedTree = await refreshTree();
-        if (!mounted) return;
-
-        const activeFileAction = getExternalWorkspaceChangeAction({
-          activeFile: selectedFileRef.current,
-          revision,
-          tree: updatedTree,
-          saveStatus: saveStatusRef.current,
-          lastWarnedRevision: externalUnsavedToastRevisionRef.current,
-        });
-
-        // If the revision bump was caused by our own auto-save (disk content matches
-        // what we last wrote), skip both the warn toast and the editor reload —
-        // reloading would replace the live document with the markdown-serialized
-        // version, which strips trailing whitespace and trailing empty paragraphs.
-        if (
-          activeFileAction.type === "warn-unsaved" ||
-          activeFileAction.type === "reload-active-file"
-        ) {
-          const activePath = selectedFileRef.current?.path;
-          if (activePath && lastSavedContentRef.current !== null) {
-            try {
-              const diskContent = await invoke<string>("read_file", { path: activePath });
-              if (diskContent === lastSavedContentRef.current) {
-                workspaceRefreshFailureToastRef.current = null;
-                workspaceRevisionRef.current = revision;
-                if (isGitRepoRef.current) void refreshGitStatus();
-                return;
-              }
-            } catch {
-              // Can't read file — fall through to the normal action flow
-            }
-          }
-        }
-
-        switch (activeFileAction.type) {
-          case "warn-unsaved":
-            externalUnsavedToastRevisionRef.current = activeFileAction.revision;
-            showToast(t("workspace_refresh.changed_with_unsaved"));
-            break;
-          case "reload-active-file": {
-            const reloaded = await reloadSelectedFileFromDisk(activeFileAction.node);
-            if (!reloaded) {
-              const closeAction = getExternalWorkspaceChangeAction({
-                activeFile: selectedFileRef.current,
-                revision,
-                tree: updatedTree,
-                saveStatus: saveStatusRef.current,
-                reloadSucceeded: false,
-                lastWarnedRevision: externalUnsavedToastRevisionRef.current,
-              });
-              if (closeAction.type === "close-active-file") {
-                await handleCloseFile();
-                showToast(t("workspace_refresh.active_file_removed"));
-              }
-            }
-            break;
-          }
-          case "none":
-          case "close-active-file":
-            break;
-        }
-
-        if (isGitRepoRef.current) {
-          void refreshGitStatus();
-        }
-
-        workspaceRefreshFailureToastRef.current = null;
-        workspaceRevisionRef.current = revision;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (workspaceRefreshFailureToastRef.current !== message) {
-          workspaceRefreshFailureToastRef.current = message;
-          showToast(t("workspace_refresh.refresh_failed", { message }));
-        }
-        console.error("Failed to refresh workspace changes:", err);
-      } finally {
-        workspaceRefreshInFlightRef.current = false;
-      }
-    }
-
-    void refreshForExternalChanges();
-    const interval = window.setInterval(refreshForExternalChanges, WORKSPACE_REVISION_POLL_MS);
-
-    return () => {
-      mounted = false;
-      window.clearInterval(interval);
-      workspaceRevisionRef.current = null;
-      workspaceRefreshFailureToastRef.current = null;
-      externalUnsavedToastRevisionRef.current = null;
-    };
-  }, [
+  useWorkspaceRevisionPoll({
     workspaceRoot,
     refreshTree,
     reloadSelectedFileFromDisk,
@@ -796,210 +580,14 @@ function App() {
     showToast,
     t,
     lastSavedContentRef,
-  ]);
+    selectedFileRef,
+    saveStatusRef,
+    isGitRepoRef,
+  });
 
-  // Refresh remote-tracking refs when the window regains focus so ahead/behind stays current.
-  useEffect(() => {
-    if (!workspaceRoot || !isGitRepo) return;
+  useGitFocusFetch({ workspaceRoot, isGitRepo, handleFetch });
 
-    let mounted = true;
-    let unlisten: (() => void) | undefined;
-
-    async function maybeFetchRemoteStatus() {
-      if (autoFetchInFlightRef.current) return;
-      autoFetchInFlightRef.current = true;
-      const now = Date.now();
-      try {
-        lastAutoFetchAtRef.current = await runAutoFetchOnFocus(
-          {
-            focused: true,
-            now,
-            lastFetchedAt: lastAutoFetchAtRef.current,
-            cooldownMs: AUTO_FETCH_COOLDOWN_MS,
-          },
-          handleFetch
-        );
-      } finally {
-        autoFetchInFlightRef.current = false;
-      }
-    }
-
-    void getCurrentWindow()
-      .onFocusChanged(({ payload: focused }) => {
-        if (!mounted || !focused) return;
-        void maybeFetchRemoteStatus();
-      })
-      .then((dispose) => {
-        unlisten = dispose;
-      })
-      .catch(() => {
-        // If focus listeners are unavailable, Git status still updates via manual actions.
-      });
-
-    return () => {
-      mounted = false;
-      unlisten?.();
-    };
-  }, [workspaceRoot, isGitRepo, handleFetch]);
-
-  const handleWechatCopy = useCallback(async () => {
-    const markdown = pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body;
-    if (!markdown.trim()) {
-      showToast(t("menu.file_wechat_copy_no_content"));
-      return;
-    }
-    const { html, hasMath } = markdownToWechatHtml(markdown);
-    try {
-      await navigator.clipboard.write([
-        new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }) }),
-      ]);
-    } catch {
-      try {
-        await navigator.clipboard.writeText(html);
-      } catch (fallbackErr) {
-        showToast(String(fallbackErr));
-        return;
-      }
-    }
-    showToast(
-      hasMath ? t("menu.file_wechat_copy_math_warning") : t("menu.file_wechat_copy_success")
-    );
-  }, [pendingMarkdownRef, fileContent, showToast, t]);
-
-  // Forward native menu events to the same handlers as keyboard shortcuts
-  useEffect(() => {
-    let mounted = true;
-    let unlisten: (() => void) | undefined;
-    listen<string>("menu-action", (event) => {
-      const hasBlockingOverlay =
-        modal !== null ||
-        commitDialog !== null ||
-        switcherOpen ||
-        branchSwitcher !== null ||
-        newBranchDialogOpen ||
-        renameBranchDialog !== null ||
-        deleteBranchDialog !== null ||
-        workspaceSwitcherOpen ||
-        updateDialogOpen ||
-        wechatPublishDialogOpen;
-      switch (event.payload) {
-        case "new-post":
-        case "new-flow":
-        case "new-note":
-        case "new-series":
-        case "new-book":
-        case "new-page":
-          if (!hasBlockingOverlay && workspaceRoot)
-            setModal({
-              type: "new-file",
-              dirPath: workspaceRoot,
-              contentType: event.payload.replace("new-", ""),
-            });
-          break;
-        case "today-flow":
-          if (!hasBlockingOverlay && workspaceRoot) void handleNewTodayFlow();
-          break;
-        case "open-workspace":
-          void handleOpenWorkspace();
-          break;
-        case "switch-workspace":
-          if (!hasBlockingOverlay) setWorkspaceSwitcherOpen(true);
-          break;
-        case "save":
-          void flushPendingSave();
-          break;
-        case "close-file":
-          closeActiveTabOrFile();
-          break;
-        case "toggle-sidebar":
-          setSidebarVisible((v) => {
-            const next = !v;
-            localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(next));
-            return next;
-          });
-          break;
-        case "toggle-properties":
-          setPropertiesOpen((v) => !v);
-          break;
-        case "toggle-search":
-          if (workspaceRoot) setSearchOpen((v) => !v);
-          break;
-        case "zen-mode":
-          setZenMode((v) => !v);
-          break;
-        case "typewriter-mode":
-          setTypewriterMode((v) => !v);
-          break;
-        case "file-switcher":
-          if (!hasBlockingOverlay && tree.length > 0) setSwitcherOpen(true);
-          break;
-        case "toggle-spell-check":
-          updatePrefs({ spellCheck: !prefs.spellCheck });
-          break;
-        case "check-updates":
-          if (!hasBlockingOverlay) setUpdateDialogOpen(true);
-          break;
-        case "git-commit":
-          if (!hasBlockingOverlay && isGitRepo) void openCommitDialog(defaultCommitMessage);
-          break;
-        case "git-switch-branch":
-          if (!hasBlockingOverlay && isGitRepo) {
-            void openBranchSwitcher();
-          }
-          break;
-        case "git-new-branch":
-          if (!hasBlockingOverlay && isGitRepo) {
-            setNewBranchDialogOpen(true);
-          }
-          break;
-        case "git-push":
-          if (!hasBlockingOverlay && isGitRepo) {
-            void runGitAction("push", () => handlePush(), pushSuccessMessage);
-          }
-          break;
-        case "git-open-remote":
-          if (!hasBlockingOverlay && isGitRepo) {
-            void openRemote();
-          }
-          break;
-        case "git-copy-remote-url":
-          if (!hasBlockingOverlay && isGitRepo) {
-            void copyRemoteUrl();
-          }
-          break;
-        case "git-pull":
-          if (!hasBlockingOverlay && isGitRepo) {
-            void runGitAction("pull", handlePull, "Pulled latest changes");
-          }
-          break;
-        case "git-fetch":
-          if (!hasBlockingOverlay && isGitRepo) {
-            void runGitAction("fetch", handleFetch, "Fetched remote updates");
-          }
-          break;
-        case "wechat-copy":
-          if (selectedFile) {
-            void handleWechatCopy();
-          }
-          break;
-        case "wechat-publish":
-          if (!hasBlockingOverlay && selectedFile) {
-            setWechatPublishDialogOpen(true);
-          }
-          break;
-      }
-    }).then((fn) => {
-      if (mounted) {
-        unlisten = fn;
-      } else {
-        fn();
-      }
-    });
-    return () => {
-      mounted = false;
-      unlisten?.();
-    };
-  }, [
+  useMenuActions({
     modal,
     commitDialog,
     switcherOpen,
@@ -1013,26 +601,39 @@ function App() {
     workspaceRoot,
     tree,
     isGitRepo,
-    openCommitDialog,
-    openBranchSwitcher,
-    openRemote,
-    copyRemoteUrl,
-    runGitAction,
+    selectedFile,
+    prefs,
     pushSuccessMessage,
-    handlePush,
-    handlePull,
-    handleFetch,
     defaultCommitMessage,
+    pendingMarkdownRef,
+    fileContent,
+    showToast,
+    t,
+    setModal,
+    setSidebarVisible,
+    setPropertiesOpen,
+    setSearchOpen,
+    setZenMode,
+    setTypewriterMode,
+    setSwitcherOpen,
+    setWorkspaceSwitcherOpen,
+    setUpdateDialogOpen,
+    setWechatPublishDialogOpen,
     setNewBranchDialogOpen,
     flushPendingSave,
     closeActiveTabOrFile,
     handleOpenWorkspace,
     handleNewTodayFlow,
-    handleWechatCopy,
-    selectedFile,
-    prefs,
+    openCommitDialog,
+    openBranchSwitcher,
+    runGitAction,
+    handlePush,
+    openRemote,
+    copyRemoteUrl,
+    handlePull,
+    handleFetch,
     updatePrefs,
-  ]);
+  });
 
   const coverImagePath =
     parsedFrontmatter.coverImage != null && parsedFrontmatter.coverImage !== ""
