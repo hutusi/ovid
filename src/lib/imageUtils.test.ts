@@ -1,5 +1,11 @@
 import { describe, expect, it } from "bun:test";
-import { mimeTypeToImageExtension, resolveImageSrc, resolveRelativePath } from "./imageUtils";
+import {
+  mimeTypeToImageExtension,
+  resolveImageExtension,
+  resolveImageSrc,
+  resolveRelativePath,
+  toAssetRootRelative,
+} from "./imageUtils";
 
 // ---------------------------------------------------------------------------
 // mimeTypeToImageExtension
@@ -40,6 +46,90 @@ describe("mimeTypeToImageExtension", () => {
 
   it("handles empty subtype after slash", () => {
     expect(mimeTypeToImageExtension("image/")).toBe("png");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveImageExtension
+// ---------------------------------------------------------------------------
+
+describe("resolveImageExtension", () => {
+  it("prefers MIME-derived extension when filename and MIME disagree", () => {
+    expect(resolveImageExtension({ name: "cover.png", type: "image/jpeg" })).toBe("jpg");
+  });
+
+  it("uses MIME-derived extension when filename has no extension", () => {
+    expect(resolveImageExtension({ name: "pasted-image", type: "image/png" })).toBe("png");
+  });
+
+  it("uses MIME-derived extension when filename is empty", () => {
+    expect(resolveImageExtension({ name: "", type: "image/jpeg" })).toBe("jpg");
+  });
+
+  it("handles svg+xml MIME", () => {
+    expect(resolveImageExtension({ name: "icon", type: "image/svg+xml" })).toBe("svg");
+  });
+
+  it("falls back to filename extension when MIME is missing", () => {
+    expect(resolveImageExtension({ name: "Hero.WEBP", type: "" })).toBe("webp");
+  });
+
+  it("falls back to filename when MIME is non-image", () => {
+    expect(resolveImageExtension({ name: "image.jpg", type: "application/octet-stream" })).toBe(
+      "jpg"
+    );
+  });
+
+  it("defaults to png when both MIME and filename are unusable", () => {
+    expect(resolveImageExtension({ name: "weird.bin", type: "" })).toBe("png");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// toAssetRootRelative
+// ---------------------------------------------------------------------------
+
+describe("toAssetRootRelative", () => {
+  it("returns null when assetRoot is undefined", () => {
+    expect(toAssetRootRelative("/workspace/public/cover.jpg", undefined)).toBeNull();
+  });
+
+  it("returns null when assetRoot is empty", () => {
+    expect(toAssetRootRelative("/workspace/public/cover.jpg", "")).toBeNull();
+  });
+
+  it("returns the root-relative path for a file directly under assetRoot", () => {
+    expect(toAssetRootRelative("/workspace/public/cover.jpg", "/workspace/public")).toBe(
+      "/cover.jpg"
+    );
+  });
+
+  it("returns the root-relative path for a nested file", () => {
+    expect(toAssetRootRelative("/workspace/public/images/hero.jpg", "/workspace/public")).toBe(
+      "/images/hero.jpg"
+    );
+  });
+
+  it("tolerates a trailing slash on assetRoot", () => {
+    expect(toAssetRootRelative("/workspace/public/cover.jpg", "/workspace/public/")).toBe(
+      "/cover.jpg"
+    );
+  });
+
+  it("returns null when path is outside assetRoot", () => {
+    expect(
+      toAssetRootRelative("/workspace/content/posts/cover.jpg", "/workspace/public")
+    ).toBeNull();
+  });
+
+  it("rejects a sibling with a similar prefix (directory boundary required)", () => {
+    expect(
+      toAssetRootRelative("/workspace/public-other/cover.jpg", "/workspace/public")
+    ).toBeNull();
+  });
+
+  it("returns null when path equals assetRoot exactly (no file segment)", () => {
+    expect(toAssetRootRelative("/workspace/public", "/workspace/public")).toBeNull();
   });
 });
 
