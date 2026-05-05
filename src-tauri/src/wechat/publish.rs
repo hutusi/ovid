@@ -166,10 +166,10 @@ pub(crate) async fn wechat_publish_draft(
             .json(&update_body)
             .send()
             .await
-            .map_err(|e| format!("Draft update network error: {}", e))?
+            .map_err(|e| format!("Draft update network error: {}", e.without_url()))?
             .json()
             .await
-            .map_err(|e| format!("Draft update parse error: {}", e))?;
+            .map_err(|e| format!("Draft update parse error: {}", e.without_url()))?;
 
         let errcode = update_resp
             .get("errcode")
@@ -203,10 +203,10 @@ pub(crate) async fn wechat_publish_draft(
         .json(&draft_body)
         .send()
         .await
-        .map_err(|e| format!("Draft creation network error: {}", e))?
+        .map_err(|e| format!("Draft creation network error: {}", e.without_url()))?
         .json()
         .await
-        .map_err(|e| format!("Draft creation parse error: {}", e))?;
+        .map_err(|e| format!("Draft creation parse error: {}", e.without_url()))?;
 
     if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
         if errcode != 0 {

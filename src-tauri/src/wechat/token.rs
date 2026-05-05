@@ -29,12 +29,15 @@ pub(crate) async fn wechat_get_or_refresh_token(
         "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={}&secret={}",
         app_id, app_secret
     );
+    // Strip the URL from reqwest errors — the token endpoint URL carries
+    // appid + secret as query params, which would otherwise surface in error
+    // toasts and logs.
     let resp: serde_json::Value = reqwest::get(&url)
         .await
-        .map_err(|e| format!("Network error fetching WeChat token: {}", e))?
+        .map_err(|e| format!("Network error fetching WeChat token: {}", e.without_url()))?
         .json()
         .await
-        .map_err(|e| format!("Failed to parse WeChat token response: {}", e))?;
+        .map_err(|e| format!("Failed to parse WeChat token response: {}", e.without_url()))?;
 
     if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
         if errcode != 0 {

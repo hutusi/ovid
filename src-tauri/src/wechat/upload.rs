@@ -39,15 +39,17 @@ pub(crate) async fn wechat_upload_body_image(
         "https://api.weixin.qq.com/cgi-bin/media/uploadimg?access_token={}",
         token
     );
+    // Strip URLs from reqwest errors — the request URL carries access_token
+    // as a query param, which would otherwise surface in error toasts/logs.
     let resp: serde_json::Value = client
         .post(&url)
         .multipart(form)
         .send()
         .await
-        .map_err(|e| format!("Image upload network error: {}", e))?
+        .map_err(|e| format!("Image upload network error: {}", e.without_url()))?
         .json()
         .await
-        .map_err(|e| format!("Image upload parse error: {}", e))?;
+        .map_err(|e| format!("Image upload parse error: {}", e.without_url()))?;
 
     if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
         if errcode != 0 {
@@ -85,15 +87,16 @@ pub(crate) async fn wechat_upload_thumb(
         "https://api.weixin.qq.com/cgi-bin/material/add_material?access_token={}&type=image",
         token
     );
+    // Same access_token-stripping as wechat_upload_body_image.
     let resp: serde_json::Value = client
         .post(&url)
         .multipart(form)
         .send()
         .await
-        .map_err(|e| format!("Cover upload network error: {}", e))?
+        .map_err(|e| format!("Cover upload network error: {}", e.without_url()))?
         .json()
         .await
-        .map_err(|e| format!("Cover upload parse error: {}", e))?;
+        .map_err(|e| format!("Cover upload parse error: {}", e.without_url()))?;
 
     if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
         if errcode != 0 {
