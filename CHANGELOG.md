@@ -5,7 +5,7 @@ All notable changes to Ovid will be documented in this file.
 The format is based on Keep a Changelog, adapted to match the project's
 release cadence and Conventional Commit history.
 
-## 0.13.0 - 2026-05-03
+## 0.13.0 - 2026-05-05
 
 ### Added
 - **Dual-mode sidebar**: toggle between Content view (markdown files only, with content-type
@@ -25,6 +25,21 @@ release cadence and Conventional Commit history.
   as a draft to a WeChat Official Account. Credentials (AppID/AppSecret) are stored securely in
   the app config directory. Body images are uploaded to the WeChat CDN and the cover image is
   uploaded as a permanent material. Access tokens are cached in-memory with automatic refresh.
+- **WeChat draft update**: when a document has a `wechatMediaId` in frontmatter, the publish
+  dialog enters update mode and updates the existing WeChat draft instead of creating a new one;
+  on success the media_id is written back so subsequent edits keep updating the same draft.
+- **WeChat publish UX**: pre-publish warnings for math blocks, local image counter, missing-cover
+  warning, image upload progress indicator, and a 54-char digest counter; author and digest
+  pre-fill from frontmatter or `site.config.ts`. Optional `content_source_url`, allow-comments,
+  and appreciation toggles surface in the dialog.
+- **Cover image editor**: properties panel cover-image field now supports drag-and-drop, clipboard
+  paste, and a file picker, with a thumbnail preview and broken-image fallback. Picking a file that
+  already lives inside the workspace's static asset root references it directly as a root-relative
+  path instead of duplicating it into the active file's `images/` directory.
+- **Draft status in search**: full-text search results show a draft badge so the indicator is
+  consistent across sidebar, file switcher, and search surfaces.
+- **Auto-refresh on external file changes**: the workspace tree refreshes automatically when files
+  are added, modified, or removed by other tools, with a localized toast summarizing the change.
 
 ### Changed
 - Files mode tree is rooted at the actual project root (`workspace_root`), not the Amytis
@@ -33,6 +48,28 @@ release cadence and Conventional Commit history.
   files outside `content/` to be read and previewed.
 - Well-known build/tooling directories (`node_modules`, `dist`, `target`, `.next`, etc.) are
   filtered from Files mode to reduce noise.
+- File switcher (`Cmd+P`) and `openFileByPath` now use an independent flat file index that is
+  always complete, even when sidebar branches are lazy-loaded.
+- Selecting a file in the switcher or search reveals it in the sidebar by force-expanding ancestor
+  folders, even when those branches have not yet been loaded.
+- WeChat credentials now persist to a file in the app config directory (chmod 600) instead of the
+  OS Keychain, eliminating repeating macOS Keychain authorization prompts.
+- WeChat `<pre><code>` blocks now preserve newlines via `<br>` tags since WeChat strips
+  `white-space` from inline styles.
+- Properties panel `draft` field can now be added via the metadata pill list and removed
+  symmetrically with `featured` and `pinned`.
+
+### Fixed
+- Editor: `Tab` inserts spaces inside fenced code blocks instead of moving focus out.
+- Editor: autocorrect, autocapitalize, and autocomplete disabled so filenames and code are not
+  rewritten by macOS or browser heuristics.
+- Editor: skip reload after own auto-save to preserve trailing whitespace and suppress false
+  "workspace changed" warnings.
+- WeChat: strip non-absolute `href` values and disallowed attributes (`data-*`, `aria-*`, `id`,
+  `<input type="checkbox">`, `<label>`) from generated HTML to avoid WeChat error 45166.
+- WeChat: resolve root-relative cover and body image paths against `assetRoot`; non-local image
+  URLs (`asset:`, `data:`, `blob:`) are skipped non-fatally.
+- Sidebar: localize the right-click context menu; "New from existing" no longer fails on Windows.
 
 ## 0.12.0 - 2026-04-30
 
