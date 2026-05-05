@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AppDialogs } from "./components/AppDialogs";
 import { EmptyState } from "./components/EmptyState";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { FileViewer, getFileViewKind } from "./components/FileViewer";
@@ -12,14 +13,8 @@ import { makeFileNodeFromPath } from "./lib/fileNode";
 import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { resolveImageSrc } from "./lib/imageUtils";
-import { isPerfLoggingEnabled } from "./lib/perf";
-import {
-  getDuplicateNameSuggestion,
-  getNewFromExistingNameSuggestion,
-  getPathDisplayLabel,
-  getRenamePathDialogState,
-} from "./lib/postPath";
-import type { FileNode } from "./lib/types";
+import { getPathDisplayLabel } from "./lib/postPath";
+import type { FileNode, ModalState } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
@@ -42,12 +37,6 @@ import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtm
 import "./styles/global.css";
 import "./App.css";
 
-type ModalState =
-  | { type: "new-file"; dirPath: string; contentType?: string }
-  | { type: "duplicate-file"; node: FileNode }
-  | { type: "new-from-existing"; node: FileNode }
-  | { type: "rename-path"; node: FileNode }
-  | null;
 type EditorViewState = { selection: number; scrollTop: number };
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
@@ -60,45 +49,6 @@ const Editor = lazy(async () => ({
 
 const SearchPanel = lazy(async () => ({
   default: (await import("./components/SearchPanel")).SearchPanel,
-}));
-const WorkspaceSwitcher = lazy(async () => ({
-  default: (await import("./components/WorkspaceSwitcher")).WorkspaceSwitcher,
-}));
-const FileSwitcher = lazy(async () => ({
-  default: (await import("./components/FileSwitcher")).FileSwitcher,
-}));
-const NewFileDialog = lazy(async () => ({
-  default: (await import("./components/NewFileDialog")).NewFileDialog,
-}));
-const CommitDialog = lazy(async () => ({
-  default: (await import("./components/CommitDialog")).CommitDialog,
-}));
-const BranchSwitcher = lazy(async () => ({
-  default: (await import("./components/BranchSwitcher")).BranchSwitcher,
-}));
-const NewBranchDialog = lazy(async () => ({
-  default: (await import("./components/NewBranchDialog")).NewBranchDialog,
-}));
-const RenameBranchDialog = lazy(async () => ({
-  default: (await import("./components/RenameBranchDialog")).RenameBranchDialog,
-}));
-const DeleteBranchDialog = lazy(async () => ({
-  default: (await import("./components/DeleteBranchDialog")).DeleteBranchDialog,
-}));
-const GitSyncPopover = lazy(async () => ({
-  default: (await import("./components/GitSyncPopover")).GitSyncPopover,
-}));
-const PerfPanel = lazy(async () => ({
-  default: (await import("./components/PerfPanel")).PerfPanel,
-}));
-const UpdateDialog = lazy(async () => ({
-  default: (await import("./components/UpdateDialog")).UpdateDialog,
-}));
-const RenamePathDialog = lazy(async () => ({
-  default: (await import("./components/RenamePathDialog")).RenamePathDialog,
-}));
-const WechatPublishDialog = lazy(async () => ({
-  default: (await import("./components/WechatPublishDialog")).WechatPublishDialog,
 }));
 
 function App() {
@@ -556,6 +506,11 @@ function App() {
     parsedFrontmatter.wechatMediaId != null && String(parsedFrontmatter.wechatMediaId).trim()
       ? String(parsedFrontmatter.wechatMediaId).trim()
       : null;
+  const wechatTitle =
+    parsedFrontmatter.title != null
+      ? String(parsedFrontmatter.title)
+      : (selectedFile?.name.replace(/\.mdx?$/, "") ?? "");
+  const wechatMarkdown = wechatBody;
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
@@ -731,203 +686,71 @@ function App() {
         onToggleSpellCheck={() => updatePrefs({ spellCheck: !prefs.spellCheck })}
         onSetWordCountGoal={setWordCountGoal}
       />
-      {gitSyncPopoverOpen && gitSyncPopover && (
-        <Suspense fallback={null}>
-          <GitSyncPopover
-            state={gitSyncPopover}
-            onClose={() => setGitSyncPopoverOpen(false)}
-            onAction={gitSyncPopover.actionLabel ? () => void handleGitSyncAction() : undefined}
-          />
-        </Suspense>
-      )}
-      {toasts.length > 0 && (
-        <div className="toast-container">
-          {toasts.map((t) => (
-            <div key={t.id} className="toast">
-              {t.message}
-            </div>
-          ))}
-        </div>
-      )}
-      {workspaceSwitcherOpen && (
-        <Suspense fallback={null}>
-          <WorkspaceSwitcher
-            recentWorkspaces={recentWorkspaces}
-            currentRootPath={workspaceRootPath}
-            onSelect={(rootPath) => void openWorkspaceAtPath(rootPath)}
-            onOpenOther={handleOpenWorkspace}
-            onClose={() => setWorkspaceSwitcherOpen(false)}
-          />
-        </Suspense>
-      )}
-      {updateDialogOpen && (
-        <Suspense fallback={null}>
-          <UpdateDialog
-            onBeforeRestart={flushPendingSave}
-            onClose={() => setUpdateDialogOpen(false)}
-          />
-        </Suspense>
-      )}
-      {wechatPublishDialogOpen && selectedFile && (
-        <Suspense fallback={null}>
-          <WechatPublishDialog
-            title={
-              parsedFrontmatter.title != null
-                ? String(parsedFrontmatter.title)
-                : selectedFile.name.replace(/\.mdx?$/, "")
-            }
-            author={wechatAuthor}
-            excerpt={wechatDigest}
-            hasMath={wechatHasMath}
-            imageCount={wechatImageCount}
-            markdown={pendingMarkdownRef.current ?? parseFrontmatter(fileContent).body}
-            baseDir={wechatBaseDir}
-            assetRoot={assetRoot}
-            coverImagePath={wechatCoverImagePath}
-            existingMediaId={wechatMediaId}
-            onClose={() => setWechatPublishDialogOpen(false)}
-            onSuccess={(mediaId) => handleFieldChange("wechatMediaId", mediaId)}
-          />
-        </Suspense>
-      )}
-      {modal?.type === "rename-path" && (
-        <Suspense fallback={null}>
-          <RenamePathDialog
-            {...getRenamePathDialogState(modal.node)}
-            onConfirm={(name) => {
-              void handleRename(modal.node, name);
-              setModal(null);
-            }}
-            onCancel={() => setModal(null)}
-          />
-        </Suspense>
-      )}
-      {switcherOpen && (
-        <Suspense fallback={null}>
-          <FileSwitcher
-            files={flatFiles}
-            recentFiles={recentFiles}
-            onSelect={(node) => {
-              openFileByPath(node.path);
-              setSwitcherOpen(false);
-            }}
-            onClose={() => setSwitcherOpen(false)}
-          />
-        </Suspense>
-      )}
-      {modal?.type === "new-file" && (
-        <Suspense fallback={null}>
-          <NewFileDialog
-            contentTypes={contentTypes}
-            preselectedType={modal.contentType}
-            onConfirm={(name, contentType) => {
-              void handleNewFile(modal.dirPath, name, contentType);
-              setModal(null);
-            }}
-            onCancel={() => setModal(null)}
-          />
-        </Suspense>
-      )}
-      {modal?.type === "duplicate-file" && (
-        <Suspense fallback={null}>
-          <NewFileDialog
-            contentTypes={[]}
-            initialFilename={getDuplicateNameSuggestion(modal.node)}
-            title={t("new_file_dialog.title_make_copy")}
-            confirmLabel={t("new_file_dialog.copy")}
-            showTypeSelector={false}
-            onConfirm={(name) => {
-              void handleDuplicate(modal.node, name);
-              setModal(null);
-            }}
-            onCancel={() => setModal(null)}
-          />
-        </Suspense>
-      )}
-      {modal?.type === "new-from-existing" && (
-        <Suspense fallback={null}>
-          <NewFileDialog
-            contentTypes={[]}
-            initialFilename={getNewFromExistingNameSuggestion(modal.node)}
-            title={t("new_file_dialog.title_new_from_existing")}
-            confirmLabel={t("new_file_dialog.create")}
-            showTypeSelector={false}
-            onConfirm={(name) => {
-              void handleNewFromExisting(modal.node, name);
-              setModal(null);
-            }}
-            onCancel={() => setModal(null)}
-          />
-        </Suspense>
-      )}
-      {commitDialog && (
-        <Suspense fallback={null}>
-          <CommitDialog
-            defaultMessage={commitDialog.message}
-            branch={commitDialog.branch}
-            changes={commitDialog.changes}
-            onCommit={(message, selectedPaths, push) =>
-              void handleCommitDialogCommit(message, selectedPaths, push)
-            }
-            onCancel={() => setCommitDialog(null)}
-          />
-        </Suspense>
-      )}
-      {branchSwitcher && (
-        <Suspense fallback={null}>
-          <BranchSwitcher
-            branches={branchSwitcher.branches}
-            remoteBranches={branchSwitcher.remoteBranches}
-            remoteInfo={branchSwitcher.remoteInfo}
-            onSelect={(branch) => void switchBranch(branch)}
-            onSelectRemoteBranch={(remoteRef) => void checkoutRemoteBranch(remoteRef)}
-            onCreateBranch={() => {
-              closeBranchSwitcher();
-              setNewBranchDialogOpen(true);
-            }}
-            onRenameBranch={(branch) => setRenameBranchDialog({ branch })}
-            onDeleteBranch={(branch) => setDeleteBranchDialog({ branch })}
-            onPushAndTrack={(remoteName) =>
-              void runGitAction("push", () => handlePush(remoteName), "Pushed and set upstream")
-            }
-            onOpenRemote={(remoteName) => void openRemote(remoteName)}
-            onCopyRemoteUrl={(remoteName) => void copyRemoteUrl(remoteName)}
-            onClose={closeBranchSwitcher}
-          />
-        </Suspense>
-      )}
-      {newBranchDialogOpen && (
-        <Suspense fallback={null}>
-          <NewBranchDialog
-            currentBranch={currentBranch}
-            onConfirm={(branch) => void createBranch(branch)}
-            onCancel={() => setNewBranchDialogOpen(false)}
-          />
-        </Suspense>
-      )}
-      {renameBranchDialog && (
-        <Suspense fallback={null}>
-          <RenameBranchDialog
-            branch={renameBranchDialog.branch}
-            onConfirm={(branch) => void renameBranch(renameBranchDialog.branch, branch)}
-            onCancel={() => setRenameBranchDialog(null)}
-          />
-        </Suspense>
-      )}
-      {deleteBranchDialog && (
-        <Suspense fallback={null}>
-          <DeleteBranchDialog
-            branch={deleteBranchDialog.branch}
-            onConfirm={() => void deleteBranch(deleteBranchDialog.branch)}
-            onCancel={() => setDeleteBranchDialog(null)}
-          />
-        </Suspense>
-      )}
-      {isPerfLoggingEnabled() && (
-        <Suspense fallback={null}>
-          <PerfPanel />
-        </Suspense>
-      )}
+      <AppDialogs
+        toasts={toasts}
+        gitSyncPopoverOpen={gitSyncPopoverOpen}
+        gitSyncPopover={gitSyncPopover}
+        setGitSyncPopoverOpen={setGitSyncPopoverOpen}
+        handleGitSyncAction={handleGitSyncAction}
+        workspaceSwitcherOpen={workspaceSwitcherOpen}
+        recentWorkspaces={recentWorkspaces}
+        workspaceRootPath={workspaceRootPath}
+        openWorkspaceAtPath={openWorkspaceAtPath}
+        handleOpenWorkspace={handleOpenWorkspace}
+        setWorkspaceSwitcherOpen={setWorkspaceSwitcherOpen}
+        updateDialogOpen={updateDialogOpen}
+        flushPendingSave={flushPendingSave}
+        setUpdateDialogOpen={setUpdateDialogOpen}
+        wechatPublishDialogOpen={wechatPublishDialogOpen}
+        selectedFile={selectedFile}
+        wechatTitle={wechatTitle}
+        wechatAuthor={wechatAuthor}
+        wechatDigest={wechatDigest}
+        wechatHasMath={wechatHasMath}
+        wechatImageCount={wechatImageCount}
+        wechatMarkdown={wechatMarkdown}
+        wechatBaseDir={wechatBaseDir}
+        assetRoot={assetRoot}
+        wechatCoverImagePath={wechatCoverImagePath}
+        wechatMediaId={wechatMediaId}
+        setWechatPublishDialogOpen={setWechatPublishDialogOpen}
+        onWechatSuccess={(mediaId) => {
+          void handleFieldChange("wechatMediaId", mediaId);
+        }}
+        modal={modal}
+        setModal={setModal}
+        contentTypes={contentTypes}
+        handleNewFile={handleNewFile}
+        handleDuplicate={handleDuplicate}
+        handleNewFromExisting={handleNewFromExisting}
+        handleRename={handleRename}
+        switcherOpen={switcherOpen}
+        flatFiles={flatFiles}
+        recentFiles={recentFiles}
+        openFileByPath={openFileByPath}
+        setSwitcherOpen={setSwitcherOpen}
+        commitDialog={commitDialog}
+        setCommitDialog={setCommitDialog}
+        handleCommitDialogCommit={handleCommitDialogCommit}
+        branchSwitcher={branchSwitcher}
+        currentBranch={currentBranch}
+        switchBranch={switchBranch}
+        checkoutRemoteBranch={checkoutRemoteBranch}
+        closeBranchSwitcher={closeBranchSwitcher}
+        setNewBranchDialogOpen={setNewBranchDialogOpen}
+        setRenameBranchDialog={setRenameBranchDialog}
+        setDeleteBranchDialog={setDeleteBranchDialog}
+        runGitAction={runGitAction}
+        handlePush={handlePush}
+        openRemote={openRemote}
+        copyRemoteUrl={copyRemoteUrl}
+        newBranchDialogOpen={newBranchDialogOpen}
+        createBranch={createBranch}
+        renameBranchDialog={renameBranchDialog}
+        renameBranch={renameBranch}
+        deleteBranchDialog={deleteBranchDialog}
+        deleteBranch={deleteBranch}
+      />
     </div>
   );
 }
