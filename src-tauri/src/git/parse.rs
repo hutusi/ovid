@@ -67,12 +67,14 @@ pub(crate) fn parse_git_status_output(git_root: &str, porcelain: &str) -> Vec<Gi
         let path_part = &record[3..];
         let index_status = xy.chars().next().unwrap_or(' ');
         let worktree_status = xy.chars().nth(1).unwrap_or(' ');
-        let file_path = if matches!(index_status, 'R' | 'C') || matches!(worktree_status, 'R' | 'C')
-        {
-            records.next().unwrap_or(path_part)
-        } else {
-            path_part
-        };
+        // For renames/copies, porcelain v1 -z emits `XY <DEST>\0<SRC>\0` —
+        // destination path first, source path second. Consume the source so it
+        // does not pollute the next iteration, and keep the destination for
+        // display/staging.
+        if matches!(index_status, 'R' | 'C') || matches!(worktree_status, 'R' | 'C') {
+            let _ = records.next();
+        }
+        let file_path = path_part;
         let staged = index_status != ' ' && index_status != '?';
         let status = if xy.starts_with('?') {
             "untracked"
@@ -453,7 +455,10 @@ mod tests {
     #[test]
     fn parse_git_status_output_uses_destination_path_for_renames() {
         let git_root = "/repo";
-        let changes = parse_git_status_output(git_root, "R  notes/old.md\0notes/new.md\0");
+        // `git status --porcelain=v1 -z` emits the destination path first and the
+        // source second for renames/copies — verified with `git mv old.md new.md`
+        // producing `R  new.md\x00old.md\x00`.
+        let changes = parse_git_status_output(git_root, "R  notes/new.md\0notes/old.md\0");
 
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].display_path, "notes/new.md");
