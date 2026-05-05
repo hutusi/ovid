@@ -1,18 +1,15 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
-import { EmptyState } from "./components/EmptyState";
-import { ErrorBoundary } from "./components/ErrorBoundary";
-import { FileViewer, getFileViewKind } from "./components/FileViewer";
-import { PropertiesPanel } from "./components/PropertiesPanel";
+import type { EditorViewState } from "./components/EditorPane";
+import { EditorPane } from "./components/EditorPane";
+import { getFileViewKind } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
-import { TabBar } from "./components/TabBar";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { makeFileNodeFromPath } from "./lib/fileNode";
 import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
-import { resolveImageSrc } from "./lib/imageUtils";
 import { getPathDisplayLabel } from "./lib/postPath";
 import type { FileNode, ModalState } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
@@ -37,15 +34,8 @@ import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtm
 import "./styles/global.css";
 import "./App.css";
 
-type EditorViewState = { selection: number; scrollTop: number };
-
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
-
-const loadEditor = async () => import("./components/Editor");
-const Editor = lazy(async () => ({
-  default: (await loadEditor()).Editor,
-}));
 
 const SearchPanel = lazy(async () => ({
   default: (await import("./components/SearchPanel")).SearchPanel,
@@ -323,14 +313,6 @@ function App() {
     if (workspaceRoot) resetRecent(workspaceRoot);
   }, [workspaceRoot, resetRecent]);
 
-  useEffect(() => {
-    if (!workspaceRootPath && !selectedFile) return;
-    const timer = window.setTimeout(() => {
-      void loadEditor();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [workspaceRootPath, selectedFile]);
-
   // Track recently opened workspaces
   useEffect(() => {
     if (workspaceRootPath && workspaceName) {
@@ -578,78 +560,40 @@ function App() {
             onDelete={handleDelete}
           />
         )}
-        <div className="editor-column">
-          {tabs.length >= 2 && (
-            <TabBar
-              tabs={tabs}
-              tree={tree}
-              activePath={selectedFile?.path ?? null}
-              saveStatus={saveStatus}
-              onSelect={handleSelectFromTab}
-              onClose={handleCloseTab}
-              onReorder={reorderTabs}
-            />
-          )}
-          {selectedFile && coverImageVisible && coverImagePath && (
-            <div className="cover-image-banner">
-              <img
-                src={resolveImageSrc(coverImagePath, selectedFile.path, assetRoot, cdnBase)}
-                alt={parsedFrontmatter.title ? String(parsedFrontmatter.title) : ""}
-              />
-            </div>
-          )}
-          {fileViewerNode ? (
-            <FileViewer node={fileViewerNode} onClose={() => setFileViewerNode(null)} />
-          ) : selectedFile ? (
-            <ErrorBoundary key={selectedFile.path}>
-              <Suspense fallback={<div className="editor-loading">Loading editor…</div>}>
-                <Editor
-                  key={selectedFile.path}
-                  content={fileContent}
-                  filePath={selectedFile.path}
-                  assetRoot={assetRoot}
-                  cdnBase={cdnBase}
-                  typewriterMode={typewriterMode}
-                  spellCheck={prefs.spellCheck}
-                  showH1Warning={
-                    parsedFrontmatter.title != null && String(parsedFrontmatter.title).trim() !== ""
-                  }
-                  title={parsedFrontmatter.title != null ? String(parsedFrontmatter.title) : ""}
-                  onTitleChange={(value) => void handlePublishAwareFieldChange("title", value)}
-                  onWordCount={setWordCount}
-                  onDirty={handleEditorDirty}
-                  onChange={handleEditorChange}
-                  onError={showToast}
-                  initialSelection={currentEditorViewState?.selection}
-                  initialScrollTop={currentEditorViewState?.scrollTop}
-                  onViewStateChange={handleEditorViewStateChange}
-                  registerPendingFlush={registerEditorFlush}
-                />
-              </Suspense>
-            </ErrorBoundary>
-          ) : (
-            <EmptyState
-              workspaceOpen={workspaceRoot !== null}
-              recentFiles={recentFiles}
-              onOpenWorkspace={handleOpenWorkspace}
-              onOpenRecent={handleOpenByPath}
-            />
-          )}
-        </div>
-        {selectedFile && (
-          <PropertiesPanel
-            frontmatter={parsedFrontmatter}
-            visible={propertiesOpen}
-            slug={selectedFile.name.replace(/\.mdx?$/, "")}
-            coverImageVisible={coverImageVisible}
-            filePath={selectedFile.path}
-            assetRoot={assetRoot}
-            cdnBase={cdnBase}
-            onFieldChange={handlePublishAwareFieldChange}
-            onToggleCoverImage={() => setCoverImageVisible((v) => !v)}
-            onError={showToast}
-          />
-        )}
+        <EditorPane
+          workspaceRootPath={workspaceRootPath}
+          workspaceRoot={workspaceRoot}
+          tabs={tabs}
+          tree={tree}
+          saveStatus={saveStatus}
+          selectedFile={selectedFile}
+          onSelectFromTab={handleSelectFromTab}
+          onCloseTab={handleCloseTab}
+          onReorderTabs={reorderTabs}
+          coverImageVisible={coverImageVisible}
+          coverImagePath={coverImagePath}
+          assetRoot={assetRoot}
+          cdnBase={cdnBase}
+          fileViewerNode={fileViewerNode}
+          onCloseFileViewer={() => setFileViewerNode(null)}
+          fileContent={fileContent}
+          typewriterMode={typewriterMode}
+          spellCheck={prefs.spellCheck}
+          parsedFrontmatter={parsedFrontmatter}
+          onFieldChange={handlePublishAwareFieldChange}
+          onWordCount={setWordCount}
+          onDirty={handleEditorDirty}
+          onChange={handleEditorChange}
+          onError={showToast}
+          currentEditorViewState={currentEditorViewState}
+          onEditorViewStateChange={handleEditorViewStateChange}
+          registerPendingFlush={registerEditorFlush}
+          recentFiles={recentFiles}
+          onOpenWorkspace={handleOpenWorkspace}
+          onOpenRecent={handleOpenByPath}
+          propertiesOpen={propertiesOpen}
+          onToggleCoverImage={() => setCoverImageVisible((v) => !v)}
+        />
       </div>
       <StatusBar
         fileLabel={selectedFile ? getPathDisplayLabel(selectedFile) : null}
