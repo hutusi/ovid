@@ -27,14 +27,18 @@ export function mimeTypeToImageExtension(mimeType: string): string {
 
 /**
  * Resolve the file extension to use when saving an image.
- * Prefers a recognized extension from the filename; falls back to the
- * extension derived from the MIME type when the filename has no usable extension
- * (e.g. clipboard pastes, where `name` is often empty).
+ * Prefers the MIME-derived extension since the bytes determine the actual format
+ * (a `.png` filename can wrap JPEG bytes). Falls back to the filename extension
+ * when MIME is missing or non-image, then to a final default.
  */
 export function resolveImageExtension(file: { name: string; type: string }): string {
+  const mimeExt = file.type ? mimeTypeToImageExtension(file.type) : "";
+  if (mimeExt && ALLOWED_IMAGE_EXTENSIONS.has(mimeExt)) return mimeExt;
+
   const candidate = file.name.split(".").pop()?.toLowerCase() ?? "";
   if (candidate && ALLOWED_IMAGE_EXTENSIONS.has(candidate)) return candidate;
-  return mimeTypeToImageExtension(file.type);
+
+  return mimeExt || "png";
 }
 
 export function resolveRelativePath(baseDir: string, relative: string): string {

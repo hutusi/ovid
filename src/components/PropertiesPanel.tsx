@@ -710,16 +710,13 @@ function CoverImageField({
   const { t } = useTranslation();
   const [dragActive, setDragActive] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [thumbBroken, setThumbBroken] = useState(false);
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
   const dropRef = useRef<HTMLFieldSetElement>(null);
-
-  useEffect(() => {
-    setThumbBroken(false);
-  }, []);
 
   const trimmed = value.trim();
   const hasValue = trimmed.length > 0;
   const thumbSrc = hasValue ? resolveImageSrc(trimmed, filePath, assetRoot, cdnBase) : "";
+  const thumbBroken = brokenSrc !== null && brokenSrc === thumbSrc;
 
   async function handleFile(file: File) {
     if (!IMAGE_MIME_RE.test(file.type)) {
@@ -730,7 +727,6 @@ function CoverImageField({
     try {
       const relPath = await uploadImageBytes(file, filePath);
       onSave(relPath);
-      setThumbBroken(false);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       onError?.(t("properties.cover_save_error", { reason }));
@@ -749,7 +745,6 @@ function CoverImageField({
         activeFilePath: filePath,
       });
       onSave(relPath);
-      setThumbBroken(false);
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       onError?.(t("properties.cover_save_error", { reason }));
@@ -834,7 +829,7 @@ function CoverImageField({
             className="prop-cover-thumb"
             src={thumbSrc}
             alt={t("properties.cover_image")}
-            onError={() => setThumbBroken(true)}
+            onError={() => setBrokenSrc(thumbSrc)}
           />
         ) : (
           <div className="prop-cover-empty">
