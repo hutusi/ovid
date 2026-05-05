@@ -239,12 +239,12 @@ export function useMenuActions({
           break;
         case "git-pull":
           if (!hasBlockingOverlay && isGitRepo) {
-            void runGitAction("pull", handlePull, "Pulled latest changes");
+            void runGitAction("pull", handlePull, t("menu.git_pull_success"));
           }
           break;
         case "git-fetch":
           if (!hasBlockingOverlay && isGitRepo) {
-            void runGitAction("fetch", handleFetch, "Fetched remote updates");
+            void runGitAction("fetch", handleFetch, t("menu.git_fetch_success"));
           }
           break;
         case "wechat-copy":
@@ -312,5 +312,6 @@ export function useMenuActions({
     setWorkspaceSwitcherOpen,
     setUpdateDialogOpen,
     setWechatPublishDialogOpen,
+    t,
   ]);
 }

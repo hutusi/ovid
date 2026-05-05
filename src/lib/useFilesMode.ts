@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SidebarMode } from "../components/Sidebar";
 import type { FileNode } from "./types";
 
@@ -28,16 +28,21 @@ export function useFilesMode({ workspaceRootPath, showToast, t }: UseFilesModeOp
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("content");
   const [fileViewerNode, setFileViewerNode] = useState<FileNode | null>(null);
   const [filesTree, setFilesTree] = useState<FileNode[]>([]);
+  const loadGenRef = useRef(0);
 
   const loadFilesTree = useCallback(async () => {
     if (!workspaceRootPath) return;
+    loadGenRef.current += 1;
+    const thisGen = loadGenRef.current;
     try {
       const nodes = await invoke<FileNode[]>("list_workspace_children", {
         path: workspaceRootPath,
         allFiles: true,
       });
+      if (loadGenRef.current !== thisGen) return;
       setFilesTree(nodes);
     } catch (err) {
+      if (loadGenRef.current !== thisGen) return;
       showToast(
         t("workspace.load_files_error", {
           message: err instanceof Error ? err.message : String(err),

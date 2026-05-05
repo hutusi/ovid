@@ -141,7 +141,6 @@ export function useWorkspaceRevisionPoll({
           workspaceRefreshFailureToastRef.current = message;
           showToast(t("workspace_refresh.refresh_failed", { message }));
         }
-        console.error("Failed to refresh workspace changes:", err);
       } finally {
         workspaceRefreshInFlightRef.current = false;
       }
