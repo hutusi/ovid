@@ -37,7 +37,7 @@ export function EditableValue({
     return (
       <input
         ref={inputRef}
-        aria-label={label}
+        aria-label={label ?? "Editable value"}
         className="prop-input"
         {...METADATA_TEXT_INPUT_PROPS}
         value={draft}

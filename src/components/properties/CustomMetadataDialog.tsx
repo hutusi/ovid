@@ -19,6 +19,14 @@ const CUSTOM_METADATA_TYPES: CustomFrontmatterValueType[] = [
   "tags",
 ];
 
+const CUSTOM_METADATA_TYPE_LABEL_KEY: Record<CustomFrontmatterValueType, string> = {
+  text: "properties.custom_type_text",
+  boolean: "properties.custom_type_boolean",
+  number: "properties.custom_type_number",
+  date: "properties.custom_type_date",
+  tags: "properties.custom_type_tags",
+};
+
 export function CustomMetadataDialog({
   existingKeys,
   onConfirm,
@@ -121,7 +129,7 @@ export function CustomMetadataDialog({
             >
               {CUSTOM_METADATA_TYPES.map((type) => (
                 <option key={type} value={type}>
-                  {type}
+                  {t(CUSTOM_METADATA_TYPE_LABEL_KEY[type])}
                 </option>
               ))}
             </select>

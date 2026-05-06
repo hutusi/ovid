@@ -55,9 +55,10 @@ describe("CustomMetadataField type dispatch", () => {
 
   it("renders DateField for ISO date strings", () => {
     const markup = render("2025-03-15");
+    // DateField formats the date, EditableValue would render the raw ISO string.
+    // The absence of the raw input proves the date was formatted (i.e., DateField was chosen).
+    expect(markup).not.toContain(">2025-03-15<");
     expect(markup).toContain("prop-editable-area");
-    // DateField wraps the formatted date in prop-value
-    expect(markup).toContain("prop-value");
   });
 
   it("renders EditableValue for plain text values", () => {

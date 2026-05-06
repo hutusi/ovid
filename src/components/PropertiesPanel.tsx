@@ -140,15 +140,14 @@ export function PropertiesPanel({
           <section className="prop-section" aria-label={t("properties.custom_metadata")}>
             <span className="prop-section-title">{t("properties.custom")}</span>
             {customKeys.map((key) => (
-              <div key={key}>
-                <CustomMetadataField
-                  fieldKey={key}
-                  value={frontmatter[key]}
-                  onSave={(v) => onFieldChange?.(key, v)}
-                  onRemove={() => onFieldChange?.(key, null)}
-                  onError={onError}
-                />
-              </div>
+              <CustomMetadataField
+                key={key}
+                fieldKey={key}
+                value={frontmatter[key]}
+                onSave={(v) => onFieldChange?.(key, v)}
+                onRemove={() => onFieldChange?.(key, null)}
+                onError={onError}
+              />
             ))}
           </section>
         )}
