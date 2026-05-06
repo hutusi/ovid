@@ -225,7 +225,7 @@ export function AppDialogs({
         </Suspense>
       )}
       {toasts.length > 0 && (
-        <div className="toast-container">
+        <div className="toast-container" aria-live="polite" aria-atomic="true">
           {toasts.map((toast) => (
             <div key={toast.id} className="toast">
               {toast.message}
