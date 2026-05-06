@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-function formatDate(value: string): string {
+export function formatDate(value: string): string {
   try {
     return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
       new Date(`${value}T00:00:00`)
