@@ -371,6 +371,8 @@
     "git_push": "推送",
     "git_pull": "拉取",
     "git_fetch": "获取",
+    "git_pull_success": "已拉取最新更改",
+    "git_fetch_success": "已获取远端更新",
     "help_check_updates": "检查更新\u2026",
     "help_docs": "Ovid 文档",
     "help_issues": "报告问题\u2026"
@@ -382,7 +384,8 @@
   "editor": {
     "h1_warning": "⚠ 此文档已有标题。建议将此处改为 ## 二级标题。",
     "paste_image_error": "粘贴图片失败：{{reason}}",
-    "drop_image_error": "拖放图片失败：{{reason}}"
+    "drop_image_error": "拖放图片失败：{{reason}}",
+    "loading": "加载编辑器…"
   },
   "wechat": {
     "title": "保存到微信草稿箱",

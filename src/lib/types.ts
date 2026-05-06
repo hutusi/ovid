@@ -1,3 +1,10 @@
+export type ModalState =
+  | { type: "new-file"; dirPath: string; contentType?: string }
+  | { type: "duplicate-file"; node: FileNode }
+  | { type: "new-from-existing"; node: FileNode }
+  | { type: "rename-path"; node: FileNode }
+  | null;
+
 export interface FileNode {
   name: string;
   path: string;

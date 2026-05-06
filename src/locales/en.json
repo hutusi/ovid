@@ -371,6 +371,8 @@
     "git_push": "Push",
     "git_pull": "Pull",
     "git_fetch": "Fetch",
+    "git_pull_success": "Pulled latest changes",
+    "git_fetch_success": "Fetched remote updates",
     "help_check_updates": "Check for Updates\u2026",
     "help_docs": "Ovid Documentation",
     "help_issues": "Report an Issue\u2026"
@@ -382,7 +384,8 @@
   "editor": {
     "h1_warning": "⚠ This document already has a title. Consider changing this heading to ##.",
     "paste_image_error": "Failed to paste image: {{reason}}",
-    "drop_image_error": "Failed to drop image: {{reason}}"
+    "drop_image_error": "Failed to drop image: {{reason}}",
+    "loading": "Loading editor…"
   },
   "wechat": {
     "title": "Save to WeChat Drafts",
