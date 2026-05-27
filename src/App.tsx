@@ -11,10 +11,9 @@ import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode } from "./lib/sidebarUtils";
-import type { FileNode, ModalState } from "./lib/types";
+import type { FileNode } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
-import { useEditorSession } from "./lib/useEditorSession";
 import { useFileEditor } from "./lib/useFileEditor";
 import { useFilesMode } from "./lib/useFilesMode";
 import { useGit } from "./lib/useGit";
@@ -23,12 +22,13 @@ import { useGitRefreshOnSave } from "./lib/useGitRefreshOnSave";
 import { useGitUiController } from "./lib/useGitUiController";
 import { useKeyboardShortcuts } from "./lib/useKeyboardShortcuts";
 import { useMenuActions } from "./lib/useMenuActions";
+import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
-import { useWorkspace } from "./lib/useWorkspace";
 import { useWorkspaceRevisionPoll } from "./lib/useWorkspaceRevisionPoll";
+import { useWorkspaceSession } from "./lib/useWorkspaceSession";
 import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtml";
 import "./styles/global.css";
 import "./App.css";
@@ -51,33 +51,10 @@ function App() {
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [sessionBaseline, setSessionBaseline] = useState<number | null>(null);
   const [baselineCaptured, setBaselineCaptured] = useState(false);
-  const [modal, setModal] = useState<ModalState>(null);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [workspaceSwitcherOpen, setWorkspaceSwitcherOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [wechatPublishDialogOpen, setWechatPublishDialogOpen] = useState(false);
+  const overlay = useOverlayStack();
   const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
-  // Editor session methods are wired into useWorkspace's path-mutation
-  // callbacks via this ref. The ref is populated after useEditorSession
-  // returns (further down) so the callbacks dispatch through the latest
-  // session instance — same shape as the previous tabSyncRef pattern but
-  // covering selection, tabs, and recents in one channel.
-  const sessionCallbacksRef = useRef<{
-    onPathCreated: (node: FileNode) => Promise<void>;
-    onPathRenamed: (
-      oldPath: string,
-      newPath: string,
-      lookup?: (path: string) => FileNode | undefined
-    ) => void;
-    onPathRemoved: (path: string) => Promise<void>;
-  }>({
-    onPathCreated: async () => {},
-    onPathRenamed: () => {},
-    onPathRemoved: async () => {},
-  });
 
   const { toasts, showToast } = useToast();
   const { prefs, updatePrefs } = useEditorPreferences();
@@ -130,17 +107,17 @@ function App() {
     handleNewFromExisting,
     handleDelete,
     refreshTree,
-  } = useWorkspace({
+    tabs,
+    closeTab,
+    reorderTabs,
+    recentFiles,
+    openFile,
+    openByPath,
+    closeActive,
+  } = useWorkspaceSession({
     showToast,
     flushPendingSave,
     resetFileState,
-    onPathCreated: (node) => sessionCallbacksRef.current.onPathCreated(node),
-    onPathRenamed: (oldPath, newPath, lookup) =>
-      sessionCallbacksRef.current.onPathRenamed(oldPath, newPath, lookup),
-    onPathRemoved: (path) => sessionCallbacksRef.current.onPathRemoved(path),
-  });
-
-  const editorSession = useEditorSession({
     fileEditor: {
       selectedFile,
       selectedPathRef,
@@ -148,21 +125,7 @@ function App() {
       handleSelectFile,
       handleCloseFile,
     },
-    workspaceRoot,
-    workspaceRootPath,
-    flatFiles,
   });
-  const { tabs, closeTab, reorderTabs, recentFiles, openFile, openByPath, closeActive } =
-    editorSession;
-
-  // Wire the session's path-mutation methods up to useWorkspace via the ref.
-  // The ref is reassigned every render so the workspace handlers always
-  // dispatch through the latest editor-session closures.
-  sessionCallbacksRef.current = {
-    onPathCreated: editorSession.openFile,
-    onPathRenamed: editorSession.notifyPathRenamed,
-    onPathRemoved: editorSession.notifyPathRemoved,
-  };
 
   const { sidebarMode, fileViewerNode, setFileViewerNode, handleToggleSidebarMode } = useFilesMode({
     workspaceRootPath,
@@ -282,6 +245,7 @@ function App() {
     setDeleteBranchDialog,
     setGitSyncPopoverOpen,
   } = useGitUiController({
+    overlay,
     gitStatusMap,
     isGitRepo,
     remoteInfo,
@@ -356,16 +320,7 @@ function App() {
   }, [wordCount, baselineCaptured]);
 
   useKeyboardShortcuts({
-    modal,
-    commitDialog,
-    switcherOpen,
-    branchSwitcher,
-    newBranchDialogOpen,
-    renameBranchDialog,
-    deleteBranchDialog,
-    workspaceSwitcherOpen,
-    updateDialogOpen,
-    wechatPublishDialogOpen,
+    overlay,
     zenMode,
     workspaceRoot,
     tree,
@@ -376,13 +331,9 @@ function App() {
     handleOpenWorkspace,
     handleNewTodayFlow,
     openCommitDialog,
-    setModal,
     setSidebarVisible,
     setPropertiesOpen,
-    setSearchOpen,
     setZenMode,
-    setWorkspaceSwitcherOpen,
-    setSwitcherOpen,
   });
 
   useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus });
@@ -404,16 +355,7 @@ function App() {
   useGitFocusFetch({ workspaceRoot, isGitRepo, handleFetch });
 
   useMenuActions({
-    modal,
-    commitDialog,
-    switcherOpen,
-    branchSwitcher,
-    newBranchDialogOpen,
-    renameBranchDialog,
-    deleteBranchDialog,
-    workspaceSwitcherOpen,
-    updateDialogOpen,
-    wechatPublishDialogOpen,
+    overlay,
     workspaceRoot,
     tree,
     isGitRepo,
@@ -425,16 +367,10 @@ function App() {
     fileContent,
     showToast,
     t,
-    setModal,
     setSidebarVisible,
     setPropertiesOpen,
-    setSearchOpen,
     setZenMode,
     setTypewriterMode,
-    setSwitcherOpen,
-    setWorkspaceSwitcherOpen,
-    setUpdateDialogOpen,
-    setWechatPublishDialogOpen,
     setNewBranchDialogOpen,
     flushPendingSave,
     closeActiveTabOrFile,
@@ -509,7 +445,7 @@ function App() {
 
   function handleOpenByPath(path: string) {
     openFileByPath(path);
-    setSearchOpen(false);
+    overlay.close("search");
   }
 
   function handleSelectFromTab(path: string) {
@@ -530,9 +466,9 @@ function App() {
   return (
     <div className="app" data-zen={zenMode ? "true" : undefined}>
       <div className="app-body">
-        {searchOpen ? (
+        {overlay.is("search") ? (
           <Suspense fallback={null}>
-            <SearchPanel onOpenFile={handleOpenByPath} onClose={() => setSearchOpen(false)} />
+            <SearchPanel onOpenFile={handleOpenByPath} onClose={() => overlay.close("search")} />
           </Suspense>
         ) : (
           <Sidebar
@@ -546,11 +482,19 @@ function App() {
             onToggleMode={handleToggleSidebarMode}
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
-            onOpenSwitcher={() => setWorkspaceSwitcherOpen(true)}
-            onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
-            onRename={(node) => setModal({ type: "rename-path", node })}
-            onDuplicate={(node) => setModal({ type: "duplicate-file", node })}
-            onNewFromExisting={(node) => setModal({ type: "new-from-existing", node })}
+            onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
+            onNewFile={(dirPath) =>
+              overlay.open({ kind: "modal", state: { type: "new-file", dirPath } })
+            }
+            onRename={(node) =>
+              overlay.open({ kind: "modal", state: { type: "rename-path", node } })
+            }
+            onDuplicate={(node) =>
+              overlay.open({ kind: "modal", state: { type: "duplicate-file", node } })
+            }
+            onNewFromExisting={(node) =>
+              overlay.open({ kind: "modal", state: { type: "new-from-existing", node } })
+            }
             onDelete={handleDelete}
           />
         )}
@@ -611,11 +555,15 @@ function App() {
         onOpenBranches={() => void openBranchSwitcher()}
         onRenamePath={
           selectedFile && !selectedFile.isDirectory
-            ? () => setModal({ type: "rename-path", node: selectedFile })
+            ? () =>
+                overlay.open({
+                  kind: "modal",
+                  state: { type: "rename-path", node: selectedFile },
+                })
             : undefined
         }
         onOpenCommit={() => void openCommitDialog("Update")}
-        onOpenGitSync={() => setGitSyncPopoverOpen((open) => !open)}
+        onOpenGitSync={() => setGitSyncPopoverOpen(!gitSyncPopoverOpen)}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
         onToggleZen={() => setZenMode((v) => !v)}
         onToggleTypewriter={() => setTypewriterMode((v) => !v)}
@@ -625,21 +573,17 @@ function App() {
         onSetWordCountGoal={setWordCountGoal}
       />
       <AppDialogs
+        overlay={overlay}
         toasts={toasts}
         gitSyncPopoverOpen={gitSyncPopoverOpen}
         gitSyncPopover={gitSyncPopover}
         setGitSyncPopoverOpen={setGitSyncPopoverOpen}
         handleGitSyncAction={handleGitSyncAction}
-        workspaceSwitcherOpen={workspaceSwitcherOpen}
         recentWorkspaces={recentWorkspaces}
         workspaceRootPath={workspaceRootPath}
         openWorkspaceAtPath={openWorkspaceAtPath}
         handleOpenWorkspace={handleOpenWorkspace}
-        setWorkspaceSwitcherOpen={setWorkspaceSwitcherOpen}
-        updateDialogOpen={updateDialogOpen}
         flushPendingSave={flushPendingSave}
-        setUpdateDialogOpen={setUpdateDialogOpen}
-        wechatPublishDialogOpen={wechatPublishDialogOpen}
         selectedFile={selectedFile}
         wechatTitle={wechatTitle}
         wechatAuthor={wechatAuthor}
@@ -651,22 +595,17 @@ function App() {
         assetRoot={assetRoot}
         wechatCoverImagePath={wechatCoverImagePath}
         wechatMediaId={wechatMediaId}
-        setWechatPublishDialogOpen={setWechatPublishDialogOpen}
         onWechatSuccess={(mediaId) => {
           void handleFieldChange("wechatMediaId", mediaId);
         }}
-        modal={modal}
-        setModal={setModal}
         contentTypes={contentTypes}
         handleNewFile={handleNewFile}
         handleDuplicate={handleDuplicate}
         handleNewFromExisting={handleNewFromExisting}
         handleRename={handleRename}
-        switcherOpen={switcherOpen}
         flatFiles={flatFiles}
         recentFiles={recentFiles}
         openFileByPath={openFileByPath}
-        setSwitcherOpen={setSwitcherOpen}
         commitDialog={commitDialog}
         setCommitDialog={setCommitDialog}
         handleCommitDialogCommit={handleCommitDialogCommit}

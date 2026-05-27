@@ -1,25 +1,16 @@
-import { listen } from "@tauri-apps/api/event";
 import type React from "react";
 import { useCallback, useEffect } from "react";
+import { listenEvent } from "./commands/internal";
 import { parseFrontmatter } from "./frontmatter";
 import type { FileNode } from "./types";
+import type { OverlayStack } from "./useOverlayStack";
 import { markdownToWechatHtml } from "./wechatHtml";
 
 // Mirrors the key used in App.tsx for localStorage persistence.
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 
 interface UseMenuActionsOptions {
-  // Blocking-overlay state — hook only tests for null / truthy
-  modal: unknown;
-  commitDialog: unknown;
-  switcherOpen: boolean;
-  branchSwitcher: unknown;
-  newBranchDialogOpen: boolean;
-  renameBranchDialog: unknown;
-  deleteBranchDialog: unknown;
-  workspaceSwitcherOpen: boolean;
-  updateDialogOpen: boolean;
-  wechatPublishDialogOpen: boolean;
+  overlay: OverlayStack;
 
   // Routing conditions
   workspaceRoot: string | null;
@@ -36,17 +27,11 @@ interface UseMenuActionsOptions {
   showToast: (message: string) => void;
   t: (key: string, vars?: Record<string, unknown>) => string;
 
-  // State setters
-  setModal: (state: { type: "new-file"; dirPath: string; contentType: string }) => void;
+  // State setters that aren't backed by the overlay stack
   setSidebarVisible: React.Dispatch<React.SetStateAction<boolean>>;
   setPropertiesOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setZenMode: React.Dispatch<React.SetStateAction<boolean>>;
   setTypewriterMode: React.Dispatch<React.SetStateAction<boolean>>;
-  setSwitcherOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setWorkspaceSwitcherOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setUpdateDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setWechatPublishDialogOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setNewBranchDialogOpen: (open: boolean) => void;
 
   // Action handlers
@@ -67,16 +52,7 @@ interface UseMenuActionsOptions {
 
 /** Wire native menu events to the same handlers as keyboard shortcuts. */
 export function useMenuActions({
-  modal,
-  commitDialog,
-  switcherOpen,
-  branchSwitcher,
-  newBranchDialogOpen,
-  renameBranchDialog,
-  deleteBranchDialog,
-  workspaceSwitcherOpen,
-  updateDialogOpen,
-  wechatPublishDialogOpen,
+  overlay,
   workspaceRoot,
   tree,
   isGitRepo,
@@ -88,16 +64,10 @@ export function useMenuActions({
   fileContent,
   showToast,
   t,
-  setModal,
   setSidebarVisible,
   setPropertiesOpen,
-  setSearchOpen,
   setZenMode,
   setTypewriterMode,
-  setSwitcherOpen,
-  setWorkspaceSwitcherOpen,
-  setUpdateDialogOpen,
-  setWechatPublishDialogOpen,
   setNewBranchDialogOpen,
   flushPendingSave,
   closeActiveTabOrFile,
@@ -138,42 +108,33 @@ export function useMenuActions({
   }, [pendingMarkdownRef, fileContent, showToast, t]);
 
   useEffect(() => {
-    let mounted = true;
-    let unlisten: (() => void) | undefined;
-    listen<string>("menu-action", (event) => {
-      const hasBlockingOverlay =
-        modal !== null ||
-        commitDialog !== null ||
-        switcherOpen ||
-        branchSwitcher !== null ||
-        newBranchDialogOpen ||
-        renameBranchDialog !== null ||
-        deleteBranchDialog !== null ||
-        workspaceSwitcherOpen ||
-        updateDialogOpen ||
-        wechatPublishDialogOpen;
-      switch (event.payload) {
+    return listenEvent<string>("menu-action", (payload) => {
+      const blocked = overlay.isBlocking;
+      switch (payload) {
         case "new-post":
         case "new-flow":
         case "new-note":
         case "new-series":
         case "new-book":
         case "new-page":
-          if (!hasBlockingOverlay && workspaceRoot)
-            setModal({
-              type: "new-file",
-              dirPath: workspaceRoot,
-              contentType: event.payload.replace("new-", ""),
+          if (!blocked && workspaceRoot)
+            overlay.open({
+              kind: "modal",
+              state: {
+                type: "new-file",
+                dirPath: workspaceRoot,
+                contentType: payload.replace("new-", ""),
+              },
             });
           break;
         case "today-flow":
-          if (!hasBlockingOverlay && workspaceRoot) void handleNewTodayFlow();
+          if (!blocked && workspaceRoot) void handleNewTodayFlow();
           break;
         case "open-workspace":
           void handleOpenWorkspace();
           break;
         case "switch-workspace":
-          if (!hasBlockingOverlay) setWorkspaceSwitcherOpen(true);
+          if (!blocked) overlay.open({ kind: "workspaceSwitcher" });
           break;
         case "save":
           void flushPendingSave();
@@ -192,7 +153,10 @@ export function useMenuActions({
           setPropertiesOpen((v) => !v);
           break;
         case "toggle-search":
-          if (workspaceRoot) setSearchOpen((v) => !v);
+          if (workspaceRoot) {
+            if (overlay.is("search")) overlay.close("search");
+            else overlay.open({ kind: "search" });
+          }
           break;
         case "zen-mode":
           setZenMode((v) => !v);
@@ -201,49 +165,49 @@ export function useMenuActions({
           setTypewriterMode((v) => !v);
           break;
         case "file-switcher":
-          if (!hasBlockingOverlay && tree.length > 0) setSwitcherOpen(true);
+          if (!blocked && tree.length > 0) overlay.open({ kind: "switcher" });
           break;
         case "toggle-spell-check":
           updatePrefs({ spellCheck: !prefs.spellCheck });
           break;
         case "check-updates":
-          if (!hasBlockingOverlay) setUpdateDialogOpen(true);
+          if (!blocked) overlay.open({ kind: "update" });
           break;
         case "git-commit":
-          if (!hasBlockingOverlay && isGitRepo) void openCommitDialog(defaultCommitMessage);
+          if (!blocked && isGitRepo) void openCommitDialog(defaultCommitMessage);
           break;
         case "git-switch-branch":
-          if (!hasBlockingOverlay && isGitRepo) {
+          if (!blocked && isGitRepo) {
             void openBranchSwitcher();
           }
           break;
         case "git-new-branch":
-          if (!hasBlockingOverlay && isGitRepo) {
+          if (!blocked && isGitRepo) {
             setNewBranchDialogOpen(true);
           }
           break;
         case "git-push":
-          if (!hasBlockingOverlay && isGitRepo) {
+          if (!blocked && isGitRepo) {
             void runGitAction("push", () => handlePush(), pushSuccessMessage);
           }
           break;
         case "git-open-remote":
-          if (!hasBlockingOverlay && isGitRepo) {
+          if (!blocked && isGitRepo) {
             void openRemote();
           }
           break;
         case "git-copy-remote-url":
-          if (!hasBlockingOverlay && isGitRepo) {
+          if (!blocked && isGitRepo) {
             void copyRemoteUrl();
           }
           break;
         case "git-pull":
-          if (!hasBlockingOverlay && isGitRepo) {
+          if (!blocked && isGitRepo) {
             void runGitAction("pull", handlePull, t("menu.git_pull_success"));
           }
           break;
         case "git-fetch":
-          if (!hasBlockingOverlay && isGitRepo) {
+          if (!blocked && isGitRepo) {
             void runGitAction("fetch", handleFetch, t("menu.git_fetch_success"));
           }
           break;
@@ -253,33 +217,14 @@ export function useMenuActions({
           }
           break;
         case "wechat-publish":
-          if (!hasBlockingOverlay && selectedFile) {
-            setWechatPublishDialogOpen(true);
+          if (!blocked && selectedFile) {
+            overlay.open({ kind: "wechatPublish" });
           }
           break;
       }
-    }).then((fn) => {
-      if (mounted) {
-        unlisten = fn;
-      } else {
-        fn();
-      }
     });
-    return () => {
-      mounted = false;
-      unlisten?.();
-    };
   }, [
-    modal,
-    commitDialog,
-    switcherOpen,
-    branchSwitcher,
-    newBranchDialogOpen,
-    renameBranchDialog,
-    deleteBranchDialog,
-    workspaceSwitcherOpen,
-    updateDialogOpen,
-    wechatPublishDialogOpen,
+    overlay,
     workspaceRoot,
     tree,
     isGitRepo,
@@ -302,16 +247,10 @@ export function useMenuActions({
     selectedFile,
     prefs,
     updatePrefs,
-    setModal,
     setSidebarVisible,
     setPropertiesOpen,
-    setSearchOpen,
     setZenMode,
     setTypewriterMode,
-    setSwitcherOpen,
-    setWorkspaceSwitcherOpen,
-    setUpdateDialogOpen,
-    setWechatPublishDialogOpen,
     t,
   ]);
 }

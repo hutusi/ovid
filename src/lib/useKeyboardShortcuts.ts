@@ -1,22 +1,12 @@
 import type React from "react";
 import { useEffect } from "react";
 import type { FileNode } from "./types";
+import type { OverlayStack } from "./useOverlayStack";
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 
 interface UseKeyboardShortcutsOptions {
-  // Blocking overlay state
-  modal: unknown;
-  commitDialog: unknown;
-  switcherOpen: boolean;
-  branchSwitcher: unknown;
-  newBranchDialogOpen: boolean;
-  renameBranchDialog: unknown;
-  deleteBranchDialog: unknown;
-  workspaceSwitcherOpen: boolean;
-  updateDialogOpen: boolean;
-  wechatPublishDialogOpen: boolean;
-
+  overlay: OverlayStack;
   zenMode: boolean;
   workspaceRoot: string | null;
   tree: FileNode[];
@@ -29,27 +19,14 @@ interface UseKeyboardShortcutsOptions {
   handleNewTodayFlow: () => void;
   openCommitDialog: (message: string) => void;
 
-  setModal: (state: { type: "new-file"; dirPath: string; contentType: string }) => void;
   setSidebarVisible: React.Dispatch<React.SetStateAction<boolean>>;
   setPropertiesOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSearchOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setZenMode: React.Dispatch<React.SetStateAction<boolean>>;
-  setWorkspaceSwitcherOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSwitcherOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 /** Wire global keyboard shortcuts to app-level state and actions. */
 export function useKeyboardShortcuts({
-  modal,
-  commitDialog,
-  switcherOpen,
-  branchSwitcher,
-  newBranchDialogOpen,
-  renameBranchDialog,
-  deleteBranchDialog,
-  workspaceSwitcherOpen,
-  updateDialogOpen,
-  wechatPublishDialogOpen,
+  overlay,
   zenMode,
   workspaceRoot,
   tree,
@@ -60,32 +37,15 @@ export function useKeyboardShortcuts({
   handleOpenWorkspace,
   handleNewTodayFlow,
   openCommitDialog,
-  setModal,
   setSidebarVisible,
   setPropertiesOpen,
-  setSearchOpen,
   setZenMode,
-  setWorkspaceSwitcherOpen,
-  setSwitcherOpen,
 }: UseKeyboardShortcutsOptions): void {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const key = e.key?.toLowerCase();
-      // Escape exits zen mode (before other guards)
-      if (
-        key === "escape" &&
-        zenMode &&
-        !modal &&
-        !commitDialog &&
-        !switcherOpen &&
-        !branchSwitcher &&
-        !newBranchDialogOpen &&
-        !renameBranchDialog &&
-        !deleteBranchDialog &&
-        !workspaceSwitcherOpen &&
-        !updateDialogOpen &&
-        !wechatPublishDialogOpen
-      ) {
+      // Escape exits zen mode (only when no modal is blocking)
+      if (key === "escape" && zenMode && !overlay.isBlocking) {
         setZenMode(false);
         return;
       }
@@ -104,7 +64,10 @@ export function useKeyboardShortcuts({
       }
       if (e.shiftKey && key === "f") {
         e.preventDefault();
-        if (workspaceRoot) setSearchOpen((v) => !v);
+        if (workspaceRoot) {
+          if (overlay.is("search")) overlay.close("search");
+          else overlay.open({ kind: "search" });
+        }
         return;
       }
       const target = e.target as HTMLElement;
@@ -126,7 +89,7 @@ export function useKeyboardShortcuts({
         case "o":
           e.preventDefault();
           if (e.shiftKey) {
-            setWorkspaceSwitcherOpen(true);
+            overlay.open({ kind: "workspaceSwitcher" });
           } else {
             void handleOpenWorkspace();
           }
@@ -139,12 +102,15 @@ export function useKeyboardShortcuts({
           break;
         case "p":
           e.preventDefault();
-          if (tree.length > 0) setSwitcherOpen(true);
+          if (tree.length > 0) overlay.open({ kind: "switcher" });
           break;
         case "n":
           e.preventDefault();
           if (workspaceRoot)
-            setModal({ type: "new-file", dirPath: workspaceRoot, contentType: "post" });
+            overlay.open({
+              kind: "modal",
+              state: { type: "new-file", dirPath: workspaceRoot, contentType: "post" },
+            });
           break;
         case "t":
           if (e.shiftKey) {
@@ -165,6 +131,8 @@ export function useKeyboardShortcuts({
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [
+    overlay,
+    zenMode,
     flushPendingSave,
     handleOpenWorkspace,
     handleNewTodayFlow,
@@ -173,24 +141,9 @@ export function useKeyboardShortcuts({
     isGitRepo,
     openCommitDialog,
     defaultCommitMessage,
-    zenMode,
-    modal,
-    commitDialog,
-    switcherOpen,
-    branchSwitcher,
-    newBranchDialogOpen,
-    renameBranchDialog,
-    deleteBranchDialog,
-    workspaceSwitcherOpen,
-    updateDialogOpen,
-    wechatPublishDialogOpen,
     closeActiveTabOrFile,
-    setModal,
     setSidebarVisible,
     setPropertiesOpen,
-    setSearchOpen,
     setZenMode,
-    setWorkspaceSwitcherOpen,
-    setSwitcherOpen,
   ]);
 }

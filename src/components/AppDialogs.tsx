@@ -8,13 +8,14 @@ import {
   getNewFromExistingNameSuggestion,
   getRenamePathDialogState,
 } from "../lib/postPath";
-import type { ContentType, FileNode, ModalState, RecentFile, RecentWorkspace } from "../lib/types";
+import type { ContentType, FileNode, RecentFile, RecentWorkspace } from "../lib/types";
 import type {
   BranchSwitcherState,
   CommitDialogState,
   DeleteBranchDialogState,
   RenameBranchDialogState,
 } from "../lib/useGitUiController";
+import type { OverlayStack } from "../lib/useOverlayStack";
 import type { Toast } from "../lib/useToast";
 
 const WorkspaceSwitcher = lazy(async () => ({
@@ -58,6 +59,11 @@ const WechatPublishDialog = lazy(async () => ({
 }));
 
 export interface AppDialogsProps {
+  // Overlay stack — owns modal, switcher, workspaceSwitcher, update,
+  // wechatPublish visibility. Replaces the six prop-per-dialog booleans
+  // + setters that lived here before commit 4.
+  overlay: OverlayStack;
+
   // Toasts
   toasts: Toast[];
 
@@ -68,20 +74,15 @@ export interface AppDialogsProps {
   handleGitSyncAction: () => Promise<void>;
 
   // WorkspaceSwitcher
-  workspaceSwitcherOpen: boolean;
   recentWorkspaces: RecentWorkspace[];
   workspaceRootPath: string | null;
   openWorkspaceAtPath: (path: string) => Promise<void>;
   handleOpenWorkspace: () => void;
-  setWorkspaceSwitcherOpen: (open: boolean) => void;
 
   // UpdateDialog
-  updateDialogOpen: boolean;
   flushPendingSave: () => Promise<void>;
-  setUpdateDialogOpen: (open: boolean) => void;
 
   // WechatPublishDialog
-  wechatPublishDialogOpen: boolean;
   selectedFile: FileNode | null;
   wechatTitle: string;
   wechatAuthor: string;
@@ -93,12 +94,9 @@ export interface AppDialogsProps {
   assetRoot: string | undefined;
   wechatCoverImagePath: string | null;
   wechatMediaId: string | null;
-  setWechatPublishDialogOpen: (open: boolean) => void;
   onWechatSuccess: (mediaId: string, updated: boolean) => void;
 
   // Modal dialogs (new-file, rename, duplicate, new-from-existing)
-  modal: ModalState;
-  setModal: (state: ModalState) => void;
   contentTypes: ContentType[];
   handleNewFile: (dirPath: string, name: string, contentType?: string) => void;
   handleDuplicate: (node: FileNode, name: string) => void;
@@ -106,11 +104,9 @@ export interface AppDialogsProps {
   handleRename: (node: FileNode, name: string) => void;
 
   // FileSwitcher
-  switcherOpen: boolean;
   flatFiles: FlatFile[];
   recentFiles: RecentFile[];
   openFileByPath: (path: string) => void;
-  setSwitcherOpen: (open: boolean) => void;
 
   // CommitDialog
   commitDialog: CommitDialogState;
@@ -149,21 +145,17 @@ export interface AppDialogsProps {
 }
 
 export function AppDialogs({
+  overlay,
   toasts,
   gitSyncPopoverOpen,
   gitSyncPopover,
   setGitSyncPopoverOpen,
   handleGitSyncAction,
-  workspaceSwitcherOpen,
   recentWorkspaces,
   workspaceRootPath,
   openWorkspaceAtPath,
   handleOpenWorkspace,
-  setWorkspaceSwitcherOpen,
-  updateDialogOpen,
   flushPendingSave,
-  setUpdateDialogOpen,
-  wechatPublishDialogOpen,
   selectedFile,
   wechatTitle,
   wechatAuthor,
@@ -175,20 +167,15 @@ export function AppDialogs({
   assetRoot,
   wechatCoverImagePath,
   wechatMediaId,
-  setWechatPublishDialogOpen,
   onWechatSuccess,
-  modal,
-  setModal,
   contentTypes,
   handleNewFile,
   handleDuplicate,
   handleNewFromExisting,
   handleRename,
-  switcherOpen,
   flatFiles,
   recentFiles,
   openFileByPath,
-  setSwitcherOpen,
   commitDialog,
   setCommitDialog,
   handleCommitDialogCommit,
@@ -212,6 +199,10 @@ export function AppDialogs({
   deleteBranch,
 }: AppDialogsProps) {
   const { t } = useTranslation();
+  // Pull the modal state out of the overlay union once per render so the
+  // four modal? === "..." checks below stay readable.
+  const modal = overlay.active?.kind === "modal" ? overlay.active.state : null;
+  const closeModal = () => overlay.close("modal");
 
   return (
     <>
@@ -233,26 +224,26 @@ export function AppDialogs({
           ))}
         </div>
       )}
-      {workspaceSwitcherOpen && (
+      {overlay.is("workspaceSwitcher") && (
         <Suspense fallback={null}>
           <WorkspaceSwitcher
             recentWorkspaces={recentWorkspaces}
             currentRootPath={workspaceRootPath}
             onSelect={(rootPath) => void openWorkspaceAtPath(rootPath)}
             onOpenOther={handleOpenWorkspace}
-            onClose={() => setWorkspaceSwitcherOpen(false)}
+            onClose={() => overlay.close("workspaceSwitcher")}
           />
         </Suspense>
       )}
-      {updateDialogOpen && (
+      {overlay.is("update") && (
         <Suspense fallback={null}>
           <UpdateDialog
             onBeforeRestart={flushPendingSave}
-            onClose={() => setUpdateDialogOpen(false)}
+            onClose={() => overlay.close("update")}
           />
         </Suspense>
       )}
-      {wechatPublishDialogOpen && selectedFile && (
+      {overlay.is("wechatPublish") && selectedFile && (
         <Suspense fallback={null}>
           <WechatPublishDialog
             title={wechatTitle}
@@ -265,7 +256,7 @@ export function AppDialogs({
             assetRoot={assetRoot}
             coverImagePath={wechatCoverImagePath}
             existingMediaId={wechatMediaId}
-            onClose={() => setWechatPublishDialogOpen(false)}
+            onClose={() => overlay.close("wechatPublish")}
             onSuccess={onWechatSuccess}
           />
         </Suspense>
@@ -276,22 +267,22 @@ export function AppDialogs({
             {...getRenamePathDialogState(modal.node)}
             onConfirm={(name) => {
               void handleRename(modal.node, name);
-              setModal(null);
+              closeModal();
             }}
-            onCancel={() => setModal(null)}
+            onCancel={closeModal}
           />
         </Suspense>
       )}
-      {switcherOpen && (
+      {overlay.is("switcher") && (
         <Suspense fallback={null}>
           <FileSwitcher
             files={flatFiles}
             recentFiles={recentFiles}
             onSelect={(node) => {
               openFileByPath(node.path);
-              setSwitcherOpen(false);
+              overlay.close("switcher");
             }}
-            onClose={() => setSwitcherOpen(false)}
+            onClose={() => overlay.close("switcher")}
           />
         </Suspense>
       )}
@@ -302,9 +293,9 @@ export function AppDialogs({
             preselectedType={modal.contentType}
             onConfirm={(name, contentType) => {
               void handleNewFile(modal.dirPath, name, contentType);
-              setModal(null);
+              closeModal();
             }}
-            onCancel={() => setModal(null)}
+            onCancel={closeModal}
           />
         </Suspense>
       )}
@@ -318,9 +309,9 @@ export function AppDialogs({
             showTypeSelector={false}
             onConfirm={(name) => {
               void handleDuplicate(modal.node, name);
-              setModal(null);
+              closeModal();
             }}
-            onCancel={() => setModal(null)}
+            onCancel={closeModal}
           />
         </Suspense>
       )}
@@ -334,9 +325,9 @@ export function AppDialogs({
             showTypeSelector={false}
             onConfirm={(name) => {
               void handleNewFromExisting(modal.node, name);
-              setModal(null);
+              closeModal();
             }}
-            onCancel={() => setModal(null)}
+            onCancel={closeModal}
           />
         </Suspense>
       )}
