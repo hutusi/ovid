@@ -1,0 +1,227 @@
+import type { Editor } from "@tiptap/react";
+import type React from "react";
+
+/** Translator function shape, mirrors the project-wide Translate type used
+ *  by pure helpers to stay framework-free. */
+type Translate = (key: string, vars?: Record<string, unknown>) => string;
+
+export interface EditorCommandCtx {
+  editor: Editor;
+  filePath?: string;
+  onError?: (msg: string) => void;
+  setLinkDialog: (d: { href: string } | null) => void;
+  setShowFindReplace: React.Dispatch<React.SetStateAction<boolean>>;
+  formatMarkdownSpacing: (editor: Editor) => void;
+  pickAndInsertImage: (
+    editor: Editor,
+    filePath: string | undefined,
+    onError?: (msg: string) => void
+  ) => Promise<void>;
+  /** True when the find/replace bar is visible. Cmd+H stays bindable while
+   *  the bar has focus (so the user can press it again to dismiss). */
+  showFindReplace: boolean;
+  /** True when the inline link-edit dialog is open. Menu dispatch
+   *  suppresses every command while it is — matches the global guard the
+   *  old menu-action listener applied. */
+  linkDialogOpen: boolean;
+  t: Translate;
+}
+
+export interface EditorCommand {
+  /** Menu-action payload string. Must match the id in `src-tauri/src/menu.rs`
+   *  for menu-dispatched commands. Keyboard-only commands still need a
+   *  unique id for table lookup and uniqueness tests. */
+  id: string;
+  /** Optional keyboard binding. `mod` is true for Cmd-on-mac /
+   *  Ctrl-elsewhere; `shift` defaults to false. `key` is the lowercased
+   *  KeyboardEvent.key value. */
+  keys?: { mod: true; shift?: boolean; key: string };
+  /** Guard for keyboard dispatch. Defaults to `editor.isFocused`. Menu
+   *  dispatch does not consult `when` — it uses a global `linkDialogOpen`
+   *  suppress instead, matching the old behavior. */
+  when?: (ctx: EditorCommandCtx) => boolean;
+  run: (ctx: EditorCommandCtx) => void | Promise<void>;
+}
+
+const focused = (ctx: EditorCommandCtx) => ctx.editor.isFocused;
+
+/** The single source of truth for every editor-routed command. Keyboard
+ *  shortcuts and menu actions are dispatched from this table — adding a
+ *  new editor command is one row here plus (optionally) one entry in
+ *  `src-tauri/src/menu.rs`. */
+export const editorCommands: EditorCommand[] = [
+  // Keyboard-bound commands (most also have menu entries)
+  {
+    id: "insert-link",
+    keys: { mod: true, key: "k" },
+    run: ({ editor, setLinkDialog }) => {
+      const href = editor.getAttributes("link").href ?? "";
+      setLinkDialog({ href });
+    },
+  },
+  {
+    id: "format-code",
+    keys: { mod: true, key: "e" },
+    run: ({ editor }) => {
+      editor.chain().focus().toggleCode().run();
+    },
+  },
+  {
+    id: "paste-plain",
+    keys: { mod: true, shift: true, key: "v" },
+    run: ({ editor }) => {
+      navigator.clipboard
+        .readText()
+        .then((text) => {
+          editor.view.dispatch(editor.view.state.tr.insertText(text));
+        })
+        .catch((err) => {
+          console.error("Failed to read clipboard:", err);
+        });
+    },
+  },
+  {
+    id: "insert-image",
+    keys: { mod: true, shift: true, key: "i" },
+    run: ({ editor, filePath, onError, pickAndInsertImage }) =>
+      pickAndInsertImage(editor, filePath, onError),
+  },
+  {
+    id: "toggle-find-replace",
+    keys: { mod: true, key: "h" },
+    when: (ctx) => ctx.editor.isFocused || ctx.showFindReplace,
+    run: ({ editor, setShowFindReplace }) => {
+      setShowFindReplace((v) => {
+        if (v) editor.chain().focus().run();
+        return !v;
+      });
+    },
+  },
+
+  // Inline formatting
+  {
+    id: "format-bold",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleBold().run();
+    },
+  },
+  {
+    id: "format-italic",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleItalic().run();
+    },
+  },
+  {
+    id: "format-strike",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleStrike().run();
+    },
+  },
+
+  // Headings
+  {
+    id: "format-heading-1",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleHeading({ level: 1 }).run();
+    },
+  },
+  {
+    id: "format-heading-2",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleHeading({ level: 2 }).run();
+    },
+  },
+  {
+    id: "format-heading-3",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleHeading({ level: 3 }).run();
+    },
+  },
+  {
+    id: "format-heading-4",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleHeading({ level: 4 }).run();
+    },
+  },
+  {
+    id: "format-heading-5",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleHeading({ level: 5 }).run();
+    },
+  },
+  {
+    id: "format-heading-6",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleHeading({ level: 6 }).run();
+    },
+  },
+
+  // Block formatting
+  {
+    id: "format-blockquote",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleBlockquote().run();
+    },
+  },
+  {
+    id: "format-bullet-list",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleBulletList().run();
+    },
+  },
+  {
+    id: "format-ordered-list",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleOrderedList().run();
+    },
+  },
+  {
+    id: "format-task-list",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleTaskList().run();
+    },
+  },
+  {
+    id: "format-markdown",
+    run: ({ editor, formatMarkdownSpacing }) => formatMarkdownSpacing(editor),
+  },
+
+  // Insert
+  {
+    id: "insert-code-block",
+    run: ({ editor }) => {
+      editor.chain().focus().toggleCodeBlock().run();
+    },
+  },
+  {
+    id: "insert-hr",
+    run: ({ editor }) => {
+      editor.chain().focus().setHorizontalRule().run();
+    },
+  },
+  {
+    id: "insert-table",
+    run: ({ editor }) => {
+      editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+    },
+  },
+];
+
+/** Helpers for testing + for the hook in commit 12. */
+
+export function getEditorCommandById(id: string): EditorCommand | undefined {
+  return editorCommands.find((c) => c.id === id);
+}
+
+export function shortcutMatches(
+  keys: NonNullable<EditorCommand["keys"]>,
+  e: KeyboardEvent
+): boolean {
+  if (keys.mod !== (e.metaKey || e.ctrlKey)) return false;
+  if (!!keys.shift !== e.shiftKey) return false;
+  return e.key?.toLowerCase() === keys.key;
+}
+
+export function commandCanRun(cmd: EditorCommand, ctx: EditorCommandCtx): boolean {
+  return (cmd.when ?? focused)(ctx);
+}

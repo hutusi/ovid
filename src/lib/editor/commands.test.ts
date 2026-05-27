@@ -1,0 +1,144 @@
+import { describe, expect, it } from "bun:test";
+import {
+  commandCanRun,
+  type EditorCommandCtx,
+  editorCommands,
+  getEditorCommandById,
+  shortcutMatches,
+} from "./commands";
+
+// Menu-action payload ids that the previous Editor.tsx menu-action
+// listener (Editor.tsx:658-738) handled. The table must keep covering
+// every one of these so the native menu bar stays fully wired.
+const EDITOR_MENU_PAYLOADS = [
+  "format-bold",
+  "format-italic",
+  "format-strike",
+  "format-code",
+  "format-heading-1",
+  "format-heading-2",
+  "format-heading-3",
+  "format-heading-4",
+  "format-heading-5",
+  "format-heading-6",
+  "format-blockquote",
+  "format-bullet-list",
+  "format-ordered-list",
+  "format-task-list",
+  "format-markdown",
+  "insert-link",
+  "insert-image",
+  "insert-code-block",
+  "insert-hr",
+  "insert-table",
+] as const;
+
+describe("editorCommands integrity", () => {
+  it("every id is unique", () => {
+    const ids = editorCommands.map((c) => c.id);
+    const unique = new Set(ids);
+    expect(unique.size).toBe(ids.length);
+  });
+
+  it("no two commands share the same keyboard shortcut", () => {
+    const shortcuts = editorCommands
+      .filter((c) => c.keys !== undefined)
+      .map((c) => `${c.keys?.mod ? "mod+" : ""}${c.keys?.shift ? "shift+" : ""}${c.keys?.key}`);
+    expect(new Set(shortcuts).size).toBe(shortcuts.length);
+  });
+
+  it("covers every menu payload the old Editor listener handled", () => {
+    // Regression net: if a menu-routed command is dropped from the table,
+    // the corresponding menu bar item becomes a no-op. The previous
+    // implementation crashed loudly on missing cases; the table-driven
+    // version silently no-ops, so this test is the safety rail.
+    for (const payload of EDITOR_MENU_PAYLOADS) {
+      const cmd = getEditorCommandById(payload);
+      expect(cmd, `missing command for menu payload "${payload}"`).toBeDefined();
+    }
+  });
+});
+
+describe("shortcutMatches", () => {
+  // KeyboardEvent isn't part of bun:test's runtime; a plain object with the
+  // five fields shortcutMatches reads is enough for the contract under test.
+  function ev(
+    opts: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; key?: string } = {}
+  ): KeyboardEvent {
+    return {
+      metaKey: opts.metaKey ?? false,
+      ctrlKey: opts.ctrlKey ?? false,
+      shiftKey: opts.shiftKey ?? false,
+      key: opts.key ?? "",
+    } as unknown as KeyboardEvent;
+  }
+
+  it("returns true on exact match", () => {
+    expect(shortcutMatches({ mod: true, key: "k" }, ev({ metaKey: true, key: "k" }))).toBe(true);
+    expect(shortcutMatches({ mod: true, key: "k" }, ev({ ctrlKey: true, key: "k" }))).toBe(true);
+  });
+
+  it("case-insensitive on key", () => {
+    expect(shortcutMatches({ mod: true, key: "k" }, ev({ metaKey: true, key: "K" }))).toBe(true);
+  });
+
+  it("requires shift when bound, forbids it when unbound", () => {
+    expect(
+      shortcutMatches(
+        { mod: true, shift: true, key: "v" },
+        ev({ metaKey: true, shiftKey: true, key: "v" })
+      )
+    ).toBe(true);
+    expect(
+      shortcutMatches(
+        { mod: true, shift: true, key: "v" },
+        ev({ metaKey: true, shiftKey: false, key: "v" })
+      )
+    ).toBe(false);
+    expect(
+      shortcutMatches({ mod: true, key: "k" }, ev({ metaKey: true, shiftKey: true, key: "k" }))
+    ).toBe(false);
+  });
+
+  it("returns false when mod is missing", () => {
+    expect(shortcutMatches({ mod: true, key: "k" }, ev({ key: "k" }))).toBe(false);
+  });
+});
+
+describe("commandCanRun", () => {
+  function makeCtx(overrides: Partial<EditorCommandCtx>): EditorCommandCtx {
+    return {
+      // biome-ignore lint/suspicious/noExplicitAny: tests only need a few fields
+      editor: { isFocused: true } as any,
+      filePath: undefined,
+      onError: undefined,
+      setLinkDialog: () => {},
+      setShowFindReplace: () => {},
+      formatMarkdownSpacing: () => {},
+      pickAndInsertImage: async () => {},
+      showFindReplace: false,
+      linkDialogOpen: false,
+      t: (k) => k,
+      ...overrides,
+    };
+  }
+
+  it("defaults to editor.isFocused when when is omitted", () => {
+    const bold = getEditorCommandById("format-bold");
+    expect(bold).toBeDefined();
+    if (!bold) return;
+    expect(commandCanRun(bold, makeCtx({}))).toBe(true);
+    // biome-ignore lint/suspicious/noExplicitAny: tests only need a few fields
+    expect(commandCanRun(bold, makeCtx({ editor: { isFocused: false } as any }))).toBe(false);
+  });
+
+  it("toggle-find-replace allows running when bar is open but editor unfocused", () => {
+    const cmd = getEditorCommandById("toggle-find-replace");
+    expect(cmd).toBeDefined();
+    if (!cmd) return;
+    // biome-ignore lint/suspicious/noExplicitAny: tests only need a few fields
+    const blurred = { isFocused: false } as any;
+    expect(commandCanRun(cmd, makeCtx({ editor: blurred, showFindReplace: false }))).toBe(false);
+    expect(commandCanRun(cmd, makeCtx({ editor: blurred, showFindReplace: true }))).toBe(true);
+  });
+});
