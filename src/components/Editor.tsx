@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { InputRule } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Link from "@tiptap/extension-link";
@@ -14,10 +13,11 @@ import { TextSelection } from "@tiptap/pm/state";
 import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "tiptap-markdown";
 import { commands } from "../lib/commands";
+import { useEditorCommands } from "../lib/editor/useEditorCommands";
 import { mimeTypeToImageExtension, resolveImageExtension } from "../lib/imageUtils";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
@@ -583,159 +583,25 @@ export function Editor({
     return () => container.removeEventListener("mousedown", onMouseDown);
   }, [editor]);
 
-  // Cmd+K — open link dialog when editor is focused
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || e.key?.toLowerCase() !== "k") return;
-      if (!editor?.isFocused) return;
-      e.preventDefault();
-      const href = editor.getAttributes("link").href ?? "";
-      setLinkDialog({ href });
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editor]);
-
-  // Cmd+E — toggle inline code; intercept before WKWebView's "Use Selection for Find"
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || e.key?.toLowerCase() !== "e") return;
-      if (!editor?.isFocused) return;
-      e.preventDefault();
-      editor.chain().focus().toggleCode().run();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editor]);
-
-  // Cmd+Shift+V — paste as plain text, stripping all rich formatting
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key?.toLowerCase() !== "v") return;
-      if (!editor?.isFocused) return;
-      e.preventDefault();
-      navigator.clipboard
-        .readText()
-        .then((text) => {
-          editor.view.dispatch(editor.view.state.tr.insertText(text));
-        })
-        .catch((err) => {
-          console.error("Failed to read clipboard:", err);
-        });
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editor]);
-
-  // Cmd+Shift+I — open file picker and insert image
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey || e.key?.toLowerCase() !== "i") return;
-      if (!editor?.isFocused) return;
-      e.preventDefault();
-      pickAndInsertImage(editor, filePath, onError);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editor, filePath, onError]);
-
-  // Cmd+H — open / close find & replace bar
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || e.key?.toLowerCase() !== "h") return;
-      if (!editor?.isFocused && !showFindReplace) return;
-      e.preventDefault();
-      setShowFindReplace((v) => {
-        if (v) editor?.chain().focus().run();
-        return !v;
-      });
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editor, showFindReplace]);
-
-  // Insert / Format menu commands forwarded from the native menu bar
-  useEffect(() => {
-    let mounted = true;
-    let unlisten: (() => void) | undefined;
-    listen<string>("menu-action", (event) => {
-      if (!editor || linkDialog) return;
-      switch (event.payload) {
-        case "format-bold":
-          editor.chain().focus().toggleBold().run();
-          break;
-        case "format-italic":
-          editor.chain().focus().toggleItalic().run();
-          break;
-        case "format-strike":
-          editor.chain().focus().toggleStrike().run();
-          break;
-        case "format-code":
-          editor.chain().focus().toggleCode().run();
-          break;
-        case "format-heading-1":
-          editor.chain().focus().toggleHeading({ level: 1 }).run();
-          break;
-        case "format-heading-2":
-          editor.chain().focus().toggleHeading({ level: 2 }).run();
-          break;
-        case "format-heading-3":
-          editor.chain().focus().toggleHeading({ level: 3 }).run();
-          break;
-        case "format-heading-4":
-          editor.chain().focus().toggleHeading({ level: 4 }).run();
-          break;
-        case "format-heading-5":
-          editor.chain().focus().toggleHeading({ level: 5 }).run();
-          break;
-        case "format-heading-6":
-          editor.chain().focus().toggleHeading({ level: 6 }).run();
-          break;
-        case "format-blockquote":
-          editor.chain().focus().toggleBlockquote().run();
-          break;
-        case "format-bullet-list":
-          editor.chain().focus().toggleBulletList().run();
-          break;
-        case "format-ordered-list":
-          editor.chain().focus().toggleOrderedList().run();
-          break;
-        case "format-task-list":
-          editor.chain().focus().toggleTaskList().run();
-          break;
-        case "format-markdown":
-          formatMarkdownSpacing(editor);
-          break;
-        case "insert-link": {
-          const href = editor.getAttributes("link").href ?? "";
-          setLinkDialog({ href });
-          break;
-        }
-        case "insert-image":
-          pickAndInsertImage(editor, filePath, onError);
-          break;
-        case "insert-code-block":
-          editor.chain().focus().toggleCodeBlock().run();
-          break;
-        case "insert-hr":
-          editor.chain().focus().setHorizontalRule().run();
-          break;
-        case "insert-table":
-          editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
-          break;
-      }
-    }).then((fn) => {
-      if (mounted) {
-        unlisten = fn;
-      } else {
-        fn();
-      }
-    });
-    return () => {
-      mounted = false;
-      unlisten?.();
-    };
-  }, [editor, formatMarkdownSpacing, linkDialog, filePath, onError]);
+  // All keyboard shortcuts + native menu-action events dispatch from one
+  // declarative command table — see src/lib/editor/commands.ts. Adding a
+  // new editor command is one row there + (optionally) one entry in
+  // src-tauri/src/menu.rs; this hook does not need to change.
+  const commandsCtx = useMemo(
+    () => ({
+      filePath,
+      onError,
+      setLinkDialog,
+      setShowFindReplace,
+      formatMarkdownSpacing,
+      pickAndInsertImage,
+      showFindReplace,
+      linkDialogOpen: linkDialog !== null,
+      t,
+    }),
+    [filePath, onError, formatMarkdownSpacing, showFindReplace, linkDialog, t]
+  );
+  useEditorCommands(editor, commandsCtx);
 
   return (
     <div className="editor-wrapper">
