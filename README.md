@@ -66,25 +66,25 @@ For release work, use these repo artifacts:
 
 ## Keyboard Shortcuts
 
+Press **`?`** at any time inside the app to open the live Keyboard Shortcuts dialog, or open it from **Help → Keyboard Shortcuts** in the menu bar. The full reference is in [docs/shortcuts.md](docs/shortcuts.md).
+
+Most-used:
+
 | Shortcut | Action |
 |---|---|
-| `Cmd+\` | Toggle sidebar |
-| `Cmd+Shift+P` | Toggle properties panel |
-| `Cmd+Shift+F` | Toggle full-text search |
-| `Ctrl+Cmd+Z` | Toggle zen mode |
-| `Cmd+Shift+G` | Open commit dialog |
-| `Cmd+Shift+O` | Open workspace switcher |
+| `?` | Show Keyboard Shortcuts |
 | `Cmd+P` | Open file switcher |
+| `Cmd+Shift+F` | Full-text search |
+| `Cmd+Shift+P` | Toggle properties panel |
+| `Cmd+\` | Toggle sidebar |
 | `Cmd+N` | New file |
-| `Cmd+S` | Force save (bypass debounce) |
-| `Cmd+W` | Close current file |
-| `Cmd+O` | Open workspace (folder picker) |
-| `Cmd+K` | Insert / edit link |
-| `Cmd+E` | Toggle inline code |
-| `F2` | Rename selected file |
-| `Esc` | Exit zen mode |
+| `Cmd+S` | Save (force, bypass debounce) |
+| `Cmd+W` | Close current file or tab |
+| `Cmd+Shift+G` | Open commit dialog |
+| `Ctrl+Cmd+Z` | Toggle zen mode |
+| `Cmd+Alt+I` | Insert image (was `Cmd+Shift+I`; rebound to avoid italic conflict) |
 
-> On Windows/Linux, substitute `Ctrl` for `Cmd`. Zen mode (`Ctrl+Cmd+Z`) is macOS-only.
+> On Windows/Linux, substitute `Ctrl` for `Cmd` and `Alt` for `Option`. Zen mode (`Ctrl+Cmd+Z`) is macOS-only.
 
 ---
 
