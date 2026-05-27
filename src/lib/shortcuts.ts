@@ -319,6 +319,11 @@ export function bindingConflictsWithTiptap(ours: ShortcutKeys): { tiptap: Shortc
     const tk = t.keys;
     if (tk.mod !== ours.mod) continue;
     if (!!tk.alt !== !!ours.alt) continue;
+    // Cmd+Ctrl combos (e.g. zen-mode's Ctrl+Cmd+Z) carry an extra
+    // modifier that Tiptap bindings don't have; ProseMirror's keymap
+    // requires exact modifier matching outside the shift-letter
+    // fallback, so combos with mismatched ctrl don't conflict.
+    if (!!tk.ctrl !== !!ours.ctrl) continue;
     if (tk.key.toLowerCase() !== ours.key.toLowerCase()) continue;
 
     // Exact-shift match → always a conflict (same combo).

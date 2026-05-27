@@ -72,4 +72,12 @@ describe("bindingConflictsWithTiptap", () => {
     // so this should be clean.
     expect(bindingConflictsWithTiptap({ mod: true, shift: true, key: "v" })).toBeNull();
   });
+
+  it("does NOT flag Ctrl+Cmd+Z (zen-mode) as conflicting with Tiptap undo", () => {
+    // Tiptap undo is Mod-z (no ctrl). Zen mode carries an extra Ctrl
+    // modifier, so ProseMirror's keymap won't match it to undo. The
+    // conflict checker must honor the ctrl field so this isn't a false
+    // positive.
+    expect(bindingConflictsWithTiptap({ mod: true, ctrl: true, key: "z" })).toBeNull();
+  });
 });

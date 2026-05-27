@@ -101,7 +101,7 @@ All major actions are accessible from the native menu bar, making features disco
 | **View** | Toggle Sidebar, Toggle Properties Panel, Zen Mode, Typewriter Mode, Toggle Spell Check |
 | **Git** | Commit Changes…, Switch Branch…, New Branch…, Open Remote, Copy Remote URL, Push, Pull, Fetch |
 | **Window** | Minimize, Zoom (standard macOS window menu) |
-| **Help** | Ovid Documentation, Report an Issue… |
+| **Help** | Check for Updates…, Keyboard Shortcuts, Ovid Documentation, Report an Issue… |
 
 Menu items show their keyboard shortcut where one exists. Insert and Format menu items work on the current editor selection.
 
