@@ -278,13 +278,10 @@ const EDITOR_ENTRIES: ShortcutEntry[] = [
     category: "editing",
     source: "editor",
   },
-  {
-    id: "insert-image",
-    keys: { mod: true, alt: true, key: "i" },
-    descriptionKey: "insert_image",
-    category: "editing",
-    source: "editor",
-  },
+  // insert-image has no keyboard shortcut: Cmd+Shift+I collides with
+  // Tiptap italic (shift-letter normalization) and Cmd+Alt+I is the
+  // universal browser DevTools shortcut. The Insert menu, drag-drop,
+  // and clipboard paste cover the use case.
   {
     id: "toggle-find-replace",
     keys: { mod: true, key: "h" },

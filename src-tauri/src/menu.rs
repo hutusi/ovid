@@ -130,13 +130,11 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
             &MenuItemBuilder::with_id("insert-link", get("insert_link"))
                 .accelerator("CmdOrCtrl+K")
                 .build(app)?,
-            // Cmd+Alt+I, not Cmd+Shift+I — see src/lib/editor/commands.ts
-            // insert-image binding. Cmd+Shift+I collides with Tiptap's Italic
-            // (Mod-i) because ProseMirror normalizes Mod-Shift-<letter> to
-            // Mod-<letter>, so both handlers would fire on Cmd+Shift+I.
-            &MenuItemBuilder::with_id("insert-image", get("insert_image"))
-                .accelerator("CmdOrCtrl+Alt+I")
-                .build(app)?,
+            // No keyboard accelerator: Cmd+Shift+I collides with Tiptap
+            // italic (shift-letter normalization) and Cmd+Alt+I is the
+            // universal browser DevTools shortcut. Menu click + drag-drop
+            // + clipboard paste cover the use case.
+            &MenuItemBuilder::with_id("insert-image", get("insert_image")).build(app)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItemBuilder::with_id("insert-code-block", get("insert_code_block")).build(app)?,
             &MenuItemBuilder::with_id("insert-table", get("insert_table")).build(app)?,

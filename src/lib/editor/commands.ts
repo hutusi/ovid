@@ -125,13 +125,12 @@ export const editorCommands: EditorCommand[] = [
     },
   },
   {
-    // Cmd+Alt+I, not Cmd+Shift+I — the latter collides with Tiptap's Italic
-    // (Mod-i) binding because ProseMirror's keymap normalizes Mod-Shift-i
-    // to Mod-i for single-letter keys, so both handlers fire on Cmd+Shift+I.
-    // See ADR / shortcuts.ts for the conflict-detection test that catches
-    // this class of bug.
+    // No keyboard shortcut. Cmd+Shift+I collides with Tiptap italic
+    // (ProseMirror shift-letter normalization); Cmd+Alt+I is the
+    // universal browser DevTools shortcut. Image insertion is
+    // low-frequency and already covered by the Insert menu, drag-drop
+    // from Finder, and clipboard paste — none of which need a hotkey.
     id: "insert-image",
-    keys: { mod: true, alt: true, key: "i" },
     run: ({ editor, filePath, onError }) => pickAndInsertImage(editor, filePath, onError),
   },
   {

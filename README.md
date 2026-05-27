@@ -82,7 +82,6 @@ Most-used:
 | `Cmd+W` | Close current file or tab |
 | `Cmd+Shift+G` | Open commit dialog |
 | `Ctrl+Cmd+Z` | Toggle zen mode |
-| `Cmd+Alt+I` | Insert image (was `Cmd+Shift+I`; rebound to avoid italic conflict) |
 
 > On Windows/Linux, substitute `Ctrl` for `Cmd` and `Alt` for `Option`. Zen mode (`Ctrl+Cmd+Z`) is macOS-only.
 
