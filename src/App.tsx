@@ -353,6 +353,7 @@ function App() {
     setDeleteBranchDialog,
     setGitSyncPopoverOpen,
   } = useGitUiController({
+    overlay,
     gitStatusMap,
     isGitRepo,
     remoteInfo,
@@ -686,7 +687,7 @@ function App() {
             : undefined
         }
         onOpenCommit={() => void openCommitDialog("Update")}
-        onOpenGitSync={() => setGitSyncPopoverOpen((open) => !open)}
+        onOpenGitSync={() => setGitSyncPopoverOpen(!gitSyncPopoverOpen)}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
         onToggleZen={() => setZenMode((v) => !v)}
         onToggleTypewriter={() => setTypewriterMode((v) => !v)}
