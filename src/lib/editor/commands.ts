@@ -1,3 +1,9 @@
+// Side-effect imports for Tiptap module augmentations. The Table and Image
+// extensions declare setImage / insertTable on the ChainedCommands interface;
+// without these imports the test-tsconfig (which compiles in isolation from
+// Editor.tsx's extension imports) flags them as missing.
+import "@tiptap/extension-image";
+import "@tiptap/extension-table";
 import type { Editor } from "@tiptap/react";
 import type React from "react";
 import { commands } from "../commands";
