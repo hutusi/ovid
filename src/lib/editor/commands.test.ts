@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { bindingConflictsWithTiptap } from "../shortcuts";
 import {
   commandCanRun,
   type EditorCommandCtx,
@@ -56,6 +57,32 @@ describe("editorCommands integrity", () => {
       const cmd = getEditorCommandById(payload);
       expect(cmd, `missing command for menu payload "${payload}"`).toBeDefined();
     }
+  });
+
+  it("no command-table shortcut collides with a Tiptap default", () => {
+    // Catches the Cmd+Shift+I class of bug forever. ProseMirror's keymap
+    // normalizes Mod-Shift-<letter> to Mod-<letter>, so a binding of
+    // {mod, shift, key: "i"} silently double-fires with Tiptap's Italic.
+    // The bindingConflictsWithTiptap helper encodes that rule.
+    for (const cmd of editorCommands) {
+      if (!cmd.keys) continue;
+      const conflict = bindingConflictsWithTiptap(cmd.keys);
+      expect(
+        conflict,
+        `editor command "${cmd.id}" shortcut collides with Tiptap default "${conflict?.tiptap.id}"`
+      ).toBeNull();
+    }
+  });
+
+  it("Cmd+Shift+B is not bound (would collide with Tiptap Bold)", () => {
+    // Latent class-of-bug regression net. If anyone adds {mod, shift, key: "b"}
+    // to a command, they hit the same trap as the original Cmd+Shift+I bug.
+    // This test catches it at the table level (the no-Tiptap-collision test
+    // above would also fire, but a named test makes the failure obvious).
+    const collision = editorCommands.find(
+      (c) => c.keys?.mod === true && c.keys?.shift === true && c.keys?.key.toLowerCase() === "b"
+    );
+    expect(collision, "Cmd+Shift+B must not be bound — collides with Tiptap Bold").toBeUndefined();
   });
 });
 
