@@ -63,9 +63,17 @@ export interface EditorCommand {
    *  unique id for table lookup and uniqueness tests. */
   id: string;
   /** Optional keyboard binding. `mod` is true for Cmd-on-mac /
-   *  Ctrl-elsewhere; `shift` defaults to false. `key` is the lowercased
-   *  KeyboardEvent.key value. */
-  keys?: { mod: true; shift?: boolean; key: string };
+   *  Ctrl-elsewhere; `shift` and `alt` default to false. `key` is the
+   *  lowercased KeyboardEvent.key value.
+   *
+   *  Note on `shift`+letter combos: ProseMirror's keymap normalizes a
+   *  bound `Mod-<letter>` to also match `Mod-Shift-<letter>` events
+   *  (because Shift can be a "naming" modifier for capitalising the
+   *  letter). So a binding of `{mod, shift, key: "i"}` will collide with
+   *  Tiptap's `Mod-i` Italic binding — both fire. Prefer `alt` for
+   *  letter-based command shortcuts that overlap a Tiptap default. The
+   *  Tiptap-conflict test in `src/lib/shortcuts.ts` catches this. */
+  keys?: { mod: true; shift?: boolean; alt?: boolean; key: string };
   /** Guard for keyboard dispatch. Defaults to `editor.isFocused`. Menu
    *  dispatch does not consult `when` — it uses a global `linkDialogOpen`
    *  suppress instead, matching the old behavior. */
@@ -90,8 +98,11 @@ export const editorCommands: EditorCommand[] = [
     },
   },
   {
+    // No `keys` binding: Tiptap's Code extension natively handles Cmd+E.
+    // Binding it here too would dispatch the toggle twice (net no-op).
+    // The id stays so the menu accelerator (defined in src-tauri/src/menu.rs)
+    // still routes Format → Inline Code through this command.
     id: "format-code",
-    keys: { mod: true, key: "e" },
     run: ({ editor }) => {
       editor.chain().focus().toggleCode().run();
     },
@@ -114,8 +125,13 @@ export const editorCommands: EditorCommand[] = [
     },
   },
   {
+    // Cmd+Alt+I, not Cmd+Shift+I — the latter collides with Tiptap's Italic
+    // (Mod-i) binding because ProseMirror's keymap normalizes Mod-Shift-i
+    // to Mod-i for single-letter keys, so both handlers fire on Cmd+Shift+I.
+    // See ADR / shortcuts.ts for the conflict-detection test that catches
+    // this class of bug.
     id: "insert-image",
-    keys: { mod: true, shift: true, key: "i" },
+    keys: { mod: true, alt: true, key: "i" },
     run: ({ editor, filePath, onError }) => pickAndInsertImage(editor, filePath, onError),
   },
   {
@@ -251,6 +267,7 @@ export function shortcutMatches(
 ): boolean {
   if (keys.mod !== (e.metaKey || e.ctrlKey)) return false;
   if (!!keys.shift !== e.shiftKey) return false;
+  if (!!keys.alt !== e.altKey) return false;
   return e.key?.toLowerCase() === keys.key;
 }
 

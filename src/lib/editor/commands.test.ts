@@ -63,12 +63,19 @@ describe("shortcutMatches", () => {
   // KeyboardEvent isn't part of bun:test's runtime; a plain object with the
   // five fields shortcutMatches reads is enough for the contract under test.
   function ev(
-    opts: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; key?: string } = {}
+    opts: {
+      metaKey?: boolean;
+      ctrlKey?: boolean;
+      shiftKey?: boolean;
+      altKey?: boolean;
+      key?: string;
+    } = {}
   ): KeyboardEvent {
     return {
       metaKey: opts.metaKey ?? false,
       ctrlKey: opts.ctrlKey ?? false,
       shiftKey: opts.shiftKey ?? false,
+      altKey: opts.altKey ?? false,
       key: opts.key ?? "",
     } as unknown as KeyboardEvent;
   }
@@ -97,6 +104,26 @@ describe("shortcutMatches", () => {
     ).toBe(false);
     expect(
       shortcutMatches({ mod: true, key: "k" }, ev({ metaKey: true, shiftKey: true, key: "k" }))
+    ).toBe(false);
+  });
+
+  it("requires alt when bound, forbids it when unbound", () => {
+    // Cmd+Alt+I is the post-Cmd+Shift+I-conflict-fix binding for insert-image.
+    // The matcher must distinguish it from Cmd+I (Tiptap italic).
+    expect(
+      shortcutMatches(
+        { mod: true, alt: true, key: "i" },
+        ev({ metaKey: true, altKey: true, key: "i" })
+      )
+    ).toBe(true);
+    expect(
+      shortcutMatches(
+        { mod: true, alt: true, key: "i" },
+        ev({ metaKey: true, altKey: false, key: "i" })
+      )
+    ).toBe(false);
+    expect(
+      shortcutMatches({ mod: true, key: "k" }, ev({ metaKey: true, altKey: true, key: "k" }))
     ).toBe(false);
   });
 
