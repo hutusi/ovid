@@ -40,6 +40,7 @@ describe("isOverlayBlocking", () => {
       "search",
       "update",
       "wechatPublish",
+      "shortcutsHelp",
       "commit",
       "branchSwitcher",
       "newBranch",

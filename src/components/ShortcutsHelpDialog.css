@@ -1,0 +1,78 @@
+.shortcuts-panel {
+  width: 640px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+}
+
+.shortcuts-subtitle {
+  color: var(--color-fg-muted);
+  font-size: 13px;
+  margin: -4px 0 16px;
+}
+
+.shortcuts-groups {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px 32px;
+  padding: 4px 0 16px;
+}
+
+.shortcuts-group {
+  break-inside: avoid;
+}
+
+.shortcuts-group-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-fg-muted);
+  margin: 0 0 8px;
+}
+
+.shortcuts-group-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.shortcuts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.shortcuts-description {
+  color: var(--color-fg);
+  flex: 1;
+  min-width: 0;
+}
+
+.shortcuts-note {
+  color: var(--color-fg-muted);
+  font-size: 12px;
+}
+
+.shortcuts-keys {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 12px;
+  background: var(--color-surface-2, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.1));
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  color: var(--color-fg);
+}
+
+@media (max-width: 720px) {
+  .shortcuts-groups {
+    grid-template-columns: 1fr;
+  }
+}

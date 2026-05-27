@@ -435,5 +435,56 @@
     "close": "关闭",
     "retry": "重试",
     "done": "完成"
+  },
+  "shortcuts_help": {
+    "title": "键盘快捷键",
+    "subtitle": "随时按 ? 打开此对话框。按 Esc 关闭。"
+  },
+  "shortcuts": {
+    "category": {
+      "navigation": "导航",
+      "files": "文件",
+      "editing": "编辑",
+      "format": "格式",
+      "view": "视图",
+      "git": "Git",
+      "help": "帮助"
+    },
+    "note": {
+      "in_list_item": "在列表项中",
+      "no_modifier": "无 Cmd / Ctrl",
+      "macos_hide_conflict": "macOS 隐藏窗口可能拦截"
+    },
+    "toggle_sidebar": "切换侧栏",
+    "toggle_properties": "切换属性面板",
+    "toggle_search": "全文搜索",
+    "zen_mode": "切换专注模式",
+    "file_switcher": "快速文件切换器",
+    "open_workspace": "打开工作区",
+    "switch_workspace": "切换工作区",
+    "new_file": "新建文件",
+    "today_flow": "今日 Flow",
+    "save": "保存",
+    "close_file": "关闭文件或标签",
+    "git_commit": "打开提交对话框",
+    "show_shortcuts": "显示此对话框",
+    "insert_link": "插入链接",
+    "paste_plain": "粘贴为纯文本",
+    "insert_image": "插入图片",
+    "toggle_find_replace": "查找和替换",
+    "format_bold": "粗体",
+    "format_italic": "斜体",
+    "format_code": "行内代码",
+    "format_strike": "删除线",
+    "format_heading_1": "标题 1",
+    "format_heading_2": "标题 2",
+    "format_heading_3": "标题 3",
+    "format_heading_4": "标题 4",
+    "format_heading_5": "标题 5",
+    "format_heading_6": "标题 6",
+    "edit_undo": "撤销",
+    "edit_redo": "重做",
+    "list_indent": "缩进",
+    "list_dedent": "减少缩进"
   }
 }
