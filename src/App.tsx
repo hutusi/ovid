@@ -1,4 +1,3 @@
-import type React from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
@@ -12,7 +11,7 @@ import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode } from "./lib/sidebarUtils";
-import type { FileNode, ModalState } from "./lib/types";
+import type { FileNode } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useEditorSession } from "./lib/useEditorSession";
@@ -55,80 +54,6 @@ function App() {
   const [baselineCaptured, setBaselineCaptured] = useState(false);
   const overlay = useOverlayStack();
   const [coverImageVisible, setCoverImageVisible] = useState(false);
-
-  // Derived booleans + setter shims that adapt the existing React.Dispatch
-  // call sites to the overlay stack. Migrating each downstream hook
-  // (useKeyboardShortcuts, useMenuActions) to consume `overlay` directly
-  // happens in commit 6; this commit keeps their signatures stable.
-  const modal: ModalState = overlay.active?.kind === "modal" ? overlay.active.state : null;
-  const switcherOpen = overlay.is("switcher");
-  const workspaceSwitcherOpen = overlay.is("workspaceSwitcher");
-  const searchOpen = overlay.is("search");
-  const updateDialogOpen = overlay.is("update");
-  const wechatPublishDialogOpen = overlay.is("wechatPublish");
-
-  const setModal = useCallback(
-    (state: ModalState) => {
-      if (state === null) overlay.close("modal");
-      else overlay.open({ kind: "modal", state });
-    },
-    [overlay]
-  );
-  const setSwitcherOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
-    (value) => {
-      const next =
-        typeof value === "function"
-          ? (value as (prev: boolean) => boolean)(overlay.is("switcher"))
-          : value;
-      if (next) overlay.open({ kind: "switcher" });
-      else overlay.close("switcher");
-    },
-    [overlay]
-  );
-  const setWorkspaceSwitcherOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
-    (value) => {
-      const next =
-        typeof value === "function"
-          ? (value as (prev: boolean) => boolean)(overlay.is("workspaceSwitcher"))
-          : value;
-      if (next) overlay.open({ kind: "workspaceSwitcher" });
-      else overlay.close("workspaceSwitcher");
-    },
-    [overlay]
-  );
-  const setSearchOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
-    (value) => {
-      const next =
-        typeof value === "function"
-          ? (value as (prev: boolean) => boolean)(overlay.is("search"))
-          : value;
-      if (next) overlay.open({ kind: "search" });
-      else overlay.close("search");
-    },
-    [overlay]
-  );
-  const setUpdateDialogOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
-    (value) => {
-      const next =
-        typeof value === "function"
-          ? (value as (prev: boolean) => boolean)(overlay.is("update"))
-          : value;
-      if (next) overlay.open({ kind: "update" });
-      else overlay.close("update");
-    },
-    [overlay]
-  );
-  const setWechatPublishDialogOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
-    (value) => {
-      const next =
-        typeof value === "function"
-          ? (value as (prev: boolean) => boolean)(overlay.is("wechatPublish"))
-          : value;
-      if (next) overlay.open({ kind: "wechatPublish" });
-      else overlay.close("wechatPublish");
-    },
-    [overlay]
-  );
   const pendingAutoOpenPath = useRef<string | null>(null);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
   // Editor session methods are wired into useWorkspace's path-mutation
@@ -428,16 +353,7 @@ function App() {
   }, [wordCount, baselineCaptured]);
 
   useKeyboardShortcuts({
-    modal,
-    commitDialog,
-    switcherOpen,
-    branchSwitcher,
-    newBranchDialogOpen,
-    renameBranchDialog,
-    deleteBranchDialog,
-    workspaceSwitcherOpen,
-    updateDialogOpen,
-    wechatPublishDialogOpen,
+    overlay,
     zenMode,
     workspaceRoot,
     tree,
@@ -448,13 +364,9 @@ function App() {
     handleOpenWorkspace,
     handleNewTodayFlow,
     openCommitDialog,
-    setModal,
     setSidebarVisible,
     setPropertiesOpen,
-    setSearchOpen,
     setZenMode,
-    setWorkspaceSwitcherOpen,
-    setSwitcherOpen,
   });
 
   useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus });
@@ -476,16 +388,7 @@ function App() {
   useGitFocusFetch({ workspaceRoot, isGitRepo, handleFetch });
 
   useMenuActions({
-    modal,
-    commitDialog,
-    switcherOpen,
-    branchSwitcher,
-    newBranchDialogOpen,
-    renameBranchDialog,
-    deleteBranchDialog,
-    workspaceSwitcherOpen,
-    updateDialogOpen,
-    wechatPublishDialogOpen,
+    overlay,
     workspaceRoot,
     tree,
     isGitRepo,
@@ -497,16 +400,10 @@ function App() {
     fileContent,
     showToast,
     t,
-    setModal,
     setSidebarVisible,
     setPropertiesOpen,
-    setSearchOpen,
     setZenMode,
     setTypewriterMode,
-    setSwitcherOpen,
-    setWorkspaceSwitcherOpen,
-    setUpdateDialogOpen,
-    setWechatPublishDialogOpen,
     setNewBranchDialogOpen,
     flushPendingSave,
     closeActiveTabOrFile,
@@ -581,7 +478,7 @@ function App() {
 
   function handleOpenByPath(path: string) {
     openFileByPath(path);
-    setSearchOpen(false);
+    overlay.close("search");
   }
 
   function handleSelectFromTab(path: string) {
@@ -602,9 +499,9 @@ function App() {
   return (
     <div className="app" data-zen={zenMode ? "true" : undefined}>
       <div className="app-body">
-        {searchOpen ? (
+        {overlay.is("search") ? (
           <Suspense fallback={null}>
-            <SearchPanel onOpenFile={handleOpenByPath} onClose={() => setSearchOpen(false)} />
+            <SearchPanel onOpenFile={handleOpenByPath} onClose={() => overlay.close("search")} />
           </Suspense>
         ) : (
           <Sidebar
@@ -618,11 +515,19 @@ function App() {
             onToggleMode={handleToggleSidebarMode}
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
-            onOpenSwitcher={() => setWorkspaceSwitcherOpen(true)}
-            onNewFile={(dirPath) => setModal({ type: "new-file", dirPath })}
-            onRename={(node) => setModal({ type: "rename-path", node })}
-            onDuplicate={(node) => setModal({ type: "duplicate-file", node })}
-            onNewFromExisting={(node) => setModal({ type: "new-from-existing", node })}
+            onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
+            onNewFile={(dirPath) =>
+              overlay.open({ kind: "modal", state: { type: "new-file", dirPath } })
+            }
+            onRename={(node) =>
+              overlay.open({ kind: "modal", state: { type: "rename-path", node } })
+            }
+            onDuplicate={(node) =>
+              overlay.open({ kind: "modal", state: { type: "duplicate-file", node } })
+            }
+            onNewFromExisting={(node) =>
+              overlay.open({ kind: "modal", state: { type: "new-from-existing", node } })
+            }
             onDelete={handleDelete}
           />
         )}
@@ -683,7 +588,11 @@ function App() {
         onOpenBranches={() => void openBranchSwitcher()}
         onRenamePath={
           selectedFile && !selectedFile.isDirectory
-            ? () => setModal({ type: "rename-path", node: selectedFile })
+            ? () =>
+                overlay.open({
+                  kind: "modal",
+                  state: { type: "rename-path", node: selectedFile },
+                })
             : undefined
         }
         onOpenCommit={() => void openCommitDialog("Update")}
