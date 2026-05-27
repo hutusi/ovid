@@ -1,3 +1,4 @@
+import type React from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
@@ -23,6 +24,7 @@ import { useGitRefreshOnSave } from "./lib/useGitRefreshOnSave";
 import { useGitUiController } from "./lib/useGitUiController";
 import { useKeyboardShortcuts } from "./lib/useKeyboardShortcuts";
 import { useMenuActions } from "./lib/useMenuActions";
+import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
@@ -51,13 +53,82 @@ function App() {
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [sessionBaseline, setSessionBaseline] = useState<number | null>(null);
   const [baselineCaptured, setBaselineCaptured] = useState(false);
-  const [modal, setModal] = useState<ModalState>(null);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [workspaceSwitcherOpen, setWorkspaceSwitcherOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
-  const [wechatPublishDialogOpen, setWechatPublishDialogOpen] = useState(false);
+  const overlay = useOverlayStack();
   const [coverImageVisible, setCoverImageVisible] = useState(false);
+
+  // Derived booleans + setter shims that adapt the existing React.Dispatch
+  // call sites to the overlay stack. Migrating each downstream hook
+  // (useKeyboardShortcuts, useMenuActions) to consume `overlay` directly
+  // happens in commit 6; this commit keeps their signatures stable.
+  const modal: ModalState = overlay.active?.kind === "modal" ? overlay.active.state : null;
+  const switcherOpen = overlay.is("switcher");
+  const workspaceSwitcherOpen = overlay.is("workspaceSwitcher");
+  const searchOpen = overlay.is("search");
+  const updateDialogOpen = overlay.is("update");
+  const wechatPublishDialogOpen = overlay.is("wechatPublish");
+
+  const setModal = useCallback(
+    (state: ModalState) => {
+      if (state === null) overlay.close("modal");
+      else overlay.open({ kind: "modal", state });
+    },
+    [overlay]
+  );
+  const setSwitcherOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
+    (value) => {
+      const next =
+        typeof value === "function"
+          ? (value as (prev: boolean) => boolean)(overlay.is("switcher"))
+          : value;
+      if (next) overlay.open({ kind: "switcher" });
+      else overlay.close("switcher");
+    },
+    [overlay]
+  );
+  const setWorkspaceSwitcherOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
+    (value) => {
+      const next =
+        typeof value === "function"
+          ? (value as (prev: boolean) => boolean)(overlay.is("workspaceSwitcher"))
+          : value;
+      if (next) overlay.open({ kind: "workspaceSwitcher" });
+      else overlay.close("workspaceSwitcher");
+    },
+    [overlay]
+  );
+  const setSearchOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
+    (value) => {
+      const next =
+        typeof value === "function"
+          ? (value as (prev: boolean) => boolean)(overlay.is("search"))
+          : value;
+      if (next) overlay.open({ kind: "search" });
+      else overlay.close("search");
+    },
+    [overlay]
+  );
+  const setUpdateDialogOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
+    (value) => {
+      const next =
+        typeof value === "function"
+          ? (value as (prev: boolean) => boolean)(overlay.is("update"))
+          : value;
+      if (next) overlay.open({ kind: "update" });
+      else overlay.close("update");
+    },
+    [overlay]
+  );
+  const setWechatPublishDialogOpen = useCallback<React.Dispatch<React.SetStateAction<boolean>>>(
+    (value) => {
+      const next =
+        typeof value === "function"
+          ? (value as (prev: boolean) => boolean)(overlay.is("wechatPublish"))
+          : value;
+      if (next) overlay.open({ kind: "wechatPublish" });
+      else overlay.close("wechatPublish");
+    },
+    [overlay]
+  );
   const pendingAutoOpenPath = useRef<string | null>(null);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
   // Editor session methods are wired into useWorkspace's path-mutation
@@ -625,21 +696,17 @@ function App() {
         onSetWordCountGoal={setWordCountGoal}
       />
       <AppDialogs
+        overlay={overlay}
         toasts={toasts}
         gitSyncPopoverOpen={gitSyncPopoverOpen}
         gitSyncPopover={gitSyncPopover}
         setGitSyncPopoverOpen={setGitSyncPopoverOpen}
         handleGitSyncAction={handleGitSyncAction}
-        workspaceSwitcherOpen={workspaceSwitcherOpen}
         recentWorkspaces={recentWorkspaces}
         workspaceRootPath={workspaceRootPath}
         openWorkspaceAtPath={openWorkspaceAtPath}
         handleOpenWorkspace={handleOpenWorkspace}
-        setWorkspaceSwitcherOpen={setWorkspaceSwitcherOpen}
-        updateDialogOpen={updateDialogOpen}
         flushPendingSave={flushPendingSave}
-        setUpdateDialogOpen={setUpdateDialogOpen}
-        wechatPublishDialogOpen={wechatPublishDialogOpen}
         selectedFile={selectedFile}
         wechatTitle={wechatTitle}
         wechatAuthor={wechatAuthor}
@@ -651,22 +718,17 @@ function App() {
         assetRoot={assetRoot}
         wechatCoverImagePath={wechatCoverImagePath}
         wechatMediaId={wechatMediaId}
-        setWechatPublishDialogOpen={setWechatPublishDialogOpen}
         onWechatSuccess={(mediaId) => {
           void handleFieldChange("wechatMediaId", mediaId);
         }}
-        modal={modal}
-        setModal={setModal}
         contentTypes={contentTypes}
         handleNewFile={handleNewFile}
         handleDuplicate={handleDuplicate}
         handleNewFromExisting={handleNewFromExisting}
         handleRename={handleRename}
-        switcherOpen={switcherOpen}
         flatFiles={flatFiles}
         recentFiles={recentFiles}
         openFileByPath={openFileByPath}
-        setSwitcherOpen={setSwitcherOpen}
         commitDialog={commitDialog}
         setCommitDialog={setCommitDialog}
         handleCommitDialogCommit={handleCommitDialogCommit}
