@@ -129,15 +129,44 @@ sidebar mode.
 
 ## Overlay model
 
-> *Placeholder — will be filled in when ADR 0006 lands.*
-
 Overlays are dialogs and popovers that occupy the foreground above the editor.
-Today they are tracked as ~14 independent visibility booleans across `App.tsx`
-and `useGitUiController`, with the "is anything blocking?" check duplicated in
-`useKeyboardShortcuts` and `useMenuActions`. The Track A refactor (ADR 0006)
-will collapse these into one tagged-union owned by `useOverlayStack`. This
-section will describe the resulting model: kinds, blocking semantics (modal vs
-popover), and the rule that only one overlay is active at a time.
+One source of truth: `useOverlayStack` (`src/lib/useOverlayStack.ts`) owns a
+tagged-union state where the rule "only one overlay can be active at a time"
+is enforced by the type, not by convention. See [ADR 0006](docs/adr/0006-overlay-stack-tagged-union.md)
+for the rationale.
+
+The twelve `Overlay` kinds:
+
+| Kind | Owner of the *payload* | Blocking? |
+|---|---|---|
+| `modal` | App.tsx (via Sidebar/StatusBar handlers) | yes |
+| `switcher` | — | yes |
+| `workspaceSwitcher` | — | yes |
+| `search` | — | yes |
+| `update` | — | yes |
+| `wechatPublish` | — | yes |
+| `commit` | `useGitUiController` | yes |
+| `branchSwitcher` | `useGitUiController` | yes |
+| `newBranch` | — | yes |
+| `renameBranch` | `useGitUiController` | yes |
+| `deleteBranch` | `useGitUiController` | yes |
+| `gitSyncPopover` | — | **no** (transient, status-bar anchored) |
+
+`isBlocking` returns true for everything except `gitSyncPopover`. Adding a new
+kind defaults to blocking unless explicitly added to `NON_BLOCKING_KINDS`.
+
+**Separation of visibility from payload.** The overlay stack owns visibility.
+Hooks like `useGitUiController` still own the *data* a dialog needs (commit
+changes, branch lists) — they just call `overlay.open({ kind, state })`
+instead of storing a separate `isOpen` boolean.
+
+**Consumers.**
+
+- `AppDialogs` renders by switching on `overlay.active?.kind` or
+  `overlay.is(kind)`.
+- `useKeyboardShortcuts` and `useMenuActions` both take `overlay` and use
+  `overlay.isBlocking` for the "should this shortcut fire?" guard. The
+  duplicated 11-flag conjunction they each used to do is gone.
 
 ---
 
