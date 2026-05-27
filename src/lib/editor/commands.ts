@@ -50,7 +50,8 @@ async function pickAndInsertImage(
     const fileName = (srcPath.split(/[/\\]/).pop() ?? "image").replace(/\.[^.]+$/, "");
     editor.chain().focus().setImage({ src: relPath, alt: fileName }).run();
   } catch (err) {
-    const msg = `Failed to insert image: ${err instanceof Error ? err.message : err}`;
+    const reason = err instanceof Error ? err.message : String(err);
+    const msg = `Failed to insert image: ${reason}`;
     if (onError) onError(msg);
     else console.error(msg);
   }
@@ -98,14 +99,17 @@ export const editorCommands: EditorCommand[] = [
   {
     id: "paste-plain",
     keys: { mod: true, shift: true, key: "v" },
-    run: ({ editor }) => {
+    run: ({ editor, onError }) => {
       navigator.clipboard
         .readText()
         .then((text) => {
           editor.view.dispatch(editor.view.state.tr.insertText(text));
         })
         .catch((err) => {
-          console.error("Failed to read clipboard:", err);
+          const reason = err instanceof Error ? err.message : String(err);
+          const msg = `Failed to read clipboard: ${reason}`;
+          if (onError) onError(msg);
+          else console.error(msg);
         });
     },
   },
