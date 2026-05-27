@@ -62,8 +62,11 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
     let file_menu = SubmenuBuilder::new(app, get("menu_file"))
         .items(&[
             &new_submenu,
+            // Cmd+Shift+T to match the global useKeyboardShortcuts binding.
+            // The previous Cmd+T disagreed with the global shortcut, so the
+            // two surfaces fought.
             &MenuItemBuilder::with_id("today-flow", get("file_today_flow"))
-                .accelerator("CmdOrCtrl+T")
+                .accelerator("CmdOrCtrl+Shift+T")
                 .build(app)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItemBuilder::with_id("open-workspace", get("file_open_workspace"))
@@ -149,17 +152,35 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
             &MenuItemBuilder::with_id("format-italic", get("format_italic"))
                 .accelerator("CmdOrCtrl+I")
                 .build(app)?,
-            &MenuItemBuilder::with_id("format-strike", get("format_strikethrough")).build(app)?,
+            // Tiptap's Strike extension binds Mod+Shift+S natively; declare
+            // the accelerator on the menu item so the macOS menu bar shows it.
+            &MenuItemBuilder::with_id("format-strike", get("format_strikethrough"))
+                .accelerator("CmdOrCtrl+Shift+S")
+                .build(app)?,
             &MenuItemBuilder::with_id("format-code", get("format_inline_code"))
                 .accelerator("CmdOrCtrl+E")
                 .build(app)?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItemBuilder::with_id("format-heading-1", get("format_heading_1")).build(app)?,
-            &MenuItemBuilder::with_id("format-heading-2", get("format_heading_2")).build(app)?,
-            &MenuItemBuilder::with_id("format-heading-3", get("format_heading_3")).build(app)?,
-            &MenuItemBuilder::with_id("format-heading-4", get("format_heading_4")).build(app)?,
-            &MenuItemBuilder::with_id("format-heading-5", get("format_heading_5")).build(app)?,
-            &MenuItemBuilder::with_id("format-heading-6", get("format_heading_6")).build(app)?,
+            // Tiptap's Heading extension binds Mod+Alt+1..6 natively; declare
+            // the accelerators so they appear in the macOS menu bar.
+            &MenuItemBuilder::with_id("format-heading-1", get("format_heading_1"))
+                .accelerator("CmdOrCtrl+Alt+1")
+                .build(app)?,
+            &MenuItemBuilder::with_id("format-heading-2", get("format_heading_2"))
+                .accelerator("CmdOrCtrl+Alt+2")
+                .build(app)?,
+            &MenuItemBuilder::with_id("format-heading-3", get("format_heading_3"))
+                .accelerator("CmdOrCtrl+Alt+3")
+                .build(app)?,
+            &MenuItemBuilder::with_id("format-heading-4", get("format_heading_4"))
+                .accelerator("CmdOrCtrl+Alt+4")
+                .build(app)?,
+            &MenuItemBuilder::with_id("format-heading-5", get("format_heading_5"))
+                .accelerator("CmdOrCtrl+Alt+5")
+                .build(app)?,
+            &MenuItemBuilder::with_id("format-heading-6", get("format_heading_6"))
+                .accelerator("CmdOrCtrl+Alt+6")
+                .build(app)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItemBuilder::with_id("format-blockquote", get("format_blockquote")).build(app)?,
             &MenuItemBuilder::with_id("format-bullet-list", get("format_bullet_list"))
@@ -202,6 +223,10 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
         .items(&[
             &MenuItemBuilder::with_id("check-updates", get("help_check_updates")).build(app)?,
             &PredefinedMenuItem::separator(app)?,
+            // No accelerator here: the `?` global keyboard handler in
+            // useKeyboardShortcuts already opens the same overlay and
+            // guards against input-focus, which a menu accelerator wouldn't.
+            &MenuItemBuilder::with_id("help-shortcuts", get("help_shortcuts")).build(app)?,
             &MenuItemBuilder::with_id("help-docs", get("help_docs")).build(app)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItemBuilder::with_id("help-issues", get("help_issues")).build(app)?,
@@ -305,6 +330,7 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
         ("git_pull", "Pull"),
         ("git_fetch", "Fetch"),
         ("help_check_updates", "Check for Updates\u{2026}"),
+        ("help_shortcuts", "Keyboard Shortcuts"),
         ("help_docs", "Ovid Documentation"),
         ("help_issues", "Report an Issue\u{2026}"),
     ]

@@ -381,6 +381,7 @@
     "git_pull_success": "Pulled latest changes",
     "git_fetch_success": "Fetched remote updates",
     "help_check_updates": "Check for Updates\u2026",
+    "help_shortcuts": "Keyboard Shortcuts",
     "help_docs": "Ovid Documentation",
     "help_issues": "Report an Issue\u2026"
   },

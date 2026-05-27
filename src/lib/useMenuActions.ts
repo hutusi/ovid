@@ -173,6 +173,9 @@ export function useMenuActions({
         case "check-updates":
           if (!blocked) overlay.open({ kind: "update" });
           break;
+        case "help-shortcuts":
+          if (!blocked) overlay.open({ kind: "shortcutsHelp" });
+          break;
         case "git-commit":
           if (!blocked && isGitRepo) void openCommitDialog(defaultCommitMessage);
           break;

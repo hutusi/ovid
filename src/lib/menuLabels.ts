@@ -62,6 +62,7 @@ export const MENU_KEYS = [
   "git_pull",
   "git_fetch",
   "help_check_updates",
+  "help_shortcuts",
   "help_docs",
   "help_issues",
 ] as const;
