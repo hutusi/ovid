@@ -45,26 +45,6 @@ const lowlight = createLowlight(common);
 const IMAGE_MIME = /^image\/(png|jpe?g|gif|webp|avif|svg\+xml)$/;
 const MARKDOWN_SERIALIZE_DELAY_MS = 150;
 
-async function pickAndInsertImage(
-  editor: ReturnType<typeof useEditor>,
-  filePath: string | undefined,
-  onError?: (msg: string) => void
-) {
-  if (!editor) return;
-  try {
-    const srcPath = await commands.assets.pickImage();
-    if (!srcPath) return;
-    const relPath = await commands.assets.save({ srcPath, activeFilePath: filePath });
-    // Split on both / and \ to handle Windows paths correctly
-    const fileName = (srcPath.split(/[/\\]/).pop() ?? "image").replace(/\.[^.]+$/, "");
-    editor.chain().focus().setImage({ src: relPath, alt: fileName }).run();
-  } catch (err) {
-    const msg = `Failed to insert image: ${err instanceof Error ? err.message : err}`;
-    if (onError) onError(msg);
-    else console.error(msg);
-  }
-}
-
 interface EditorProps {
   content?: string;
   filePath?: string;
@@ -594,7 +574,6 @@ export function Editor({
       setLinkDialog,
       setShowFindReplace,
       formatMarkdownSpacing,
-      pickAndInsertImage,
       showFindReplace,
       linkDialogOpen: linkDialog !== null,
       t,

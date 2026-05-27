@@ -115,7 +115,6 @@ describe("commandCanRun", () => {
       setLinkDialog: () => {},
       setShowFindReplace: () => {},
       formatMarkdownSpacing: () => {},
-      pickAndInsertImage: async () => {},
       showFindReplace: false,
       linkDialogOpen: false,
       t: (k) => k,

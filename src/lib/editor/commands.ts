@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/react";
 import type React from "react";
+import { commands } from "../commands";
 
 /** Translator function shape, mirrors the project-wide Translate type used
  *  by pure helpers to stay framework-free. */
@@ -12,11 +13,6 @@ export interface EditorCommandCtx {
   setLinkDialog: (d: { href: string } | null) => void;
   setShowFindReplace: React.Dispatch<React.SetStateAction<boolean>>;
   formatMarkdownSpacing: (editor: Editor) => void;
-  pickAndInsertImage: (
-    editor: Editor,
-    filePath: string | undefined,
-    onError?: (msg: string) => void
-  ) => Promise<void>;
   /** True when the find/replace bar is visible. Cmd+H stays bindable while
    *  the bar has focus (so the user can press it again to dismiss). */
   showFindReplace: boolean;
@@ -25,6 +21,33 @@ export interface EditorCommandCtx {
    *  old menu-action listener applied. */
   linkDialogOpen: boolean;
   t: Translate;
+}
+
+/** Open a system file picker, copy the chosen image into the active file's
+ *  sibling images/ dir via commands.assets.save, and insert it at the
+ *  cursor as a markdown image. Errors surface through onError (the toast
+ *  channel) when available; otherwise they log to console.
+ *
+ *  Backs the insert-image menu action and the Cmd+Shift+I shortcut.
+ *  Drag-drop and clipboard-paste flows use commands.assets.saveFromBytes
+ *  directly in Editor.tsx's editorProps. */
+async function pickAndInsertImage(
+  editor: Editor,
+  filePath: string | undefined,
+  onError?: (msg: string) => void
+): Promise<void> {
+  try {
+    const srcPath = await commands.assets.pickImage();
+    if (!srcPath) return;
+    const relPath = await commands.assets.save({ srcPath, activeFilePath: filePath });
+    // Split on both / and \ to handle Windows paths correctly
+    const fileName = (srcPath.split(/[/\\]/).pop() ?? "image").replace(/\.[^.]+$/, "");
+    editor.chain().focus().setImage({ src: relPath, alt: fileName }).run();
+  } catch (err) {
+    const msg = `Failed to insert image: ${err instanceof Error ? err.message : err}`;
+    if (onError) onError(msg);
+    else console.error(msg);
+  }
 }
 
 export interface EditorCommand {
@@ -83,8 +106,7 @@ export const editorCommands: EditorCommand[] = [
   {
     id: "insert-image",
     keys: { mod: true, shift: true, key: "i" },
-    run: ({ editor, filePath, onError, pickAndInsertImage }) =>
-      pickAndInsertImage(editor, filePath, onError),
+    run: ({ editor, filePath, onError }) => pickAndInsertImage(editor, filePath, onError),
   },
   {
     id: "toggle-find-replace",
