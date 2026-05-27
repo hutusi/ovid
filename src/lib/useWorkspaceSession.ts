@@ -56,12 +56,10 @@ export function useWorkspaceSession({
     showToast,
     flushPendingSave,
     resetFileState,
-    onPathCreated: (node) =>
-      sessionRef.current?.openFile(node) ?? Promise.resolve(),
+    onPathCreated: (node) => sessionRef.current?.openFile(node) ?? Promise.resolve(),
     onPathRenamed: (oldPath, newPath, lookup) =>
       sessionRef.current?.notifyPathRenamed(oldPath, newPath, lookup),
-    onPathRemoved: (path) =>
-      sessionRef.current?.notifyPathRemoved(path) ?? Promise.resolve(),
+    onPathRemoved: (path) => sessionRef.current?.notifyPathRemoved(path) ?? Promise.resolve(),
   });
 
   const session = useEditorSession({

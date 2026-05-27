@@ -14,7 +14,6 @@ import { forContentMode, forFilesMode } from "./lib/sidebarUtils";
 import type { FileNode } from "./lib/types";
 import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
-import { useEditorSession } from "./lib/useEditorSession";
 import { useFileEditor } from "./lib/useFileEditor";
 import { useFilesMode } from "./lib/useFilesMode";
 import { useGit } from "./lib/useGit";
@@ -28,8 +27,8 @@ import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
-import { useWorkspace } from "./lib/useWorkspace";
 import { useWorkspaceRevisionPoll } from "./lib/useWorkspaceRevisionPoll";
+import { useWorkspaceSession } from "./lib/useWorkspaceSession";
 import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtml";
 import "./styles/global.css";
 import "./App.css";
@@ -56,24 +55,6 @@ function App() {
   const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
-  // Editor session methods are wired into useWorkspace's path-mutation
-  // callbacks via this ref. The ref is populated after useEditorSession
-  // returns (further down) so the callbacks dispatch through the latest
-  // session instance — same shape as the previous tabSyncRef pattern but
-  // covering selection, tabs, and recents in one channel.
-  const sessionCallbacksRef = useRef<{
-    onPathCreated: (node: FileNode) => Promise<void>;
-    onPathRenamed: (
-      oldPath: string,
-      newPath: string,
-      lookup?: (path: string) => FileNode | undefined
-    ) => void;
-    onPathRemoved: (path: string) => Promise<void>;
-  }>({
-    onPathCreated: async () => {},
-    onPathRenamed: () => {},
-    onPathRemoved: async () => {},
-  });
 
   const { toasts, showToast } = useToast();
   const { prefs, updatePrefs } = useEditorPreferences();
@@ -126,17 +107,17 @@ function App() {
     handleNewFromExisting,
     handleDelete,
     refreshTree,
-  } = useWorkspace({
+    tabs,
+    closeTab,
+    reorderTabs,
+    recentFiles,
+    openFile,
+    openByPath,
+    closeActive,
+  } = useWorkspaceSession({
     showToast,
     flushPendingSave,
     resetFileState,
-    onPathCreated: (node) => sessionCallbacksRef.current.onPathCreated(node),
-    onPathRenamed: (oldPath, newPath, lookup) =>
-      sessionCallbacksRef.current.onPathRenamed(oldPath, newPath, lookup),
-    onPathRemoved: (path) => sessionCallbacksRef.current.onPathRemoved(path),
-  });
-
-  const editorSession = useEditorSession({
     fileEditor: {
       selectedFile,
       selectedPathRef,
@@ -144,21 +125,7 @@ function App() {
       handleSelectFile,
       handleCloseFile,
     },
-    workspaceRoot,
-    workspaceRootPath,
-    flatFiles,
   });
-  const { tabs, closeTab, reorderTabs, recentFiles, openFile, openByPath, closeActive } =
-    editorSession;
-
-  // Wire the session's path-mutation methods up to useWorkspace via the ref.
-  // The ref is reassigned every render so the workspace handlers always
-  // dispatch through the latest editor-session closures.
-  sessionCallbacksRef.current = {
-    onPathCreated: editorSession.openFile,
-    onPathRenamed: editorSession.notifyPathRenamed,
-    onPathRemoved: editorSession.notifyPathRemoved,
-  };
 
   const { sidebarMode, fileViewerNode, setFileViewerNode, handleToggleSidebarMode } = useFilesMode({
     workspaceRootPath,
