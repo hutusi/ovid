@@ -4,6 +4,7 @@ import {
   filterTree,
   forContentMode,
   forFilesMode,
+  getDirIndexEntry,
   getSidebarDisplayName,
   needsPageDivider,
   rollupGitStatus,
@@ -435,6 +436,46 @@ describe("getSidebarDisplayName", () => {
   it("falls back to the bare name when index has no parent folder", () => {
     const indexFile = makeFile("index.md", { path: "index.md" });
     expect(getSidebarDisplayName(indexFile)).toBe("index");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getDirIndexEntry
+// ---------------------------------------------------------------------------
+
+describe("getDirIndexEntry", () => {
+  it("returns undefined for a file node", () => {
+    expect(getDirIndexEntry(makeFile("post.md"))).toBeUndefined();
+  });
+
+  it("returns the index.md child of a directory", () => {
+    const index = makeFile("index.md", { path: "/workspace/series/s/index.md" });
+    const part = makeFile("part-1.md", { path: "/workspace/series/s/part-1.md" });
+    const dir = makeDir("s", [part, index]);
+    expect(getDirIndexEntry(dir)).toBe(index);
+  });
+
+  it("matches index.mdx too", () => {
+    const index: FileNode = {
+      name: "index.mdx",
+      path: "/workspace/series/s/index.mdx",
+      isDirectory: false,
+      extension: ".mdx",
+    };
+    const dir = makeDir("s", [index]);
+    expect(getDirIndexEntry(dir)).toBe(index);
+  });
+
+  it("returns undefined for a directory with no index child", () => {
+    const dir = makeDir("flows", [makeFile("2026.md")]);
+    expect(getDirIndexEntry(dir)).toBeUndefined();
+  });
+
+  it("ignores a nested index.md (direct children only)", () => {
+    const nestedIndex = makeFile("index.md", { path: "/workspace/a/b/index.md" });
+    const inner = makeDir("b", [nestedIndex]);
+    const outer = makeDir("a", [inner]);
+    expect(getDirIndexEntry(outer)).toBeUndefined();
   });
 });
 

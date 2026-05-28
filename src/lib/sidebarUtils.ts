@@ -186,3 +186,12 @@ export function getSidebarDisplayName(node: FileNode): string {
   const parentFolderName = node.path.split("/").filter(Boolean).slice(-2, -1)[0];
   return parentFolderName ?? baseName;
 }
+
+/** The `index.md(x)` child of a directory, if any. A directory carrying one is
+ *  an "entry folder" — e.g. a series or folder-backed post that wasn't
+ *  collapsed because it also has sibling posts. The sidebar labels such a
+ *  folder with the index's title and opens the index on click. */
+export function getDirIndexEntry(node: FileNode): FileNode | undefined {
+  if (!node.isDirectory) return undefined;
+  return (node.children ?? []).find(isIndexMarkdownFile);
+}

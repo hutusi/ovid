@@ -240,6 +240,45 @@
   background: var(--color-surface-hover);
 }
 
+/* ── Entry-folder rows (series / folder-backed posts) ──── */
+.sidebar-dir-toggle {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 5px 0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.sidebar-dir-toggle:hover {
+  background: var(--color-surface-hover);
+}
+
+.sidebar-dir-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 5px 4px 5px 2px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--color-fg);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.sidebar-dir-label:hover {
+  background: var(--color-surface-hover);
+}
+
+.sidebar-dir-row.entry.selected .sidebar-dir-label {
+  color: var(--color-accent);
+}
+
 /* ── File rows ───────────────────────────────── */
 .sidebar-file-row {
   display: flex;
@@ -320,6 +359,11 @@
 
 .sidebar-dir-icon {
   opacity: 0.6;
+}
+
+.sidebar-dir-row.entry.selected .sidebar-dir-icon {
+  color: var(--color-accent);
+  opacity: 1;
 }
 
 /* ── Empty workspace state ───────────────────── */

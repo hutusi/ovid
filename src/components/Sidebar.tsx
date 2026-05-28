@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import {
   filterTree,
+  getDirIndexEntry,
   getSidebarDisplayName,
   needsPageDivider,
   rollupGitStatus,
@@ -94,35 +95,70 @@ function FileItem({
   if (node.isDirectory) {
     const DirIcon = expanded ? FolderOpen : Folder;
     const dirRollup = !expanded ? rollupGitStatus(node, gitStatusMap) : undefined;
+    // An "entry folder" (content mode only) is a directory holding an
+    // index.md(x) — a series or folder-backed post with sibling posts. Its
+    // label is the index's title and clicking it opens the index; the chevron
+    // toggles expansion. The index child itself is hidden from the listing.
+    const indexEntry = !filesMode ? getDirIndexEntry(node) : undefined;
+    const childNodes = indexEntry
+      ? (node.children ?? []).filter((child) => child.path !== indexEntry.path)
+      : (node.children ?? []);
+    const dirLabel = indexEntry ? getSidebarDisplayName(indexEntry) : node.name;
+    const entrySelected = indexEntry?.path === selectedPath;
+    const dirRollupDot = dirRollup ? (
+      <span
+        className={`git-dot git-dot-${dirRollup}`}
+        title={t("sidebar.changes_inside", { status: dirRollup })}
+      />
+    ) : null;
     return (
       <div>
         <div
           role="none"
-          className="sidebar-dir-row"
+          className={`sidebar-dir-row${indexEntry ? " entry" : ""}${
+            entrySelected ? " selected" : ""
+          }`}
           style={{ paddingLeft: indent }}
           onContextMenu={(e) => {
             e.preventDefault();
             showDirContextMenu();
           }}
         >
-          <button
-            type="button"
-            className="sidebar-dir"
-            aria-expanded={expanded}
-            onClick={() => onToggleExpand(node.path, depth)}
-          >
-            <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
-            {node.name}
-            {dirRollup && (
-              <span
-                className={`git-dot git-dot-${dirRollup}`}
-                title={t("sidebar.changes_inside", { status: dirRollup })}
-              />
-            )}
-          </button>
+          {indexEntry ? (
+            <>
+              <button
+                type="button"
+                className="sidebar-dir-toggle"
+                aria-expanded={expanded}
+                aria-label={t("sidebar.toggle_section", { name: dirLabel })}
+                onClick={() => onToggleExpand(node.path, depth)}
+              >
+                <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
+              </button>
+              <button
+                type="button"
+                className="sidebar-dir-label"
+                onClick={() => onSelect(indexEntry)}
+              >
+                <span className="sidebar-file-name">{dirLabel}</span>
+                {dirRollupDot}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="sidebar-dir"
+              aria-expanded={expanded}
+              onClick={() => onToggleExpand(node.path, depth)}
+            >
+              <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
+              {node.name}
+              {dirRollupDot}
+            </button>
+          )}
         </div>
         {expanded &&
-          (node.children ?? []).map((child, idx, sorted) => (
+          childNodes.map((child, idx, sorted) => (
             <Fragment key={child.path}>
               {!filesMode && needsPageDivider(sorted, idx) && (
                 <div className="sidebar-section-divider" />

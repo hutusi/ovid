@@ -78,7 +78,8 @@
     "mode_content": "Content",
     "mode_files": "Files",
     "toggle_mode_to_files": "Switch to Files view",
-    "toggle_mode_to_content": "Switch to Content view"
+    "toggle_mode_to_content": "Switch to Content view",
+    "toggle_section": "Toggle {{name}}"
   },
   "file_viewer": {
     "close": "Close preview",
