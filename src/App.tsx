@@ -7,6 +7,7 @@ import { getFileViewKind } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { loadLastRecentFilePath } from "./lib/appRestore";
+import { collectionCandidates } from "./lib/collection";
 import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { getPathDisplayLabel } from "./lib/postPath";
@@ -106,6 +107,7 @@ function App() {
     handleDuplicate,
     handleNewFromExisting,
     handleDelete,
+    addCollectionItem,
     removeCollectionItem,
     refreshTree,
     tabs,
@@ -175,6 +177,25 @@ function App() {
       reloadCollectionLinks();
     },
     [removeCollectionItem, reloadCollectionLinks]
+  );
+
+  const collectionCandidatesFor = useCallback(
+    (existing: CollectionItem[], selfIndexPath: string) =>
+      collectionCandidates(
+        flatFiles,
+        { contentRoot: workspaceRoot ?? "", postsBasePath },
+        existing,
+        selfIndexPath
+      ),
+    [flatFiles, workspaceRoot, postsBasePath]
+  );
+
+  const handleAddCollectionItem = useCallback(
+    async (indexPath: string, item: CollectionItem) => {
+      await addCollectionItem(indexPath, item);
+      reloadCollectionLinks();
+    },
+    [addCollectionItem, reloadCollectionLinks]
   );
 
   // openByPath / openFile / closeActive live inside useEditorSession; here we
@@ -639,6 +660,8 @@ function App() {
         handleDuplicate={handleDuplicate}
         handleNewFromExisting={handleNewFromExisting}
         handleRename={handleRename}
+        collectionCandidatesFor={collectionCandidatesFor}
+        onAddCollectionItem={handleAddCollectionItem}
         flatFiles={flatFiles}
         recentFiles={recentFiles}
         openFileByPath={openFileByPath}

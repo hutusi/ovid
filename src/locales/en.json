@@ -86,6 +86,11 @@
     "open": "Open",
     "collection_missing": "Missing: {{slug}}"
   },
+  "collection_dialog": {
+    "search_placeholder": "Search posts and series…",
+    "search_label": "Search posts and series",
+    "no_match": "No posts or series found"
+  },
   "file_viewer": {
     "close": "Close preview",
     "loading": "Loading…",

@@ -95,6 +95,58 @@ export function resolveCollectionItems(
   });
 }
 
+export interface CollectionCandidate {
+  key: string;
+  kind: "post" | "series";
+  label: string;
+  item: CollectionItem;
+}
+
+/** Posts and series that can be added to a collection: every post under the
+ *  posts bucket and every series index, minus items already present and the
+ *  collection's own index. */
+export function collectionCandidates(
+  flatFiles: FlatFile[],
+  options: { contentRoot: string; postsBasePath?: string },
+  existing: CollectionItem[],
+  selfIndexPath?: string
+): CollectionCandidate[] {
+  const existingKeys = new Set(existing.map(itemKey));
+  const postsDir = `${options.contentRoot}/${options.postsBasePath || "posts"}/`;
+  const seriesDir = `${options.contentRoot}/series/`;
+  const seen = new Set<string>();
+  const out: CollectionCandidate[] = [];
+  for (const f of flatFiles) {
+    const path = f.node.path;
+    if (path === selfIndexPath) continue;
+    let candidate: CollectionCandidate | undefined;
+    if (path.startsWith(postsDir)) {
+      const slug = postSlugOf(f.node);
+      candidate = {
+        key: `post:${slug}`,
+        kind: "post",
+        label: f.node.title || slug,
+        item: { post: slug },
+      };
+    } else if (path.startsWith(seriesDir)) {
+      const rest = path.slice(seriesDir.length);
+      const slug = rest.split("/")[0];
+      if (slug && (rest === `${slug}/index.mdx` || rest === `${slug}/index.md`)) {
+        candidate = {
+          key: `series:${slug}`,
+          kind: "series",
+          label: f.node.title || slug,
+          item: { series: slug },
+        };
+      }
+    }
+    if (!candidate || existingKeys.has(candidate.key) || seen.has(candidate.key)) continue;
+    seen.add(candidate.key);
+    out.push(candidate);
+  }
+  return out;
+}
+
 /** Append `item` unless an item with the same key already exists. */
 export function addItem(items: CollectionItem[], item: CollectionItem): CollectionItem[] {
   const key = itemKey(item);

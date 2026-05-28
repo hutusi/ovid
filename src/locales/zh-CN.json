@@ -86,6 +86,11 @@
     "open": "打开",
     "collection_missing": "缺失：{{slug}}"
   },
+  "collection_dialog": {
+    "search_placeholder": "搜索文章和系列…",
+    "search_label": "搜索文章和系列",
+    "no_match": "未找到文章或系列"
+  },
   "file_viewer": {
     "close": "关闭预览",
     "loading": "加载中…",

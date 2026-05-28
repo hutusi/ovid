@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   addItem,
   type CollectionItem,
+  collectionCandidates,
   itemKey,
   parseCollectionItems,
   postSlugOf,
@@ -131,6 +132,40 @@ describe("addItem / removeItem / itemKey", () => {
   it("computes stable keys", () => {
     expect(itemKey({ post: "a" })).toBe("post:a");
     expect(itemKey({ series: "s" })).toBe("series:s");
+  });
+});
+
+describe("collectionCandidates", () => {
+  const flatFiles = [
+    flat("/ws/content/posts/asynchronous-javascript.mdx", "Async JS"),
+    flat("/ws/content/posts/2026-02-11-react-hooks.mdx", "React Hooks"),
+    flat("/ws/content/series/nextjs-deep-dive/index.mdx", "Next.js Deep Dive"),
+    flat("/ws/content/series/modern-web-dev/index.mdx", "Modern Web Dev"),
+    flat("/ws/content/series/nextjs-deep-dive/01-getting-started.mdx", "Part 1"),
+    flat("/ws/content/notes/zettelkasten.mdx", "Zettelkasten"),
+  ];
+  const opts = { contentRoot: "/ws/content", postsBasePath: "posts" };
+
+  it("offers posts and series indexes, not notes or series members", () => {
+    const got = collectionCandidates(flatFiles, opts, []).map((c) => c.key);
+    expect(got).toContain("post:asynchronous-javascript");
+    expect(got).toContain("post:react-hooks");
+    expect(got).toContain("series:nextjs-deep-dive");
+    expect(got).toContain("series:modern-web-dev");
+    expect(got).not.toContain("series:01-getting-started"); // a member, not a series
+    expect(got.some((k) => k.includes("zettelkasten"))).toBe(false); // notes excluded
+  });
+
+  it("excludes items already in the collection and the collection's own index", () => {
+    const got = collectionCandidates(
+      flatFiles,
+      opts,
+      [{ post: "asynchronous-javascript" }],
+      "/ws/content/series/modern-web-dev/index.mdx"
+    ).map((c) => c.key);
+    expect(got).not.toContain("post:asynchronous-javascript");
+    expect(got).not.toContain("series:modern-web-dev");
+    expect(got).toContain("series:nextjs-deep-dive");
   });
 });
 
