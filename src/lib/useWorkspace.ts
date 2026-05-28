@@ -1,14 +1,11 @@
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { buildNewContent, type NewContentKind } from "./amytisScaffold";
 import { commands } from "./commands";
 import { type FlatFile, flattenTree } from "./fileSearch";
-import {
-  createAmytisFrontmatter,
-  createTodayFlowFrontmatter,
-  createTypedFrontmatter,
-} from "./frontmatter";
+import { createTodayFlowFrontmatter } from "./frontmatter";
 import { measureAsync } from "./perf";
-import { buildNewEntryPaths, buildPostTargetPath } from "./postPath";
+import { buildPostTargetPath } from "./postPath";
 import { createPostFromExistingContent } from "./postTemplate";
 import { forContentMode } from "./sidebarUtils";
 import type { FileNode } from "./types";
@@ -22,6 +19,7 @@ interface WorkspaceResult {
   isAmytisWorkspace: boolean;
   cdnBase?: string;
   defaultAuthor?: string;
+  postsBasePath?: string;
 }
 
 interface UseWorkspaceOptions {
@@ -78,6 +76,7 @@ export function useWorkspace({
   const [assetRoot, setAssetRoot] = useState<string | undefined>(undefined);
   const [cdnBase, setCdnBase] = useState<string | undefined>(undefined);
   const [defaultAuthor, setDefaultAuthor] = useState<string | undefined>(undefined);
+  const [postsBasePath, setPostsBasePath] = useState<string | undefined>(undefined);
   const refreshIdRef = useRef(0);
 
   // Cmd+P / openFileByPath operate on the markdown-only projection of the
@@ -117,6 +116,7 @@ export function useWorkspace({
       setAssetRoot(result.assetRoot);
       setCdnBase(result.cdnBase ?? undefined);
       setDefaultAuthor(result.defaultAuthor ?? undefined);
+      setPostsBasePath(result.postsBasePath ?? undefined);
       resetFileState();
       if (!result.isAmytisWorkspace) {
         showToast("This folder doesn't look like an Amytis workspace.");
@@ -184,14 +184,35 @@ export function useWorkspace({
     }
   }, [workspaceRoot, refreshTree, onPathCreated, showToast]);
 
-  async function handleNewFile(dirPath: string, filename: string, contentType?: string) {
-    const slug = filename.replace(/\.md$/, "");
-    const { containerDir, filePath } = buildNewEntryPaths(dirPath, slug, contentType);
-    const content = contentType
-      ? createTypedFrontmatter(slug, contentType)
-      : createAmytisFrontmatter(slug);
+  async function handleNewFile(dirPath: string, title: string, kind: NewContentKind = "generic") {
+    const date = new Date().toISOString().slice(0, 10);
+    const contentRoot = workspaceRoot ?? dirPath;
+    // Posts (and series-member posts) use the workspace's own template file,
+    // mirroring `bun run new`. Falls back to the built-in default if absent.
+    let postTemplate: string | undefined;
+    if ((kind === "post" || kind === "seriesPost") && workspaceRootPath) {
+      try {
+        postTemplate = await commands.files.read({
+          path: `${workspaceRootPath}/templates/default.mdx`,
+        });
+      } catch {
+        // No template file — buildNewContent uses the built-in default.
+      }
+    }
+    const { dirsToCreate, filePath, content } = buildNewContent({
+      kind,
+      title,
+      date,
+      contentRoot,
+      basePath: postsBasePath || "posts",
+      dirPath,
+      postTemplate,
+      defaultAuthor,
+    });
     try {
-      if (containerDir) await commands.files.ensureDir({ path: containerDir });
+      for (const dir of dirsToCreate) {
+        await commands.files.ensureDir({ path: dir });
+      }
       await commands.files.create({ path: filePath, content });
       const updated = await refreshTree();
       const newNode = findNode(updated, filePath);
@@ -301,6 +322,7 @@ export function useWorkspace({
     assetRoot,
     cdnBase,
     defaultAuthor,
+    postsBasePath,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,

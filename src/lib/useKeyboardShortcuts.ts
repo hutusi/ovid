@@ -126,7 +126,7 @@ export function useKeyboardShortcuts({
           if (workspaceRoot)
             overlay.open({
               kind: "modal",
-              state: { type: "new-file", dirPath: workspaceRoot, contentType: "post" },
+              state: { type: "new-file", dirPath: workspaceRoot, kind: "post" },
             });
           break;
         case "t":

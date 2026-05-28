@@ -500,6 +500,14 @@ describe("getBucketContentType", () => {
     expect(getBucketContentType("assets")).toBeUndefined();
     expect(getBucketContentType("")).toBeUndefined();
   });
+
+  it("maps the configured posts basePath to post", () => {
+    expect(getBucketContentType("articles", "articles")).toBe("post");
+    // the conventional `posts` folder still maps even with a custom basePath
+    expect(getBucketContentType("posts", "articles")).toBe("post");
+    // a renamed posts folder is not recognised without the config
+    expect(getBucketContentType("articles")).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

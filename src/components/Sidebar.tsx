@@ -2,6 +2,7 @@ import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import { BookOpen, FileImage, Files, FileText, Folder, FolderOpen, Search, X } from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { NewContentKind } from "../lib/amytisScaffold";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import {
   filterTree,
@@ -38,11 +39,13 @@ interface SidebarProps {
   workspaceName: string | null;
   gitStatusMap: Map<string, GitStatus>;
   mode: SidebarMode;
+  /** `posts.basePath` from site.config, so the posts bucket follows the config. */
+  postsBasePath?: string;
   onToggleMode: () => void;
   onSelect: (node: FileNode) => void;
   onOpenWorkspace: () => void;
   onOpenSwitcher: () => void;
-  onNewFile: (dirPath: string, contentType?: string) => void;
+  onNewFile: (dirPath: string, kind: NewContentKind) => void;
   onNewTodayFlow: () => void;
   onRename: (node: FileNode) => void;
   onDuplicate: (node: FileNode) => void;
@@ -63,8 +66,10 @@ interface FileItemProps {
    *  for everything inside `content/series/`). Threaded down the tree so a
    *  nested folder knows its bucket without re-deriving it from the path. */
   bucketType?: string;
+  /** `posts.basePath` from site.config — only consulted at depth 0. */
+  postsBasePath?: string;
   onSelect: (node: FileNode) => void;
-  onNewFile: (dirPath: string, contentType?: string) => void;
+  onNewFile: (dirPath: string, kind: NewContentKind) => void;
   onNewTodayFlow: () => void;
   onRename: (node: FileNode) => void;
   onDuplicate: (node: FileNode) => void;
@@ -82,6 +87,7 @@ function FileItem({
   forceExpand = false,
   filesMode,
   bucketType,
+  postsBasePath,
   onSelect,
   onNewFile,
   onNewTodayFlow,
@@ -98,7 +104,11 @@ function FileItem({
   // A top-level content directory is a bucket; its name maps to a content type.
   // Nested folders inherit the bucket type threaded from their parent.
   const effectiveBucketType =
-    depth === 0 ? (node.isDirectory ? getBucketContentType(node.name) : undefined) : bucketType;
+    depth === 0
+      ? node.isDirectory
+        ? getBucketContentType(node.name, postsBasePath)
+        : undefined
+      : bucketType;
 
   async function showDirContextMenu() {
     // Top-level directories in content mode are the structural content-type
@@ -107,7 +117,7 @@ function FileItem({
     const isBucket = depth === 0 && node.isDirectory;
     const protectedBucket = !filesMode && isBucket;
     // Layer-aware "New X". The bucket folder (depth 0) offers "New <Type>";
-    // inside a series/book, the folder offers a new member post. Type comes
+    // inside a series/book the folder offers a member post/chapter. Type comes
     // from the bucket folder, since Amytis files carry no `type:` frontmatter.
     const bt = filesMode ? undefined : effectiveBucketType;
     let newItem: MenuItem;
@@ -119,18 +129,24 @@ function FileItem({
     } else if (isBucket && bt && NEW_TYPE_LABEL_KEYS[bt]) {
       newItem = await MenuItem.new({
         text: t(NEW_TYPE_LABEL_KEYS[bt]),
-        action: () => onNewFile(node.path, bt),
+        action: () => onNewFile(node.path, bt as NewContentKind),
       });
-    } else if (!isBucket && (bt === "series" || bt === "book")) {
-      // Inside a series/book: create a flat member post in this folder.
+    } else if (!isBucket && bt === "series") {
+      // Inside a series: create a flat member post (no date prefix).
       newItem = await MenuItem.new({
         text: t("menu.file_new_post"),
-        action: () => onNewFile(node.path),
+        action: () => onNewFile(node.path, "seriesPost"),
+      });
+    } else if (!isBucket && bt === "book") {
+      // Inside a book: create a chapter.
+      newItem = await MenuItem.new({
+        text: t("sidebar.new_chapter"),
+        action: () => onNewFile(node.path, "chapter"),
       });
     } else {
       newItem = await MenuItem.new({
         text: t("sidebar.new_file_here"),
-        action: () => onNewFile(node.path),
+        action: () => onNewFile(node.path, "generic"),
       });
     }
     const items = protectedBucket
@@ -324,6 +340,7 @@ export function Sidebar({
   workspaceName,
   gitStatusMap,
   mode,
+  postsBasePath,
   onToggleMode,
   onSelect,
   onOpenWorkspace,
@@ -530,6 +547,7 @@ export function Sidebar({
                 gitStatusMap={gitStatusMap}
                 forceExpand={filterQuery.length > 0}
                 filesMode={filesMode}
+                postsBasePath={postsBasePath}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
                 onNewTodayFlow={onNewTodayFlow}

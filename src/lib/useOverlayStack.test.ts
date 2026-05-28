@@ -3,7 +3,7 @@ import { isOverlayBlocking, type Overlay } from "./useOverlayStack";
 
 const modal: Overlay = {
   kind: "modal",
-  state: { type: "new-file", dirPath: "/ws/posts" },
+  state: { type: "new-file", dirPath: "/ws/posts", kind: "post" },
 };
 const switcher: Overlay = { kind: "switcher" };
 const gitSync: Overlay = { kind: "gitSyncPopover" };

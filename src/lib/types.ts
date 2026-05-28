@@ -1,5 +1,7 @@
+import type { NewContentKind } from "./amytisScaffold";
+
 export type ModalState =
-  | { type: "new-file"; dirPath: string; contentType?: string }
+  | { type: "new-file"; dirPath: string; kind: NewContentKind }
   | { type: "duplicate-file"; node: FileNode }
   | { type: "new-from-existing"; node: FileNode }
   | { type: "rename-path"; node: FileNode }

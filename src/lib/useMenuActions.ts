@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect } from "react";
+import type { NewContentKind } from "./amytisScaffold";
 import { listenEvent } from "./commands/internal";
 import { parseFrontmatter } from "./frontmatter";
 import type { FileNode } from "./types";
@@ -112,7 +113,6 @@ export function useMenuActions({
       const blocked = overlay.isBlocking;
       switch (payload) {
         case "new-post":
-        case "new-flow":
         case "new-note":
         case "new-series":
         case "new-book":
@@ -123,11 +123,13 @@ export function useMenuActions({
               state: {
                 type: "new-file",
                 dirPath: workspaceRoot,
-                contentType: payload.replace("new-", ""),
+                kind: payload.replace("new-", "") as NewContentKind,
               },
             });
           break;
+        case "new-flow":
         case "today-flow":
+          // Flows are date-based (flows/Y/M/D), so both create today's flow.
           if (!blocked && workspaceRoot) void handleNewTodayFlow();
           break;
         case "open-workspace":

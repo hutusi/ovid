@@ -79,7 +79,8 @@
     "mode_files": "文件",
     "toggle_mode_to_files": "切换到文件视图",
     "toggle_mode_to_content": "切换到内容视图",
-    "toggle_section": "展开/折叠 {{name}}"
+    "toggle_section": "展开/折叠 {{name}}",
+    "new_chapter": "新建章节"
   },
   "file_viewer": {
     "close": "关闭预览",

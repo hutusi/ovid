@@ -12,7 +12,6 @@ import { getGitBranchTitle } from "./lib/gitUi";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode } from "./lib/sidebarUtils";
 import type { FileNode } from "./lib/types";
-import { useContentTypes } from "./lib/useContentTypes";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
 import { useFilesMode } from "./lib/useFilesMode";
@@ -94,10 +93,10 @@ function App() {
     workspaceName,
     workspaceRoot,
     workspaceRootPath,
-    isAmytisWorkspace,
     assetRoot,
     cdnBase,
     defaultAuthor,
+    postsBasePath,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
@@ -213,7 +212,6 @@ function App() {
     getRemoteInfo,
   } = useGit(workspaceRoot);
   isGitRepoRef.current = isGitRepo;
-  const contentTypes = useContentTypes(workspaceRoot, isAmytisWorkspace);
   const {
     commitDialog,
     branchSwitcher,
@@ -479,12 +477,13 @@ function App() {
             workspaceName={workspaceName}
             gitStatusMap={gitStatusMap}
             mode={sidebarMode}
+            postsBasePath={postsBasePath}
             onToggleMode={handleToggleSidebarMode}
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
-            onNewFile={(dirPath, contentType) =>
-              overlay.open({ kind: "modal", state: { type: "new-file", dirPath, contentType } })
+            onNewFile={(dirPath, kind) =>
+              overlay.open({ kind: "modal", state: { type: "new-file", dirPath, kind } })
             }
             onNewTodayFlow={handleNewTodayFlow}
             onRename={(node) =>
@@ -599,7 +598,6 @@ function App() {
         onWechatSuccess={(mediaId) => {
           void handleFieldChange("wechatMediaId", mediaId);
         }}
-        contentTypes={contentTypes}
         handleNewFile={handleNewFile}
         handleDuplicate={handleDuplicate}
         handleNewFromExisting={handleNewFromExisting}

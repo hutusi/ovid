@@ -86,10 +86,15 @@ const BUCKET_CONTENT_TYPE: Record<string, string> = {
 };
 
 /** Content type for a top-level content bucket folder, or `undefined` when the
- *  folder isn't a recognised bucket. Used to label the layer-aware "New X"
+ *  folder isn't a recognised bucket. The posts bucket follows `posts.basePath`
+ *  from site.config (default `posts`). Used to label the layer-aware "New X"
  *  context-menu action; the sidebar threads it down so nested folders (e.g. an
  *  individual series) inherit their bucket's type. */
-export function getBucketContentType(folderName: string): string | undefined {
+export function getBucketContentType(
+  folderName: string,
+  postsBasePath = "posts"
+): string | undefined {
+  if (folderName === postsBasePath) return "post";
   return BUCKET_CONTENT_TYPE[folderName];
 }
 

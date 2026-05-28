@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-  buildNewEntryPaths,
   buildPostTargetPath,
   getDuplicateNameSuggestion,
   getNewFromExistingNameSuggestion,
@@ -9,7 +8,6 @@ import {
   getPostEntrySourcePath,
   getRenamePathDialogState,
   isFolderBackedPostNode,
-  isFolderBackedType,
 } from "./postPath";
 import type { FileNode } from "./types";
 
@@ -173,36 +171,6 @@ describe("postPath", () => {
       folderBacked: true,
       ext: ".mdx",
       entryFileName: "index.mdx",
-    });
-  });
-
-  test("isFolderBackedType covers post/series/book only", () => {
-    expect(isFolderBackedType("post")).toBe(true);
-    expect(isFolderBackedType("series")).toBe(true);
-    expect(isFolderBackedType("book")).toBe(true);
-    expect(isFolderBackedType("note")).toBe(false);
-    expect(isFolderBackedType("page")).toBe(false);
-    expect(isFolderBackedType("flow")).toBe(false);
-    expect(isFolderBackedType(undefined)).toBe(false);
-  });
-
-  test("buildNewEntryPaths creates a folder-backed index for folder-backed types", () => {
-    expect(buildNewEntryPaths("/ws/content/series", "my-series", "series")).toEqual({
-      containerDir: "/ws/content/series/my-series",
-      filePath: "/ws/content/series/my-series/index.md",
-    });
-    expect(buildNewEntryPaths("/ws/content/books", "my-book", "book")).toEqual({
-      containerDir: "/ws/content/books/my-book",
-      filePath: "/ws/content/books/my-book/index.md",
-    });
-  });
-
-  test("buildNewEntryPaths creates a flat file for flat or untyped content", () => {
-    expect(buildNewEntryPaths("/ws/content/notes", "a-note", "note")).toEqual({
-      filePath: "/ws/content/notes/a-note.md",
-    });
-    expect(buildNewEntryPaths("/ws/content", "untitled")).toEqual({
-      filePath: "/ws/content/untitled.md",
     });
   });
 });
