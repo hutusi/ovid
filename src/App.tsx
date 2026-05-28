@@ -140,8 +140,9 @@ function App() {
     return forContentMode(tree, {
       workspaceRoot: workspaceRootPath,
       treeRoot: workspaceRoot,
+      postsBasePath,
     });
-  }, [sidebarMode, tree, workspaceRoot, workspaceRootPath]);
+  }, [sidebarMode, tree, workspaceRoot, workspaceRootPath, postsBasePath]);
 
   // openByPath / openFile / closeActive live inside useEditorSession; here we
   // only have to clear the FileViewer (a separate, files-mode UI concern) and

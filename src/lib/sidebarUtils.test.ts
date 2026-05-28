@@ -563,6 +563,73 @@ describe("forContentMode", () => {
     expect(result.map((n) => n.name)).toEqual(["post.md"]);
   });
 
+  it("keeps a single-index series entry as a directory (not collapsed into a post)", () => {
+    const seriesIndex = makeFile("index.mdx", {
+      path: "/ws/content/series/modern-web-dev/index.mdx",
+    });
+    seriesIndex.extension = ".mdx";
+    const seriesEntry: FileNode = {
+      name: "modern-web-dev",
+      path: "/ws/content/series/modern-web-dev",
+      isDirectory: true,
+      children: [seriesIndex],
+    };
+    const seriesBucket: FileNode = {
+      name: "series",
+      path: "/ws/content/series",
+      isDirectory: true,
+      children: [seriesEntry],
+    };
+    const content: FileNode = {
+      name: "content",
+      path: "/ws/content",
+      isDirectory: true,
+      children: [seriesBucket],
+    };
+    const result = forContentMode([content], {
+      workspaceRoot: "/ws",
+      treeRoot: "/ws/content",
+    });
+    const bucket = result[0];
+    expect(bucket.name).toBe("series");
+    const entry = bucket.children?.[0];
+    // The series entry must remain a directory so it renders as a collection.
+    expect(entry?.isDirectory).toBe(true);
+    expect(entry?.name).toBe("modern-web-dev");
+  });
+
+  it("still collapses a single-index folder-backed post under the posts bucket", () => {
+    const postIndex = makeFile("index.mdx", {
+      path: "/ws/content/posts/my-post/index.mdx",
+    });
+    postIndex.extension = ".mdx";
+    const postEntry: FileNode = {
+      name: "my-post",
+      path: "/ws/content/posts/my-post",
+      isDirectory: true,
+      children: [postIndex],
+    };
+    const postsBucket: FileNode = {
+      name: "posts",
+      path: "/ws/content/posts",
+      isDirectory: true,
+      children: [postEntry],
+    };
+    const content: FileNode = {
+      name: "content",
+      path: "/ws/content",
+      isDirectory: true,
+      children: [postsBucket],
+    };
+    const result = forContentMode([content], {
+      workspaceRoot: "/ws",
+      treeRoot: "/ws/content",
+    });
+    const collapsed = result[0].children?.[0];
+    expect(collapsed?.isDirectory).toBe(false);
+    expect(collapsed?.containerDirPath).toBe("/ws/content/posts/my-post");
+  });
+
   it("returns empty when treeRoot points to a non-existent subtree", () => {
     const post = makeFile("post.md", { path: "/ws/post.md" });
     const result = forContentMode([post], {

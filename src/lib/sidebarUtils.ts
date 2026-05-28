@@ -153,20 +153,46 @@ function findChildrenByPath(nodes: FileNode[], path: string): FileNode[] | undef
   return undefined;
 }
 
+/** True when a top-level bucket holds collection entries (series/books). Their
+ *  direct child folders are collections, not folder-backed posts, so they must
+ *  NOT be collapsed into single file nodes — otherwise a series whose only
+ *  markdown child is `index.mdx` would render (and behave) like a post. */
+function isCollectionBucket(folderName: string, postsBasePath?: string): boolean {
+  const type = getBucketContentType(folderName, postsBasePath);
+  return type === "series" || type === "book";
+}
+
 /** Project the canonical workspace tree into the shape Content mode renders.
  *  For Amytis workspaces (`workspaceRoot !== treeRoot`) the tree is first
  *  scoped into the `content/` subtree; for plain workspaces the canonical tree
  *  is used directly. The result is filtered to markdown only, then collapsed
- *  (folder-backed posts → single node) and sorted by content-type priority. */
+ *  (folder-backed posts → single node) and sorted by content-type priority.
+ *  Series/book entry folders are left as directories so they render as
+ *  expandable collections even when they contain only an `index`. */
 export function forContentMode(
   tree: FileNode[],
-  options: { workspaceRoot: string; treeRoot: string }
+  options: { workspaceRoot: string; treeRoot: string; postsBasePath?: string }
 ): FileNode[] {
   const scoped =
     options.workspaceRoot === options.treeRoot
       ? tree
       : (findChildrenByPath(tree, options.treeRoot) ?? []);
-  return sortTree(collapseIndexNodes(filterContentNodes(scoped)));
+  const projected = filterContentNodes(scoped).map((bucket) => {
+    if (bucket.isDirectory && isCollectionBucket(bucket.name, options.postsBasePath)) {
+      // Keep each collection entry as a directory; only collapse folder-backed
+      // posts *within* an entry (e.g. a member post stored as `<slug>/index`).
+      return {
+        ...bucket,
+        children: (bucket.children ?? []).map((entry) =>
+          entry.isDirectory
+            ? { ...entry, children: collapseIndexNodes(entry.children ?? []) }
+            : entry
+        ),
+      };
+    }
+    return collapseIndexNodes([bucket])[0];
+  });
+  return sortTree(projected);
 }
 
 /** Project the canonical workspace tree into the shape Files mode renders.

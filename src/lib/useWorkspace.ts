@@ -85,9 +85,13 @@ export function useWorkspace({
   const flatFiles: FlatFile[] = useMemo(() => {
     if (!workspaceRoot || !workspaceRootPath) return [];
     return flattenTree(
-      forContentMode(tree, { workspaceRoot: workspaceRootPath, treeRoot: workspaceRoot })
+      forContentMode(tree, {
+        workspaceRoot: workspaceRootPath,
+        treeRoot: workspaceRoot,
+        postsBasePath,
+      })
     );
-  }, [tree, workspaceRoot, workspaceRootPath]);
+  }, [tree, workspaceRoot, workspaceRootPath, postsBasePath]);
 
   const refreshTree = useCallback(async (): Promise<FileNode[]> => {
     const requestId = ++refreshIdRef.current;
