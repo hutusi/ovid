@@ -6,6 +6,7 @@ import {
   isPresetCodeBlockLanguage,
   normalizeCodeBlockLanguage,
 } from "../lib/codeBlockLanguages";
+import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import "./CodeBlockView.css";
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
@@ -118,6 +119,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
                   className="code-block-custom-input"
                   placeholder="mermaid, toml, tsx"
                   value={customLanguage}
+                  {...PLAIN_TEXT_INPUT_PROPS}
                   onChange={(e) => setCustomLanguage(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {

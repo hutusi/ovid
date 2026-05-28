@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 
@@ -55,6 +56,7 @@ export function NewBranchDialog({ currentBranch, onConfirm, onCancel }: NewBranc
           aria-label={t("new_branch_dialog.name_label")}
           value={branchName}
           placeholder={t("new_branch_dialog.name_placeholder")}
+          {...PLAIN_TEXT_INPUT_PROPS}
           onChange={(e) => setBranchName(e.target.value)}
         />
 
