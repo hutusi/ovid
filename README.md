@@ -74,7 +74,9 @@ Most-used:
 |---|---|
 | `?` | Show Keyboard Shortcuts |
 | `Cmd+P` | Open file switcher |
-| `Cmd+Shift+F` | Full-text search |
+| `Cmd+F` | Find in document |
+| `Cmd+H` | Find & replace |
+| `Cmd+Shift+F` | Full-text search (workspace) |
 | `Cmd+Shift+P` | Toggle properties panel |
 | `Cmd+\` | Toggle sidebar |
 | `Cmd+N` | New file |
@@ -95,7 +97,7 @@ All major actions are accessible from the native menu bar, making features disco
 |---|---|
 | **Ovid** | About Ovid, Hide, Quit (standard macOS app menu) |
 | **File** | New, Today's Flow, Open Workspace…, Switch Workspace…, Save, Close File |
-| **Edit** | Undo, Redo, Cut, Copy, Paste, Select All, Find in Workspace, Open Quickly |
+| **Edit** | Undo, Redo, Cut, Copy, Paste, Select All, Find in Workspace, Find…, Find & Replace…, Open Quickly |
 | **Insert** | Link…, Image…, Code Block, Table, Horizontal Rule |
 | **Format** | Bold, Italic, Strikethrough, Inline Code, Heading 1-6, Blockquote, Bullet List, Numbered List, Task List |
 | **View** | Toggle Sidebar, Toggle Properties Panel, Zen Mode, Typewriter Mode, Toggle Spell Check |
