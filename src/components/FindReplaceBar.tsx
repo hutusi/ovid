@@ -27,11 +27,16 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
     },
   });
 
-  // Focus find input on mount
+  // Focus + select the find input on mount and whenever the mode changes.
+  // Switching replace→find unmounts the replace row, which would otherwise
+  // drop focus to <body>; pulling focus back to find (the way VS Code keeps
+  // focus in the search box) keeps the bar keyboard-driveable. showReplace
+  // is the intended trigger, not a value the effect reads.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: showReplace is the trigger
   useEffect(() => {
     findInputRef.current?.focus();
     findInputRef.current?.select();
-  }, []);
+  }, [showReplace]);
 
   // Clear decorations on unmount
   useEffect(() => {
@@ -70,7 +75,7 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
         : "";
 
   return (
-    <search className="find-replace-bar" aria-label="Find and replace">
+    <search className="find-replace-bar" aria-label={showReplace ? "Find and replace" : "Find"}>
       <div className="find-replace-row">
         <div className="find-replace-input-wrap">
           <input

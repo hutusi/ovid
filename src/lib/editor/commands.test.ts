@@ -44,7 +44,10 @@ describe("editorCommands integrity", () => {
   it("no two commands share the same keyboard shortcut", () => {
     const shortcuts = editorCommands
       .filter((c) => c.keys !== undefined)
-      .map((c) => `${c.keys?.mod ? "mod+" : ""}${c.keys?.shift ? "shift+" : ""}${c.keys?.key}`);
+      .map(
+        (c) =>
+          `${c.keys?.mod ? "mod+" : ""}${c.keys?.shift ? "shift+" : ""}${c.keys?.alt ? "alt+" : ""}${c.keys?.key}`
+      );
     expect(new Set(shortcuts).size).toBe(shortcuts.length);
   });
 

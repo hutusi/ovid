@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "tiptap-markdown";
 import { commands } from "../lib/commands";
+import type { FindReplaceMode } from "../lib/editor/commands";
 import { useEditorCommands } from "../lib/editor/useEditorCommands";
 import { mimeTypeToImageExtension, resolveImageExtension } from "../lib/imageUtils";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
@@ -98,7 +99,7 @@ export function Editor({
   }, [typewriterMode]);
 
   const [linkDialog, setLinkDialog] = useState<{ href: string } | null>(null);
-  const [findReplaceMode, setFindReplaceMode] = useState<"closed" | "find" | "replace">("closed");
+  const [findReplaceMode, setFindReplaceMode] = useState<FindReplaceMode>("closed");
 
   const serializeMarkdown = useCallback(
     (editorInstance: NonNullable<ReturnType<typeof useEditor>>) =>
