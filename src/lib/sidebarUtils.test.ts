@@ -7,6 +7,7 @@ import {
   getBucketContentType,
   getDirIndexEntry,
   getSidebarDisplayName,
+  isCollectionEntry,
   needsPageDivider,
   rollupGitStatus,
   sortNodes,
@@ -477,6 +478,36 @@ describe("getDirIndexEntry", () => {
     const inner = makeDir("b", [nestedIndex]);
     const outer = makeDir("a", [inner]);
     expect(getDirIndexEntry(outer)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isCollectionEntry
+// ---------------------------------------------------------------------------
+
+describe("isCollectionEntry", () => {
+  function indexChild(contentType?: string): FileNode {
+    return {
+      name: "index.mdx",
+      path: "/ws/content/series/x/index.mdx",
+      isDirectory: false,
+      extension: ".mdx",
+      contentType,
+    };
+  }
+
+  it("is true when the index child is typed collection", () => {
+    const dir = makeDir("x", [indexChild("collection")]);
+    expect(isCollectionEntry(dir)).toBe(true);
+  });
+
+  it("is false for a plain series (index has no collection type)", () => {
+    const dir = makeDir("x", [indexChild(undefined), makeFile("part-1.md")]);
+    expect(isCollectionEntry(dir)).toBe(false);
+  });
+
+  it("is false for a file node", () => {
+    expect(isCollectionEntry(makeFile("post.md"))).toBe(false);
   });
 });
 

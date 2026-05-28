@@ -247,3 +247,10 @@ export function getDirIndexEntry(node: FileNode): FileNode | undefined {
   if (!node.isDirectory) return undefined;
   return (node.children ?? []).find(isIndexMarkdownFile);
 }
+
+/** True when a directory is an Amytis "collection" — its index file is typed
+ *  `collection`, meaning its members are referenced (via `items:`) rather than
+ *  stored inside the folder. */
+export function isCollectionEntry(node: FileNode): boolean {
+  return getDirIndexEntry(node)?.contentType === "collection";
+}
