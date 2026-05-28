@@ -167,9 +167,9 @@ describe("commandCanRun", () => {
       filePath: undefined,
       onError: undefined,
       setLinkDialog: () => {},
-      setShowFindReplace: () => {},
       formatMarkdownSpacing: () => {},
-      showFindReplace: false,
+      findReplaceMode: "closed",
+      setFindReplaceMode: () => {},
       linkDialogOpen: false,
       t: (k) => k,
       ...overrides,
@@ -185,13 +185,20 @@ describe("commandCanRun", () => {
     expect(commandCanRun(bold, makeCtx({ editor: { isFocused: false } as any }))).toBe(false);
   });
 
-  it("toggle-find-replace allows running when bar is open but editor unfocused", () => {
-    const cmd = getEditorCommandById("toggle-find-replace");
-    expect(cmd).toBeDefined();
-    if (!cmd) return;
+  it("find/find-replace allow running when the bar is open but editor unfocused", () => {
     // biome-ignore lint/suspicious/noExplicitAny: tests only need a few fields
     const blurred = { isFocused: false } as any;
-    expect(commandCanRun(cmd, makeCtx({ editor: blurred, showFindReplace: false }))).toBe(false);
-    expect(commandCanRun(cmd, makeCtx({ editor: blurred, showFindReplace: true }))).toBe(true);
+    for (const id of ["find", "find-replace"]) {
+      const cmd = getEditorCommandById(id);
+      expect(cmd, `missing command "${id}"`).toBeDefined();
+      if (!cmd) continue;
+      expect(commandCanRun(cmd, makeCtx({ editor: blurred, findReplaceMode: "closed" }))).toBe(
+        false
+      );
+      expect(commandCanRun(cmd, makeCtx({ editor: blurred, findReplaceMode: "find" }))).toBe(true);
+      expect(commandCanRun(cmd, makeCtx({ editor: blurred, findReplaceMode: "replace" }))).toBe(
+        true
+      );
+    }
   });
 });

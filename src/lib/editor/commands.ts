@@ -5,23 +5,25 @@
 import "@tiptap/extension-image";
 import "@tiptap/extension-table";
 import type { Editor } from "@tiptap/react";
-import type React from "react";
 import { commands } from "../commands";
 
 /** Translator function shape, mirrors the project-wide Translate type used
  *  by pure helpers to stay framework-free. */
 type Translate = (key: string, vars?: Record<string, unknown>) => string;
 
+export type FindReplaceMode = "closed" | "find" | "replace";
+
 export interface EditorCommandCtx {
   editor: Editor;
   filePath?: string;
   onError?: (msg: string) => void;
   setLinkDialog: (d: { href: string } | null) => void;
-  setShowFindReplace: React.Dispatch<React.SetStateAction<boolean>>;
   formatMarkdownSpacing: (editor: Editor) => void;
-  /** True when the find/replace bar is visible. Cmd+H stays bindable while
-   *  the bar has focus (so the user can press it again to dismiss). */
-  showFindReplace: boolean;
+  /** Current find/replace bar mode. `find` shows only the find row;
+   *  `replace` shows both. Cmd+F / Cmd+H stay bindable while the bar is
+   *  open (mode !== "closed") so the user can toggle/switch from it. */
+  findReplaceMode: FindReplaceMode;
+  setFindReplaceMode: (mode: FindReplaceMode) => void;
   /** True when the inline link-edit dialog is open. Menu dispatch
    *  suppresses every command while it is — matches the global guard the
    *  old menu-action listener applied. */
@@ -134,14 +136,32 @@ export const editorCommands: EditorCommand[] = [
     run: ({ editor, filePath, onError }) => pickAndInsertImage(editor, filePath, onError),
   },
   {
-    id: "toggle-find-replace",
+    // Cmd+F opens the bar in find-only mode (replace row hidden).
+    id: "find",
+    keys: { mod: true, key: "f" },
+    when: (ctx) => ctx.editor.isFocused || ctx.findReplaceMode !== "closed",
+    run: ({ editor, findReplaceMode, setFindReplaceMode }) => {
+      if (findReplaceMode === "find") {
+        setFindReplaceMode("closed");
+        editor.chain().focus().run();
+      } else {
+        setFindReplaceMode("find");
+      }
+    },
+  },
+  {
+    // Cmd+H opens the bar with the replace row shown. From find mode this
+    // reveals replace (the find term is preserved — the bar stays mounted).
+    id: "find-replace",
     keys: { mod: true, key: "h" },
-    when: (ctx) => ctx.editor.isFocused || ctx.showFindReplace,
-    run: ({ editor, setShowFindReplace }) => {
-      setShowFindReplace((v) => {
-        if (v) editor.chain().focus().run();
-        return !v;
-      });
+    when: (ctx) => ctx.editor.isFocused || ctx.findReplaceMode !== "closed",
+    run: ({ editor, findReplaceMode, setFindReplaceMode }) => {
+      if (findReplaceMode === "replace") {
+        setFindReplaceMode("closed");
+        editor.chain().focus().run();
+      } else {
+        setFindReplaceMode("replace");
+      }
     },
   },
 

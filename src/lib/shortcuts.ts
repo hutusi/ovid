@@ -283,9 +283,16 @@ const EDITOR_ENTRIES: ShortcutEntry[] = [
   // universal browser DevTools shortcut. The Insert menu, drag-drop,
   // and clipboard paste cover the use case.
   {
-    id: "toggle-find-replace",
+    id: "find",
+    keys: { mod: true, key: "f" },
+    descriptionKey: "find",
+    category: "editing",
+    source: "editor",
+  },
+  {
+    id: "find-replace",
     keys: { mod: true, key: "h" },
-    descriptionKey: "toggle_find_replace",
+    descriptionKey: "find_replace",
     category: "editing",
     source: "editor",
     note: "macos_hide_conflict",

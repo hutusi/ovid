@@ -6,10 +6,12 @@ import "./FindReplaceBar.css";
 
 interface FindReplaceBarProps {
   editor: Editor;
+  /** Show the replace row. False in find-only mode (Cmd+F). */
+  showReplace: boolean;
   onClose: () => void;
 }
 
-export function FindReplaceBar({ editor, onClose }: FindReplaceBarProps) {
+export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarProps) {
   const [findTerm, setFindTerm] = useState("");
   const [replaceTerm, setReplaceTerm] = useState("");
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -118,34 +120,36 @@ export function FindReplaceBar({ editor, onClose }: FindReplaceBarProps) {
           ×
         </button>
       </div>
-      <div className="find-replace-row">
-        <input
-          className="find-replace-input"
-          type="text"
-          placeholder="Replace"
-          aria-label="Replace"
-          value={replaceTerm}
-          onChange={(e) => setReplaceTerm(e.target.value)}
-          onKeyDown={handleReplaceKeyDown}
-          spellCheck={false}
-        />
-        <button
-          type="button"
-          className="find-replace-action-btn"
-          disabled={matchCount === 0}
-          onClick={() => editor.commands.replaceOne(replaceTerm)}
-        >
-          Replace
-        </button>
-        <button
-          type="button"
-          className="find-replace-action-btn"
-          disabled={matchCount === 0}
-          onClick={() => editor.commands.replaceAll(replaceTerm)}
-        >
-          All
-        </button>
-      </div>
+      {showReplace && (
+        <div className="find-replace-row">
+          <input
+            className="find-replace-input"
+            type="text"
+            placeholder="Replace"
+            aria-label="Replace"
+            value={replaceTerm}
+            onChange={(e) => setReplaceTerm(e.target.value)}
+            onKeyDown={handleReplaceKeyDown}
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            className="find-replace-action-btn"
+            disabled={matchCount === 0}
+            onClick={() => editor.commands.replaceOne(replaceTerm)}
+          >
+            Replace
+          </button>
+          <button
+            type="button"
+            className="find-replace-action-btn"
+            disabled={matchCount === 0}
+            onClick={() => editor.commands.replaceAll(replaceTerm)}
+          >
+            All
+          </button>
+        </div>
+      )}
     </search>
   );
 }
