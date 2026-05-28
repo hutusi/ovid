@@ -150,6 +150,50 @@ pub(crate) fn parse_authors_default(trimmed: &str) -> Option<String> {
     }
 }
 
+/// Best-effort scanner: read `posts.basePath` from `site.config.ts` (the only
+/// `basePath:` key Amytis defines). Returns `None` on any parse failure so the
+/// caller falls back to the conventional `posts` folder name.
+pub(crate) fn parse_posts_base_path(config_path: &Path) -> Option<String> {
+    use std::io::{BufRead, BufReader};
+    let file = std::fs::File::open(config_path).ok()?;
+    let reader = BufReader::new(file);
+    let mut in_block_comment = false;
+    for line in reader.lines().flatten() {
+        let trimmed = line.trim();
+        if in_block_comment {
+            if trimmed.contains("*/") {
+                in_block_comment = false;
+            }
+            continue;
+        }
+        if trimmed.starts_with("/*") {
+            if !trimmed.contains("*/") {
+                in_block_comment = true;
+            }
+            continue;
+        }
+        if trimmed.starts_with("//") || trimmed.starts_with('*') {
+            continue;
+        }
+        let after_key = trimmed
+            .strip_prefix("basePath")
+            .or_else(|| strip_quote_pair(trimmed, "basePath", '"'))
+            .or_else(|| strip_quote_pair(trimmed, "basePath", '\''));
+        if let Some(rest) = after_key {
+            // Reject longer identifiers like `customBasePath:`
+            let Some(rest) = rest.trim_start().strip_prefix(':') else {
+                continue;
+            };
+            if let Some(val) = extract_quoted_string(rest) {
+                if !val.is_empty() {
+                    return Some(val);
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Best-effort scanner: find `contentTypes` in `site.config.ts` and extract
 /// the top-level key names (post, page, note, …). Returns empty vec on any
 /// parse failure so callers gracefully degrade to the default frontmatter.
@@ -473,6 +517,35 @@ mod tests {
             "// default: [\"Fake\"]\nexport const siteConfig = {\n  posts: {\n    authors: {\n      default: [\"Real Author\"],\n    },\n  },\n};\n",
         );
         assert_eq!(parse_default_author(&path), Some("Real Author".to_string()));
+    }
+
+    // ── parse_posts_base_path ────────────────────────────────────────────────
+
+    #[test]
+    fn parse_posts_base_path_reads_quoted_value() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  posts: {\n    basePath: 'articles',\n  },\n};\n",
+        );
+        assert_eq!(parse_posts_base_path(&path), Some("articles".to_string()));
+    }
+
+    #[test]
+    fn parse_posts_base_path_ignores_comment_mentions() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  // served at the default posts basePath\n  posts: {\n    basePath: \"posts\",\n  },\n};\n",
+        );
+        assert_eq!(parse_posts_base_path(&path), Some("posts".to_string()));
+    }
+
+    #[test]
+    fn parse_posts_base_path_returns_none_when_absent() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, "export const siteConfig = { posts: { toc: true } };\n");
+        assert_eq!(parse_posts_base_path(&path), None);
     }
 
     #[test]

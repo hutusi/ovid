@@ -11,4 +11,9 @@ assetRoot: string, tree: Array<FileNode>, isAmytisWorkspace: boolean, cdnBase: s
 /**
  * First entry from `posts.authors.default` in `site.config.ts`, if present.
  */
-defaultAuthor: string | null, };
+defaultAuthor: string | null, 
+/**
+ * `posts.basePath` from `site.config.ts` (the configurable posts folder
+ * name). `None` falls back to the conventional `posts` folder.
+ */
+postsBasePath: string | null, };
