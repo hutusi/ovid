@@ -1,6 +1,7 @@
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 import * as React from "react";
+import { PLAIN_TEXT_INPUT_PROPS } from "@/lib/inputProps";
 import { cn } from "@/lib/utils";
 
 const Command = React.forwardRef<
@@ -30,6 +31,7 @@ const CommandInput = React.forwardRef<
         "flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-fg-subtle disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
+      {...PLAIN_TEXT_INPUT_PROPS}
       {...props}
     />
   </div>

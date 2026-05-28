@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
+import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import { FIND_REPLACE_KEY } from "../lib/tiptap/FindReplace";
 import "./FindReplaceBar.css";
 
@@ -88,6 +89,7 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
             onChange={(e) => handleFindChange(e.target.value)}
             onKeyDown={handleFindKeyDown}
             spellCheck={false}
+            {...PLAIN_TEXT_INPUT_PROPS}
           />
           {countLabel && (
             <span className="find-replace-count" aria-live="polite">
@@ -136,6 +138,7 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
             onChange={(e) => setReplaceTerm(e.target.value)}
             onKeyDown={handleReplaceKeyDown}
             spellCheck={false}
+            {...PLAIN_TEXT_INPUT_PROPS}
           />
           <button
             type="button"

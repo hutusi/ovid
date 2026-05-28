@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getRemoteSummary } from "../lib/gitUi";
+import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import type { GitBranch, GitRemote, GitRemoteBranch, GitRemoteInfo } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
@@ -255,6 +256,7 @@ export function BranchSwitcher({
           aria-label={t("branch_switcher.search_label")}
           value={query}
           placeholder={t("branch_switcher.search_placeholder")}
+          {...PLAIN_TEXT_INPUT_PROPS}
           onChange={(e) => setQuery(e.target.value)}
         />
 

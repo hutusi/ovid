@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import type { ContentType } from "../lib/types";
 import "./NewFileDialog.css";
 
@@ -86,6 +87,7 @@ export function NewFileDialog({
           aria-label={t("new_file_dialog.file_name_label")}
           value={filename}
           placeholder={t("new_file_dialog.file_name_placeholder")}
+          {...PLAIN_TEXT_INPUT_PROPS}
           onChange={(e) => setFilename(e.target.value)}
           onKeyDown={handleKeyDown}
         />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "../lib/commands";
 import type { WechatCredStatus } from "../lib/commands/generated/WechatCredStatus";
+import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { markdownToWechatHtml } from "../lib/wechatHtml";
 import "./Modal.css";
@@ -192,7 +193,7 @@ export function WechatPublishDialog({
               value={appId}
               onChange={(e) => setAppId(e.target.value)}
               autoComplete="off"
-              autoCorrect="off"
+              {...PLAIN_TEXT_INPUT_PROPS}
             />
             <input
               type="password"
@@ -236,6 +237,7 @@ export function WechatPublishDialog({
               value={draftTitle}
               onChange={(e) => setDraftTitle(e.target.value)}
               autoComplete="off"
+              {...PLAIN_TEXT_INPUT_PROPS}
             />
             <input
               className="modal-input"
@@ -244,6 +246,7 @@ export function WechatPublishDialog({
               value={draftAuthor}
               onChange={(e) => setDraftAuthor(e.target.value)}
               autoComplete="off"
+              {...PLAIN_TEXT_INPUT_PROPS}
             />
             <div className="modal-input-with-counter">
               <input
@@ -254,6 +257,7 @@ export function WechatPublishDialog({
                 maxLength={54}
                 onChange={(e) => setDraftDigest(e.target.value)}
                 autoComplete="off"
+                {...PLAIN_TEXT_INPUT_PROPS}
               />
               <div className="modal-input-counter">
                 <span className={draftDigest.length >= 50 ? "modal-input-counter--warn" : ""}>

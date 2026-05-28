@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { PLAIN_TEXT_INPUT_PROPS } from "@/lib/inputProps";
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
@@ -12,6 +13,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           className
         )}
         ref={ref}
+        {...PLAIN_TEXT_INPUT_PROPS}
         {...props}
       />
     );

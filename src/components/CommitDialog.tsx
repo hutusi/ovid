@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import type { GitCommitChange } from "../lib/types";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
@@ -132,6 +133,7 @@ export function CommitDialog({
           value={message}
           placeholder={t("commit_dialog.message_placeholder")}
           rows={3}
+          {...PLAIN_TEXT_INPUT_PROPS}
           onChange={(e) => setMessage(e.target.value)}
         />
 
