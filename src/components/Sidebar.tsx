@@ -78,17 +78,23 @@ function FileItem({
   const indent = `${12 + depth * 14}px`;
 
   async function showDirContextMenu() {
-    const menu = await Menu.new({
-      items: [
-        await MenuItem.new({
-          text: t("sidebar.new_file_here"),
-          action: () => onNewFile(node.path),
-        }),
-        await PredefinedMenuItem.new({ item: "Separator" }),
-        await MenuItem.new({ text: t("sidebar.rename"), action: () => onRename(node) }),
-        await MenuItem.new({ text: t("sidebar.delete"), action: () => onDelete(node) }),
-      ],
+    // Top-level directories in content mode are the structural content-type
+    // buckets (flows, notes, posts, series, …). They can hold new content but
+    // must not be renamed or deleted.
+    const protectedBucket = !filesMode && depth === 0;
+    const newItem = await MenuItem.new({
+      text: t("sidebar.new_file_here"),
+      action: () => onNewFile(node.path),
     });
+    const items = protectedBucket
+      ? [newItem]
+      : [
+          newItem,
+          await PredefinedMenuItem.new({ item: "Separator" }),
+          await MenuItem.new({ text: t("sidebar.rename"), action: () => onRename(node) }),
+          await MenuItem.new({ text: t("sidebar.delete"), action: () => onDelete(node) }),
+        ];
+    const menu = await Menu.new({ items });
     await menu.popup();
   }
 
