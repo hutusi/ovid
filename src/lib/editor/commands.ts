@@ -5,23 +5,25 @@
 import "@tiptap/extension-image";
 import "@tiptap/extension-table";
 import type { Editor } from "@tiptap/react";
-import type React from "react";
 import { commands } from "../commands";
 
 /** Translator function shape, mirrors the project-wide Translate type used
  *  by pure helpers to stay framework-free. */
 type Translate = (key: string, vars?: Record<string, unknown>) => string;
 
+export type FindReplaceMode = "closed" | "find" | "replace";
+
 export interface EditorCommandCtx {
   editor: Editor;
   filePath?: string;
   onError?: (msg: string) => void;
   setLinkDialog: (d: { href: string } | null) => void;
-  setShowFindReplace: React.Dispatch<React.SetStateAction<boolean>>;
   formatMarkdownSpacing: (editor: Editor) => void;
-  /** True when the find/replace bar is visible. Cmd+H stays bindable while
-   *  the bar has focus (so the user can press it again to dismiss). */
-  showFindReplace: boolean;
+  /** Current find/replace bar mode. `find` shows only the find row;
+   *  `replace` shows both. Cmd+F / Cmd+H stay bindable while the bar is
+   *  open (mode !== "closed") so the user can toggle/switch from it. */
+  findReplaceMode: FindReplaceMode;
+  setFindReplaceMode: (mode: FindReplaceMode) => void;
   /** True when the inline link-edit dialog is open. Menu dispatch
    *  suppresses every command while it is — matches the global guard the
    *  old menu-action listener applied. */
@@ -63,9 +65,17 @@ export interface EditorCommand {
    *  unique id for table lookup and uniqueness tests. */
   id: string;
   /** Optional keyboard binding. `mod` is true for Cmd-on-mac /
-   *  Ctrl-elsewhere; `shift` defaults to false. `key` is the lowercased
-   *  KeyboardEvent.key value. */
-  keys?: { mod: true; shift?: boolean; key: string };
+   *  Ctrl-elsewhere; `shift` and `alt` default to false. `key` is the
+   *  lowercased KeyboardEvent.key value.
+   *
+   *  Note on `shift`+letter combos: ProseMirror's keymap normalizes a
+   *  bound `Mod-<letter>` to also match `Mod-Shift-<letter>` events
+   *  (because Shift can be a "naming" modifier for capitalising the
+   *  letter). So a binding of `{mod, shift, key: "i"}` will collide with
+   *  Tiptap's `Mod-i` Italic binding — both fire. Prefer `alt` for
+   *  letter-based command shortcuts that overlap a Tiptap default. The
+   *  Tiptap-conflict test in `src/lib/shortcuts.ts` catches this. */
+  keys?: { mod: true; shift?: boolean; alt?: boolean; key: string };
   /** Guard for keyboard dispatch. Defaults to `editor.isFocused`. Menu
    *  dispatch does not consult `when` — it uses a global `linkDialogOpen`
    *  suppress instead, matching the old behavior. */
@@ -90,8 +100,11 @@ export const editorCommands: EditorCommand[] = [
     },
   },
   {
+    // No `keys` binding: Tiptap's Code extension natively handles Cmd+E.
+    // Binding it here too would dispatch the toggle twice (net no-op).
+    // The id stays so the menu accelerator (defined in src-tauri/src/menu.rs)
+    // still routes Format → Inline Code through this command.
     id: "format-code",
-    keys: { mod: true, key: "e" },
     run: ({ editor }) => {
       editor.chain().focus().toggleCode().run();
     },
@@ -114,19 +127,41 @@ export const editorCommands: EditorCommand[] = [
     },
   },
   {
+    // No keyboard shortcut. Cmd+Shift+I collides with Tiptap italic
+    // (ProseMirror shift-letter normalization); Cmd+Alt+I is the
+    // universal browser DevTools shortcut. Image insertion is
+    // low-frequency and already covered by the Insert menu, drag-drop
+    // from Finder, and clipboard paste — none of which need a hotkey.
     id: "insert-image",
-    keys: { mod: true, shift: true, key: "i" },
     run: ({ editor, filePath, onError }) => pickAndInsertImage(editor, filePath, onError),
   },
   {
-    id: "toggle-find-replace",
+    // Cmd+F opens the bar in find-only mode (replace row hidden).
+    id: "find",
+    keys: { mod: true, key: "f" },
+    when: (ctx) => ctx.editor.isFocused || ctx.findReplaceMode !== "closed",
+    run: ({ editor, findReplaceMode, setFindReplaceMode }) => {
+      if (findReplaceMode === "find") {
+        setFindReplaceMode("closed");
+        editor.chain().focus().run();
+      } else {
+        setFindReplaceMode("find");
+      }
+    },
+  },
+  {
+    // Cmd+H opens the bar with the replace row shown. From find mode this
+    // reveals replace (the find term is preserved — the bar stays mounted).
+    id: "find-replace",
     keys: { mod: true, key: "h" },
-    when: (ctx) => ctx.editor.isFocused || ctx.showFindReplace,
-    run: ({ editor, setShowFindReplace }) => {
-      setShowFindReplace((v) => {
-        if (v) editor.chain().focus().run();
-        return !v;
-      });
+    when: (ctx) => ctx.editor.isFocused || ctx.findReplaceMode !== "closed",
+    run: ({ editor, findReplaceMode, setFindReplaceMode }) => {
+      if (findReplaceMode === "replace") {
+        setFindReplaceMode("closed");
+        editor.chain().focus().run();
+      } else {
+        setFindReplaceMode("replace");
+      }
     },
   },
 
@@ -251,6 +286,7 @@ export function shortcutMatches(
 ): boolean {
   if (keys.mod !== (e.metaKey || e.ctrlKey)) return false;
   if (!!keys.shift !== e.shiftKey) return false;
+  if (!!keys.alt !== e.altKey) return false;
   return e.key?.toLowerCase() === keys.key;
 }
 

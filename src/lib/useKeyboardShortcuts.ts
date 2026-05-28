@@ -49,6 +49,23 @@ export function useKeyboardShortcuts({
         setZenMode(false);
         return;
       }
+      // `?` opens the keyboard shortcuts help dialog. The `?` character
+      // requires Shift on most layouts; we match on the produced key, not
+      // the underlying physical key, so layouts where `?` is unshifted
+      // also work. Suppressed when an input has focus or any blocking
+      // overlay is open.
+      if (e.key === "?" && !overlay.isBlocking) {
+        const target = e.target as HTMLElement | null;
+        const inInput =
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          (target?.isContentEditable ?? false);
+        if (!inInput) {
+          e.preventDefault();
+          overlay.open({ kind: "shortcutsHelp" });
+          return;
+        }
+      }
       if (!e.metaKey && !e.ctrlKey) return;
       // Ctrl+Cmd+Z — zen mode (macOS); avoids conflict with Redo (Cmd+Shift+Z)
       if (e.metaKey && e.ctrlKey && key === "z") {

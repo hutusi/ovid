@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { bindingConflictsWithTiptap } from "../shortcuts";
 import {
   commandCanRun,
   type EditorCommandCtx,
@@ -43,7 +44,10 @@ describe("editorCommands integrity", () => {
   it("no two commands share the same keyboard shortcut", () => {
     const shortcuts = editorCommands
       .filter((c) => c.keys !== undefined)
-      .map((c) => `${c.keys?.mod ? "mod+" : ""}${c.keys?.shift ? "shift+" : ""}${c.keys?.key}`);
+      .map(
+        (c) =>
+          `${c.keys?.mod ? "mod+" : ""}${c.keys?.shift ? "shift+" : ""}${c.keys?.alt ? "alt+" : ""}${c.keys?.key}`
+      );
     expect(new Set(shortcuts).size).toBe(shortcuts.length);
   });
 
@@ -57,18 +61,51 @@ describe("editorCommands integrity", () => {
       expect(cmd, `missing command for menu payload "${payload}"`).toBeDefined();
     }
   });
+
+  it("no command-table shortcut collides with a Tiptap default", () => {
+    // Catches the Cmd+Shift+I class of bug forever. ProseMirror's keymap
+    // normalizes Mod-Shift-<letter> to Mod-<letter>, so a binding of
+    // {mod, shift, key: "i"} silently double-fires with Tiptap's Italic.
+    // The bindingConflictsWithTiptap helper encodes that rule.
+    for (const cmd of editorCommands) {
+      if (!cmd.keys) continue;
+      const conflict = bindingConflictsWithTiptap(cmd.keys);
+      expect(
+        conflict,
+        `editor command "${cmd.id}" shortcut collides with Tiptap default "${conflict?.tiptap.id}"`
+      ).toBeNull();
+    }
+  });
+
+  it("Cmd+Shift+B is not bound (would collide with Tiptap Bold)", () => {
+    // Latent class-of-bug regression net. If anyone adds {mod, shift, key: "b"}
+    // to a command, they hit the same trap as the original Cmd+Shift+I bug.
+    // This test catches it at the table level (the no-Tiptap-collision test
+    // above would also fire, but a named test makes the failure obvious).
+    const collision = editorCommands.find(
+      (c) => c.keys?.mod === true && c.keys?.shift === true && c.keys?.key.toLowerCase() === "b"
+    );
+    expect(collision, "Cmd+Shift+B must not be bound — collides with Tiptap Bold").toBeUndefined();
+  });
 });
 
 describe("shortcutMatches", () => {
   // KeyboardEvent isn't part of bun:test's runtime; a plain object with the
   // five fields shortcutMatches reads is enough for the contract under test.
   function ev(
-    opts: { metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; key?: string } = {}
+    opts: {
+      metaKey?: boolean;
+      ctrlKey?: boolean;
+      shiftKey?: boolean;
+      altKey?: boolean;
+      key?: string;
+    } = {}
   ): KeyboardEvent {
     return {
       metaKey: opts.metaKey ?? false,
       ctrlKey: opts.ctrlKey ?? false,
       shiftKey: opts.shiftKey ?? false,
+      altKey: opts.altKey ?? false,
       key: opts.key ?? "",
     } as unknown as KeyboardEvent;
   }
@@ -100,6 +137,26 @@ describe("shortcutMatches", () => {
     ).toBe(false);
   });
 
+  it("requires alt when bound, forbids it when unbound", () => {
+    // Cmd+Alt+I is the post-Cmd+Shift+I-conflict-fix binding for insert-image.
+    // The matcher must distinguish it from Cmd+I (Tiptap italic).
+    expect(
+      shortcutMatches(
+        { mod: true, alt: true, key: "i" },
+        ev({ metaKey: true, altKey: true, key: "i" })
+      )
+    ).toBe(true);
+    expect(
+      shortcutMatches(
+        { mod: true, alt: true, key: "i" },
+        ev({ metaKey: true, altKey: false, key: "i" })
+      )
+    ).toBe(false);
+    expect(
+      shortcutMatches({ mod: true, key: "k" }, ev({ metaKey: true, altKey: true, key: "k" }))
+    ).toBe(false);
+  });
+
   it("returns false when mod is missing", () => {
     expect(shortcutMatches({ mod: true, key: "k" }, ev({ key: "k" }))).toBe(false);
   });
@@ -113,9 +170,9 @@ describe("commandCanRun", () => {
       filePath: undefined,
       onError: undefined,
       setLinkDialog: () => {},
-      setShowFindReplace: () => {},
       formatMarkdownSpacing: () => {},
-      showFindReplace: false,
+      findReplaceMode: "closed",
+      setFindReplaceMode: () => {},
       linkDialogOpen: false,
       t: (k) => k,
       ...overrides,
@@ -131,13 +188,20 @@ describe("commandCanRun", () => {
     expect(commandCanRun(bold, makeCtx({ editor: { isFocused: false } as any }))).toBe(false);
   });
 
-  it("toggle-find-replace allows running when bar is open but editor unfocused", () => {
-    const cmd = getEditorCommandById("toggle-find-replace");
-    expect(cmd).toBeDefined();
-    if (!cmd) return;
+  it("find/find-replace allow running when the bar is open but editor unfocused", () => {
     // biome-ignore lint/suspicious/noExplicitAny: tests only need a few fields
     const blurred = { isFocused: false } as any;
-    expect(commandCanRun(cmd, makeCtx({ editor: blurred, showFindReplace: false }))).toBe(false);
-    expect(commandCanRun(cmd, makeCtx({ editor: blurred, showFindReplace: true }))).toBe(true);
+    for (const id of ["find", "find-replace"]) {
+      const cmd = getEditorCommandById(id);
+      expect(cmd, `missing command "${id}"`).toBeDefined();
+      if (!cmd) continue;
+      expect(commandCanRun(cmd, makeCtx({ editor: blurred, findReplaceMode: "closed" }))).toBe(
+        false
+      );
+      expect(commandCanRun(cmd, makeCtx({ editor: blurred, findReplaceMode: "find" }))).toBe(true);
+      expect(commandCanRun(cmd, makeCtx({ editor: blurred, findReplaceMode: "replace" }))).toBe(
+        true
+      );
+    }
   });
 });

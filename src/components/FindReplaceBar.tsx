@@ -6,10 +6,12 @@ import "./FindReplaceBar.css";
 
 interface FindReplaceBarProps {
   editor: Editor;
+  /** Show the replace row. False in find-only mode (Cmd+F). */
+  showReplace: boolean;
   onClose: () => void;
 }
 
-export function FindReplaceBar({ editor, onClose }: FindReplaceBarProps) {
+export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarProps) {
   const [findTerm, setFindTerm] = useState("");
   const [replaceTerm, setReplaceTerm] = useState("");
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -25,11 +27,16 @@ export function FindReplaceBar({ editor, onClose }: FindReplaceBarProps) {
     },
   });
 
-  // Focus find input on mount
+  // Focus + select the find input on mount and whenever the mode changes.
+  // Switching replace→find unmounts the replace row, which would otherwise
+  // drop focus to <body>; pulling focus back to find (the way VS Code keeps
+  // focus in the search box) keeps the bar keyboard-driveable. showReplace
+  // is the intended trigger, not a value the effect reads.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: showReplace is the trigger
   useEffect(() => {
     findInputRef.current?.focus();
     findInputRef.current?.select();
-  }, []);
+  }, [showReplace]);
 
   // Clear decorations on unmount
   useEffect(() => {
@@ -68,7 +75,7 @@ export function FindReplaceBar({ editor, onClose }: FindReplaceBarProps) {
         : "";
 
   return (
-    <search className="find-replace-bar" aria-label="Find and replace">
+    <search className="find-replace-bar" aria-label={showReplace ? "Find and replace" : "Find"}>
       <div className="find-replace-row">
         <div className="find-replace-input-wrap">
           <input
@@ -118,34 +125,36 @@ export function FindReplaceBar({ editor, onClose }: FindReplaceBarProps) {
           ×
         </button>
       </div>
-      <div className="find-replace-row">
-        <input
-          className="find-replace-input"
-          type="text"
-          placeholder="Replace"
-          aria-label="Replace"
-          value={replaceTerm}
-          onChange={(e) => setReplaceTerm(e.target.value)}
-          onKeyDown={handleReplaceKeyDown}
-          spellCheck={false}
-        />
-        <button
-          type="button"
-          className="find-replace-action-btn"
-          disabled={matchCount === 0}
-          onClick={() => editor.commands.replaceOne(replaceTerm)}
-        >
-          Replace
-        </button>
-        <button
-          type="button"
-          className="find-replace-action-btn"
-          disabled={matchCount === 0}
-          onClick={() => editor.commands.replaceAll(replaceTerm)}
-        >
-          All
-        </button>
-      </div>
+      {showReplace && (
+        <div className="find-replace-row">
+          <input
+            className="find-replace-input"
+            type="text"
+            placeholder="Replace"
+            aria-label="Replace"
+            value={replaceTerm}
+            onChange={(e) => setReplaceTerm(e.target.value)}
+            onKeyDown={handleReplaceKeyDown}
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            className="find-replace-action-btn"
+            disabled={matchCount === 0}
+            onClick={() => editor.commands.replaceOne(replaceTerm)}
+          >
+            Replace
+          </button>
+          <button
+            type="button"
+            className="find-replace-action-btn"
+            disabled={matchCount === 0}
+            onClick={() => editor.commands.replaceAll(replaceTerm)}
+          >
+            All
+          </button>
+        </div>
+      )}
     </search>
   );
 }

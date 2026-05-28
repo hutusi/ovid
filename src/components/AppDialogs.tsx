@@ -57,6 +57,9 @@ const RenamePathDialog = lazy(async () => ({
 const WechatPublishDialog = lazy(async () => ({
   default: (await import("./WechatPublishDialog")).WechatPublishDialog,
 }));
+const ShortcutsHelpDialog = lazy(async () => ({
+  default: (await import("./ShortcutsHelpDialog")).ShortcutsHelpDialog,
+}));
 
 export interface AppDialogsProps {
   // Overlay stack — owns modal, switcher, workspaceSwitcher, update,
@@ -241,6 +244,11 @@ export function AppDialogs({
             onBeforeRestart={flushPendingSave}
             onClose={() => overlay.close("update")}
           />
+        </Suspense>
+      )}
+      {overlay.is("shortcutsHelp") && (
+        <Suspense fallback={null}>
+          <ShortcutsHelpDialog onClose={() => overlay.close("shortcutsHelp")} />
         </Suspense>
       )}
       {overlay.is("wechatPublish") && selectedFile && (

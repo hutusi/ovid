@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "tiptap-markdown";
 import { commands } from "../lib/commands";
+import type { FindReplaceMode } from "../lib/editor/commands";
 import { useEditorCommands } from "../lib/editor/useEditorCommands";
 import { mimeTypeToImageExtension, resolveImageExtension } from "../lib/imageUtils";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
@@ -98,7 +99,7 @@ export function Editor({
   }, [typewriterMode]);
 
   const [linkDialog, setLinkDialog] = useState<{ href: string } | null>(null);
-  const [showFindReplace, setShowFindReplace] = useState(false);
+  const [findReplaceMode, setFindReplaceMode] = useState<FindReplaceMode>("closed");
 
   const serializeMarkdown = useCallback(
     (editorInstance: NonNullable<ReturnType<typeof useEditor>>) =>
@@ -572,13 +573,13 @@ export function Editor({
       filePath,
       onError,
       setLinkDialog,
-      setShowFindReplace,
+      findReplaceMode,
+      setFindReplaceMode,
       formatMarkdownSpacing,
-      showFindReplace,
       linkDialogOpen: linkDialog !== null,
       t,
     }),
-    [filePath, onError, formatMarkdownSpacing, showFindReplace, linkDialog, t]
+    [filePath, onError, formatMarkdownSpacing, findReplaceMode, linkDialog, t]
   );
   useEditorCommands(editor, commandsCtx);
 
@@ -588,11 +589,12 @@ export function Editor({
         {onTitleChange !== undefined && <TitleInput title={title ?? ""} onChange={onTitleChange} />}
         <EditorContent editor={editor} />
       </div>
-      {editor && showFindReplace && (
+      {editor && findReplaceMode !== "closed" && (
         <FindReplaceBar
           editor={editor}
+          showReplace={findReplaceMode === "replace"}
           onClose={() => {
-            setShowFindReplace(false);
+            setFindReplaceMode("closed");
             editor.chain().focus().run();
           }}
         />

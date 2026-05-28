@@ -344,6 +344,8 @@
     "file_wechat_copy_math_warning": "Copied for WeChat (math blocks removed — WeChat cannot render LaTeX)",
     "file_wechat_copy_no_content": "No content to copy",
     "edit_find_in_workspace": "Find in Workspace\u2026",
+    "edit_find": "Find\u2026",
+    "edit_find_replace": "Find & Replace\u2026",
     "edit_open_quickly": "Open Quickly\u2026",
     "insert_link": "Link\u2026",
     "insert_image": "Image\u2026",
@@ -381,6 +383,7 @@
     "git_pull_success": "Pulled latest changes",
     "git_fetch_success": "Fetched remote updates",
     "help_check_updates": "Check for Updates\u2026",
+    "help_shortcuts": "Keyboard Shortcuts",
     "help_docs": "Ovid Documentation",
     "help_issues": "Report an Issue\u2026"
   },
@@ -435,5 +438,56 @@
     "close": "Close",
     "retry": "Retry",
     "done": "Done"
+  },
+  "shortcuts_help": {
+    "title": "Keyboard Shortcuts",
+    "subtitle": "Press ? at any time to open this dialog. Press Esc to close."
+  },
+  "shortcuts": {
+    "category": {
+      "navigation": "Navigation",
+      "files": "Files",
+      "editing": "Editing",
+      "format": "Formatting",
+      "view": "View",
+      "git": "Git",
+      "help": "Help"
+    },
+    "note": {
+      "in_list_item": "in a list item",
+      "no_modifier": "no Cmd / Ctrl",
+      "macos_hide_conflict": "macOS Hide may intercept"
+    },
+    "toggle_sidebar": "Toggle sidebar",
+    "toggle_properties": "Toggle properties panel",
+    "toggle_search": "Full-text search",
+    "zen_mode": "Toggle zen mode",
+    "file_switcher": "Quick file switcher",
+    "open_workspace": "Open workspace",
+    "switch_workspace": "Switch workspace",
+    "new_file": "New file",
+    "today_flow": "Today's flow",
+    "save": "Save",
+    "close_file": "Close file or tab",
+    "git_commit": "Open commit dialog",
+    "show_shortcuts": "Show this dialog",
+    "insert_link": "Insert link",
+    "paste_plain": "Paste as plain text",
+    "find": "Find",
+    "find_replace": "Find & replace",
+    "format_bold": "Bold",
+    "format_italic": "Italic",
+    "format_code": "Inline code",
+    "format_strike": "Strikethrough",
+    "format_heading_1": "Heading 1",
+    "format_heading_2": "Heading 2",
+    "format_heading_3": "Heading 3",
+    "format_heading_4": "Heading 4",
+    "format_heading_5": "Heading 5",
+    "format_heading_6": "Heading 6",
+    "edit_undo": "Undo",
+    "edit_redo": "Redo",
+    "list_indent": "Indent",
+    "list_dedent": "Dedent"
   }
 }

@@ -66,25 +66,26 @@ For release work, use these repo artifacts:
 
 ## Keyboard Shortcuts
 
+Press **`?`** at any time inside the app to open the live Keyboard Shortcuts dialog, or open it from **Help → Keyboard Shortcuts** in the menu bar. The full reference is in [docs/shortcuts.md](docs/shortcuts.md).
+
+Most-used:
+
 | Shortcut | Action |
 |---|---|
-| `Cmd+\` | Toggle sidebar |
-| `Cmd+Shift+P` | Toggle properties panel |
-| `Cmd+Shift+F` | Toggle full-text search |
-| `Ctrl+Cmd+Z` | Toggle zen mode |
-| `Cmd+Shift+G` | Open commit dialog |
-| `Cmd+Shift+O` | Open workspace switcher |
+| `?` | Show Keyboard Shortcuts |
 | `Cmd+P` | Open file switcher |
+| `Cmd+F` | Find in document |
+| `Cmd+H` | Find & replace |
+| `Cmd+Shift+F` | Full-text search (workspace) |
+| `Cmd+Shift+P` | Toggle properties panel |
+| `Cmd+\` | Toggle sidebar |
 | `Cmd+N` | New file |
-| `Cmd+S` | Force save (bypass debounce) |
-| `Cmd+W` | Close current file |
-| `Cmd+O` | Open workspace (folder picker) |
-| `Cmd+K` | Insert / edit link |
-| `Cmd+E` | Toggle inline code |
-| `F2` | Rename selected file |
-| `Esc` | Exit zen mode |
+| `Cmd+S` | Save (force, bypass debounce) |
+| `Cmd+W` | Close current file or tab |
+| `Cmd+Shift+G` | Open commit dialog |
+| `Ctrl+Cmd+Z` | Toggle zen mode |
 
-> On Windows/Linux, substitute `Ctrl` for `Cmd`. Zen mode (`Ctrl+Cmd+Z`) is macOS-only.
+> On Windows/Linux, substitute `Ctrl` for `Cmd` and `Alt` for `Option`. Zen mode (`Ctrl+Cmd+Z`) is macOS-only.
 
 ---
 
@@ -96,13 +97,13 @@ All major actions are accessible from the native menu bar, making features disco
 |---|---|
 | **Ovid** | About Ovid, Hide, Quit (standard macOS app menu) |
 | **File** | New, Today's Flow, Open Workspace…, Switch Workspace…, Save, Close File |
-| **Edit** | Undo, Redo, Cut, Copy, Paste, Select All, Find in Workspace, Open Quickly |
+| **Edit** | Undo, Redo, Cut, Copy, Paste, Select All, Find in Workspace, Find…, Find & Replace…, Open Quickly |
 | **Insert** | Link…, Image…, Code Block, Table, Horizontal Rule |
 | **Format** | Bold, Italic, Strikethrough, Inline Code, Heading 1-6, Blockquote, Bullet List, Numbered List, Task List |
 | **View** | Toggle Sidebar, Toggle Properties Panel, Zen Mode, Typewriter Mode, Toggle Spell Check |
 | **Git** | Commit Changes…, Switch Branch…, New Branch…, Open Remote, Copy Remote URL, Push, Pull, Fetch |
 | **Window** | Minimize, Zoom (standard macOS window menu) |
-| **Help** | Ovid Documentation, Report an Issue… |
+| **Help** | Check for Updates…, Keyboard Shortcuts, Ovid Documentation, Report an Issue… |
 
 Menu items show their keyboard shortcut where one exists. Insert and Format menu items work on the current editor selection.
 
