@@ -324,6 +324,16 @@
   opacity: 0.5;
 }
 
+/* ── Collection link rows (referenced posts/series) ────── */
+.sidebar-collection-link .sidebar-file-name {
+  font-style: italic;
+}
+
+.sidebar-collection-link.unresolved {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .sidebar-file-icon {
   flex-shrink: 0;
   color: var(--color-fg-subtle);

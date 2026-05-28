@@ -1,8 +1,19 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
-import { BookOpen, FileImage, Files, FileText, Folder, FolderOpen, Search, X } from "lucide-react";
+import {
+  BookOpen,
+  FileImage,
+  Files,
+  FileText,
+  Folder,
+  FolderOpen,
+  Link2,
+  Search,
+  X,
+} from "lucide-react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { NewContentKind } from "../lib/amytisScaffold";
+import type { CollectionLink } from "../lib/collection";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import {
   filterTree,
@@ -41,12 +52,16 @@ interface SidebarProps {
   mode: SidebarMode;
   /** `posts.basePath` from site.config, so the posts bucket follows the config. */
   postsBasePath?: string;
+  /** Resolved `items:` links per collection entry, keyed by the collection dir path. */
+  collectionLinks?: Map<string, CollectionLink[]>;
   onToggleMode: () => void;
   onSelect: (node: FileNode) => void;
   onOpenWorkspace: () => void;
   onOpenSwitcher: () => void;
   onNewFile: (dirPath: string, kind: NewContentKind) => void;
   onNewTodayFlow: () => void;
+  onAddToCollection: (collectionDir: FileNode) => void;
+  onRemoveFromCollection: (indexPath: string, key: string) => void;
   onRename: (node: FileNode) => void;
   onDuplicate: (node: FileNode) => void;
   onNewFromExisting: (node: FileNode) => void;
@@ -68,13 +83,78 @@ interface FileItemProps {
   bucketType?: string;
   /** `posts.basePath` from site.config — only consulted at depth 0. */
   postsBasePath?: string;
+  collectionLinks?: Map<string, CollectionLink[]>;
   onSelect: (node: FileNode) => void;
   onNewFile: (dirPath: string, kind: NewContentKind) => void;
   onNewTodayFlow: () => void;
+  onAddToCollection: (collectionDir: FileNode) => void;
+  onRemoveFromCollection: (indexPath: string, key: string) => void;
   onRename: (node: FileNode) => void;
   onDuplicate: (node: FileNode) => void;
   onNewFromExisting: (node: FileNode) => void;
   onDelete: (node: FileNode) => void;
+}
+
+function CollectionLinkRow({
+  link,
+  depth,
+  indexPath,
+  selectedPath,
+  onSelect,
+  onRemoveFromCollection,
+}: {
+  link: CollectionLink;
+  depth: number;
+  indexPath: string;
+  selectedPath: string | null;
+  onSelect: (node: FileNode) => void;
+  onRemoveFromCollection: (indexPath: string, key: string) => void;
+}) {
+  const { t } = useTranslation();
+  const indent = `${12 + depth * 14}px`;
+  const resolved = link.node;
+  const isSelected = !!resolved && resolved.path === selectedPath;
+
+  async function showMenu() {
+    const removeMenuItem = await MenuItem.new({
+      text: t("sidebar.remove_from_collection"),
+      action: () => onRemoveFromCollection(indexPath, link.key),
+    });
+    const items = resolved
+      ? [
+          await MenuItem.new({ text: t("sidebar.open"), action: () => onSelect(resolved) }),
+          await PredefinedMenuItem.new({ item: "Separator" }),
+          removeMenuItem,
+        ]
+      : [removeMenuItem];
+    const menu = await Menu.new({ items });
+    await menu.popup();
+  }
+
+  return (
+    <div
+      role="none"
+      className={`sidebar-file-row${isSelected ? " selected" : ""}`}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        showMenu();
+      }}
+    >
+      <button
+        type="button"
+        className={`sidebar-file sidebar-collection-link${resolved ? "" : " unresolved"}`}
+        style={{ paddingLeft: indent }}
+        disabled={!resolved}
+        title={resolved ? undefined : t("sidebar.collection_missing", { slug: link.slug })}
+        onClick={() => resolved && onSelect(resolved)}
+      >
+        <span className="sidebar-file-icon-wrap">
+          <Link2 size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
+        </span>
+        <span className="sidebar-file-name">{link.label}</span>
+      </button>
+    </div>
+  );
 }
 
 function FileItem({
@@ -88,9 +168,12 @@ function FileItem({
   filesMode,
   bucketType,
   postsBasePath,
+  collectionLinks,
   onSelect,
   onNewFile,
   onNewTodayFlow,
+  onAddToCollection,
+  onRemoveFromCollection,
   onRename,
   onDuplicate,
   onNewFromExisting,
@@ -109,6 +192,11 @@ function FileItem({
         ? getBucketContentType(node.name, postsBasePath)
         : undefined
       : bucketType;
+  // Entry folder = a directory holding an index.md(x) (series/book/collection).
+  // A collection's index is typed `collection`; its members are referenced via
+  // `items:` and rendered as links rather than in-folder children.
+  const indexEntry = node.isDirectory && !filesMode ? getDirIndexEntry(node) : undefined;
+  const isCollection = indexEntry?.contentType === "collection";
 
   async function showDirContextMenu() {
     // Top-level directories in content mode are the structural content-type
@@ -121,7 +209,14 @@ function FileItem({
     // from the bucket folder, since Amytis files carry no `type:` frontmatter.
     const bt = filesMode ? undefined : effectiveBucketType;
     let newItem: MenuItem;
-    if (isBucket && bt === "flow") {
+    if (isCollection) {
+      // A collection's members live elsewhere; edit the `items:` list instead
+      // of creating files inside the folder.
+      newItem = await MenuItem.new({
+        text: t("sidebar.add_to_collection"),
+        action: () => onAddToCollection(node),
+      });
+    } else if (isBucket && bt === "flow") {
       newItem = await MenuItem.new({
         text: t("menu.file_new_flow"),
         action: () => onNewTodayFlow(),
@@ -164,14 +259,12 @@ function FileItem({
   if (node.isDirectory) {
     const DirIcon = expanded ? FolderOpen : Folder;
     const dirRollup = !expanded ? rollupGitStatus(node, gitStatusMap) : undefined;
-    // An "entry folder" (content mode only) is a directory holding an
-    // index.md(x) — a series or folder-backed post with sibling posts. Its
-    // label is the index's title and clicking it opens the index; the chevron
-    // toggles expansion. The index child itself is hidden from the listing.
-    const indexEntry = !filesMode ? getDirIndexEntry(node) : undefined;
+    // An entry folder's label is the index's title; clicking it opens the
+    // index, the chevron toggles expansion, and the index child is hidden.
     const childNodes = indexEntry
       ? (node.children ?? []).filter((child) => child.path !== indexEntry.path)
       : (node.children ?? []);
+    const collectionItems = isCollection ? (collectionLinks?.get(node.path) ?? []) : null;
     const dirLabel = indexEntry ? getSidebarDisplayName(indexEntry) : node.name;
     const entrySelected = indexEntry?.path === selectedPath;
     const dirRollupDot = dirRollup ? (
@@ -227,6 +320,21 @@ function FileItem({
           )}
         </div>
         {expanded &&
+          collectionItems !== null &&
+          indexEntry &&
+          collectionItems.map((link) => (
+            <CollectionLinkRow
+              key={link.key}
+              link={link}
+              depth={depth + 1}
+              indexPath={indexEntry.path}
+              selectedPath={selectedPath}
+              onSelect={onSelect}
+              onRemoveFromCollection={onRemoveFromCollection}
+            />
+          ))}
+        {expanded &&
+          collectionItems === null &&
           childNodes.map((child, idx, sorted) => (
             <Fragment key={child.path}>
               {!filesMode && needsPageDivider(sorted, idx) && (
@@ -242,9 +350,12 @@ function FileItem({
                 forceExpand={forceExpand}
                 filesMode={filesMode}
                 bucketType={effectiveBucketType}
+                collectionLinks={collectionLinks}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
                 onNewTodayFlow={onNewTodayFlow}
+                onAddToCollection={onAddToCollection}
+                onRemoveFromCollection={onRemoveFromCollection}
                 onRename={onRename}
                 onDuplicate={onDuplicate}
                 onNewFromExisting={onNewFromExisting}
@@ -341,12 +452,15 @@ export function Sidebar({
   gitStatusMap,
   mode,
   postsBasePath,
+  collectionLinks,
   onToggleMode,
   onSelect,
   onOpenWorkspace,
   onOpenSwitcher,
   onNewFile,
   onNewTodayFlow,
+  onAddToCollection,
+  onRemoveFromCollection,
   onRename,
   onDuplicate,
   onNewFromExisting,
@@ -548,9 +662,12 @@ export function Sidebar({
                 forceExpand={filterQuery.length > 0}
                 filesMode={filesMode}
                 postsBasePath={postsBasePath}
+                collectionLinks={collectionLinks}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
                 onNewTodayFlow={onNewTodayFlow}
+                onAddToCollection={onAddToCollection}
+                onRemoveFromCollection={onRemoveFromCollection}
                 onRename={onRename}
                 onDuplicate={onDuplicate}
                 onNewFromExisting={onNewFromExisting}
