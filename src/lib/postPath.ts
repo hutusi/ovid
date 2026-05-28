@@ -1,5 +1,27 @@
 import type { FileNode } from "./types";
 
+/** Content types created as a folder-backed entry (`<slug>/index.md`) rather
+ *  than a flat `<slug>.md` file. */
+export const FOLDER_BACKED_CONTENT_TYPES = new Set(["post", "series", "book"]);
+
+export function isFolderBackedType(type?: string): boolean {
+  return type ? FOLDER_BACKED_CONTENT_TYPES.has(type) : false;
+}
+
+/** Resolve where a new entry's file (and, for folder-backed types, its
+ *  containing directory) should be created under `dirPath`. */
+export function buildNewEntryPaths(
+  dirPath: string,
+  slug: string,
+  contentType?: string
+): { containerDir?: string; filePath: string } {
+  if (isFolderBackedType(contentType)) {
+    const dir = `${dirPath}/${slug}`;
+    return { containerDir: dir, filePath: `${dir}/index.md` };
+  }
+  return { filePath: `${dirPath}/${slug}.md` };
+}
+
 function getNodeParentPath(path: string): string {
   return path.slice(0, path.lastIndexOf("/"));
 }

@@ -483,9 +483,10 @@ function App() {
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
-            onNewFile={(dirPath) =>
-              overlay.open({ kind: "modal", state: { type: "new-file", dirPath } })
+            onNewFile={(dirPath, contentType) =>
+              overlay.open({ kind: "modal", state: { type: "new-file", dirPath, contentType } })
             }
+            onNewTodayFlow={handleNewTodayFlow}
             onRename={(node) =>
               overlay.open({ kind: "modal", state: { type: "rename-path", node } })
             }

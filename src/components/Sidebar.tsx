@@ -7,6 +7,7 @@ import {
   filterTree,
   getDirIndexEntry,
   getSidebarDisplayName,
+  inferFolderContentType,
   needsPageDivider,
   rollupGitStatus,
 } from "../lib/sidebarUtils";
@@ -16,6 +17,16 @@ import { ContentTypeIcon } from "./ContentTypeIcon";
 import "./Sidebar.css";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"]);
+
+// Maps an inferred folder content type to the i18n key for its "New X" action.
+// "flow" is handled separately (it triggers today's flow, not the name dialog).
+const NEW_TYPE_LABEL_KEYS: Record<string, string> = {
+  post: "menu.file_new_post",
+  note: "menu.file_new_note",
+  series: "menu.file_new_series",
+  book: "menu.file_new_book",
+  page: "menu.file_new_page",
+};
 
 export type SidebarMode = "content" | "files";
 
@@ -31,7 +42,8 @@ interface SidebarProps {
   onSelect: (node: FileNode) => void;
   onOpenWorkspace: () => void;
   onOpenSwitcher: () => void;
-  onNewFile: (dirPath: string) => void;
+  onNewFile: (dirPath: string, contentType?: string) => void;
+  onNewTodayFlow: () => void;
   onRename: (node: FileNode) => void;
   onDuplicate: (node: FileNode) => void;
   onNewFromExisting: (node: FileNode) => void;
@@ -48,7 +60,8 @@ interface FileItemProps {
   forceExpand?: boolean;
   filesMode: boolean;
   onSelect: (node: FileNode) => void;
-  onNewFile: (dirPath: string) => void;
+  onNewFile: (dirPath: string, contentType?: string) => void;
+  onNewTodayFlow: () => void;
   onRename: (node: FileNode) => void;
   onDuplicate: (node: FileNode) => void;
   onNewFromExisting: (node: FileNode) => void;
@@ -66,6 +79,7 @@ function FileItem({
   filesMode,
   onSelect,
   onNewFile,
+  onNewTodayFlow,
   onRename,
   onDuplicate,
   onNewFromExisting,
@@ -82,10 +96,27 @@ function FileItem({
     // buckets (flows, notes, posts, series, …). They can hold new content but
     // must not be renamed or deleted.
     const protectedBucket = !filesMode && depth === 0;
-    const newItem = await MenuItem.new({
-      text: t("sidebar.new_file_here"),
-      action: () => onNewFile(node.path),
-    });
+    // Layer-aware "New X": infer the folder's content type so right-clicking
+    // `series` offers New Series, `flows` offers today's flow, etc. Falls back
+    // to a generic "New file here" when the type can't be determined.
+    const inferred = filesMode ? undefined : inferFolderContentType(node);
+    let newItem: MenuItem;
+    if (inferred === "flow") {
+      newItem = await MenuItem.new({
+        text: t("menu.file_new_flow"),
+        action: () => onNewTodayFlow(),
+      });
+    } else if (inferred && NEW_TYPE_LABEL_KEYS[inferred]) {
+      newItem = await MenuItem.new({
+        text: t(NEW_TYPE_LABEL_KEYS[inferred]),
+        action: () => onNewFile(node.path, inferred),
+      });
+    } else {
+      newItem = await MenuItem.new({
+        text: t("sidebar.new_file_here"),
+        action: () => onNewFile(node.path),
+      });
+    }
     const items = protectedBucket
       ? [newItem]
       : [
@@ -180,6 +211,7 @@ function FileItem({
                 filesMode={filesMode}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
+                onNewTodayFlow={onNewTodayFlow}
                 onRename={onRename}
                 onDuplicate={onDuplicate}
                 onNewFromExisting={onNewFromExisting}
@@ -280,6 +312,7 @@ export function Sidebar({
   onOpenWorkspace,
   onOpenSwitcher,
   onNewFile,
+  onNewTodayFlow,
   onRename,
   onDuplicate,
   onNewFromExisting,
@@ -482,6 +515,7 @@ export function Sidebar({
                 filesMode={filesMode}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
+                onNewTodayFlow={onNewTodayFlow}
                 onRename={onRename}
                 onDuplicate={onDuplicate}
                 onNewFromExisting={onNewFromExisting}

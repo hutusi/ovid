@@ -8,7 +8,7 @@ import {
   createTypedFrontmatter,
 } from "./frontmatter";
 import { measureAsync } from "./perf";
-import { buildPostTargetPath } from "./postPath";
+import { buildNewEntryPaths, buildPostTargetPath } from "./postPath";
 import { createPostFromExistingContent } from "./postTemplate";
 import { forContentMode } from "./sidebarUtils";
 import type { FileNode } from "./types";
@@ -186,11 +186,12 @@ export function useWorkspace({
 
   async function handleNewFile(dirPath: string, filename: string, contentType?: string) {
     const slug = filename.replace(/\.md$/, "");
-    const filePath = `${dirPath}/${slug}.md`;
+    const { containerDir, filePath } = buildNewEntryPaths(dirPath, slug, contentType);
     const content = contentType
       ? createTypedFrontmatter(slug, contentType)
       : createAmytisFrontmatter(slug);
     try {
+      if (containerDir) await commands.files.ensureDir({ path: containerDir });
       await commands.files.create({ path: filePath, content });
       const updated = await refreshTree();
       const newNode = findNode(updated, filePath);

@@ -6,6 +6,7 @@ import {
   forFilesMode,
   getDirIndexEntry,
   getSidebarDisplayName,
+  inferFolderContentType,
   needsPageDivider,
   rollupGitStatus,
   sortNodes,
@@ -476,6 +477,46 @@ describe("getDirIndexEntry", () => {
     const inner = makeDir("b", [nestedIndex]);
     const outer = makeDir("a", [inner]);
     expect(getDirIndexEntry(outer)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// inferFolderContentType
+// ---------------------------------------------------------------------------
+
+describe("inferFolderContentType", () => {
+  it("returns undefined for a file node", () => {
+    expect(inferFolderContentType(makeTypedFile("post.md", "post"))).toBeUndefined();
+  });
+
+  it("infers the most common content type among direct markdown children", () => {
+    const dir = makeDir("my-series", [
+      makeTypedFile("index.md", "series"),
+      makeTypedFile("part-1.md", "post"),
+      makeTypedFile("part-2.md", "post"),
+    ]);
+    expect(inferFolderContentType(dir)).toBe("post");
+  });
+
+  it("falls back to the bucket folder-name map when no typed children", () => {
+    // a `series` bucket holds series sub-folders, not direct markdown files
+    const dir = makeDir("series", [makeDir("my-series", [])]);
+    expect(inferFolderContentType(dir)).toBe("series");
+  });
+
+  it("maps known bucket names: flows→flow, books→book, pages→page", () => {
+    expect(inferFolderContentType(makeDir("flows", []))).toBe("flow");
+    expect(inferFolderContentType(makeDir("books", []))).toBe("book");
+    expect(inferFolderContentType(makeDir("pages", []))).toBe("page");
+  });
+
+  it("returns undefined for an unknown empty folder", () => {
+    expect(inferFolderContentType(makeDir("2026", []))).toBeUndefined();
+  });
+
+  it("ignores untyped markdown children (e.g. flows with no type) and uses the name map", () => {
+    const dir = makeDir("flows", [makeTypedFile("01.md", undefined)]);
+    expect(inferFolderContentType(dir)).toBe("flow");
   });
 });
 
