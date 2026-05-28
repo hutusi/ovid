@@ -1,10 +1,16 @@
 import type { NewContentKind } from "./amytisScaffold";
 
+/** An entry in an Amytis collection's `items:` list (mirrors the Amytis schema). */
+export type CollectionItem =
+  | { post: string; label?: string }
+  | { series: string; exclude?: string[]; label?: string };
+
 export type ModalState =
   | { type: "new-file"; dirPath: string; kind: NewContentKind }
   | { type: "duplicate-file"; node: FileNode }
   | { type: "new-from-existing"; node: FileNode }
   | { type: "rename-path"; node: FileNode }
+  | { type: "add-to-collection"; indexPath: string; existing: CollectionItem[] }
   | null;
 
 export interface FileNode {

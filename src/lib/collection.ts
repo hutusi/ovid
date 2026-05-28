@@ -1,14 +1,11 @@
 import { dump, load } from "js-yaml";
 import type { FlatFile } from "./fileSearch";
 import { joinFrontmatter, parseFrontmatter } from "./frontmatter";
-import type { FileNode } from "./types";
+import type { CollectionItem, FileNode } from "./types";
 
 // An Amytis "collection" (a series whose index.mdx has `type: collection`)
 // references posts/series that live elsewhere via an `items:` frontmatter list.
-// The item schema mirrors Amytis: `{ post }` or `{ series, exclude?, label? }`.
-export type CollectionItem =
-  | { post: string; label?: string }
-  | { series: string; exclude?: string[]; label?: string };
+export type { CollectionItem };
 
 export interface CollectionLink {
   /** Stable identity: `post:<slug>` or `series:<slug>`. */

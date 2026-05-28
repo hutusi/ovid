@@ -1,6 +1,13 @@
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { buildNewContent, type NewContentKind } from "./amytisScaffold";
+import {
+  addItem,
+  type CollectionItem,
+  parseCollectionItems,
+  removeItem,
+  setCollectionItems,
+} from "./collection";
 import { commands } from "./commands";
 import { type FlatFile, flattenTree } from "./fileSearch";
 import { createTodayFlowFrontmatter } from "./frontmatter";
@@ -316,6 +323,33 @@ export function useWorkspace({
     }
   }
 
+  // Edit a collection index's `items:` list. Flush first so we don't lose
+  // unsaved editor work; the revision poll reloads the editor if the index is
+  // the open file. Read-modify-write the whole file via the collection helpers.
+  async function mutateCollection(
+    indexPath: string,
+    transform: (items: CollectionItem[]) => CollectionItem[]
+  ) {
+    await flushPendingSave();
+    try {
+      const raw = await commands.files.read({ path: indexPath });
+      const next = setCollectionItems(raw, transform(parseCollectionItems(raw)));
+      await commands.files.write({ path: indexPath, content: next });
+      await refreshTree();
+    } catch (err) {
+      console.error("Failed to update collection:", err);
+      showToast(`Failed to update collection: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  function addCollectionItem(indexPath: string, item: CollectionItem) {
+    return mutateCollection(indexPath, (items) => addItem(items, item));
+  }
+
+  function removeCollectionItem(indexPath: string, key: string) {
+    return mutateCollection(indexPath, (items) => removeItem(items, key));
+  }
+
   return {
     tree,
     flatFiles,
@@ -335,6 +369,8 @@ export function useWorkspace({
     handleDuplicate,
     handleNewFromExisting,
     handleDelete,
+    addCollectionItem,
+    removeCollectionItem,
     refreshTree,
   };
 }
