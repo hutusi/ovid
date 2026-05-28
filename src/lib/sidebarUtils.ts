@@ -254,3 +254,31 @@ export function getDirIndexEntry(node: FileNode): FileNode | undefined {
 export function isCollectionEntry(node: FileNode): boolean {
   return getDirIndexEntry(node)?.contentType === "collection";
 }
+
+export interface CollectionEntry {
+  dirPath: string;
+  indexPath: string;
+}
+
+/** Walk a tree for directories that are collection entries (index typed
+ *  `collection`), scoped to the content root. Returns each collection's
+ *  directory path and the path of its index file. */
+export function findCollectionEntries(
+  nodes: FileNode[],
+  contentRoot: string | null
+): CollectionEntry[] {
+  const out: CollectionEntry[] = [];
+  const walk = (list: FileNode[], inScope: boolean) => {
+    for (const node of list) {
+      if (!node.isDirectory) continue;
+      const scoped = inScope || node.path === contentRoot;
+      if (scoped && isCollectionEntry(node)) {
+        const index = getDirIndexEntry(node);
+        if (index) out.push({ dirPath: node.path, indexPath: index.path });
+      }
+      if (node.children) walk(node.children, scoped);
+    }
+  };
+  walk(nodes, contentRoot === null);
+  return out;
+}

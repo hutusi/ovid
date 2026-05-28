@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   collapseIndexNodes,
   filterTree,
+  findCollectionEntries,
   forContentMode,
   forFilesMode,
   getBucketContentType,
@@ -508,6 +509,59 @@ describe("isCollectionEntry", () => {
 
   it("is false for a file node", () => {
     expect(isCollectionEntry(makeFile("post.md"))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findCollectionEntries
+// ---------------------------------------------------------------------------
+
+describe("findCollectionEntries", () => {
+  function indexChild(path: string, contentType?: string): FileNode {
+    return { name: "index.mdx", path, isDirectory: false, extension: ".mdx", contentType };
+  }
+
+  it("finds collection entries scoped under the content root", () => {
+    const collection: FileNode = {
+      name: "modern-web-dev",
+      path: "/ws/content/series/modern-web-dev",
+      isDirectory: true,
+      children: [indexChild("/ws/content/series/modern-web-dev/index.mdx", "collection")],
+    };
+    const plainSeries: FileNode = {
+      name: "digital-garden",
+      path: "/ws/content/series/digital-garden",
+      isDirectory: true,
+      children: [
+        indexChild("/ws/content/series/digital-garden/index.mdx", undefined),
+        makeFile("01.md"),
+      ],
+    };
+    const seriesBucket: FileNode = {
+      name: "series",
+      path: "/ws/content/series",
+      isDirectory: true,
+      children: [collection, plainSeries],
+    };
+    const content: FileNode = {
+      name: "content",
+      path: "/ws/content",
+      isDirectory: true,
+      children: [seriesBucket],
+    };
+
+    const result = findCollectionEntries([content], "/ws/content");
+    expect(result).toEqual([
+      {
+        dirPath: "/ws/content/series/modern-web-dev",
+        indexPath: "/ws/content/series/modern-web-dev/index.mdx",
+      },
+    ]);
+  });
+
+  it("returns [] when there are no collections", () => {
+    const dir = makeDir("series", [makeDir("plain", [makeFile("index.md")])]);
+    expect(findCollectionEntries([dir], null)).toEqual([]);
   });
 });
 
