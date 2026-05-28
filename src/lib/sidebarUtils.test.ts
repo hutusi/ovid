@@ -4,9 +4,9 @@ import {
   filterTree,
   forContentMode,
   forFilesMode,
+  getBucketContentType,
   getDirIndexEntry,
   getSidebarDisplayName,
-  inferFolderContentType,
   needsPageDivider,
   rollupGitStatus,
   sortNodes,
@@ -481,62 +481,24 @@ describe("getDirIndexEntry", () => {
 });
 
 // ---------------------------------------------------------------------------
-// inferFolderContentType
+// getBucketContentType
 // ---------------------------------------------------------------------------
 
-describe("inferFolderContentType", () => {
-  it("returns undefined for a file node", () => {
-    expect(inferFolderContentType(makeTypedFile("post.md", "post"))).toBeUndefined();
+describe("getBucketContentType", () => {
+  it("maps Amytis default bucket folders to content types", () => {
+    expect(getBucketContentType("flows")).toBe("flow");
+    expect(getBucketContentType("notes")).toBe("note");
+    expect(getBucketContentType("posts")).toBe("post");
+    expect(getBucketContentType("series")).toBe("series");
+    expect(getBucketContentType("books")).toBe("book");
+    expect(getBucketContentType("pages")).toBe("page");
   });
 
-  it("infers the most common content type among direct markdown children", () => {
-    const dir = makeDir("my-series", [
-      makeTypedFile("index.md", "series"),
-      makeTypedFile("part-1.md", "post"),
-      makeTypedFile("part-2.md", "post"),
-    ]);
-    expect(inferFolderContentType(dir)).toBe("post");
-  });
-
-  it("counts folder-backed children whose name was rewritten by collapse", () => {
-    // collapseIndexNodes rewrites a folder-backed post's name to its slug and
-    // points its path at the index file; inference must still recognise it as
-    // markdown via extension/path, not the (extensionless) name.
-    const collapsedPost = (slug: string): FileNode => ({
-      name: slug,
-      path: `/workspace/series/my-series/${slug}/index.md`,
-      isDirectory: false,
-      extension: ".md",
-      contentType: "post",
-      containerDirPath: `/workspace/series/my-series/${slug}`,
-    });
-    const dir = makeDir("my-series", [
-      makeTypedFile("index.md", "series"),
-      collapsedPost("part-1"),
-      collapsedPost("part-2"),
-    ]);
-    expect(inferFolderContentType(dir)).toBe("post");
-  });
-
-  it("falls back to the bucket folder-name map when no typed children", () => {
-    // a `series` bucket holds series sub-folders, not direct markdown files
-    const dir = makeDir("series", [makeDir("my-series", [])]);
-    expect(inferFolderContentType(dir)).toBe("series");
-  });
-
-  it("maps known bucket names: flows→flow, books→book, pages→page", () => {
-    expect(inferFolderContentType(makeDir("flows", []))).toBe("flow");
-    expect(inferFolderContentType(makeDir("books", []))).toBe("book");
-    expect(inferFolderContentType(makeDir("pages", []))).toBe("page");
-  });
-
-  it("returns undefined for an unknown empty folder", () => {
-    expect(inferFolderContentType(makeDir("2026", []))).toBeUndefined();
-  });
-
-  it("ignores untyped markdown children (e.g. flows with no type) and uses the name map", () => {
-    const dir = makeDir("flows", [makeTypedFile("01.md", undefined)]);
-    expect(inferFolderContentType(dir)).toBe("flow");
+  it("returns undefined for non-bucket folder names", () => {
+    // an individual series/post folder is not itself a bucket
+    expect(getBucketContentType("nextjs-deep-dive")).toBeUndefined();
+    expect(getBucketContentType("assets")).toBeUndefined();
+    expect(getBucketContentType("")).toBeUndefined();
   });
 });
 

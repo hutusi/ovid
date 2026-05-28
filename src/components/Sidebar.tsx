@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import {
   filterTree,
+  getBucketContentType,
   getDirIndexEntry,
   getSidebarDisplayName,
-  inferFolderContentType,
   needsPageDivider,
   rollupGitStatus,
 } from "../lib/sidebarUtils";
@@ -59,6 +59,10 @@ interface FileItemProps {
   gitStatusMap: Map<string, GitStatus>;
   forceExpand?: boolean;
   filesMode: boolean;
+  /** Content type of the top-level bucket this node lives under (e.g. "series"
+   *  for everything inside `content/series/`). Threaded down the tree so a
+   *  nested folder knows its bucket without re-deriving it from the path. */
+  bucketType?: string;
   onSelect: (node: FileNode) => void;
   onNewFile: (dirPath: string, contentType?: string) => void;
   onNewTodayFlow: () => void;
@@ -77,6 +81,7 @@ function FileItem({
   gitStatusMap,
   forceExpand = false,
   filesMode,
+  bucketType,
   onSelect,
   onNewFile,
   onNewTodayFlow,
@@ -90,26 +95,37 @@ function FileItem({
   const isSelected = node.path === selectedPath;
   const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
   const indent = `${12 + depth * 14}px`;
+  // A top-level content directory is a bucket; its name maps to a content type.
+  // Nested folders inherit the bucket type threaded from their parent.
+  const effectiveBucketType =
+    depth === 0 ? (node.isDirectory ? getBucketContentType(node.name) : undefined) : bucketType;
 
   async function showDirContextMenu() {
     // Top-level directories in content mode are the structural content-type
     // buckets (flows, notes, posts, series, …). They can hold new content but
     // must not be renamed or deleted.
-    const protectedBucket = !filesMode && depth === 0;
-    // Layer-aware "New X": infer the folder's content type so right-clicking
-    // `series` offers New Series, `flows` offers today's flow, etc. Falls back
-    // to a generic "New file here" when the type can't be determined.
-    const inferred = filesMode ? undefined : inferFolderContentType(node);
+    const isBucket = depth === 0 && node.isDirectory;
+    const protectedBucket = !filesMode && isBucket;
+    // Layer-aware "New X". The bucket folder (depth 0) offers "New <Type>";
+    // inside a series/book, the folder offers a new member post. Type comes
+    // from the bucket folder, since Amytis files carry no `type:` frontmatter.
+    const bt = filesMode ? undefined : effectiveBucketType;
     let newItem: MenuItem;
-    if (inferred === "flow") {
+    if (isBucket && bt === "flow") {
       newItem = await MenuItem.new({
         text: t("menu.file_new_flow"),
         action: () => onNewTodayFlow(),
       });
-    } else if (inferred && NEW_TYPE_LABEL_KEYS[inferred]) {
+    } else if (isBucket && bt && NEW_TYPE_LABEL_KEYS[bt]) {
       newItem = await MenuItem.new({
-        text: t(NEW_TYPE_LABEL_KEYS[inferred]),
-        action: () => onNewFile(node.path, inferred),
+        text: t(NEW_TYPE_LABEL_KEYS[bt]),
+        action: () => onNewFile(node.path, bt),
+      });
+    } else if (!isBucket && (bt === "series" || bt === "book")) {
+      // Inside a series/book: create a flat member post in this folder.
+      newItem = await MenuItem.new({
+        text: t("menu.file_new_post"),
+        action: () => onNewFile(node.path),
       });
     } else {
       newItem = await MenuItem.new({
@@ -209,6 +225,7 @@ function FileItem({
                 gitStatusMap={gitStatusMap}
                 forceExpand={forceExpand}
                 filesMode={filesMode}
+                bucketType={effectiveBucketType}
                 onSelect={onSelect}
                 onNewFile={onNewFile}
                 onNewTodayFlow={onNewTodayFlow}

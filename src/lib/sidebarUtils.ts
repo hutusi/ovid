@@ -72,9 +72,11 @@ const CONTENT_TYPE_RANK: Record<string, number> = {
   page: 6,
 };
 
-/** Maps a top-level content bucket's folder name to its content type. Used as
- *  the fallback when a folder has no typed markdown items to infer from. */
-const FOLDER_NAME_CONTENT_TYPE: Record<string, string> = {
+/** Maps a top-level content bucket's folder name to its content type. Amytis
+ *  derives a file's type from its folder (frontmatter has no `type:` field), so
+ *  the bucket directory directly under `content/` is the source of truth.
+ *  These are the Amytis default bucket names. */
+const BUCKET_CONTENT_TYPE: Record<string, string> = {
   flows: "flow",
   notes: "note",
   posts: "post",
@@ -83,30 +85,12 @@ const FOLDER_NAME_CONTENT_TYPE: Record<string, string> = {
   pages: "page",
 };
 
-/** Best-guess content type for a directory, used to label its layer-aware
- *  "New X" context-menu action. Prefers the most common frontmatter `type`
- *  among the folder's direct markdown items; falls back to the bucket
- *  folder-name map (so empty buckets still resolve), then `undefined`. */
-export function inferFolderContentType(node: FileNode): string | undefined {
-  if (!node.isDirectory) return undefined;
-  const counts = new Map<string, number>();
-  for (const child of node.children ?? []) {
-    // Detect markdown by extension/path, not name: collapseIndexNodes rewrites
-    // a folder-backed child's `name` to its slug, dropping the `.md` suffix.
-    const isMarkdown =
-      child.extension === ".md" || child.extension === ".mdx" || /\.mdx?$/i.test(child.path);
-    if (child.isDirectory || !isMarkdown || !child.contentType) continue;
-    counts.set(child.contentType, (counts.get(child.contentType) ?? 0) + 1);
-  }
-  let best: string | undefined;
-  let bestCount = 0;
-  for (const [type, count] of counts) {
-    if (count > bestCount) {
-      best = type;
-      bestCount = count;
-    }
-  }
-  return best ?? FOLDER_NAME_CONTENT_TYPE[node.name];
+/** Content type for a top-level content bucket folder, or `undefined` when the
+ *  folder isn't a recognised bucket. Used to label the layer-aware "New X"
+ *  context-menu action; the sidebar threads it down so nested folders (e.g. an
+ *  individual series) inherit their bucket's type. */
+export function getBucketContentType(folderName: string): string | undefined {
+  return BUCKET_CONTENT_TYPE[folderName];
 }
 
 function nodeRank(node: FileNode): number {
