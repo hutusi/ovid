@@ -91,7 +91,11 @@ export function inferFolderContentType(node: FileNode): string | undefined {
   if (!node.isDirectory) return undefined;
   const counts = new Map<string, number>();
   for (const child of node.children ?? []) {
-    if (child.isDirectory || !/\.mdx?$/i.test(child.name) || !child.contentType) continue;
+    // Detect markdown by extension/path, not name: collapseIndexNodes rewrites
+    // a folder-backed child's `name` to its slug, dropping the `.md` suffix.
+    const isMarkdown =
+      child.extension === ".md" || child.extension === ".mdx" || /\.mdx?$/i.test(child.path);
+    if (child.isDirectory || !isMarkdown || !child.contentType) continue;
     counts.set(child.contentType, (counts.get(child.contentType) ?? 0) + 1);
   }
   let best: string | undefined;

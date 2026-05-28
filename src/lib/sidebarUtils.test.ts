@@ -498,6 +498,26 @@ describe("inferFolderContentType", () => {
     expect(inferFolderContentType(dir)).toBe("post");
   });
 
+  it("counts folder-backed children whose name was rewritten by collapse", () => {
+    // collapseIndexNodes rewrites a folder-backed post's name to its slug and
+    // points its path at the index file; inference must still recognise it as
+    // markdown via extension/path, not the (extensionless) name.
+    const collapsedPost = (slug: string): FileNode => ({
+      name: slug,
+      path: `/workspace/series/my-series/${slug}/index.md`,
+      isDirectory: false,
+      extension: ".md",
+      contentType: "post",
+      containerDirPath: `/workspace/series/my-series/${slug}`,
+    });
+    const dir = makeDir("my-series", [
+      makeTypedFile("index.md", "series"),
+      collapsedPost("part-1"),
+      collapsedPost("part-2"),
+    ]);
+    expect(inferFolderContentType(dir)).toBe("post");
+  });
+
   it("falls back to the bucket folder-name map when no typed children", () => {
     // a `series` bucket holds series sub-folders, not direct markdown files
     const dir = makeDir("series", [makeDir("my-series", [])]);
