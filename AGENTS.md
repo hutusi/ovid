@@ -36,4 +36,6 @@ PRs should include a short description, linked issue when applicable, and screen
 
 ## Architecture Notes
 
-Preserve the constraints in `CLAUDE.md`: keep the app keyboard-first, writing-focused, and Amytis-native. On-disk files must remain plain Markdown, frontmatter should round-trip cleanly, and user-facing failures should surface through the toast/error path.
+Preserve the constraints in `CLAUDE.md`: keep the app keyboard-first, writing-focused, and Amytis-native. On-disk files must remain plain Markdown, frontmatter should round-trip cleanly on plain editor saves, and user-facing failures should surface through the toast/error path.
+
+Content creation mirrors Amytis conventions — type is derived from the bucket folder (not a `type:` field) and new files are scaffolded by `src/lib/amytisScaffold.ts` to match the Amytis `new-*` scripts (ADR 0009). A `type: collection` series references its members via an `items:` list rendered as sidebar links and edited in place (ADR 0010). Note: *structured* frontmatter edits (the properties panel, and collection `items:`) re-serialize the frontmatter block rather than round-tripping it verbatim — comments in those files are not preserved.

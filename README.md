@@ -154,9 +154,9 @@ The sidebar shows the full file tree of the current workspace, filtered to `.md`
 
 ## File Management
 
-### New file (`Cmd+N`)
+### New content (`Cmd+N`, or right-click a folder)
 
-Creates a new `.md` file. You are prompted for a filename. In an Amytis workspace with content types defined, you can also pick a content type — frontmatter fields are pre-filled accordingly. The file opens immediately in the editor.
+In an Amytis workspace, content is created the way the Amytis `new-*` scripts would: posts land in the posts bucket as date-prefixed `.mdx`, series and books are created as folder-backed `index.mdx` (with an `images/` dir), notes as flat `.mdx`, and flows under `flows/<year>/<month>/<day>.md`. The right-click menu is **layer-aware** — right-clicking the `series` folder offers **New Series**, a series folder offers **New Post**, a book offers **New Chapter**, `flows` offers today's flow, and so on. The new file opens immediately in the editor.
 
 ### Rename (`F2` or double-click filename)
 
@@ -177,6 +177,10 @@ Moves the file to the system Trash (not permanent delete). A confirmation dialog
 ### New folder
 
 Right-click any directory in the sidebar and choose **New file here** to create a file inside it. Subdirectories can be created the same way.
+
+### Collections (right-click → Add post or series…)
+
+A **collection** is a series whose `index.mdx` is `type: collection` — it gathers posts and series that live elsewhere via an `items:` list instead of holding them inside the folder. In the sidebar, a collection expands to show those items as **links** (clicking opens the referenced file; a missing reference is shown greyed out). Right-click the collection and choose **Add post or series…** to pick something to add, or right-click a link and choose **Remove from collection** — both update the `items:` list in the collection's `index.mdx`.
 
 ---
 
