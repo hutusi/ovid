@@ -27,6 +27,8 @@ export const MENU_KEYS = [
   "file_wechat_copy",
   "file_wechat_publish",
   "edit_find_in_workspace",
+  "edit_find",
+  "edit_find_replace",
   "edit_open_quickly",
   "insert_link",
   "insert_image",

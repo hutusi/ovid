@@ -344,6 +344,8 @@
     "file_wechat_copy_math_warning": "已复制（公式已移除——微信不支持 LaTeX 渲染）",
     "file_wechat_copy_no_content": "没有可复制的内容",
     "edit_find_in_workspace": "在工作区中搜索…",
+    "edit_find": "查找…",
+    "edit_find_replace": "查找和替换…",
     "edit_open_quickly": "快速打开…",
     "insert_link": "链接…",
     "insert_image": "图片…",

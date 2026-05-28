@@ -119,6 +119,15 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
             &MenuItemBuilder::with_id("toggle-search", get("edit_find_in_workspace"))
                 .accelerator("CmdOrCtrl+Shift+F")
                 .build(app)?,
+            // In-document find/replace — distinct from the workspace-wide
+            // search above. These payloads are editor commands routed via
+            // useEditorCommands (not useMenuActions).
+            &MenuItemBuilder::with_id("find", get("edit_find"))
+                .accelerator("CmdOrCtrl+F")
+                .build(app)?,
+            &MenuItemBuilder::with_id("find-replace", get("edit_find_replace"))
+                .accelerator("CmdOrCtrl+H")
+                .build(app)?,
             &MenuItemBuilder::with_id("file-switcher", get("edit_open_quickly"))
                 .accelerator("CmdOrCtrl+P")
                 .build(app)?,
@@ -293,6 +302,8 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
         ("file_wechat_copy", "Copy for WeChat"),
         ("file_wechat_publish", "Publish to WeChat\u{2026}"),
         ("edit_find_in_workspace", "Find in Workspace\u{2026}"),
+        ("edit_find", "Find\u{2026}"),
+        ("edit_find_replace", "Find & Replace\u{2026}"),
         ("edit_open_quickly", "Open Quickly\u{2026}"),
         ("insert_link", "Link\u{2026}"),
         ("insert_image", "Image\u{2026}"),
