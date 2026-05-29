@@ -288,6 +288,7 @@ export function AppDialogs({
             imageCount={wechatImageCount}
             markdown={wechatMarkdown}
             baseDir={wechatBaseDir}
+            filePath={selectedFile.path}
             assetRoot={assetRoot}
             coverImagePath={wechatCoverImagePath}
             existingMediaId={wechatMediaId}

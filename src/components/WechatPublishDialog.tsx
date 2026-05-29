@@ -20,6 +20,9 @@ interface Props {
   imageCount: number;
   markdown: string;
   baseDir: string;
+  /** The current post's file path — used to resolve relative author avatars
+   *  (root-relative `/images/…` avatars resolve against `assetRoot`). */
+  filePath: string;
   assetRoot: string | undefined;
   coverImagePath: string | null;
   existingMediaId: string | null;
@@ -38,6 +41,7 @@ export function WechatPublishDialog({
   imageCount,
   markdown,
   baseDir,
+  filePath,
   assetRoot,
   coverImagePath,
   existingMediaId,
@@ -171,7 +175,7 @@ export function WechatPublishDialog({
   // preview. Recomputed as the user edits the author field.
   const authorProfile = authors.find((a) => a.name.trim() === draftAuthor.trim());
   const avatarSrc = authorProfile?.avatar
-    ? resolveImageSrc(authorProfile.avatar, baseDir, assetRoot, undefined)
+    ? resolveImageSrc(authorProfile.avatar, filePath, assetRoot, undefined)
     : null;
 
   return (

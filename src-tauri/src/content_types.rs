@@ -209,6 +209,11 @@ pub(crate) fn parse_authors(config_path: &Path) -> Vec<Author> {
     let mut depth: i32 = 0;
     let mut authors_depth: Option<i32> = None;
     let mut current: Option<Author> = None;
+    // A social entry's `image` and `description` may sit on separate lines, so
+    // accumulate them and flush once both are known (handles inline and
+    // multiline `{ image, description }` objects regardless of key order).
+    let mut pending_image: Option<String> = None;
+    let mut pending_desc: Option<String> = None;
 
     for raw in content.lines() {
         let trimmed = raw.trim();
@@ -223,6 +228,8 @@ pub(crate) fn parse_authors(config_path: &Path) -> Vec<Author> {
             if current.is_none() {
                 if depth == adepth && opens > 0 {
                     if let Some(name) = extract_quoted_key(trimmed) {
+                        pending_image = None;
+                        pending_desc = None;
                         current = Some(Author {
                             name,
                             bio: None,
@@ -242,18 +249,27 @@ pub(crate) fn parse_authors(config_path: &Path) -> Vec<Author> {
                         author.avatar = Some(s);
                     }
                 }
-                if let (Some(img), Some(desc)) =
-                    (value_after_key(trimmed, "image"), value_after_key(trimmed, "description"))
-                {
-                    if let (Some(image), Some(description)) =
-                        (extract_quoted_string(img.trim_start()), extract_quoted_string(desc.trim_start()))
-                    {
-                        author.social.push(AuthorSocial { image, description });
+                if let Some(v) = value_after_key(trimmed, "image") {
+                    if let Some(s) = extract_quoted_string(v.trim_start()) {
+                        pending_image = Some(s);
                     }
+                }
+                if let Some(v) = value_after_key(trimmed, "description") {
+                    if let Some(s) = extract_quoted_string(v.trim_start()) {
+                        pending_desc = Some(s);
+                    }
+                }
+                if pending_image.is_some() && pending_desc.is_some() {
+                    author.social.push(AuthorSocial {
+                        image: pending_image.take().unwrap(),
+                        description: pending_desc.take().unwrap(),
+                    });
                 }
                 // The author object closes when depth returns to the key level.
                 if after <= adepth {
                     authors.push(current.take().unwrap());
+                    pending_image = None;
+                    pending_desc = None;
                 }
             }
             depth = after;
@@ -311,10 +327,82 @@ fn extract_string_array(s: &str) -> Vec<String> {
     out
 }
 
+/// Capture the inner text of the first `key: { ... }` object as a single string,
+/// joining its lines (comment lines skipped). Brace-counted so it works whether
+/// the object is written on one line or many; expects the opening `{` on the
+/// same line as `key`. Returns `None` when the key/object isn't found.
+fn capture_object_block(content: &str, key: &str) -> Option<String> {
+    let mut buf = String::new();
+    let mut depth: i32 = 0;
+    let mut started = false;
+
+    for raw in content.lines() {
+        let trimmed = raw.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') || trimmed.starts_with("/*") {
+            continue;
+        }
+        if !started {
+            let Some(after) = value_after_key(trimmed, key) else {
+                continue;
+            };
+            let Some(brace) = after.find('{') else {
+                continue;
+            };
+            started = true;
+            let from_brace = &after[brace..];
+            for ch in from_brace.chars() {
+                if ch == '{' {
+                    depth += 1;
+                } else if ch == '}' {
+                    depth -= 1;
+                }
+            }
+            buf.push_str(&from_brace[1..]);
+            buf.push('\n');
+            if depth <= 0 {
+                return Some(buf);
+            }
+        } else {
+            for ch in trimmed.chars() {
+                if ch == '{' {
+                    depth += 1;
+                } else if ch == '}' {
+                    depth -= 1;
+                }
+            }
+            buf.push_str(trimmed);
+            buf.push('\n');
+            if depth <= 0 {
+                return Some(buf);
+            }
+        }
+    }
+    if started { Some(buf) } else { None }
+}
+
+/// Return the text between the first `[` and its matching `]` in `s`.
+fn slice_bracketed(s: &str) -> Option<&str> {
+    let start = s.find('[')?;
+    let mut depth = 0i32;
+    for (i, ch) in s[start..].char_indices() {
+        if ch == '[' {
+            depth += 1;
+        } else if ch == ']' {
+            depth -= 1;
+            if depth == 0 {
+                return Some(&s[start + 1..start + i]);
+            }
+        }
+    }
+    None
+}
+
 /// Best-effort scanner: read `i18n.locales` and `i18n.defaultLocale` from
-/// `site.config.ts`. When `i18n.enabled` is `false`, the site uses a single
-/// locale, so the returned `locales` is empty (grouping disabled). Returns an
-/// empty config on any parse failure.
+/// `site.config.ts`. Captures the whole `i18n { ... }` block first, so it works
+/// for single-line objects and multi-line `locales` arrays alike. When
+/// `i18n.enabled` is `false`, the site uses a single locale, so the returned
+/// `locales` is empty (grouping disabled). Returns an empty config on any parse
+/// failure.
 pub(crate) fn parse_i18n(config_path: &Path) -> I18nConfig {
     let mut result = I18nConfig {
         locales: Vec::new(),
@@ -323,52 +411,25 @@ pub(crate) fn parse_i18n(config_path: &Path) -> I18nConfig {
     let Ok(content) = std::fs::read_to_string(config_path) else {
         return result;
     };
-    let mut depth: i32 = 0;
-    let mut i18n_depth: Option<i32> = None;
-    let mut enabled = true;
-    let mut locales: Vec<String> = Vec::new();
-    let mut default_locale: Option<String> = None;
+    let Some(block) = capture_object_block(&content, "i18n") else {
+        return result;
+    };
 
-    for raw in content.lines() {
-        let trimmed = raw.trim();
-        if trimmed.starts_with("//") || trimmed.starts_with('*') || trimmed.starts_with("/*") {
-            continue;
-        }
-        let opens = raw.chars().filter(|&c| c == '{').count() as i32;
-        let closes = raw.chars().filter(|&c| c == '}').count() as i32;
+    let enabled = match value_after_key(&block, "enabled") {
+        Some(v) => !v.trim_start().starts_with("false"),
+        None => true,
+    };
+    if !enabled {
+        return result;
+    }
 
-        match i18n_depth {
-            None => {
-                let before = depth;
-                depth += opens - closes;
-                if value_after_key(trimmed, "i18n").is_some() && opens > closes {
-                    i18n_depth = Some(before + 1);
-                }
-            }
-            Some(block_depth) => {
-                if let Some(v) = value_after_key(trimmed, "enabled") {
-                    if v.trim_start().starts_with("false") {
-                        enabled = false;
-                    }
-                }
-                if let Some(v) = value_after_key(trimmed, "defaultLocale") {
-                    if let Some(s) = extract_quoted_string(v.trim_start()) {
-                        default_locale = Some(s);
-                    }
-                }
-                if let Some(v) = value_after_key(trimmed, "locales") {
-                    locales = extract_string_array(v);
-                }
-                depth += opens - closes;
-                if depth < block_depth {
-                    break;
-                }
-            }
+    if let Some(v) = value_after_key(&block, "defaultLocale") {
+        if let Some(s) = extract_quoted_string(v.trim_start()) {
+            result.default_locale = Some(s);
         }
     }
-    if enabled {
-        result.locales = locales;
-        result.default_locale = default_locale;
+    if let Some(v) = value_after_key(&block, "locales") {
+        result.locales = extract_string_array(slice_bracketed(v).unwrap_or(v));
     }
     result
 }
@@ -988,6 +1049,20 @@ mod tests {
         assert!(parse_authors(Path::new("/nonexistent/site.config.ts")).is_empty());
     }
 
+    #[test]
+    fn parse_authors_reads_multiline_social_object() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  authors: {\n    \"John Hu\": {\n      bio: \"Coder.\",\n      social: [\n        {\n          image: \"/images/wechat-qr.jpg\",\n          description: \"Follow on WeChat\",\n        },\n      ],\n    },\n  },\n};\n",
+        );
+        let authors = parse_authors(&path);
+        let john = authors.iter().find(|a| a.name == "John Hu").unwrap();
+        assert_eq!(john.social.len(), 1);
+        assert_eq!(john.social[0].image, "/images/wechat-qr.jpg");
+        assert_eq!(john.social[0].description, "Follow on WeChat");
+    }
+
     // ── parse_i18n ───────────────────────────────────────────────────────────
 
     #[test]
@@ -1032,6 +1107,33 @@ mod tests {
         let cfg = parse_i18n(&path);
         assert!(cfg.locales.is_empty());
         assert!(cfg.default_locale.is_none());
+    }
+
+    #[test]
+    fn parse_i18n_reads_single_line_block() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: { enabled: true, defaultLocale: 'en', locales: ['en', 'zh'] },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert_eq!(cfg.locales, vec!["en".to_string(), "zh".to_string()]);
+        assert_eq!(cfg.default_locale.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn parse_i18n_reads_multiline_locales_array() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: {\n    defaultLocale: 'en',\n    locales: [\n      'en',\n      'zh',\n      'ja',\n    ],\n  },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert_eq!(
+            cfg.locales,
+            vec!["en".to_string(), "zh".to_string(), "ja".to_string()]
+        );
+        assert_eq!(cfg.default_locale.as_deref(), Some("en"));
     }
 
     #[test]
