@@ -60,6 +60,14 @@
     "clear": "Clear"
   },
   "sidebar": {
+    "bucket": {
+      "post": "Posts",
+      "note": "Notes",
+      "series": "Series",
+      "book": "Books",
+      "flow": "Flow",
+      "page": "Pages"
+    },
     "new_file_here": "New file here",
     "rename": "Rename",
     "delete": "Delete",

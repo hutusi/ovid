@@ -278,7 +278,7 @@ function FileItem({
     // the index title; everything else falls back to the raw folder name.
     const bucketDisplayName =
       depth === 0 && !filesMode
-        ? bucketLabel(node.name, { features, postsBasePath, locale: i18n.language })
+        ? bucketLabel(node.name, { features, postsBasePath, locale: i18n.language, translate: t })
         : node.name;
     const dirLabel = indexEntry ? getSidebarDisplayName(indexEntry) : bucketDisplayName;
     const entrySelected = indexEntry?.path === selectedPath;

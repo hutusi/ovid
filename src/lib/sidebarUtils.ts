@@ -129,23 +129,41 @@ function isBucketEnabled(
   return feature ? feature.enabled : true;
 }
 
-/** The display label for a top-level bucket. Prefers the localized name from the
- *  `features:` block (`features.<id>.name.<locale>`), trying the exact UI locale
- *  then its language prefix (`zh-CN` → `zh`), and falls back to the raw folder
- *  name when no feature/name is configured. */
+type Translate = (key: string, vars?: Record<string, unknown>) => string;
+
+/** The display label for a top-level bucket, resolved in order:
+ *  1. the localized name from the `features:` block (`features.<id>.name.<locale>`),
+ *     trying the exact UI locale then its language prefix (`zh-CN` → `zh`);
+ *  2. Ovid's own localized label for the recognized bucket type
+ *     (`sidebar.bucket.<type>`) — covers `notes`, which Amytis omits from
+ *     `features`, and any bucket whose config name is missing for the active locale;
+ *  3. the raw folder name. */
 export function bucketLabel(
   folderName: string,
-  options: { features?: FeatureBucket[]; postsBasePath?: string; locale?: string }
+  options: {
+    features?: FeatureBucket[];
+    postsBasePath?: string;
+    locale?: string;
+    translate?: Translate;
+  }
 ): string {
-  const { features, postsBasePath, locale } = options;
-  if (!features || features.length === 0) return folderName;
+  const { features, postsBasePath, locale, translate } = options;
   const id = bucketFeatureId(folderName, postsBasePath);
-  if (!id) return folderName;
-  const names = features.find((f) => f.id === id)?.names;
-  if (!names) return folderName;
-  const prefix = locale?.split("-")[0];
-  const localized = (locale && names[locale]) || (prefix && names[prefix]);
-  return localized || folderName;
+  if (features && features.length > 0 && id) {
+    const names = features.find((f) => f.id === id)?.names;
+    if (names) {
+      const prefix = locale?.split("-")[0];
+      const localized = (locale && names[locale]) || (prefix && names[prefix]);
+      if (localized) return localized;
+    }
+  }
+  const type = getBucketContentType(folderName, postsBasePath);
+  if (type && translate) {
+    const key = `sidebar.bucket.${type}`;
+    const label = translate(key);
+    if (label && label !== key) return label;
+  }
+  return folderName;
 }
 
 function nodeRank(node: FileNode): number {

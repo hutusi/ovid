@@ -902,6 +902,21 @@ describe("bucketLabel", () => {
   it("falls back to the folder name when the locale has no matching name", () => {
     expect(bucketLabel("posts", { features, locale: "fr" })).toBe("posts");
   });
+
+  it("uses Ovid's localized label for notes (which has no features entry)", () => {
+    const translate = (key: string) => (key === "sidebar.bucket.note" ? "笔记" : key);
+    expect(bucketLabel("notes", { features, locale: "zh-CN", translate })).toBe("笔记");
+  });
+
+  it("prefers the features config name over the Ovid fallback", () => {
+    const translate = (key: string) => (key === "sidebar.bucket.post" ? "Posts" : key);
+    expect(bucketLabel("posts", { features, locale: "en", translate })).toBe("Articles");
+  });
+
+  it("falls back to the folder name when translate has no matching key", () => {
+    const translate = (key: string) => key; // i18next returns the key when missing
+    expect(bucketLabel("notes", { features, locale: "en", translate })).toBe("notes");
+  });
 });
 
 // ---------------------------------------------------------------------------
