@@ -15,6 +15,12 @@ export type NewContentKind =
   | "page"
   | "generic";
 
+/** File extension for new content. Amytis defaults to `.mdx`. */
+export type ContentFormat = "md" | "mdx";
+
+/** Whether a flat content entry is a single file or a folder with `index.*`. */
+export type ContentLayout = "file" | "folder";
+
 export interface ScaffoldInput {
   kind: NewContentKind;
   /** Title the user entered in the New dialog. */
@@ -31,6 +37,10 @@ export interface ScaffoldInput {
   postTemplate?: string;
   /** Default author from site.config, used in the book index template. */
   defaultAuthor?: string;
+  /** Extension for the new file. Defaults to `mdx` (Amytis behavior). `generic`/`flow` always use `md`. */
+  format?: ContentFormat;
+  /** File vs folder layout for flat post-like kinds. Defaults to `file`. `series`/`book` are always folder-based. */
+  layout?: ContentLayout;
 }
 
 export interface ScaffoldOutput {
@@ -144,34 +154,62 @@ function genericFrontmatter(title: string, date: string): string {
   return `---\ntitle: ${dq(title)}\ndate: ${date}\ndraft: true\n---\n`;
 }
 
+/** Build a flat post-like entry as either a single `<dir>/<name>.<ext>` file or
+ *  a `<dir>/<name>/index.<ext>` folder (with a co-located `images/` dir). */
+function flatEntry(
+  dir: string,
+  name: string,
+  ext: ContentFormat,
+  layout: ContentLayout,
+  content: string
+): ScaffoldOutput {
+  if (layout === "folder") {
+    const folder = `${dir}/${name}`;
+    return {
+      dirsToCreate: [folder, `${folder}/images`],
+      filePath: `${folder}/index.${ext}`,
+      content,
+    };
+  }
+  return { dirsToCreate: [dir], filePath: `${dir}/${name}.${ext}`, content };
+}
+
 /** Resolve the on-disk path, directories to create, and file contents for a
- *  new content entry, mirroring the Amytis `new-*` scripts. */
+ *  new content entry, mirroring the Amytis `new-*` scripts. The `format` and
+ *  `layout` inputs let the user opt out of the Amytis defaults (`mdx`/`file`);
+ *  `generic`/`flow` stay plain `.md` files and `series`/`book` stay folder-based. */
 export function buildNewContent(input: ScaffoldInput): ScaffoldOutput {
   const { kind, title, date, contentRoot, basePath, dirPath } = input;
   const slug = slugify(title);
+  const ext: ContentFormat = input.format ?? "mdx";
+  const layout: ContentLayout = input.layout ?? "file";
 
   switch (kind) {
     case "post": {
       const dir = `${contentRoot}/${basePath}`;
-      return {
-        dirsToCreate: [dir],
-        filePath: `${dir}/${date}-${slug}.mdx`,
-        content: renderPostTemplate(input.postTemplate, title, date),
-      };
+      return flatEntry(
+        dir,
+        `${date}-${slug}`,
+        ext,
+        layout,
+        renderPostTemplate(input.postTemplate, title, date)
+      );
     }
     case "seriesPost": {
       // A member post inside an existing series folder — no date prefix.
-      return {
-        dirsToCreate: [dirPath],
-        filePath: `${dirPath}/${slug}.mdx`,
-        content: renderPostTemplate(input.postTemplate, title, date),
-      };
+      return flatEntry(
+        dirPath,
+        slug,
+        ext,
+        layout,
+        renderPostTemplate(input.postTemplate, title, date)
+      );
     }
     case "series": {
       const dir = `${contentRoot}/series/${slug}`;
       return {
         dirsToCreate: [dir, `${dir}/images`],
-        filePath: `${dir}/index.mdx`,
+        filePath: `${dir}/index.${ext}`,
         content: seriesFrontmatter(title, date),
       };
     }
@@ -179,34 +217,22 @@ export function buildNewContent(input: ScaffoldInput): ScaffoldOutput {
       const dir = `${contentRoot}/books/${slug}`;
       return {
         dirsToCreate: [dir, `${dir}/images`],
-        filePath: `${dir}/index.mdx`,
+        filePath: `${dir}/index.${ext}`,
         content: bookFrontmatter(title, date, input.defaultAuthor || "Amytis"),
       };
     }
     case "chapter": {
-      return {
-        dirsToCreate: [dirPath],
-        filePath: `${dirPath}/${slug}.mdx`,
-        content: chapterFrontmatter(title),
-      };
+      return flatEntry(dirPath, slug, ext, layout, chapterFrontmatter(title));
     }
     case "note": {
-      const dir = `${contentRoot}/notes`;
-      return {
-        dirsToCreate: [dir],
-        filePath: `${dir}/${slug}.mdx`,
-        content: noteFrontmatter(title, date),
-      };
+      return flatEntry(`${contentRoot}/notes`, slug, ext, layout, noteFrontmatter(title, date));
     }
     case "page": {
-      return {
-        dirsToCreate: [contentRoot],
-        filePath: `${contentRoot}/${slug}.mdx`,
-        content: pageFrontmatter(title, date),
-      };
+      return flatEntry(contentRoot, slug, ext, layout, pageFrontmatter(title, date));
     }
     default: {
-      // "generic" / "flow" (flow is created via the today's-flow path, not here)
+      // "generic" / "flow" stay plain `.md` files (flow is created via the
+      // today's-flow path, not here); format/layout do not apply.
       return {
         dirsToCreate: [dirPath],
         filePath: `${dirPath}/${slug}.md`,

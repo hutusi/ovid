@@ -80,6 +80,13 @@ it via a `NewContentKind` (`post`, `series`, `note`, `book`, `seriesPost`,
 `chapter`, `page`, `generic`); flows are date-based (`flows/Y/M/D`) and created
 via the today's-flow path.
 
+Two scaffolding choices are **user-configurable** via `useContentPreferences`
+(surfaced in Preferences → Content) and threaded into `buildNewContent` as
+`format` (`md`/`mdx`) and `layout` (`file`/`folder`). Both default to the Amytis
+behavior (`mdx`/flat file), so the defaults stay byte-for-byte identical to the
+`new-*` scripts; `generic`/`flow` always stay plain `.md`, and `series`/`book`
+stay folder-backed regardless of `layout`. See [ADR 0011](docs/adr/0011-configurable-scaffolding-format-layout.md).
+
 An **entry folder** is a directory holding an `index.md(x)` — a series or book.
 The sidebar labels it with the index's title, opens the index on click, and
 expands to its members. `forContentMode` deliberately does **not** collapse

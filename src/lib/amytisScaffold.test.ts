@@ -105,4 +105,64 @@ describe("buildNewContent", () => {
     const out = buildNewContent({ ...base, kind: "note", title: 'A "quoted" title' });
     expect(out.content).toContain('title: "A \\"quoted\\" title"');
   });
+
+  it("post: folder layout nests index under a date-prefixed folder with images", () => {
+    const out = buildNewContent({
+      ...base,
+      kind: "post",
+      title: "My Great Post",
+      layout: "folder",
+    });
+    expect(out.filePath).toBe("/ws/content/posts/2026-05-28-my-great-post/index.mdx");
+    expect(out.dirsToCreate).toEqual([
+      "/ws/content/posts/2026-05-28-my-great-post",
+      "/ws/content/posts/2026-05-28-my-great-post/images",
+    ]);
+  });
+
+  it("note: md format produces a flat .md file", () => {
+    const out = buildNewContent({ ...base, kind: "note", title: "Tailwind v4", format: "md" });
+    expect(out.filePath).toBe("/ws/content/notes/tailwind-v4.md");
+    expect(out.dirsToCreate).toEqual(["/ws/content/notes"]);
+  });
+
+  it("page: folder layout with md format nests index.md", () => {
+    const out = buildNewContent({
+      ...base,
+      kind: "page",
+      title: "About",
+      format: "md",
+      layout: "folder",
+    });
+    expect(out.filePath).toBe("/ws/content/about/index.md");
+    expect(out.dirsToCreate).toEqual(["/ws/content/about", "/ws/content/about/images"]);
+  });
+
+  it("generic: stays a flat .md file regardless of format/layout", () => {
+    const out = buildNewContent({
+      ...base,
+      dirPath: "/ws/content/misc",
+      kind: "generic",
+      title: "Scratch",
+      format: "mdx",
+      layout: "folder",
+    });
+    expect(out.filePath).toBe("/ws/content/misc/scratch.md");
+    expect(out.dirsToCreate).toEqual(["/ws/content/misc"]);
+  });
+
+  it("series: folder layout is unchanged but format sets the index extension", () => {
+    const out = buildNewContent({
+      ...base,
+      kind: "series",
+      title: "Deep Dive",
+      format: "md",
+      layout: "file",
+    });
+    expect(out.filePath).toBe("/ws/content/series/deep-dive/index.md");
+    expect(out.dirsToCreate).toEqual([
+      "/ws/content/series/deep-dive",
+      "/ws/content/series/deep-dive/images",
+    ]);
+  });
 });
