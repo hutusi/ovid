@@ -320,8 +320,6 @@ export function AppDialogs({
       {modal?.type === "new-file" && (
         <Suspense fallback={null}>
           <NewFileDialog
-            contentTypes={[]}
-            showTypeSelector={false}
             title={t(NEW_FILE_TITLE_KEY[modal.kind])}
             onConfirm={(name) => {
               void handleNewFile(modal.dirPath, name, modal.kind);
@@ -334,11 +332,9 @@ export function AppDialogs({
       {modal?.type === "duplicate-file" && (
         <Suspense fallback={null}>
           <NewFileDialog
-            contentTypes={[]}
             initialFilename={getDuplicateNameSuggestion(modal.node)}
             title={t("new_file_dialog.title_make_copy")}
             confirmLabel={t("new_file_dialog.copy")}
-            showTypeSelector={false}
             onConfirm={(name) => {
               void handleDuplicate(modal.node, name);
               closeModal();
@@ -350,11 +346,9 @@ export function AppDialogs({
       {modal?.type === "new-from-existing" && (
         <Suspense fallback={null}>
           <NewFileDialog
-            contentTypes={[]}
             initialFilename={getNewFromExistingNameSuggestion(modal.node)}
             title={t("new_file_dialog.title_new_from_existing")}
             confirmLabel={t("new_file_dialog.create")}
-            showTypeSelector={false}
             onConfirm={(name) => {
               void handleNewFromExisting(modal.node, name);
               closeModal();

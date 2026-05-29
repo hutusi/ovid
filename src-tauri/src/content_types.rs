@@ -1,19 +1,4 @@
-use serde::Serialize;
 use std::path::Path;
-use ts_rs::TS;
-
-use tauri::State;
-
-use crate::state::WorkspaceState;
-
-// ── Content types ──────────────────────────────────────────────────────────
-
-#[derive(Serialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/lib/commands/generated/")]
-pub(crate) struct ContentType {
-    pub(crate) name: String,
-}
 
 /// Extract the first quoted string value from the beginning of `s`.
 pub(crate) fn extract_quoted_string(s: &str) -> Option<String> {
@@ -192,95 +177,6 @@ pub(crate) fn parse_posts_base_path(config_path: &Path) -> Option<String> {
         }
     }
     None
-}
-
-/// Best-effort scanner: find `contentTypes` in `site.config.ts` and extract
-/// the top-level key names (post, page, note, …). Returns empty vec on any
-/// parse failure so callers gracefully degrade to the default frontmatter.
-pub(crate) fn parse_content_types(config_path: &Path) -> Vec<ContentType> {
-    use std::io::{BufRead, BufReader};
-    let Ok(file) = std::fs::File::open(config_path) else {
-        return Vec::new();
-    };
-    let mut reader = BufReader::new(file);
-    let mut type_names: Vec<ContentType> = Vec::new();
-    let mut depth: i32 = 0;
-    let mut found_content_types = false;
-    let mut content_types_depth: Option<i32> = None;
-    let mut line = String::new();
-
-    loop {
-        line.clear();
-        if reader.read_line(&mut line).unwrap_or(0) == 0 {
-            break;
-        }
-        let trimmed = line.trim();
-        let open_count = line.chars().filter(|&c| c == '{').count() as i32;
-        let close_count = line.chars().filter(|&c| c == '}').count() as i32;
-
-        match content_types_depth {
-            None if !found_content_types => {
-                if trimmed.contains("contentTypes") {
-                    found_content_types = true;
-                    depth += open_count - close_count;
-                    if open_count > 0 {
-                        content_types_depth = Some(depth);
-                    }
-                } else {
-                    depth += open_count - close_count;
-                }
-            }
-            None => {
-                // found keyword, waiting for opening brace
-                depth += open_count - close_count;
-                if open_count > 0 {
-                    content_types_depth = Some(depth);
-                }
-            }
-            Some(ct_depth) => {
-                let prev_depth = depth;
-                depth += open_count - close_count;
-                if depth < ct_depth {
-                    break;
-                }
-                if prev_depth == ct_depth {
-                    if let Some(name) = extract_ts_key(trimmed) {
-                        type_names.push(ContentType { name });
-                    }
-                }
-            }
-        }
-    }
-    type_names
-}
-
-pub(crate) fn extract_ts_key(line: &str) -> Option<String> {
-    let line = line.trim();
-    if line.starts_with("//") || line.starts_with('*') || line.starts_with("/*") {
-        return None;
-    }
-    let end = line.find(':')?;
-    let key = line[..end].trim().trim_matches('"').trim_matches('\'');
-    if !key.is_empty() && key.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        Some(key.to_string())
-    } else {
-        None
-    }
-}
-
-#[tauri::command]
-pub(crate) fn get_content_types(state: State<'_, WorkspaceState>) -> Result<Vec<ContentType>, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = match root_guard.as_ref() {
-        Some(r) => r.clone(),
-        None => return Ok(Vec::new()),
-    };
-    drop(root_guard);
-    let config = root.join("site.config.ts");
-    if !config.is_file() {
-        return Ok(Vec::new());
-    }
-    Ok(parse_content_types(&config))
 }
 
 #[cfg(test)]

@@ -1,33 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
-import type { ContentType } from "../lib/types";
 import "./NewFileDialog.css";
 
 interface NewFileDialogProps {
-  contentTypes: ContentType[];
-  preselectedType?: string;
   initialFilename?: string;
   title?: string;
   confirmLabel?: string;
-  showTypeSelector?: boolean;
-  onConfirm: (filename: string, contentType?: string) => void;
+  onConfirm: (filename: string) => void;
   onCancel: () => void;
 }
 
 export function NewFileDialog({
-  contentTypes,
-  preselectedType,
   initialFilename = "",
   title,
   confirmLabel,
-  showTypeSelector = true,
   onConfirm,
   onCancel,
 }: NewFileDialogProps) {
   const { t } = useTranslation();
   const [filename, setFilename] = useState(initialFilename);
-  const [selectedType, setSelectedType] = useState<string>(contentTypes[0]?.name ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -40,21 +32,10 @@ export function NewFileDialog({
     input.setSelectionRange(0, end);
   }, [initialFilename]);
 
-  useEffect(() => {
-    if (
-      !preselectedType &&
-      contentTypes.length > 0 &&
-      !contentTypes.some((ct) => ct.name === selectedType)
-    ) {
-      setSelectedType(contentTypes[0].name);
-    }
-  }, [contentTypes, selectedType, preselectedType]);
-
   function handleConfirm() {
     const name = filename.trim();
     if (!name) return;
-    const type = preselectedType ?? (contentTypes.length > 0 ? selectedType : undefined);
-    onConfirm(name, type);
+    onConfirm(name);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -62,13 +43,7 @@ export function NewFileDialog({
     else if (e.key === "Escape") onCancel();
   }
 
-  const dialogTitle =
-    title ??
-    (preselectedType
-      ? t("new_file_dialog.title_new_type", {
-          type: preselectedType.charAt(0).toUpperCase() + preselectedType.slice(1),
-        })
-      : t("new_file_dialog.title_new_file"));
+  const dialogTitle = title ?? t("new_file_dialog.title_new_file");
 
   return (
     <div className="nfd-overlay" role="presentation">
@@ -91,25 +66,6 @@ export function NewFileDialog({
           onChange={(e) => setFilename(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-
-        {showTypeSelector && !preselectedType && contentTypes.length > 0 && (
-          <div className="nfd-type-section">
-            <span className="nfd-type-label">{t("new_file_dialog.type_label")}</span>
-            <div className="nfd-type-chips">
-              {contentTypes.map((ct) => (
-                <button
-                  key={ct.name}
-                  type="button"
-                  aria-pressed={selectedType === ct.name}
-                  onClick={() => setSelectedType(ct.name)}
-                  className={`nfd-chip${selectedType === ct.name ? " active" : ""}`}
-                >
-                  {ct.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="nfd-actions">
           <button type="button" className="nfd-btn nfd-cancel" onClick={onCancel}>

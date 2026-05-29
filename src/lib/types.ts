@@ -39,10 +39,6 @@ export interface RecentFile {
   title?: string;
 }
 
-export interface ContentType {
-  name: string;
-}
-
 export interface RecentWorkspace {
   rootPath: string;
   name: string;

@@ -109,10 +109,8 @@
   },
   "new_file_dialog": {
     "title_new_file": "新建文件",
-    "title_new_type": "新建{{type}}",
     "file_name_label": "文件名",
     "file_name_placeholder": "文件名",
-    "type_label": "类型",
     "cancel": "取消",
     "create": "创建",
     "copy": "复制",

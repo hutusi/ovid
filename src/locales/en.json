@@ -109,10 +109,8 @@
   },
   "new_file_dialog": {
     "title_new_file": "New file",
-    "title_new_type": "New {{type}}",
     "file_name_label": "File name",
     "file_name_placeholder": "File name",
-    "type_label": "Type",
     "cancel": "Cancel",
     "create": "Create",
     "copy": "Copy",
