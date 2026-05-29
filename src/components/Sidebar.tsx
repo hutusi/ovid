@@ -324,12 +324,17 @@ function FileItem({
           ) : (
             <button
               type="button"
-              className="sidebar-dir"
+              className={`sidebar-dir${node.disabledForSite ? " disabled-for-site" : ""}`}
               aria-expanded={expanded}
               onClick={() => onToggleExpand(node.path, depth)}
             >
               <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
               {dirLabel}
+              {node.disabledForSite && (
+                <span className="sidebar-bucket-badge" title={t("sidebar.hidden_from_site")}>
+                  {t("sidebar.hidden_badge")}
+                </span>
+              )}
               {dirRollupDot}
             </button>
           )}

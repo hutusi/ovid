@@ -113,10 +113,11 @@ function bucketFeatureId(folderName: string, postsBasePath = "posts"): string | 
   return undefined;
 }
 
-/** A top-level bucket is shown unless its `features:` entry is explicitly
- *  `enabled: false`. Buckets with no feature id (notes) or no matching entry
- *  default to shown — content mode mirrors the published site, and Files mode
- *  remains the escape hatch to a disabled folder. */
+/** Whether a top-level bucket is enabled on the published site. `false` only when
+ *  its `features:` entry is explicitly `enabled: false`. Buckets with no feature
+ *  id (notes) or no matching entry default to enabled. Ovid never hides a
+ *  disabled bucket — it stays editable and is merely flagged (`disabledForSite`)
+ *  so the sidebar can mark it "hidden from site". */
 function isBucketEnabled(
   folderName: string,
   features: FeatureBucket[] | undefined,
@@ -321,26 +322,28 @@ export function forContentMode(
     options.workspaceRoot === options.treeRoot
       ? tree
       : (findChildrenByPath(tree, options.treeRoot) ?? []);
-  const projected = filterContentNodes(scoped)
-    .filter(
-      (node) =>
-        !node.isDirectory || isBucketEnabled(node.name, options.features, options.postsBasePath)
-    )
-    .map((bucket) => {
-      if (bucket.isDirectory && isCollectionBucket(bucket.name, options.postsBasePath)) {
-        // Keep each collection entry as a directory; only collapse folder-backed
-        // posts *within* an entry (e.g. a member post stored as `<slug>/index`).
-        return {
-          ...bucket,
-          children: (bucket.children ?? []).map((entry) =>
-            entry.isDirectory
-              ? { ...entry, children: collapseIndexNodes(entry.children ?? []) }
-              : entry
-          ),
-        };
-      }
-      return collapseIndexNodes([bucket])[0];
-    });
+  const projected = filterContentNodes(scoped).map((raw) => {
+    // A bucket disabled in `features` is kept (the editor edits on-disk
+    // content regardless of what the published site renders) but tagged so
+    // the sidebar can mark it "hidden from site".
+    const bucket =
+      raw.isDirectory && !isBucketEnabled(raw.name, options.features, options.postsBasePath)
+        ? { ...raw, disabledForSite: true }
+        : raw;
+    if (bucket.isDirectory && isCollectionBucket(bucket.name, options.postsBasePath)) {
+      // Keep each collection entry as a directory; only collapse folder-backed
+      // posts *within* an entry (e.g. a member post stored as `<slug>/index`).
+      return {
+        ...bucket,
+        children: (bucket.children ?? []).map((entry) =>
+          entry.isDirectory
+            ? { ...entry, children: collapseIndexNodes(entry.children ?? []) }
+            : entry
+        ),
+      };
+    }
+    return collapseIndexNodes([bucket])[0];
+  });
   const sorted = sortTree(projected);
   return options.locales && options.locales.length > 0
     ? groupTranslationsDeep(sorted, options.locales, options.defaultLocale)

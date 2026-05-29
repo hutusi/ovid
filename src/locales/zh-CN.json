@@ -68,6 +68,8 @@
       "flow": "随笔",
       "page": "页面"
     },
+    "hidden_badge": "已隐藏",
+    "hidden_from_site": "已从发布的网站中隐藏",
     "new_file_here": "在此新建文件",
     "rename": "重命名",
     "delete": "删除",

@@ -828,24 +828,27 @@ function contentTreeWithBuckets(bucketNames: string[]): FileNode[] {
   return [{ name: "content", path: "/ws/content", isDirectory: true, children: buckets }];
 }
 
-describe("forContentMode bucket visibility (features)", () => {
+describe("forContentMode disabled-bucket marking (features)", () => {
   const opts = { workspaceRoot: "/ws", treeRoot: "/ws/content" };
+  const find = (nodes: FileNode[], name: string) => nodes.find((n) => n.name === name);
 
-  it("hides a bucket whose feature is disabled", () => {
+  it("keeps a disabled bucket but tags it disabledForSite", () => {
     const result = forContentMode(contentTreeWithBuckets(["posts", "books"]), {
       ...opts,
       features: [feature("posts", true), feature("books", false)],
     });
-    expect(result.map((n) => n.name)).toEqual(["posts"]);
+    expect(result.map((n) => n.name).sort()).toEqual(["books", "posts"]);
+    expect(find(result, "books")?.disabledForSite).toBe(true);
+    expect(find(result, "posts")?.disabledForSite).toBeUndefined();
   });
 
-  it("keeps notes even though it has no features entry", () => {
+  it("does not tag notes (no features entry)", () => {
     const result = forContentMode(contentTreeWithBuckets(["notes", "books"]), {
       ...opts,
       features: [feature("books", false)],
     });
-    expect(result.map((n) => n.name)).toContain("notes");
-    expect(result.map((n) => n.name)).not.toContain("books");
+    expect(find(result, "notes")?.disabledForSite).toBeUndefined();
+    expect(find(result, "books")?.disabledForSite).toBe(true);
   });
 
   it("maps the flows folder to the singular flow feature id", () => {
@@ -853,24 +856,24 @@ describe("forContentMode bucket visibility (features)", () => {
       ...opts,
       features: [feature("flow", false)],
     });
-    expect(result).toHaveLength(0);
+    expect(find(result, "flows")?.disabledForSite).toBe(true);
   });
 
-  it("follows posts.basePath when gating the posts bucket", () => {
+  it("follows posts.basePath when resolving the posts feature", () => {
     const result = forContentMode(contentTreeWithBuckets(["articles"]), {
       ...opts,
       postsBasePath: "articles",
       features: [feature("posts", false)],
     });
-    expect(result).toHaveLength(0);
+    expect(find(result, "articles")?.disabledForSite).toBe(true);
   });
 
-  it("shows all buckets when features is empty", () => {
+  it("tags nothing when features is empty", () => {
     const result = forContentMode(contentTreeWithBuckets(["posts", "books"]), {
       ...opts,
       features: [],
     });
-    expect(result.map((n) => n.name).sort()).toEqual(["books", "posts"]);
+    expect(result.every((n) => !n.disabledForSite)).toBe(true);
   });
 });
 

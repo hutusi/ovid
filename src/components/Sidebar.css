@@ -378,6 +378,23 @@
   color: var(--color-accent);
 }
 
+/* A bucket disabled in site.config `features` — shown but dimmed + badged. */
+.sidebar-dir.disabled-for-site {
+  opacity: 0.6;
+}
+
+.sidebar-bucket-badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1.5;
+  border-radius: 3px;
+  color: var(--color-fg-subtle);
+  background: color-mix(in srgb, var(--color-fg) 8%, transparent);
+  white-space: nowrap;
+}
+
 .sidebar-file-row.selected .sidebar-file-icon {
   color: var(--color-accent);
   opacity: 1;

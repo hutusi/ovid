@@ -29,6 +29,9 @@ export interface FileNode {
   translations?: FileNode[];
   /** Sidebar projection only: the locale code of a translation variant row. */
   locale?: string;
+  /** Sidebar projection only: a top-level bucket whose `features.<id>.enabled`
+   *  is `false` — shown but marked "hidden from the published site". */
+  disabledForSite?: boolean;
 }
 
 export interface WorkspaceState {

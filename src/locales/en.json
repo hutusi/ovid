@@ -68,6 +68,8 @@
       "flow": "Flow",
       "page": "Pages"
     },
+    "hidden_badge": "hidden",
+    "hidden_from_site": "Hidden from the published site",
     "new_file_here": "New file here",
     "rename": "Rename",
     "delete": "Delete",

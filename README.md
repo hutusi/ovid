@@ -323,7 +323,7 @@ On open, Ovid checks for `site.config.ts` + `content/`. If found, it is treated 
 
 Amytis derives a file's content type from its bucket folder under `content/` (`posts`, `series`, `books`, `flows`, `notes`), not from frontmatter. The sidebar and **New** menu offer bucket-aware actions (e.g. *New Post*, *New Series*) that scaffold the matching folder layout and frontmatter, mirroring Amytis's `new-*` scripts.
 
-The `features:` block in `site.config.ts` controls which buckets appear — a bucket with `enabled: false` is hidden in content mode — and supplies their localized display names. `.rst` files are shown read-only (Ovid edits markdown only), and `<slug>.<locale>` translation variants are grouped under their base file.
+The `features:` block in `site.config.ts` supplies each bucket's localized display name. A bucket switched off for the site (`enabled: false`) is **not hidden** — Ovid still shows and edits its on-disk content, just dimmed with a "hidden from site" badge. `.rst` files are shown read-only (Ovid edits markdown only), and `<slug>.<locale>` translation variants are grouped under their base file.
 
 ### Git status
 
