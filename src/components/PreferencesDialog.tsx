@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ContentFormat, ContentLayout } from "../lib/amytisScaffold";
@@ -59,6 +60,17 @@ export function PreferencesDialog({
     setGoalInput(wordCountGoal !== null ? String(wordCountGoal) : "");
   }, [wordCountGoal]);
 
+  // Document-level Escape handler — catches the key regardless of which
+  // control inside the dialog has focus, so native form-element quirks (e.g.
+  // a `<select>` swallowing the bubble) can't strand the user in the dialog.
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
   const currentLanguage = i18n.language === "zh-CN" ? "zh-CN" : "en";
 
   async function changeLanguage(lng: string) {
@@ -110,10 +122,18 @@ export function PreferencesDialog({
         aria-modal="true"
         aria-label={t("preferences.title")}
         className="modal-panel pref-panel"
-        onKeyDown={(e) => {
-          if (e.key === "Escape") onClose();
-        }}
       >
+        <div className="pref-header">
+          <button
+            type="button"
+            className="pref-close-btn"
+            onClick={onClose}
+            aria-label={t("common.close")}
+            title={t("common.close")}
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
+        </div>
         <div className="pref-body">
           <div
             className="pref-nav"
