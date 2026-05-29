@@ -10,6 +10,16 @@ import { markdownToWechatHtml } from "./wechatHtml";
 // Mirrors the key used in App.tsx for localStorage persistence.
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 
+// Native "New <type>" menu action → content kind. Compile-time checked, so a
+// new menu item must be mapped here.
+const MENU_ACTION_TO_KIND: Record<string, NewContentKind> = {
+  "new-post": "post",
+  "new-note": "note",
+  "new-series": "series",
+  "new-book": "book",
+  "new-page": "page",
+};
+
 interface UseMenuActionsOptions {
   overlay: OverlayStack;
 
@@ -123,7 +133,7 @@ export function useMenuActions({
               state: {
                 type: "new-file",
                 dirPath: workspaceRoot,
-                kind: payload.replace("new-", "") as NewContentKind,
+                kind: MENU_ACTION_TO_KIND[payload],
               },
             });
           break;

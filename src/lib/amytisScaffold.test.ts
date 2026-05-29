@@ -18,6 +18,10 @@ describe("slugify", () => {
   it("keeps CJK characters", () => {
     expect(slugify("你好 世界")).toBe("你好-世界");
   });
+  it("falls back to 'untitled' when the title has no slug characters", () => {
+    expect(slugify("!!!")).toBe("untitled");
+    expect(slugify("   ")).toBe("untitled");
+  });
 });
 
 describe("buildNewContent", () => {

@@ -44,10 +44,13 @@ export interface ScaffoldOutput {
  *  hyphens, trim leading/trailing hyphens. Matches the Amytis note slugifier,
  *  which is the most permissive of the scripts. */
 export function slugify(title: string): string {
-  return title
+  const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9一-鿿]+/g, "-")
     .replace(/^-+|-+$/g, "");
+  // A symbol/emoji-only title (the New dialog only rejects whitespace) collapses
+  // to "", which would yield malformed paths like `<date>-.mdx` or `series//`.
+  return slug || "untitled";
 }
 
 /** Wrap a string as a double-quoted YAML scalar, escaping `\` and `"`. Amytis
