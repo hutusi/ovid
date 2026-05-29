@@ -5,6 +5,50 @@ All notable changes to Ovid will be documented in this file.
 The format is based on Keep a Changelog, adapted to match the project's
 release cadence and Conventional Commit history.
 
+## 0.14.0 - 2026-05-29
+
+### Added
+- **Collections as link views**: a `type: collection` series (such as a book or curated
+  list) now renders its `items:` as navigable links in the sidebar. Entries can be added or
+  removed from a collection via context menus, and an "Add to collection" picker dialog is
+  available for posts and series.
+- **Amytis-native content creation**: the "New …" actions now scaffold content the Amytis
+  way — placing the file in the correct bucket folder with the right extension and per-type
+  frontmatter, mirroring the Amytis `new-*` scripts. Folder context menus offer layer-aware
+  "New X" actions derived from the bucket folder rather than guessed from frontmatter.
+- **Find & Replace**: `Cmd+F` opens find and `Cmd+H` opens find & replace through a
+  mode-aware search bar; both are also reachable from the Edit menu.
+- **Keyboard-shortcuts help**: an in-app shortcuts dialog (open with `?` or
+  Help → Keyboard Shortcuts), driven by a single source of truth, alongside completed
+  native-menu accelerators.
+- **Series titles in Content mode**: series folders now display their title from `index.md`
+  instead of the raw folder name.
+
+### Changed
+- Top-level content buckets (such as `posts/`) are now protected from rename and delete.
+- Identifier inputs (slug, commit message, and WeChat fields) disable auto-capitalize and
+  auto-correct so typed values are not silently mangled.
+- WeChat HTML conversion was rebuilt as a pure-string pipeline backed by markdown-it.
+
+### Fixed
+- WeChat publish-update no longer sends stale content after an auto-save.
+- Resolved the `Cmd+Shift+I` shortcut conflict and dropped a redundant `Cmd+E` binding.
+- `Esc` now reliably closes the keyboard-shortcuts dialog, and its content no longer
+  overlaps the scrollbar.
+- New-content slug now falls back to `untitled` instead of producing an empty name.
+- Single-`index` series and book folders stay collections instead of collapsing into posts.
+- Git rename and copy entries now read the destination path correctly.
+- WeChat security hardening: bounded network timeouts, token-leak prevention in error
+  messages, a credentials-file TOCTOU fix, and symlink-escape protection when resolving the
+  images directory.
+
+### Internal
+- Large architecture pass documented in `CONTEXT.md` and ADRs 0001–0010: a typed Tauri
+  command seam (via ts-rs), a single unified workspace tree with pure sidebar projections,
+  editor- and workspace-session coordinator hooks, an overlay-stack tagged union, a
+  declarative editor command-dispatch table, and module splits of `App.tsx`,
+  `PropertiesPanel`, and the Rust `lib.rs`.
+
 ## 0.13.0 - 2026-05-05
 
 ### Added
