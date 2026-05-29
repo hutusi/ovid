@@ -13,6 +13,7 @@ import { getGitBranchTitle } from "./lib/gitUi";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
 import type { CollectionItem, FileNode } from "./lib/types";
+import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
@@ -35,7 +36,6 @@ import "./styles/global.css";
 import "./App.css";
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
-const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
 
 const SearchPanel = lazy(async () => ({
   default: (await import("./components/SearchPanel")).SearchPanel,
@@ -44,6 +44,7 @@ const SearchPanel = lazy(async () => ({
 function App() {
   const { t } = useTranslation();
   const { resolvedTheme, setPreference } = useTheme();
+  const { prefs: appPrefs } = useAppPreferences();
   const [sidebarVisible, setSidebarVisible] = useState(
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
@@ -346,14 +347,17 @@ function App() {
     }
   }, [workspaceRootPath, workspaceName, pushRecentWorkspace]);
 
-  // Auto-reopen last workspace on launch (once)
+  // Auto-reopen the last workspace + its tabs on launch (once), when the
+  // "restore last session" preference is on. useOpenTabs rehydrates the tab
+  // bar from the workspace's persisted tab list; here we additionally surface
+  // the most-recent file as the active tab.
   const autoReopenAttempted = useRef(false);
   useEffect(() => {
     if (
       autoReopenAttempted.current ||
       workspaceRootPath !== null ||
       recentWorkspaces.length === 0 ||
-      localStorage.getItem(AUTO_REOPEN_KEY) === "true"
+      !appPrefs.restoreLastSession
     )
       return;
     autoReopenAttempted.current = true;
@@ -362,7 +366,7 @@ function App() {
       localStorage
     );
     void openWorkspaceAtPath(recentWorkspaces[0].rootPath);
-  }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath]);
+  }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath, appPrefs.restoreLastSession]);
 
   useEffect(() => {
     const path = pendingAutoOpenPath.current;
