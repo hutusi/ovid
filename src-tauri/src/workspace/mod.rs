@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use ts_rs::TS;
 
-use crate::content_types::parse_cdn_base;
+use crate::content_types::{FeatureBucket, parse_cdn_base};
 
 mod cache;
 pub(crate) mod commands;
@@ -45,6 +45,10 @@ pub(crate) struct WorkspaceResult {
     /// `posts.basePath` from `site.config.ts` (the configurable posts folder
     /// name). `None` falls back to the conventional `posts` folder.
     pub(crate) posts_base_path: Option<String>,
+    /// Content buckets declared in the `features:` block of `site.config.ts`,
+    /// each with an `enabled` flag and localized display names. Empty for
+    /// non-Amytis workspaces or when the block is absent.
+    pub(crate) features: Vec<FeatureBucket>,
 }
 
 /// Compute the asset-serving root and CDN base for a workspace.

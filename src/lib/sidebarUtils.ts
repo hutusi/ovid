@@ -1,3 +1,4 @@
+import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import type { FileNode, GitStatus } from "./types";
 
 export const GIT_PRIORITY: GitStatus[] = ["staged", "modified", "untracked"];
@@ -98,6 +99,55 @@ export function getBucketContentType(
   return BUCKET_CONTENT_TYPE[folderName];
 }
 
+/** Maps a top-level bucket folder name to its `features:` block id (the keys
+ *  Amytis declares: `posts` / `series` / `books` / `flow`). The posts bucket
+ *  follows `posts.basePath`; the flow bucket lives in a `flows/` folder but its
+ *  feature key is singular `flow`. Returns `undefined` for folders Amytis does
+ *  not feature-gate (e.g. `notes`, which has no `features` entry and is always
+ *  shown). */
+function bucketFeatureId(folderName: string, postsBasePath = "posts"): string | undefined {
+  if (folderName === postsBasePath) return "posts";
+  if (folderName === "series") return "series";
+  if (folderName === "books") return "books";
+  if (folderName === "flows") return "flow";
+  return undefined;
+}
+
+/** A top-level bucket is shown unless its `features:` entry is explicitly
+ *  `enabled: false`. Buckets with no feature id (notes) or no matching entry
+ *  default to shown — content mode mirrors the published site, and Files mode
+ *  remains the escape hatch to a disabled folder. */
+function isBucketEnabled(
+  folderName: string,
+  features: FeatureBucket[] | undefined,
+  postsBasePath?: string
+): boolean {
+  if (!features || features.length === 0) return true;
+  const id = bucketFeatureId(folderName, postsBasePath);
+  if (!id) return true;
+  const feature = features.find((f) => f.id === id);
+  return feature ? feature.enabled : true;
+}
+
+/** The display label for a top-level bucket. Prefers the localized name from the
+ *  `features:` block (`features.<id>.name.<locale>`), trying the exact UI locale
+ *  then its language prefix (`zh-CN` → `zh`), and falls back to the raw folder
+ *  name when no feature/name is configured. */
+export function bucketLabel(
+  folderName: string,
+  options: { features?: FeatureBucket[]; postsBasePath?: string; locale?: string }
+): string {
+  const { features, postsBasePath, locale } = options;
+  if (!features || features.length === 0) return folderName;
+  const id = bucketFeatureId(folderName, postsBasePath);
+  if (!id) return folderName;
+  const names = features.find((f) => f.id === id)?.names;
+  if (!names) return folderName;
+  const prefix = locale?.split("-")[0];
+  const localized = (locale && names[locale]) || (prefix && names[prefix]);
+  return localized || folderName;
+}
+
 function nodeRank(node: FileNode): number {
   if (node.isDirectory) return -1; // directories always first
   return CONTENT_TYPE_RANK[node.contentType ?? ""] ?? 5;
@@ -171,27 +221,37 @@ function isCollectionBucket(folderName: string, postsBasePath?: string): boolean
  *  expandable collections even when they contain only an `index`. */
 export function forContentMode(
   tree: FileNode[],
-  options: { workspaceRoot: string; treeRoot: string; postsBasePath?: string }
+  options: {
+    workspaceRoot: string;
+    treeRoot: string;
+    postsBasePath?: string;
+    features?: FeatureBucket[];
+  }
 ): FileNode[] {
   const scoped =
     options.workspaceRoot === options.treeRoot
       ? tree
       : (findChildrenByPath(tree, options.treeRoot) ?? []);
-  const projected = filterContentNodes(scoped).map((bucket) => {
-    if (bucket.isDirectory && isCollectionBucket(bucket.name, options.postsBasePath)) {
-      // Keep each collection entry as a directory; only collapse folder-backed
-      // posts *within* an entry (e.g. a member post stored as `<slug>/index`).
-      return {
-        ...bucket,
-        children: (bucket.children ?? []).map((entry) =>
-          entry.isDirectory
-            ? { ...entry, children: collapseIndexNodes(entry.children ?? []) }
-            : entry
-        ),
-      };
-    }
-    return collapseIndexNodes([bucket])[0];
-  });
+  const projected = filterContentNodes(scoped)
+    .filter(
+      (node) =>
+        !node.isDirectory || isBucketEnabled(node.name, options.features, options.postsBasePath)
+    )
+    .map((bucket) => {
+      if (bucket.isDirectory && isCollectionBucket(bucket.name, options.postsBasePath)) {
+        // Keep each collection entry as a directory; only collapse folder-backed
+        // posts *within* an entry (e.g. a member post stored as `<slug>/index`).
+        return {
+          ...bucket,
+          children: (bucket.children ?? []).map((entry) =>
+            entry.isDirectory
+              ? { ...entry, children: collapseIndexNodes(entry.children ?? []) }
+              : entry
+          ),
+        };
+      }
+      return collapseIndexNodes([bucket])[0];
+    });
   return sortTree(projected);
 }
 

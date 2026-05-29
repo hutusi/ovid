@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import {
+  bucketLabel,
   collapseIndexNodes,
   filterTree,
   findCollectionEntries,
@@ -792,5 +794,99 @@ describe("sortTreeAlpha", () => {
     const nodes = [b, a];
     sortTreeAlpha(nodes);
     expect(nodes.map((n) => n.name)).toEqual(["b.md", "a.md"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// features: bucket visibility & labels
+// ---------------------------------------------------------------------------
+
+function feature(id: string, enabled: boolean, names: Record<string, string> = {}): FeatureBucket {
+  return { id, enabled, names };
+}
+
+function contentTreeWithBuckets(bucketNames: string[]): FileNode[] {
+  const buckets: FileNode[] = bucketNames.map((name) => ({
+    name,
+    path: `/ws/content/${name}`,
+    isDirectory: true,
+    children: [makeFile("a.md", { path: `/ws/content/${name}/a.md` })],
+  }));
+  return [{ name: "content", path: "/ws/content", isDirectory: true, children: buckets }];
+}
+
+describe("forContentMode bucket visibility (features)", () => {
+  const opts = { workspaceRoot: "/ws", treeRoot: "/ws/content" };
+
+  it("hides a bucket whose feature is disabled", () => {
+    const result = forContentMode(contentTreeWithBuckets(["posts", "books"]), {
+      ...opts,
+      features: [feature("posts", true), feature("books", false)],
+    });
+    expect(result.map((n) => n.name)).toEqual(["posts"]);
+  });
+
+  it("keeps notes even though it has no features entry", () => {
+    const result = forContentMode(contentTreeWithBuckets(["notes", "books"]), {
+      ...opts,
+      features: [feature("books", false)],
+    });
+    expect(result.map((n) => n.name)).toContain("notes");
+    expect(result.map((n) => n.name)).not.toContain("books");
+  });
+
+  it("maps the flows folder to the singular flow feature id", () => {
+    const result = forContentMode(contentTreeWithBuckets(["flows"]), {
+      ...opts,
+      features: [feature("flow", false)],
+    });
+    expect(result).toHaveLength(0);
+  });
+
+  it("follows posts.basePath when gating the posts bucket", () => {
+    const result = forContentMode(contentTreeWithBuckets(["articles"]), {
+      ...opts,
+      postsBasePath: "articles",
+      features: [feature("posts", false)],
+    });
+    expect(result).toHaveLength(0);
+  });
+
+  it("shows all buckets when features is empty", () => {
+    const result = forContentMode(contentTreeWithBuckets(["posts", "books"]), {
+      ...opts,
+      features: [],
+    });
+    expect(result.map((n) => n.name).sort()).toEqual(["books", "posts"]);
+  });
+});
+
+describe("bucketLabel", () => {
+  const features = [
+    feature("posts", true, { en: "Articles", zh: "文章" }),
+    feature("series", true, { en: "Series", zh: "系列" }),
+  ];
+
+  it("returns the localized name for the exact UI locale", () => {
+    expect(bucketLabel("posts", { features, locale: "en" })).toBe("Articles");
+  });
+
+  it("falls back to the language prefix (zh-CN -> zh)", () => {
+    expect(bucketLabel("posts", { features, locale: "zh-CN" })).toBe("文章");
+  });
+
+  it("follows posts.basePath to find the posts feature", () => {
+    expect(bucketLabel("articles", { features, postsBasePath: "articles", locale: "en" })).toBe(
+      "Articles"
+    );
+  });
+
+  it("falls back to the folder name when no feature or names configured", () => {
+    expect(bucketLabel("notes", { features, locale: "en" })).toBe("notes");
+    expect(bucketLabel("posts", { features: [], locale: "en" })).toBe("posts");
+  });
+
+  it("falls back to the folder name when the locale has no matching name", () => {
+    expect(bucketLabel("posts", { features, locale: "fr" })).toBe("posts");
   });
 });

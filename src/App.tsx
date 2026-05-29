@@ -99,6 +99,7 @@ function App() {
     cdnBase,
     defaultAuthor,
     postsBasePath,
+    features,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
@@ -145,8 +146,9 @@ function App() {
       workspaceRoot: workspaceRootPath,
       treeRoot: workspaceRoot,
       postsBasePath,
+      features,
     });
-  }, [sidebarMode, tree, workspaceRoot, workspaceRootPath, postsBasePath]);
+  }, [sidebarMode, tree, workspaceRoot, workspaceRootPath, postsBasePath, features]);
 
   // Resolve each collection entry's `items:` to navigable sidebar links.
   const { links: collectionLinks, reload: reloadCollectionLinks } = useCollectionLinks({
@@ -533,6 +535,7 @@ function App() {
             gitStatusMap={gitStatusMap}
             mode={sidebarMode}
             postsBasePath={postsBasePath}
+            features={features}
             collectionLinks={collectionLinks}
             onToggleMode={handleToggleSidebarMode}
             onSelect={handleSidebarSelect}

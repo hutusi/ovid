@@ -14,8 +14,10 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
+import type { FeatureBucket } from "../lib/commands/generated/FeatureBucket";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import {
+  bucketLabel,
   filterTree,
   getBucketContentType,
   getDirIndexEntry,
@@ -52,6 +54,9 @@ interface SidebarProps {
   mode: SidebarMode;
   /** `posts.basePath` from site.config, so the posts bucket follows the config. */
   postsBasePath?: string;
+  /** Content buckets from site.config `features:` — drives bucket visibility
+   *  (handled in the projection) and localized bucket labels. */
+  features?: FeatureBucket[];
   /** Resolved `items:` links per collection entry, keyed by the collection dir path. */
   collectionLinks?: Map<string, CollectionLink[]>;
   onToggleMode: () => void;
@@ -83,6 +88,8 @@ interface FileItemProps {
   bucketType?: string;
   /** `posts.basePath` from site.config — only consulted at depth 0. */
   postsBasePath?: string;
+  /** Content buckets from site.config `features:` — used for localized labels. */
+  features?: FeatureBucket[];
   collectionLinks?: Map<string, CollectionLink[]>;
   onSelect: (node: FileNode) => void;
   onNewFile: (dirPath: string, kind: NewContentKind) => void;
@@ -168,6 +175,7 @@ function FileItem({
   filesMode,
   bucketType,
   postsBasePath,
+  features,
   collectionLinks,
   onSelect,
   onNewFile,
@@ -179,7 +187,7 @@ function FileItem({
   onNewFromExisting,
   onDelete,
 }: FileItemProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const expanded = forceExpand || isExpanded(node, depth);
   const isSelected = node.path === selectedPath;
   const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
@@ -265,7 +273,13 @@ function FileItem({
       ? (node.children ?? []).filter((child) => child.path !== indexEntry.path)
       : (node.children ?? []);
     const collectionItems = isCollection ? (collectionLinks?.get(node.path) ?? []) : null;
-    const dirLabel = indexEntry ? getSidebarDisplayName(indexEntry) : node.name;
+    // Top-level buckets get their localized `features:` name; entry folders keep
+    // the index title; everything else falls back to the raw folder name.
+    const bucketDisplayName =
+      depth === 0 && !filesMode
+        ? bucketLabel(node.name, { features, postsBasePath, locale: i18n.language })
+        : node.name;
+    const dirLabel = indexEntry ? getSidebarDisplayName(indexEntry) : bucketDisplayName;
     const entrySelected = indexEntry?.path === selectedPath;
     const dirRollupDot = dirRollup ? (
       <span
@@ -314,7 +328,7 @@ function FileItem({
               onClick={() => onToggleExpand(node.path, depth)}
             >
               <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
-              {node.name}
+              {dirLabel}
               {dirRollupDot}
             </button>
           )}
@@ -452,6 +466,7 @@ export function Sidebar({
   gitStatusMap,
   mode,
   postsBasePath,
+  features,
   collectionLinks,
   onToggleMode,
   onSelect,
@@ -662,6 +677,7 @@ export function Sidebar({
                 forceExpand={filterQuery.length > 0}
                 filesMode={filesMode}
                 postsBasePath={postsBasePath}
+                features={features}
                 collectionLinks={collectionLinks}
                 onSelect={onSelect}
                 onNewFile={onNewFile}

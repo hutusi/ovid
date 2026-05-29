@@ -1,4 +1,163 @@
+use serde::Serialize;
+use std::collections::BTreeMap;
 use std::path::Path;
+use ts_rs::TS;
+
+// ── Features ─────────────────────────────────────────────────────────────────
+
+/// A content bucket declared in `site.config.ts`'s `features:` block. `id` is the
+/// bucket key (`posts` / `series` / `books` / `flow`); `names` maps a locale code
+/// to the bucket's display name. Amytis has no `features.notes` entry — notes is
+/// an always-on bucket — so the frontend treats a missing bucket as enabled.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/lib/commands/generated/")]
+pub(crate) struct FeatureBucket {
+    pub(crate) id: String,
+    pub(crate) enabled: bool,
+    pub(crate) names: BTreeMap<String, String>,
+}
+
+/// Return the slice after `key:` when `line` contains `key` as a bare property
+/// name at a word boundary. Used to read scalar fields (`enabled:`) and locate
+/// the `name:` sub-object inside a feature bucket.
+fn value_after_key<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut from = 0;
+    while let Some(rel) = line[from..].find(key) {
+        let pos = from + rel;
+        let before_ok = pos == 0 || !is_ident(line.as_bytes()[pos - 1]);
+        let rest = line[pos + key.len()..].trim_start();
+        if before_ok {
+            if let Some(after_colon) = rest.strip_prefix(':') {
+                return Some(after_colon);
+            }
+        }
+        from = pos + key.len();
+    }
+    None
+}
+
+/// Parse a single `<locale>: "name"` pair from a comma-delimited fragment such as
+/// `{ en: "Articles"` or ` zh: "文章" }`. Returns `None` when the fragment is not
+/// a string-valued entry (e.g. `enabled: true` or the `name: {` opener).
+fn extract_locale_pair(part: &str) -> Option<(String, String)> {
+    let part = part.trim().trim_start_matches('{').trim();
+    let colon = part.find(':')?;
+    let key = part[..colon].trim().trim_matches('"').trim_matches('\'');
+    if key.is_empty()
+        || !key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return None;
+    }
+    let value = extract_quoted_string(part[colon + 1..].trim())?;
+    Some((key.to_string(), value))
+}
+
+/// Best-effort scanner: read the `features:` block from `site.config.ts`. Each
+/// top-level key is a content bucket with an `enabled` flag and a localized
+/// `name` object. Returns an empty vec on any parse failure so callers fall back
+/// to the conventional bucket names.
+pub(crate) fn parse_features(config_path: &Path) -> Vec<FeatureBucket> {
+    let Ok(content) = std::fs::read_to_string(config_path) else {
+        return Vec::new();
+    };
+    let mut buckets: Vec<FeatureBucket> = Vec::new();
+    let mut current: Option<FeatureBucket> = None;
+    let mut depth: i32 = 0;
+    let mut found_features = false;
+    let mut features_depth: Option<i32> = None;
+    let mut in_name = false;
+
+    for raw in content.lines() {
+        let trimmed = raw.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') || trimmed.starts_with("/*") {
+            continue;
+        }
+        let opens = raw.chars().filter(|&c| c == '{').count() as i32;
+        let closes = raw.chars().filter(|&c| c == '}').count() as i32;
+
+        match features_depth {
+            None if !found_features => {
+                if value_after_key(trimmed, "features").is_some() {
+                    found_features = true;
+                    depth += opens - closes;
+                    if opens > 0 {
+                        features_depth = Some(depth);
+                    }
+                } else {
+                    depth += opens - closes;
+                }
+            }
+            None => {
+                depth += opens - closes;
+                if opens > 0 {
+                    features_depth = Some(depth);
+                }
+            }
+            Some(fdepth) => {
+                let prev_depth = depth;
+                depth += opens - closes;
+                if depth < fdepth {
+                    if let Some(b) = current.take() {
+                        buckets.push(b);
+                    }
+                    break;
+                }
+                if prev_depth == fdepth && opens > 0 {
+                    // A new bucket key: `posts: {`.
+                    if let Some(b) = current.take() {
+                        buckets.push(b);
+                    }
+                    in_name = false;
+                    if let Some(colon) = trimmed.find(':') {
+                        let key = trimmed[..colon].trim().trim_matches('"').trim_matches('\'');
+                        if !key.is_empty()
+                            && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                        {
+                            current = Some(FeatureBucket {
+                                id: key.to_string(),
+                                enabled: true,
+                                names: BTreeMap::new(),
+                            });
+                        }
+                    }
+                } else if let Some(bucket) = current.as_mut() {
+                    if let Some(rest) = value_after_key(trimmed, "enabled") {
+                        let rest = rest.trim_start();
+                        if rest.starts_with("true") {
+                            bucket.enabled = true;
+                        } else if rest.starts_with("false") {
+                            bucket.enabled = false;
+                        }
+                    }
+                    if let Some(after) = value_after_key(trimmed, "name") {
+                        for part in after.split(',') {
+                            if let Some((k, v)) = extract_locale_pair(part) {
+                                bucket.names.insert(k, v);
+                            }
+                        }
+                        // Track an unbalanced `name: {` that spills onto later lines.
+                        in_name = after.matches('{').count() > after.matches('}').count();
+                    } else if in_name {
+                        if let Some((k, v)) = extract_locale_pair(trimmed) {
+                            bucket.names.insert(k, v);
+                        }
+                        if trimmed.contains('}') {
+                            in_name = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if let Some(b) = current.take() {
+        buckets.push(b);
+    }
+    buckets
+}
 
 /// Extract the first quoted string value from the beginning of `s`.
 pub(crate) fn extract_quoted_string(s: &str) -> Option<String> {
@@ -452,5 +611,86 @@ mod tests {
             "/* This config has no CDN\n  cdnBase: 'https://cdn.example.com'\n*/\nexport const config = {};\n",
         );
         assert_eq!(parse_cdn_base(&path), None);
+    }
+
+    // ── parse_features ───────────────────────────────────────────────────────
+
+    const FEATURES_CONFIG: &str = r#"export const siteConfig = {
+  nav: [{ name: "Posts", url: "/posts" }],
+  features: {
+    posts: {
+      enabled: true,
+      name: { en: "Articles", zh: "文章" },
+    },
+    series: {
+      enabled: true,
+      name: { en: "Series", zh: "系列" },
+    },
+    books: {
+      enabled: false,
+      name: { en: "Books", zh: "书籍" },
+    },
+    flow: {
+      enabled: true,
+      name: { en: "Flow", zh: "随笔" },
+    },
+  },
+  hero: { title: "x" },
+};
+"#;
+
+    #[test]
+    fn parse_features_reads_all_buckets_in_order() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, FEATURES_CONFIG);
+        let buckets = parse_features(&path);
+        let ids: Vec<&str> = buckets.iter().map(|b| b.id.as_str()).collect();
+        assert_eq!(ids, vec!["posts", "series", "books", "flow"]);
+    }
+
+    #[test]
+    fn parse_features_reads_enabled_flag() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, FEATURES_CONFIG);
+        let buckets = parse_features(&path);
+        let books = buckets.iter().find(|b| b.id == "books").unwrap();
+        assert!(!books.enabled);
+        let posts = buckets.iter().find(|b| b.id == "posts").unwrap();
+        assert!(posts.enabled);
+    }
+
+    #[test]
+    fn parse_features_reads_localized_names() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, FEATURES_CONFIG);
+        let buckets = parse_features(&path);
+        let posts = buckets.iter().find(|b| b.id == "posts").unwrap();
+        assert_eq!(posts.names.get("en").map(String::as_str), Some("Articles"));
+        assert_eq!(posts.names.get("zh").map(String::as_str), Some("文章"));
+    }
+
+    #[test]
+    fn parse_features_handles_multiline_name_object() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  features: {\n    posts: {\n      enabled: true,\n      name: {\n        en: \"Articles\",\n        zh: \"文章\",\n      },\n    },\n  },\n};\n",
+        );
+        let buckets = parse_features(&path);
+        let posts = buckets.iter().find(|b| b.id == "posts").unwrap();
+        assert_eq!(posts.names.get("en").map(String::as_str), Some("Articles"));
+        assert_eq!(posts.names.get("zh").map(String::as_str), Some("文章"));
+    }
+
+    #[test]
+    fn parse_features_returns_empty_without_block() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, "export const siteConfig = { posts: { toc: true } };\n");
+        assert!(parse_features(&path).is_empty());
+    }
+
+    #[test]
+    fn parse_features_returns_empty_when_file_missing() {
+        assert!(parse_features(Path::new("/nonexistent/site.config.ts")).is_empty());
     }
 }
