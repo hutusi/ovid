@@ -28,6 +28,7 @@ import {
 import type { FileNode, GitStatus } from "../lib/types";
 import { useSidebarExpansion } from "../lib/useSidebarExpansion";
 import { ContentTypeIcon } from "./ContentTypeIcon";
+import { isReadOnlyContent } from "./FileViewer";
 import "./Sidebar.css";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"]);
@@ -381,7 +382,7 @@ function FileItem({
     );
   }
 
-  if (!isMarkdown && !filesMode) return null;
+  if (!isMarkdown && !isReadOnlyContent(node) && !filesMode) return null;
 
   const ext = (node.extension?.replace(".", "") ?? node.name.split(".").pop() ?? "").toLowerCase();
   const isImage = IMAGE_EXTS.has(ext);

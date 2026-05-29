@@ -634,6 +634,19 @@ describe("forContentMode", () => {
     expect(result.map((n) => n.name)).toEqual(["post.md"]);
   });
 
+  it("keeps .rst files (read-only content) but drops other non-markdown", () => {
+    const rst = makeFile("legacy.rst", { path: "/ws/legacy.rst" });
+    rst.extension = ".rst";
+    const txt = makeFile("notes.txt", { path: "/ws/notes.txt" });
+    txt.extension = ".txt";
+    const post = makeFile("post.md", { path: "/ws/post.md" });
+    const result = forContentMode([rst, txt, post], {
+      workspaceRoot: "/ws",
+      treeRoot: "/ws",
+    });
+    expect(result.map((n) => n.name).sort()).toEqual(["legacy.rst", "post.md"]);
+  });
+
   it("drops directories that have no markdown descendants", () => {
     const png = makeFile("photo.png", { path: "/ws/images/photo.png" });
     const imagesDir: FileNode = {

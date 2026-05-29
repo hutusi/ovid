@@ -174,9 +174,10 @@ export function sortTree(nodes: FileNode[]): FileNode[] {
   });
 }
 
-/** Drop dotfiles, non-markdown files, and directories that have no markdown
- *  descendants after the filter. Used by content mode, which has stricter
- *  visibility rules than files mode. */
+/** Drop dotfiles, non-content files, and directories that have no content
+ *  descendants after the filter. Content mode shows markdown (`.md`/`.mdx`) plus
+ *  reStructuredText (`.rst`), which Amytis also publishes; `.rst` opens
+ *  read-only (see `isReadOnlyContent`). */
 function filterContentNodes(nodes: FileNode[]): FileNode[] {
   return nodes.flatMap((node) => {
     if (node.name.startsWith(".")) return [];
@@ -185,7 +186,7 @@ function filterContentNodes(nodes: FileNode[]): FileNode[] {
       if (children.length === 0) return [];
       return [{ ...node, children }];
     }
-    return /\.mdx?$/i.test(node.name) ? [node] : [];
+    return /\.(mdx?|rst)$/i.test(node.name) ? [node] : [];
   });
 }
 

@@ -11,6 +11,7 @@ const TEXT_EXTS = new Set([
   "txt",
   "md",
   "mdx",
+  "rst",
   "ts",
   "tsx",
   "js",
@@ -68,6 +69,16 @@ export function getFileViewKind(node: FileNode): FileViewKind | null {
   if (IMAGE_EXTS.has(ext)) return "image";
   if (TEXT_EXTS.has(ext)) return "text";
   return null;
+}
+
+/** Content-mode files that are surfaced but not editable in the Tiptap (markdown)
+ *  editor. `.rst` is reStructuredText — Amytis renders it via a Python pipeline,
+ *  so Ovid opens it read-only in the file viewer rather than mangling it. */
+const READ_ONLY_CONTENT_EXTS = new Set(["rst"]);
+
+export function isReadOnlyContent(node: FileNode): boolean {
+  const raw = node.extension?.replace(".", "") ?? node.name.split(".").pop() ?? "";
+  return READ_ONLY_CONTENT_EXTS.has(raw.toLowerCase());
 }
 
 interface FileViewerProps {
