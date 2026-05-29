@@ -354,13 +354,17 @@ function App() {
   // "restore last session" preference is on. useOpenTabs rehydrates the tab
   // bar from the workspace's persisted tab list; here we additionally surface
   // the most-recent file as the active tab.
+  //
+  // The preference is latched at mount: toggling it mid-session must NOT
+  // trigger an auto-reopen, only affect the next launch.
+  const initialRestoreLastSession = useRef(appPrefs.restoreLastSession);
   const autoReopenAttempted = useRef(false);
   useEffect(() => {
     if (
       autoReopenAttempted.current ||
       workspaceRootPath !== null ||
       recentWorkspaces.length === 0 ||
-      !appPrefs.restoreLastSession
+      !initialRestoreLastSession.current
     )
       return;
     autoReopenAttempted.current = true;
@@ -369,7 +373,7 @@ function App() {
       localStorage
     );
     void openWorkspaceAtPath(recentWorkspaces[0].rootPath);
-  }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath, appPrefs.restoreLastSession]);
+  }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath]);
 
   useEffect(() => {
     const path = pendingAutoOpenPath.current;
