@@ -68,7 +68,7 @@ This roadmap is organized into deliberate phases — each phase must feel comple
 > Goal: seamlessly support the full Amytis publish workflow without leaving the app.
 
 24. ✅ **Workspace validation** — on open, detect `site.config.ts`; parse content type schema if available; warn if workspace doesn't look like an Amytis project
-25. ✅ **Content type templates** — if `site.config.ts` defines content types (e.g. `post`, `page`, `note`), offer type selection when creating new files; pre-fill frontmatter fields accordingly
+25. ✅ **Content type scaffolding** — derive content type from the bucket folder and offer bucket-aware *New &lt;Type&gt;* actions that scaffold the Amytis-native folder layout + frontmatter (the original frontmatter-`type:` selector was replaced by folder-derived scaffolding; see ADR 0009). Bucket visibility/labels follow the `features:` block in `site.config.ts`
 26. ✅ **Git status indicators** — show per-file dirty/staged/untracked markers in sidebar; requires `git` on PATH; gracefully no-ops if not a git repo
 27. ✅ **Commit & push** (`Cmd+Shift+G`) — selective commit dialog with changed-file review, auto-filled message (`Update: <title>`), branch name shown, push toggle; runs via Rust `git` subprocess
 28. ✅ **Draft → publish flow** — one-click to toggle `draft: true/false` in properties panel with a clear "Publish" affordance; auto-commits if git integration is active

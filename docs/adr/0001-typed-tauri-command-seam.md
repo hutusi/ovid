@@ -32,7 +32,7 @@ Introduce a typed seam under `src/lib/commands/`. The frontend never imports
 
 - **One namespace per domain.** `commands.git`, `commands.files`,
   `commands.workspace`, `commands.assets`, `commands.search`,
-  `commands.contentTypes`, `commands.wechat`, `commands.menu`, `commands.app`.
+  `commands.wechat`, `commands.menu`, `commands.app`.
 - **`invokeCmd<T>` normalises errors** to `Error` instances so call sites can
   rely on `err.message`. Covered by `invokeCmd.test.ts`.
 - **`listenEvent` hides the async race in `listen()`** and returns a synchronous

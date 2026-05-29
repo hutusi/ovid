@@ -319,9 +319,11 @@ Open the **Aa** popover, enter a target word count, and click **Set**. The statu
 
 On open, Ovid checks for `site.config.ts` + `content/`. If found, it is treated as an Amytis workspace and content type templates are enabled. A warning toast is shown for non-Amytis folders (the app still works normally).
 
-### Content type templates
+### Content types & scaffolding
 
-If `site.config.ts` defines content types (e.g. `post`, `page`, `note`), the **New file** dialog offers a type selector. The chosen type pre-fills the frontmatter fields defined for that type.
+Amytis derives a file's content type from its bucket folder under `content/` (`posts`, `series`, `books`, `flows`, `notes`), not from frontmatter. The sidebar and **New** menu offer bucket-aware actions (e.g. *New Post*, *New Series*) that scaffold the matching folder layout and frontmatter, mirroring Amytis's `new-*` scripts.
+
+The `features:` block in `site.config.ts` controls which buckets appear — a bucket with `enabled: false` is hidden in content mode — and supplies their localized display names. `.rst` files are shown read-only (Ovid edits markdown only), and `<slug>.<locale>` translation variants are grouped under their base file.
 
 ### Git status
 
