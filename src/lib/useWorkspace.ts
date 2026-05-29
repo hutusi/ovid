@@ -1,12 +1,16 @@
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { buildNewContent, type NewContentKind } from "./amytisScaffold";
+import {
+  addItem,
+  type CollectionItem,
+  parseCollectionItems,
+  removeItem,
+  setCollectionItems,
+} from "./collection";
 import { commands } from "./commands";
 import { type FlatFile, flattenTree } from "./fileSearch";
-import {
-  createAmytisFrontmatter,
-  createTodayFlowFrontmatter,
-  createTypedFrontmatter,
-} from "./frontmatter";
+import { createTodayFlowFrontmatter } from "./frontmatter";
 import { measureAsync } from "./perf";
 import { buildPostTargetPath } from "./postPath";
 import { createPostFromExistingContent } from "./postTemplate";
@@ -22,6 +26,7 @@ interface WorkspaceResult {
   isAmytisWorkspace: boolean;
   cdnBase?: string;
   defaultAuthor?: string;
+  postsBasePath?: string;
 }
 
 interface UseWorkspaceOptions {
@@ -78,6 +83,7 @@ export function useWorkspace({
   const [assetRoot, setAssetRoot] = useState<string | undefined>(undefined);
   const [cdnBase, setCdnBase] = useState<string | undefined>(undefined);
   const [defaultAuthor, setDefaultAuthor] = useState<string | undefined>(undefined);
+  const [postsBasePath, setPostsBasePath] = useState<string | undefined>(undefined);
   const refreshIdRef = useRef(0);
 
   // Cmd+P / openFileByPath operate on the markdown-only projection of the
@@ -86,9 +92,13 @@ export function useWorkspace({
   const flatFiles: FlatFile[] = useMemo(() => {
     if (!workspaceRoot || !workspaceRootPath) return [];
     return flattenTree(
-      forContentMode(tree, { workspaceRoot: workspaceRootPath, treeRoot: workspaceRoot })
+      forContentMode(tree, {
+        workspaceRoot: workspaceRootPath,
+        treeRoot: workspaceRoot,
+        postsBasePath,
+      })
     );
-  }, [tree, workspaceRoot, workspaceRootPath]);
+  }, [tree, workspaceRoot, workspaceRootPath, postsBasePath]);
 
   const refreshTree = useCallback(async (): Promise<FileNode[]> => {
     const requestId = ++refreshIdRef.current;
@@ -117,6 +127,7 @@ export function useWorkspace({
       setAssetRoot(result.assetRoot);
       setCdnBase(result.cdnBase ?? undefined);
       setDefaultAuthor(result.defaultAuthor ?? undefined);
+      setPostsBasePath(result.postsBasePath ?? undefined);
       resetFileState();
       if (!result.isAmytisWorkspace) {
         showToast("This folder doesn't look like an Amytis workspace.");
@@ -184,13 +195,35 @@ export function useWorkspace({
     }
   }, [workspaceRoot, refreshTree, onPathCreated, showToast]);
 
-  async function handleNewFile(dirPath: string, filename: string, contentType?: string) {
-    const slug = filename.replace(/\.md$/, "");
-    const filePath = `${dirPath}/${slug}.md`;
-    const content = contentType
-      ? createTypedFrontmatter(slug, contentType)
-      : createAmytisFrontmatter(slug);
+  async function handleNewFile(dirPath: string, title: string, kind: NewContentKind = "generic") {
+    const date = new Date().toISOString().slice(0, 10);
+    const contentRoot = workspaceRoot ?? dirPath;
+    // Posts (and series-member posts) use the workspace's own template file,
+    // mirroring `bun run new`. Falls back to the built-in default if absent.
+    let postTemplate: string | undefined;
+    if ((kind === "post" || kind === "seriesPost") && workspaceRootPath) {
+      try {
+        postTemplate = await commands.files.read({
+          path: `${workspaceRootPath}/templates/default.mdx`,
+        });
+      } catch {
+        // No template file — buildNewContent uses the built-in default.
+      }
+    }
+    const { dirsToCreate, filePath, content } = buildNewContent({
+      kind,
+      title,
+      date,
+      contentRoot,
+      basePath: postsBasePath || "posts",
+      dirPath,
+      postTemplate,
+      defaultAuthor,
+    });
     try {
+      for (const dir of dirsToCreate) {
+        await commands.files.ensureDir({ path: dir });
+      }
       await commands.files.create({ path: filePath, content });
       const updated = await refreshTree();
       const newNode = findNode(updated, filePath);
@@ -290,6 +323,33 @@ export function useWorkspace({
     }
   }
 
+  // Edit a collection index's `items:` list. Flush first so we don't lose
+  // unsaved editor work; the revision poll reloads the editor if the index is
+  // the open file. Read-modify-write the whole file via the collection helpers.
+  async function mutateCollection(
+    indexPath: string,
+    transform: (items: CollectionItem[]) => CollectionItem[]
+  ) {
+    await flushPendingSave();
+    try {
+      const raw = await commands.files.read({ path: indexPath });
+      const next = setCollectionItems(raw, transform(parseCollectionItems(raw)));
+      await commands.files.write({ path: indexPath, content: next });
+      await refreshTree();
+    } catch (err) {
+      console.error("Failed to update collection:", err);
+      showToast(`Failed to update collection: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  function addCollectionItem(indexPath: string, item: CollectionItem) {
+    return mutateCollection(indexPath, (items) => addItem(items, item));
+  }
+
+  function removeCollectionItem(indexPath: string, key: string) {
+    return mutateCollection(indexPath, (items) => removeItem(items, key));
+  }
+
   return {
     tree,
     flatFiles,
@@ -300,6 +360,7 @@ export function useWorkspace({
     assetRoot,
     cdnBase,
     defaultAuthor,
+    postsBasePath,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
@@ -308,6 +369,8 @@ export function useWorkspace({
     handleDuplicate,
     handleNewFromExisting,
     handleDelete,
+    addCollectionItem,
+    removeCollectionItem,
     refreshTree,
   };
 }

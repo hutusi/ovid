@@ -2,9 +2,13 @@ import { describe, expect, it } from "bun:test";
 import {
   collapseIndexNodes,
   filterTree,
+  findCollectionEntries,
   forContentMode,
   forFilesMode,
+  getBucketContentType,
+  getDirIndexEntry,
   getSidebarDisplayName,
+  isCollectionEntry,
   needsPageDivider,
   rollupGitStatus,
   sortNodes,
@@ -439,6 +443,159 @@ describe("getSidebarDisplayName", () => {
 });
 
 // ---------------------------------------------------------------------------
+// getDirIndexEntry
+// ---------------------------------------------------------------------------
+
+describe("getDirIndexEntry", () => {
+  it("returns undefined for a file node", () => {
+    expect(getDirIndexEntry(makeFile("post.md"))).toBeUndefined();
+  });
+
+  it("returns the index.md child of a directory", () => {
+    const index = makeFile("index.md", { path: "/workspace/series/s/index.md" });
+    const part = makeFile("part-1.md", { path: "/workspace/series/s/part-1.md" });
+    const dir = makeDir("s", [part, index]);
+    expect(getDirIndexEntry(dir)).toBe(index);
+  });
+
+  it("matches index.mdx too", () => {
+    const index: FileNode = {
+      name: "index.mdx",
+      path: "/workspace/series/s/index.mdx",
+      isDirectory: false,
+      extension: ".mdx",
+    };
+    const dir = makeDir("s", [index]);
+    expect(getDirIndexEntry(dir)).toBe(index);
+  });
+
+  it("returns undefined for a directory with no index child", () => {
+    const dir = makeDir("flows", [makeFile("2026.md")]);
+    expect(getDirIndexEntry(dir)).toBeUndefined();
+  });
+
+  it("ignores a nested index.md (direct children only)", () => {
+    const nestedIndex = makeFile("index.md", { path: "/workspace/a/b/index.md" });
+    const inner = makeDir("b", [nestedIndex]);
+    const outer = makeDir("a", [inner]);
+    expect(getDirIndexEntry(outer)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isCollectionEntry
+// ---------------------------------------------------------------------------
+
+describe("isCollectionEntry", () => {
+  function indexChild(contentType?: string): FileNode {
+    return {
+      name: "index.mdx",
+      path: "/ws/content/series/x/index.mdx",
+      isDirectory: false,
+      extension: ".mdx",
+      contentType,
+    };
+  }
+
+  it("is true when the index child is typed collection", () => {
+    const dir = makeDir("x", [indexChild("collection")]);
+    expect(isCollectionEntry(dir)).toBe(true);
+  });
+
+  it("is false for a plain series (index has no collection type)", () => {
+    const dir = makeDir("x", [indexChild(undefined), makeFile("part-1.md")]);
+    expect(isCollectionEntry(dir)).toBe(false);
+  });
+
+  it("is false for a file node", () => {
+    expect(isCollectionEntry(makeFile("post.md"))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findCollectionEntries
+// ---------------------------------------------------------------------------
+
+describe("findCollectionEntries", () => {
+  function indexChild(path: string, contentType?: string): FileNode {
+    return { name: "index.mdx", path, isDirectory: false, extension: ".mdx", contentType };
+  }
+
+  it("finds collection entries scoped under the content root", () => {
+    const collection: FileNode = {
+      name: "modern-web-dev",
+      path: "/ws/content/series/modern-web-dev",
+      isDirectory: true,
+      children: [indexChild("/ws/content/series/modern-web-dev/index.mdx", "collection")],
+    };
+    const plainSeries: FileNode = {
+      name: "digital-garden",
+      path: "/ws/content/series/digital-garden",
+      isDirectory: true,
+      children: [
+        indexChild("/ws/content/series/digital-garden/index.mdx", undefined),
+        makeFile("01.md"),
+      ],
+    };
+    const seriesBucket: FileNode = {
+      name: "series",
+      path: "/ws/content/series",
+      isDirectory: true,
+      children: [collection, plainSeries],
+    };
+    const content: FileNode = {
+      name: "content",
+      path: "/ws/content",
+      isDirectory: true,
+      children: [seriesBucket],
+    };
+
+    const result = findCollectionEntries([content], "/ws/content");
+    expect(result).toEqual([
+      {
+        dirPath: "/ws/content/series/modern-web-dev",
+        indexPath: "/ws/content/series/modern-web-dev/index.mdx",
+      },
+    ]);
+  });
+
+  it("returns [] when there are no collections", () => {
+    const dir = makeDir("series", [makeDir("plain", [makeFile("index.md")])]);
+    expect(findCollectionEntries([dir], null)).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getBucketContentType
+// ---------------------------------------------------------------------------
+
+describe("getBucketContentType", () => {
+  it("maps Amytis default bucket folders to content types", () => {
+    expect(getBucketContentType("flows")).toBe("flow");
+    expect(getBucketContentType("notes")).toBe("note");
+    expect(getBucketContentType("posts")).toBe("post");
+    expect(getBucketContentType("series")).toBe("series");
+    expect(getBucketContentType("books")).toBe("book");
+    expect(getBucketContentType("pages")).toBe("page");
+  });
+
+  it("returns undefined for non-bucket folder names", () => {
+    // an individual series/post folder is not itself a bucket
+    expect(getBucketContentType("nextjs-deep-dive")).toBeUndefined();
+    expect(getBucketContentType("assets")).toBeUndefined();
+    expect(getBucketContentType("")).toBeUndefined();
+  });
+
+  it("maps the configured posts basePath to post", () => {
+    expect(getBucketContentType("articles", "articles")).toBe("post");
+    // the conventional `posts` folder still maps even with a custom basePath
+    expect(getBucketContentType("posts", "articles")).toBe("post");
+    // a renamed posts folder is not recognised without the config
+    expect(getBucketContentType("articles")).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // forContentMode / forFilesMode
 // ---------------------------------------------------------------------------
 
@@ -489,6 +646,73 @@ describe("forContentMode", () => {
       treeRoot: "/ws",
     });
     expect(result.map((n) => n.name)).toEqual(["post.md"]);
+  });
+
+  it("keeps a single-index series entry as a directory (not collapsed into a post)", () => {
+    const seriesIndex = makeFile("index.mdx", {
+      path: "/ws/content/series/modern-web-dev/index.mdx",
+    });
+    seriesIndex.extension = ".mdx";
+    const seriesEntry: FileNode = {
+      name: "modern-web-dev",
+      path: "/ws/content/series/modern-web-dev",
+      isDirectory: true,
+      children: [seriesIndex],
+    };
+    const seriesBucket: FileNode = {
+      name: "series",
+      path: "/ws/content/series",
+      isDirectory: true,
+      children: [seriesEntry],
+    };
+    const content: FileNode = {
+      name: "content",
+      path: "/ws/content",
+      isDirectory: true,
+      children: [seriesBucket],
+    };
+    const result = forContentMode([content], {
+      workspaceRoot: "/ws",
+      treeRoot: "/ws/content",
+    });
+    const bucket = result[0];
+    expect(bucket.name).toBe("series");
+    const entry = bucket.children?.[0];
+    // The series entry must remain a directory so it renders as a collection.
+    expect(entry?.isDirectory).toBe(true);
+    expect(entry?.name).toBe("modern-web-dev");
+  });
+
+  it("still collapses a single-index folder-backed post under the posts bucket", () => {
+    const postIndex = makeFile("index.mdx", {
+      path: "/ws/content/posts/my-post/index.mdx",
+    });
+    postIndex.extension = ".mdx";
+    const postEntry: FileNode = {
+      name: "my-post",
+      path: "/ws/content/posts/my-post",
+      isDirectory: true,
+      children: [postIndex],
+    };
+    const postsBucket: FileNode = {
+      name: "posts",
+      path: "/ws/content/posts",
+      isDirectory: true,
+      children: [postEntry],
+    };
+    const content: FileNode = {
+      name: "content",
+      path: "/ws/content",
+      isDirectory: true,
+      children: [postsBucket],
+    };
+    const result = forContentMode([content], {
+      workspaceRoot: "/ws",
+      treeRoot: "/ws/content",
+    });
+    const collapsed = result[0].children?.[0];
+    expect(collapsed?.isDirectory).toBe(false);
+    expect(collapsed?.containerDirPath).toBe("/ws/content/posts/my-post");
   });
 
   it("returns empty when treeRoot points to a non-existent subtree", () => {

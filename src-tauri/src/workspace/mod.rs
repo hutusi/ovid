@@ -42,6 +42,9 @@ pub(crate) struct WorkspaceResult {
     pub(crate) cdn_base: Option<String>,
     /// First entry from `posts.authors.default` in `site.config.ts`, if present.
     pub(crate) default_author: Option<String>,
+    /// `posts.basePath` from `site.config.ts` (the configurable posts folder
+    /// name). `None` falls back to the conventional `posts` folder.
+    pub(crate) posts_base_path: Option<String>,
 }
 
 /// Compute the asset-serving root and CDN base for a workspace.

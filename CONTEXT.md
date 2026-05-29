@@ -42,7 +42,41 @@ contributes:
   has no `author` field.
 - **`cdnBase`** — image source rewrite for in-editor preview (a published image
   on `cdn.example.com/path.jpg` is shown via the CDN URL, not the local file).
-- **Content types** — schema for new-file templates and frontmatter validation.
+- **`postsBasePath`** — the posts bucket folder name (default `posts`), so both
+  content creation and the sidebar follow a renamed posts folder.
+
+---
+
+## Content types, scaffolding & collections
+
+Amytis derives a file's **content type from its folder**, not from frontmatter —
+the buckets directly under `content/` are `posts` (or `postsBasePath`), `series`,
+`books`, `flows`, `notes`. Regular content files carry **no `type:` field**.
+`getBucketContentType` (`sidebarUtils.ts`) maps a bucket folder name to its type;
+the sidebar threads that type down so a nested folder knows its bucket.
+
+**Scaffolding mirrors the Amytis `new-*` scripts.** `src/lib/amytisScaffold.ts`
+(`buildNewContent`) reproduces what `bun run new-*` would create — folder layout,
+`.mdx`/`.md` extension, the date prefix on posts, the per-type frontmatter, and
+the `templates/default.mdx` body for posts. Nothing it writes carries a `type:`
+field. The layer-aware sidebar menu and the native File menu both route through
+it via a `NewContentKind` (`post`, `series`, `note`, `book`, `seriesPost`,
+`chapter`, `page`, `generic`); flows are date-based (`flows/Y/M/D`) and created
+via the today's-flow path.
+
+An **entry folder** is a directory holding an `index.md(x)` — a series or book.
+The sidebar labels it with the index's title, opens the index on click, and
+expands to its members. `forContentMode` deliberately does **not** collapse
+series/book entries into single nodes (only folder-backed posts collapse), so a
+series with just an `index` still renders as an expandable collection.
+
+A **collection** is a series whose `index.mdx` is typed `type: collection` and
+references posts/series **elsewhere** via an `items:` list
+(`{ post: slug }` / `{ series: slug, exclude?, label? }`). Ovid resolves those
+items to navigable **link rows** and offers *Add post or series…* / *Remove from
+collection* (editing `items:`) — see `src/lib/collection.ts`,
+`src/lib/useCollectionLinks.ts`, and `AddToCollectionDialog`. Regular series keep
+their member posts inside the folder.
 
 ---
 
@@ -109,11 +143,19 @@ The sidebar has two modes — **Content** (markdown-only, Amytis-aware) and
 **Files** (everything, alpha-sorted). Both render from the **same canonical
 tree** (`useWorkspace.tree`) via pure selectors in `src/lib/sidebarUtils.ts`:
 
-- **`forContentMode(tree, { workspaceRoot, treeRoot })`** — scope into
-  `content/` (when Amytis), drop dotfiles + non-markdown, prune empty dirs,
+- **`forContentMode(tree, { workspaceRoot, treeRoot, postsBasePath })`** — scope
+  into `content/` (when Amytis), drop dotfiles + non-markdown, prune empty dirs,
   collapse `folder/index.md` into a single node, sort by content-type priority.
+  Series/book **entry folders are kept as directories** (not collapsed) so they
+  render as expandable collections even with only an `index`.
 - **`forFilesMode(tree)`** — alpha-sort, directories first; renders everything
   the Rust walk surfaced.
+
+The content-mode rows are layer-aware (see *Content types, scaffolding &
+collections* above): top-level buckets are protected from rename/delete and
+offer *New &lt;Type&gt;*; an entry folder shows its title + members; a collection
+shows its `items:` as link rows with add/remove. `findCollectionEntries` and
+`isCollectionEntry` (sidebarUtils) drive collection detection.
 
 Noise-dir filtering (`.git`, `node_modules`, `target`, `dist`, `.next`, etc.)
 lives in `walk_tree` (Rust, `src-tauri/src/workspace/tree.rs`) so the projection

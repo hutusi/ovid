@@ -78,7 +78,18 @@
     "mode_content": "Content",
     "mode_files": "Files",
     "toggle_mode_to_files": "Switch to Files view",
-    "toggle_mode_to_content": "Switch to Content view"
+    "toggle_mode_to_content": "Switch to Content view",
+    "toggle_section": "Toggle {{name}}",
+    "new_chapter": "New Chapter",
+    "add_to_collection": "Add post or series…",
+    "remove_from_collection": "Remove from collection",
+    "open": "Open",
+    "collection_missing": "Missing: {{slug}}"
+  },
+  "collection_dialog": {
+    "search_placeholder": "Search posts and series…",
+    "search_label": "Search posts and series",
+    "no_match": "No posts or series found"
   },
   "file_viewer": {
     "close": "Close preview",

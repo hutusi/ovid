@@ -1,5 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect } from "react";
+import type { NewContentKind } from "./amytisScaffold";
 import { listenEvent } from "./commands/internal";
 import { parseFrontmatter } from "./frontmatter";
 import type { FileNode } from "./types";
@@ -8,6 +9,18 @@ import { markdownToWechatHtml } from "./wechatHtml";
 
 // Mirrors the key used in App.tsx for localStorage persistence.
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
+
+// Native "New <type>" menu actions → content kind. The single source of truth
+// for which menu actions open the New-file dialog; add an entry to support a
+// new one (the handler routes via this map, so there's no switch case to keep
+// in sync).
+const MENU_ACTION_TO_KIND: Record<string, NewContentKind> = {
+  "new-post": "post",
+  "new-note": "note",
+  "new-series": "series",
+  "new-book": "book",
+  "new-page": "page",
+};
 
 interface UseMenuActionsOptions {
   overlay: OverlayStack;
@@ -110,24 +123,23 @@ export function useMenuActions({
   useEffect(() => {
     return listenEvent<string>("menu-action", (payload) => {
       const blocked = overlay.isBlocking;
+      // Layer-aware "New <type>" items route through the map before the switch.
+      if (payload in MENU_ACTION_TO_KIND) {
+        if (!blocked && workspaceRoot)
+          overlay.open({
+            kind: "modal",
+            state: {
+              type: "new-file",
+              dirPath: workspaceRoot,
+              kind: MENU_ACTION_TO_KIND[payload],
+            },
+          });
+        return;
+      }
       switch (payload) {
-        case "new-post":
         case "new-flow":
-        case "new-note":
-        case "new-series":
-        case "new-book":
-        case "new-page":
-          if (!blocked && workspaceRoot)
-            overlay.open({
-              kind: "modal",
-              state: {
-                type: "new-file",
-                dirPath: workspaceRoot,
-                contentType: payload.replace("new-", ""),
-              },
-            });
-          break;
         case "today-flow":
+          // Flows are date-based (flows/Y/M/D), so both create today's flow.
           if (!blocked && workspaceRoot) void handleNewTodayFlow();
           break;
         case "open-workspace":

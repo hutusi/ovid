@@ -4,7 +4,7 @@ use std::time::Instant;
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::content_types::parse_default_author;
+use crate::content_types::{parse_default_author, parse_posts_base_path};
 use crate::paths::to_slash;
 use crate::perf::log_perf;
 use crate::state::WorkspaceState;
@@ -123,6 +123,7 @@ fn build_workspace_result(
     let (asset_root, cdn_base) = derive_workspace_meta(root);
     let config_path = root.join("site.config.ts");
     let default_author = parse_default_author(&config_path);
+    let posts_base_path = parse_posts_base_path(&config_path);
 
     // Grant asset protocol access to the entire workspace root so that both
     // root-relative paths (resolved inside public/) and relative paths
@@ -144,6 +145,7 @@ fn build_workspace_result(
         is_amytis_workspace,
         cdn_base,
         default_author,
+        posts_base_path,
     })
 }
 

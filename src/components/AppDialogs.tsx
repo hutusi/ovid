@@ -1,5 +1,7 @@
 import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
+import type { NewContentKind } from "../lib/amytisScaffold";
+import type { CollectionCandidate } from "../lib/collection";
 import type { FlatFile } from "../lib/fileSearch";
 import type { GitSyncPopoverState } from "../lib/gitUi";
 import { isPerfLoggingEnabled } from "../lib/perf";
@@ -8,7 +10,7 @@ import {
   getNewFromExistingNameSuggestion,
   getRenamePathDialogState,
 } from "../lib/postPath";
-import type { ContentType, FileNode, RecentFile, RecentWorkspace } from "../lib/types";
+import type { CollectionItem, FileNode, RecentFile, RecentWorkspace } from "../lib/types";
 import type {
   BranchSwitcherState,
   CommitDialogState,
@@ -18,6 +20,19 @@ import type {
 import type { OverlayStack } from "../lib/useOverlayStack";
 import type { Toast } from "../lib/useToast";
 
+// i18n key for the New dialog heading, per layer-aware content kind.
+const NEW_FILE_TITLE_KEY: Record<NewContentKind, string> = {
+  post: "menu.file_new_post",
+  seriesPost: "menu.file_new_post",
+  series: "menu.file_new_series",
+  note: "menu.file_new_note",
+  book: "menu.file_new_book",
+  chapter: "sidebar.new_chapter",
+  page: "menu.file_new_page",
+  flow: "menu.file_new_flow",
+  generic: "new_file_dialog.title_new_file",
+};
+
 const WorkspaceSwitcher = lazy(async () => ({
   default: (await import("./WorkspaceSwitcher")).WorkspaceSwitcher,
 }));
@@ -26,6 +41,9 @@ const FileSwitcher = lazy(async () => ({
 }));
 const NewFileDialog = lazy(async () => ({
   default: (await import("./NewFileDialog")).NewFileDialog,
+}));
+const AddToCollectionDialog = lazy(async () => ({
+  default: (await import("./AddToCollectionDialog")).AddToCollectionDialog,
 }));
 const CommitDialog = lazy(async () => ({
   default: (await import("./CommitDialog")).CommitDialog,
@@ -100,11 +118,15 @@ export interface AppDialogsProps {
   onWechatSuccess: (mediaId: string, updated: boolean) => void;
 
   // Modal dialogs (new-file, rename, duplicate, new-from-existing)
-  contentTypes: ContentType[];
-  handleNewFile: (dirPath: string, name: string, contentType?: string) => void;
+  handleNewFile: (dirPath: string, title: string, kind: NewContentKind) => void;
   handleDuplicate: (node: FileNode, name: string) => void;
   handleNewFromExisting: (node: FileNode, name: string) => void;
   handleRename: (node: FileNode, name: string) => void;
+  collectionCandidatesFor: (
+    existing: CollectionItem[],
+    selfIndexPath: string
+  ) => CollectionCandidate[];
+  onAddCollectionItem: (indexPath: string, item: CollectionItem) => void;
 
   // FileSwitcher
   flatFiles: FlatFile[];
@@ -171,11 +193,12 @@ export function AppDialogs({
   wechatCoverImagePath,
   wechatMediaId,
   onWechatSuccess,
-  contentTypes,
   handleNewFile,
   handleDuplicate,
   handleNewFromExisting,
   handleRename,
+  collectionCandidatesFor,
+  onAddCollectionItem,
   flatFiles,
   recentFiles,
   openFileByPath,
@@ -297,10 +320,11 @@ export function AppDialogs({
       {modal?.type === "new-file" && (
         <Suspense fallback={null}>
           <NewFileDialog
-            contentTypes={contentTypes}
-            preselectedType={modal.contentType}
-            onConfirm={(name, contentType) => {
-              void handleNewFile(modal.dirPath, name, contentType);
+            contentTypes={[]}
+            showTypeSelector={false}
+            title={t(NEW_FILE_TITLE_KEY[modal.kind])}
+            onConfirm={(name) => {
+              void handleNewFile(modal.dirPath, name, modal.kind);
               closeModal();
             }}
             onCancel={closeModal}
@@ -333,6 +357,18 @@ export function AppDialogs({
             showTypeSelector={false}
             onConfirm={(name) => {
               void handleNewFromExisting(modal.node, name);
+              closeModal();
+            }}
+            onCancel={closeModal}
+          />
+        </Suspense>
+      )}
+      {modal?.type === "add-to-collection" && (
+        <Suspense fallback={null}>
+          <AddToCollectionDialog
+            candidates={collectionCandidatesFor(modal.existing, modal.indexPath)}
+            onConfirm={(item) => {
+              onAddCollectionItem(modal.indexPath, item);
               closeModal();
             }}
             onCancel={closeModal}

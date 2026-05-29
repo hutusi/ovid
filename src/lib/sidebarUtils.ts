@@ -72,6 +72,32 @@ const CONTENT_TYPE_RANK: Record<string, number> = {
   page: 6,
 };
 
+/** Maps a top-level content bucket's folder name to its content type. Amytis
+ *  derives a file's type from its folder (frontmatter has no `type:` field), so
+ *  the bucket directory directly under `content/` is the source of truth.
+ *  These are the Amytis default bucket names. */
+const BUCKET_CONTENT_TYPE: Record<string, string> = {
+  flows: "flow",
+  notes: "note",
+  posts: "post",
+  series: "series",
+  books: "book",
+  pages: "page",
+};
+
+/** Content type for a top-level content bucket folder, or `undefined` when the
+ *  folder isn't a recognised bucket. The posts bucket follows `posts.basePath`
+ *  from site.config (default `posts`). Used to label the layer-aware "New X"
+ *  context-menu action; the sidebar threads it down so nested folders (e.g. an
+ *  individual series) inherit their bucket's type. */
+export function getBucketContentType(
+  folderName: string,
+  postsBasePath = "posts"
+): string | undefined {
+  if (folderName === postsBasePath) return "post";
+  return BUCKET_CONTENT_TYPE[folderName];
+}
+
 function nodeRank(node: FileNode): number {
   if (node.isDirectory) return -1; // directories always first
   return CONTENT_TYPE_RANK[node.contentType ?? ""] ?? 5;
@@ -127,20 +153,46 @@ function findChildrenByPath(nodes: FileNode[], path: string): FileNode[] | undef
   return undefined;
 }
 
+/** True when a top-level bucket holds collection entries (series/books). Their
+ *  direct child folders are collections, not folder-backed posts, so they must
+ *  NOT be collapsed into single file nodes — otherwise a series whose only
+ *  markdown child is `index.mdx` would render (and behave) like a post. */
+function isCollectionBucket(folderName: string, postsBasePath?: string): boolean {
+  const type = getBucketContentType(folderName, postsBasePath);
+  return type === "series" || type === "book";
+}
+
 /** Project the canonical workspace tree into the shape Content mode renders.
  *  For Amytis workspaces (`workspaceRoot !== treeRoot`) the tree is first
  *  scoped into the `content/` subtree; for plain workspaces the canonical tree
  *  is used directly. The result is filtered to markdown only, then collapsed
- *  (folder-backed posts → single node) and sorted by content-type priority. */
+ *  (folder-backed posts → single node) and sorted by content-type priority.
+ *  Series/book entry folders are left as directories so they render as
+ *  expandable collections even when they contain only an `index`. */
 export function forContentMode(
   tree: FileNode[],
-  options: { workspaceRoot: string; treeRoot: string }
+  options: { workspaceRoot: string; treeRoot: string; postsBasePath?: string }
 ): FileNode[] {
   const scoped =
     options.workspaceRoot === options.treeRoot
       ? tree
       : (findChildrenByPath(tree, options.treeRoot) ?? []);
-  return sortTree(collapseIndexNodes(filterContentNodes(scoped)));
+  const projected = filterContentNodes(scoped).map((bucket) => {
+    if (bucket.isDirectory && isCollectionBucket(bucket.name, options.postsBasePath)) {
+      // Keep each collection entry as a directory; only collapse folder-backed
+      // posts *within* an entry (e.g. a member post stored as `<slug>/index`).
+      return {
+        ...bucket,
+        children: (bucket.children ?? []).map((entry) =>
+          entry.isDirectory
+            ? { ...entry, children: collapseIndexNodes(entry.children ?? []) }
+            : entry
+        ),
+      };
+    }
+    return collapseIndexNodes([bucket])[0];
+  });
+  return sortTree(projected);
 }
 
 /** Project the canonical workspace tree into the shape Files mode renders.
@@ -185,4 +237,48 @@ export function getSidebarDisplayName(node: FileNode): string {
   if (!isIndexFile) return baseName;
   const parentFolderName = node.path.split("/").filter(Boolean).slice(-2, -1)[0];
   return parentFolderName ?? baseName;
+}
+
+/** The `index.md(x)` child of a directory, if any. A directory carrying one is
+ *  an "entry folder" — e.g. a series or folder-backed post that wasn't
+ *  collapsed because it also has sibling posts. The sidebar labels such a
+ *  folder with the index's title and opens the index on click. */
+export function getDirIndexEntry(node: FileNode): FileNode | undefined {
+  if (!node.isDirectory) return undefined;
+  return (node.children ?? []).find(isIndexMarkdownFile);
+}
+
+/** True when a directory is an Amytis "collection" — its index file is typed
+ *  `collection`, meaning its members are referenced (via `items:`) rather than
+ *  stored inside the folder. */
+export function isCollectionEntry(node: FileNode): boolean {
+  return getDirIndexEntry(node)?.contentType === "collection";
+}
+
+export interface CollectionEntry {
+  dirPath: string;
+  indexPath: string;
+}
+
+/** Walk a tree for directories that are collection entries (index typed
+ *  `collection`), scoped to the content root. Returns each collection's
+ *  directory path and the path of its index file. */
+export function findCollectionEntries(
+  nodes: FileNode[],
+  contentRoot: string | null
+): CollectionEntry[] {
+  const out: CollectionEntry[] = [];
+  const walk = (list: FileNode[], inScope: boolean) => {
+    for (const node of list) {
+      if (!node.isDirectory) continue;
+      const scoped = inScope || node.path === contentRoot;
+      if (scoped && isCollectionEntry(node)) {
+        const index = getDirIndexEntry(node);
+        if (index) out.push({ dirPath: node.path, indexPath: index.path });
+      }
+      if (node.children) walk(node.children, scoped);
+    }
+  };
+  walk(nodes, contentRoot === null);
+  return out;
 }

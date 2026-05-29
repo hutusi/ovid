@@ -7,12 +7,13 @@ import { getFileViewKind } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { loadLastRecentFilePath } from "./lib/appRestore";
+import { collectionCandidates } from "./lib/collection";
 import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { getPathDisplayLabel } from "./lib/postPath";
-import { forContentMode, forFilesMode } from "./lib/sidebarUtils";
-import type { FileNode } from "./lib/types";
-import { useContentTypes } from "./lib/useContentTypes";
+import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
+import type { CollectionItem, FileNode } from "./lib/types";
+import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
 import { useFilesMode } from "./lib/useFilesMode";
@@ -94,10 +95,10 @@ function App() {
     workspaceName,
     workspaceRoot,
     workspaceRootPath,
-    isAmytisWorkspace,
     assetRoot,
     cdnBase,
     defaultAuthor,
+    postsBasePath,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
@@ -106,6 +107,8 @@ function App() {
     handleDuplicate,
     handleNewFromExisting,
     handleDelete,
+    addCollectionItem,
+    removeCollectionItem,
     refreshTree,
     tabs,
     closeTab,
@@ -141,8 +144,59 @@ function App() {
     return forContentMode(tree, {
       workspaceRoot: workspaceRootPath,
       treeRoot: workspaceRoot,
+      postsBasePath,
     });
-  }, [sidebarMode, tree, workspaceRoot, workspaceRootPath]);
+  }, [sidebarMode, tree, workspaceRoot, workspaceRootPath, postsBasePath]);
+
+  // Resolve each collection entry's `items:` to navigable sidebar links.
+  const { links: collectionLinks, reload: reloadCollectionLinks } = useCollectionLinks({
+    tree,
+    flatFiles,
+    contentRoot: workspaceRoot,
+    postsBasePath,
+  });
+
+  const handleAddToCollection = useCallback(
+    (collectionDir: FileNode) => {
+      const index = getDirIndexEntry(collectionDir);
+      if (!index) return;
+      const existing: CollectionItem[] = (collectionLinks.get(collectionDir.path) ?? []).map(
+        (link) => (link.kind === "series" ? { series: link.slug } : { post: link.slug })
+      );
+      overlay.open({
+        kind: "modal",
+        state: { type: "add-to-collection", indexPath: index.path, existing },
+      });
+    },
+    [collectionLinks, overlay]
+  );
+
+  const handleRemoveFromCollection = useCallback(
+    async (indexPath: string, key: string) => {
+      await removeCollectionItem(indexPath, key);
+      reloadCollectionLinks();
+    },
+    [removeCollectionItem, reloadCollectionLinks]
+  );
+
+  const collectionCandidatesFor = useCallback(
+    (existing: CollectionItem[], selfIndexPath: string) =>
+      collectionCandidates(
+        flatFiles,
+        { contentRoot: workspaceRoot ?? "", postsBasePath },
+        existing,
+        selfIndexPath
+      ),
+    [flatFiles, workspaceRoot, postsBasePath]
+  );
+
+  const handleAddCollectionItem = useCallback(
+    async (indexPath: string, item: CollectionItem) => {
+      await addCollectionItem(indexPath, item);
+      reloadCollectionLinks();
+    },
+    [addCollectionItem, reloadCollectionLinks]
+  );
 
   // openByPath / openFile / closeActive live inside useEditorSession; here we
   // only have to clear the FileViewer (a separate, files-mode UI concern) and
@@ -213,7 +267,6 @@ function App() {
     getRemoteInfo,
   } = useGit(workspaceRoot);
   isGitRepoRef.current = isGitRepo;
-  const contentTypes = useContentTypes(workspaceRoot, isAmytisWorkspace);
   const {
     commitDialog,
     branchSwitcher,
@@ -479,13 +532,18 @@ function App() {
             workspaceName={workspaceName}
             gitStatusMap={gitStatusMap}
             mode={sidebarMode}
+            postsBasePath={postsBasePath}
+            collectionLinks={collectionLinks}
             onToggleMode={handleToggleSidebarMode}
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
-            onNewFile={(dirPath) =>
-              overlay.open({ kind: "modal", state: { type: "new-file", dirPath } })
+            onNewFile={(dirPath, kind) =>
+              overlay.open({ kind: "modal", state: { type: "new-file", dirPath, kind } })
             }
+            onNewTodayFlow={handleNewTodayFlow}
+            onAddToCollection={handleAddToCollection}
+            onRemoveFromCollection={handleRemoveFromCollection}
             onRename={(node) =>
               overlay.open({ kind: "modal", state: { type: "rename-path", node } })
             }
@@ -598,11 +656,12 @@ function App() {
         onWechatSuccess={(mediaId) => {
           void handleFieldChange("wechatMediaId", mediaId);
         }}
-        contentTypes={contentTypes}
         handleNewFile={handleNewFile}
         handleDuplicate={handleDuplicate}
         handleNewFromExisting={handleNewFromExisting}
         handleRename={handleRename}
+        collectionCandidatesFor={collectionCandidatesFor}
+        onAddCollectionItem={handleAddCollectionItem}
         flatFiles={flatFiles}
         recentFiles={recentFiles}
         openFileByPath={openFileByPath}

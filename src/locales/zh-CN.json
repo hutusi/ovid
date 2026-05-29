@@ -78,7 +78,18 @@
     "mode_content": "内容",
     "mode_files": "文件",
     "toggle_mode_to_files": "切换到文件视图",
-    "toggle_mode_to_content": "切换到内容视图"
+    "toggle_mode_to_content": "切换到内容视图",
+    "toggle_section": "展开/折叠 {{name}}",
+    "new_chapter": "新建章节",
+    "add_to_collection": "添加文章或系列…",
+    "remove_from_collection": "从合集移除",
+    "open": "打开",
+    "collection_missing": "缺失：{{slug}}"
+  },
+  "collection_dialog": {
+    "search_placeholder": "搜索文章和系列…",
+    "search_label": "搜索文章和系列",
+    "no_match": "未找到文章或系列"
   },
   "file_viewer": {
     "close": "关闭预览",
