@@ -100,6 +100,7 @@ function App() {
     defaultAuthor,
     postsBasePath,
     features,
+    authors,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
@@ -648,6 +649,7 @@ function App() {
         selectedFile={selectedFile}
         wechatTitle={wechatTitle}
         wechatAuthor={wechatAuthor}
+        authors={authors}
         wechatDigest={wechatDigest}
         wechatHasMath={wechatHasMath}
         wechatImageCount={wechatImageCount}

@@ -4,7 +4,9 @@ use std::time::Instant;
 use tauri::{Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::content_types::{parse_default_author, parse_features, parse_posts_base_path};
+use crate::content_types::{
+    parse_authors, parse_default_author, parse_features, parse_posts_base_path,
+};
 use crate::paths::to_slash;
 use crate::perf::log_perf;
 use crate::state::WorkspaceState;
@@ -125,6 +127,7 @@ fn build_workspace_result(
     let default_author = parse_default_author(&config_path);
     let posts_base_path = parse_posts_base_path(&config_path);
     let features = parse_features(&config_path);
+    let authors = parse_authors(&config_path);
 
     // Grant asset protocol access to the entire workspace root so that both
     // root-relative paths (resolved inside public/) and relative paths
@@ -148,6 +151,7 @@ fn build_workspace_result(
         default_author,
         posts_base_path,
         features,
+        authors,
     })
 }
 

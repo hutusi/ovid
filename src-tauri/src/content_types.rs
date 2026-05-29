@@ -159,6 +159,121 @@ pub(crate) fn parse_features(config_path: &Path) -> Vec<FeatureBucket> {
     buckets
 }
 
+// ── Authors ──────────────────────────────────────────────────────────────────
+
+/// A social link/QR entry under an author profile in `site.config.ts`'s
+/// `authors:` map.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/lib/commands/generated/")]
+pub(crate) struct AuthorSocial {
+    pub(crate) image: String,
+    pub(crate) description: String,
+}
+
+/// An author profile declared in `site.config.ts`'s top-level `authors:` map
+/// (display name → bio / avatar / social). Distinct from `posts.authors`, which
+/// only holds defaults; that block has no quoted-string keys, so it contributes
+/// no entries here.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/lib/commands/generated/")]
+pub(crate) struct Author {
+    pub(crate) name: String,
+    pub(crate) bio: Option<String>,
+    pub(crate) avatar: Option<String>,
+    pub(crate) social: Vec<AuthorSocial>,
+}
+
+/// Read a quoted property-name key (e.g. `"John Hu": {`) from the start of a
+/// line. Bare keys (`default:`) return `None`, which is how author profiles are
+/// told apart from the scalar fields in `posts.authors`.
+fn extract_quoted_key(line: &str) -> Option<String> {
+    let line = line.trim();
+    let first = line.chars().next()?;
+    if first != '"' && first != '\'' {
+        return None;
+    }
+    extract_quoted_string(line)
+}
+
+/// Best-effort scanner: read author profiles from any `authors:` block in
+/// `site.config.ts`. Only entries with a quoted-string key (the author's display
+/// name) mapping to an object are collected, so `posts.authors` (bare keys)
+/// yields nothing. Returns an empty vec on any parse failure.
+pub(crate) fn parse_authors(config_path: &Path) -> Vec<Author> {
+    let Ok(content) = std::fs::read_to_string(config_path) else {
+        return Vec::new();
+    };
+    let mut authors: Vec<Author> = Vec::new();
+    let mut depth: i32 = 0;
+    let mut authors_depth: Option<i32> = None;
+    let mut current: Option<Author> = None;
+
+    for raw in content.lines() {
+        let trimmed = raw.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') || trimmed.starts_with("/*") {
+            continue;
+        }
+        let opens = raw.chars().filter(|&c| c == '{').count() as i32;
+        let closes = raw.chars().filter(|&c| c == '}').count() as i32;
+        let after = depth + opens - closes;
+
+        if let Some(adepth) = authors_depth {
+            if current.is_none() {
+                if depth == adepth && opens > 0 {
+                    if let Some(name) = extract_quoted_key(trimmed) {
+                        current = Some(Author {
+                            name,
+                            bio: None,
+                            avatar: None,
+                            social: Vec::new(),
+                        });
+                    }
+                }
+            } else if let Some(author) = current.as_mut() {
+                if let Some(v) = value_after_key(trimmed, "bio") {
+                    if let Some(s) = extract_quoted_string(v.trim_start()) {
+                        author.bio = Some(s);
+                    }
+                }
+                if let Some(v) = value_after_key(trimmed, "avatar") {
+                    if let Some(s) = extract_quoted_string(v.trim_start()) {
+                        author.avatar = Some(s);
+                    }
+                }
+                if let (Some(img), Some(desc)) =
+                    (value_after_key(trimmed, "image"), value_after_key(trimmed, "description"))
+                {
+                    if let (Some(image), Some(description)) =
+                        (extract_quoted_string(img.trim_start()), extract_quoted_string(desc.trim_start()))
+                    {
+                        author.social.push(AuthorSocial { image, description });
+                    }
+                }
+                // The author object closes when depth returns to the key level.
+                if after <= adepth {
+                    authors.push(current.take().unwrap());
+                }
+            }
+            depth = after;
+            if depth < adepth {
+                authors_depth = None;
+            }
+            continue;
+        }
+
+        if value_after_key(trimmed, "authors").is_some() && opens > closes {
+            authors_depth = Some(depth + 1);
+        }
+        depth = after;
+    }
+    if let Some(a) = current.take() {
+        authors.push(a);
+    }
+    authors
+}
+
 /// Extract the first quoted string value from the beginning of `s`.
 pub(crate) fn extract_quoted_string(s: &str) -> Option<String> {
     let s = s.trim();
@@ -692,5 +807,85 @@ mod tests {
     #[test]
     fn parse_features_returns_empty_when_file_missing() {
         assert!(parse_features(Path::new("/nonexistent/site.config.ts")).is_empty());
+    }
+
+    // ── parse_authors ────────────────────────────────────────────────────────
+
+    const AUTHORS_CONFIG: &str = r#"export const siteConfig = {
+  posts: {
+    authors: {
+      default: ["John Hu"] as string[],
+      showInHeader: true,
+      showAuthorCard: true,
+    },
+  },
+  authors: {
+    "John Hu": {
+      bio: "Coder, Writer, Creator.",
+      avatar: "/images/avatar.jpg",
+      social: [
+        { image: "/images/wechat-qr.jpg", description: "Follow on WeChat" },
+      ],
+    },
+    "Jane Doe": {
+      bio: "Designer.",
+      avatar: "/images/jane.jpg",
+      social: [],
+    },
+  } as Record<string, {
+    bio?: string;
+    avatar?: string;
+    social?: Array<{
+      image: string;
+      description: string;
+    }>;
+  }>,
+};
+"#;
+
+    #[test]
+    fn parse_authors_reads_profiles_skipping_posts_authors_defaults() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, AUTHORS_CONFIG);
+        let authors = parse_authors(&path);
+        let names: Vec<&str> = authors.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, vec!["John Hu", "Jane Doe"]);
+    }
+
+    #[test]
+    fn parse_authors_reads_bio_avatar_and_social() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, AUTHORS_CONFIG);
+        let authors = parse_authors(&path);
+        let john = authors.iter().find(|a| a.name == "John Hu").unwrap();
+        assert_eq!(john.bio.as_deref(), Some("Coder, Writer, Creator."));
+        assert_eq!(john.avatar.as_deref(), Some("/images/avatar.jpg"));
+        assert_eq!(john.social.len(), 1);
+        assert_eq!(john.social[0].image, "/images/wechat-qr.jpg");
+        assert_eq!(john.social[0].description, "Follow on WeChat");
+    }
+
+    #[test]
+    fn parse_authors_handles_empty_social_array() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, AUTHORS_CONFIG);
+        let authors = parse_authors(&path);
+        let jane = authors.iter().find(|a| a.name == "Jane Doe").unwrap();
+        assert_eq!(jane.bio.as_deref(), Some("Designer."));
+        assert!(jane.social.is_empty());
+    }
+
+    #[test]
+    fn parse_authors_does_not_treat_type_annotation_as_authors() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, AUTHORS_CONFIG);
+        // The `} as Record<string, { ... }>` type annotation must not leak in.
+        let authors = parse_authors(&path);
+        assert_eq!(authors.len(), 2);
+    }
+
+    #[test]
+    fn parse_authors_returns_empty_when_file_missing() {
+        assert!(parse_authors(Path::new("/nonexistent/site.config.ts")).is_empty());
     }
 }

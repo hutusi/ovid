@@ -9,6 +9,7 @@ import {
   setCollectionItems,
 } from "./collection";
 import { commands } from "./commands";
+import type { Author } from "./commands/generated/Author";
 import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import { type FlatFile, flattenTree } from "./fileSearch";
 import { createTodayFlowFrontmatter } from "./frontmatter";
@@ -29,6 +30,7 @@ interface WorkspaceResult {
   defaultAuthor?: string;
   postsBasePath?: string;
   features?: FeatureBucket[];
+  authors?: Author[];
 }
 
 interface UseWorkspaceOptions {
@@ -87,6 +89,7 @@ export function useWorkspace({
   const [defaultAuthor, setDefaultAuthor] = useState<string | undefined>(undefined);
   const [postsBasePath, setPostsBasePath] = useState<string | undefined>(undefined);
   const [features, setFeatures] = useState<FeatureBucket[]>([]);
+  const [authors, setAuthors] = useState<Author[]>([]);
   const refreshIdRef = useRef(0);
 
   // Cmd+P / openFileByPath operate on the markdown-only projection of the
@@ -132,6 +135,7 @@ export function useWorkspace({
       setDefaultAuthor(result.defaultAuthor ?? undefined);
       setPostsBasePath(result.postsBasePath ?? undefined);
       setFeatures(result.features ?? []);
+      setAuthors(result.authors ?? []);
       resetFileState();
       if (!result.isAmytisWorkspace) {
         showToast("This folder doesn't look like an Amytis workspace.");
@@ -366,6 +370,7 @@ export function useWorkspace({
     defaultAuthor,
     postsBasePath,
     features,
+    authors,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,

@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use ts_rs::TS;
 
-use crate::content_types::{FeatureBucket, parse_cdn_base};
+use crate::content_types::{Author, FeatureBucket, parse_cdn_base};
 
 mod cache;
 pub(crate) mod commands;
@@ -49,6 +49,9 @@ pub(crate) struct WorkspaceResult {
     /// each with an `enabled` flag and localized display names. Empty for
     /// non-Amytis workspaces or when the block is absent.
     pub(crate) features: Vec<FeatureBucket>,
+    /// Author profiles from the top-level `authors:` map in `site.config.ts`
+    /// (display name → bio / avatar / social). Empty when the block is absent.
+    pub(crate) authors: Vec<Author>,
 }
 
 /// Compute the asset-serving root and CDN base for a workspace.

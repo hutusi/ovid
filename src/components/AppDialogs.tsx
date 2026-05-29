@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionCandidate } from "../lib/collection";
+import type { Author } from "../lib/commands/generated/Author";
 import type { FlatFile } from "../lib/fileSearch";
 import type { GitSyncPopoverState } from "../lib/gitUi";
 import { isPerfLoggingEnabled } from "../lib/perf";
@@ -107,6 +108,7 @@ export interface AppDialogsProps {
   selectedFile: FileNode | null;
   wechatTitle: string;
   wechatAuthor: string;
+  authors: Author[];
   wechatDigest: string;
   wechatHasMath: boolean;
   wechatImageCount: number;
@@ -184,6 +186,7 @@ export function AppDialogs({
   selectedFile,
   wechatTitle,
   wechatAuthor,
+  authors,
   wechatDigest,
   wechatHasMath,
   wechatImageCount,
@@ -279,6 +282,7 @@ export function AppDialogs({
           <WechatPublishDialog
             title={wechatTitle}
             author={wechatAuthor}
+            authors={authors}
             excerpt={wechatDigest}
             hasMath={wechatHasMath}
             imageCount={wechatImageCount}
