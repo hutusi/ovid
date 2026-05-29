@@ -15,6 +15,7 @@ import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUti
 import type { CollectionItem, FileNode } from "./lib/types";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
+import { useContentPreferences } from "./lib/useContentPreferences";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
 import { useFilesMode } from "./lib/useFilesMode";
@@ -43,8 +44,9 @@ const SearchPanel = lazy(async () => ({
 
 function App() {
   const { t } = useTranslation();
-  const { resolvedTheme, setPreference } = useTheme();
-  const { prefs: appPrefs } = useAppPreferences();
+  const { preference: themePreference, resolvedTheme, setPreference } = useTheme();
+  const { prefs: appPrefs, updatePrefs: updateAppPrefs } = useAppPreferences();
+  const { prefs: contentPrefs, updatePrefs: updateContentPrefs } = useContentPreferences();
   const [sidebarVisible, setSidebarVisible] = useState(
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
@@ -125,6 +127,7 @@ function App() {
     showToast,
     flushPendingSave,
     resetFileState,
+    contentPrefs,
     fileEditor: {
       selectedFile,
       selectedPathRef,
@@ -707,6 +710,16 @@ function App() {
         renameBranch={renameBranch}
         deleteBranchDialog={deleteBranchDialog}
         deleteBranch={deleteBranch}
+        themePreference={themePreference}
+        setThemePreference={setPreference}
+        editorPrefs={prefs}
+        updateEditorPrefs={updatePrefs}
+        wordCountGoal={wordCountGoal}
+        setWordCountGoal={setWordCountGoal}
+        contentPrefs={contentPrefs}
+        updateContentPrefs={updateContentPrefs}
+        appPrefs={appPrefs}
+        updateAppPrefs={updateAppPrefs}
       />
     </div>
   );

@@ -19,6 +19,7 @@ import { buildPostTargetPath } from "./postPath";
 import { createPostFromExistingContent } from "./postTemplate";
 import { forContentMode } from "./sidebarUtils";
 import type { FileNode } from "./types";
+import type { ContentPreferences } from "./useContentPreferences";
 
 interface WorkspaceResult {
   name: string;
@@ -39,6 +40,8 @@ interface UseWorkspaceOptions {
   showToast: (msg: string) => void;
   flushPendingSave: () => Promise<void>;
   resetFileState: () => void;
+  /** New-content format/layout choice, threaded into `handleNewFile`'s scaffold call. */
+  contentPrefs?: ContentPreferences;
   /**
    * Called by the workspace lifecycle handlers (`handleNewFile`,
    * `handleNewTodayFlow`, `handleDuplicate`, `handleNewFromExisting`) once a
@@ -77,6 +80,7 @@ export function useWorkspace({
   showToast,
   flushPendingSave,
   resetFileState,
+  contentPrefs,
   onPathCreated,
   onPathRenamed,
   onPathRemoved,
@@ -231,6 +235,8 @@ export function useWorkspace({
       dirPath,
       postTemplate,
       defaultAuthor,
+      format: contentPrefs?.format,
+      layout: contentPrefs?.layout,
     });
     try {
       for (const dir of dirsToCreate) {

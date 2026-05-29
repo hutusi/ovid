@@ -12,6 +12,9 @@ import {
   getRenamePathDialogState,
 } from "../lib/postPath";
 import type { CollectionItem, FileNode, RecentFile, RecentWorkspace } from "../lib/types";
+import type { AppPreferences } from "../lib/useAppPreferences";
+import type { ContentPreferences } from "../lib/useContentPreferences";
+import type { EditorPreferences } from "../lib/useEditorPreferences";
 import type {
   BranchSwitcherState,
   CommitDialogState,
@@ -19,6 +22,7 @@ import type {
   RenameBranchDialogState,
 } from "../lib/useGitUiController";
 import type { OverlayStack } from "../lib/useOverlayStack";
+import type { ThemePreference } from "../lib/useTheme";
 import type { Toast } from "../lib/useToast";
 
 // i18n key for the New dialog heading, per layer-aware content kind.
@@ -78,6 +82,9 @@ const WechatPublishDialog = lazy(async () => ({
 }));
 const ShortcutsHelpDialog = lazy(async () => ({
   default: (await import("./ShortcutsHelpDialog")).ShortcutsHelpDialog,
+}));
+const PreferencesDialog = lazy(async () => ({
+  default: (await import("./PreferencesDialog")).PreferencesDialog,
 }));
 
 export interface AppDialogsProps {
@@ -169,6 +176,18 @@ export interface AppDialogsProps {
   // DeleteBranchDialog
   deleteBranchDialog: DeleteBranchDialogState;
   deleteBranch: (branch: string) => Promise<void>;
+
+  // PreferencesDialog
+  themePreference: ThemePreference;
+  setThemePreference: (p: ThemePreference) => void;
+  editorPrefs: EditorPreferences;
+  updateEditorPrefs: (updates: Partial<EditorPreferences>) => void;
+  wordCountGoal: number | null;
+  setWordCountGoal: (n: number | null) => void;
+  contentPrefs: ContentPreferences;
+  updateContentPrefs: (updates: Partial<ContentPreferences>) => void;
+  appPrefs: AppPreferences;
+  updateAppPrefs: (updates: Partial<AppPreferences>) => void;
 }
 
 export function AppDialogs({
@@ -226,6 +245,16 @@ export function AppDialogs({
   renameBranch,
   deleteBranchDialog,
   deleteBranch,
+  themePreference,
+  setThemePreference,
+  editorPrefs,
+  updateEditorPrefs,
+  wordCountGoal,
+  setWordCountGoal,
+  contentPrefs,
+  updateContentPrefs,
+  appPrefs,
+  updateAppPrefs,
 }: AppDialogsProps) {
   const { t } = useTranslation();
   // Pull the modal state out of the overlay union once per render so the
@@ -275,6 +304,23 @@ export function AppDialogs({
       {overlay.is("shortcutsHelp") && (
         <Suspense fallback={null}>
           <ShortcutsHelpDialog onClose={() => overlay.close("shortcutsHelp")} />
+        </Suspense>
+      )}
+      {overlay.is("preferences") && (
+        <Suspense fallback={null}>
+          <PreferencesDialog
+            themePreference={themePreference}
+            onSetThemePreference={setThemePreference}
+            editorPrefs={editorPrefs}
+            onUpdateEditorPrefs={updateEditorPrefs}
+            wordCountGoal={wordCountGoal}
+            onSetWordCountGoal={setWordCountGoal}
+            contentPrefs={contentPrefs}
+            onUpdateContentPrefs={updateContentPrefs}
+            appPrefs={appPrefs}
+            onUpdateAppPrefs={updateAppPrefs}
+            onClose={() => overlay.close("preferences")}
+          />
         </Suspense>
       )}
       {overlay.is("wechatPublish") && selectedFile && (

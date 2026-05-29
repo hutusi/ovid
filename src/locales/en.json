@@ -1,6 +1,44 @@
 {
   "common": {
-    "close": "Close"
+    "close": "Close",
+    "done": "Done"
+  },
+  "preferences": {
+    "title": "Preferences",
+    "tabs": {
+      "general": "General",
+      "appearance": "Appearance",
+      "editor": "Editor",
+      "language": "Language",
+      "content": "Content"
+    },
+    "general": {
+      "restore_session": "Restore last session on launch",
+      "restore_session_hint": "Reopen the last workspace and its tabs when Ovid starts."
+    },
+    "appearance": {
+      "theme": "Theme",
+      "theme_system": "System",
+      "theme_light": "Light",
+      "theme_dark": "Dark"
+    },
+    "editor": {
+      "font_family": "Font",
+      "font_size": "Font size",
+      "word_count_goal": "Word-count goal",
+      "word_count_goal_hint": "Target words for the writing-progress meter. Leave empty for none."
+    },
+    "language": {
+      "app_language": "Display language"
+    },
+    "content": {
+      "format": "New file format",
+      "format_hint": "Extension for new content. Plain notes and flows always use .md.",
+      "layout": "New file layout",
+      "layout_hint": "Single file, or a folder with index plus a co-located images folder.",
+      "layout_file": "Single file",
+      "layout_folder": "Folder with index"
+    }
   },
   "empty_state": {
     "select_file": "Select a file to start writing",

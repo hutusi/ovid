@@ -1,6 +1,44 @@
 {
   "common": {
-    "close": "关闭"
+    "close": "关闭",
+    "done": "完成"
+  },
+  "preferences": {
+    "title": "偏好设置",
+    "tabs": {
+      "general": "通用",
+      "appearance": "外观",
+      "editor": "编辑器",
+      "language": "语言",
+      "content": "内容"
+    },
+    "general": {
+      "restore_session": "启动时恢复上次会话",
+      "restore_session_hint": "Ovid 启动时重新打开上次的工作区及其标签页。"
+    },
+    "appearance": {
+      "theme": "主题",
+      "theme_system": "跟随系统",
+      "theme_light": "浅色",
+      "theme_dark": "深色"
+    },
+    "editor": {
+      "font_family": "字体",
+      "font_size": "字号",
+      "word_count_goal": "字数目标",
+      "word_count_goal_hint": "写作进度条的目标字数。留空则不设目标。"
+    },
+    "language": {
+      "app_language": "显示语言"
+    },
+    "content": {
+      "format": "新文件格式",
+      "format_hint": "新内容的扩展名。普通笔记和动态始终使用 .md。",
+      "layout": "新文件布局",
+      "layout_hint": "单个文件，或包含 index 与同级 images 文件夹的目录。",
+      "layout_file": "单个文件",
+      "layout_folder": "目录加 index"
+    }
   },
   "empty_state": {
     "select_file": "选择文件，开始写作",
