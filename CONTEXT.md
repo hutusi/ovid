@@ -207,7 +207,7 @@ tagged-union state where the rule "only one overlay can be active at a time"
 is enforced by the type, not by convention. See [ADR 0006](docs/adr/0006-overlay-stack-tagged-union.md)
 for the rationale.
 
-The twelve `Overlay` kinds:
+The `Overlay` kinds:
 
 | Kind | Owner of the *payload* | Blocking? |
 |---|---|---|
@@ -217,6 +217,8 @@ The twelve `Overlay` kinds:
 | `search` | — | yes |
 | `update` | — | yes |
 | `wechatPublish` | — | yes |
+| `shortcutsHelp` | — | yes |
+| `preferences` | — | yes |
 | `commit` | `useGitUiController` | yes |
 | `branchSwitcher` | `useGitUiController` | yes |
 | `newBranch` | — | yes |
@@ -239,6 +241,18 @@ instead of storing a separate `isOpen` boolean.
 - `useKeyboardShortcuts` and `useMenuActions` both take `overlay` and use
   `overlay.isBlocking` for the "should this shortcut fire?" guard. The
   duplicated 11-flag conjunction they each used to do is gone.
+
+**Preferences.** The `preferences` overlay renders `PreferencesDialog` — a
+tabbed (General / Appearance / Editor / Language / Content) view that is a thin
+shell over existing per-domain hooks. It does *not* own persistence: it reads
+and writes through the same `useTheme`, `useEditorPreferences`, `i18n`, and
+`useWordCountGoal` instances App already holds, so the dialog and the quick
+controls (StatusBar theme/language toggles, `FontSettings` popover) stay in
+lockstep. The two genuinely new preferences have their own hooks —
+`useAppPreferences` (`restoreLastSession`, gating the launch auto-reopen) and
+`useContentPreferences` (new-content `format`/`layout`, threaded through
+`useWorkspaceSession` into `buildNewContent`). Opened via `Cmd+,`, the native
+"Settings…" app-menu item, or the StatusBar gear.
 
 ---
 
