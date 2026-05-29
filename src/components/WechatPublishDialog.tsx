@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "../lib/commands";
+import type { Author } from "../lib/commands/generated/Author";
 import type { WechatCredStatus } from "../lib/commands/generated/WechatCredStatus";
+import { resolveImageSrc } from "../lib/imageUtils";
 import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import { markdownToWechatHtml } from "../lib/wechatHtml";
@@ -10,11 +12,17 @@ import "./Modal.css";
 interface Props {
   title: string;
   author: string;
+  /** Author profiles from site.config `authors:` — used to preview the resolved
+   *  author's avatar/bio next to the byline. */
+  authors: Author[];
   excerpt: string;
   hasMath: boolean;
   imageCount: number;
   markdown: string;
   baseDir: string;
+  /** The current post's file path — used to resolve relative author avatars
+   *  (root-relative `/images/…` avatars resolve against `assetRoot`). */
+  filePath: string;
   assetRoot: string | undefined;
   coverImagePath: string | null;
   existingMediaId: string | null;
@@ -27,11 +35,13 @@ type Phase = "loading" | "credentials" | "ready" | "publishing" | "success" | "e
 export function WechatPublishDialog({
   title,
   author,
+  authors,
   excerpt,
   hasMath,
   imageCount,
   markdown,
   baseDir,
+  filePath,
   assetRoot,
   coverImagePath,
   existingMediaId,
@@ -161,6 +171,13 @@ export function WechatPublishDialog({
 
   const isUpdate = !!existingMediaId;
 
+  // Resolve the byline against the site.config authors map for an avatar/bio
+  // preview. Recomputed as the user edits the author field.
+  const authorProfile = authors.find((a) => a.name.trim() === draftAuthor.trim());
+  const avatarSrc = authorProfile?.avatar
+    ? resolveImageSrc(authorProfile.avatar, filePath, assetRoot, undefined)
+    : null;
+
   return (
     <div className="modal-overlay" role="presentation">
       <button
@@ -248,6 +265,14 @@ export function WechatPublishDialog({
               autoComplete="off"
               {...PLAIN_TEXT_INPUT_PROPS}
             />
+            {authorProfile && (avatarSrc || authorProfile.bio) && (
+              <div className="modal-author-card">
+                {avatarSrc && (
+                  <img className="modal-author-avatar" src={avatarSrc} alt={authorProfile.name} />
+                )}
+                {authorProfile.bio && <span className="modal-author-bio">{authorProfile.bio}</span>}
+              </div>
+            )}
             <div className="modal-input-with-counter">
               <input
                 className="modal-input"

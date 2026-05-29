@@ -5,7 +5,7 @@ import { resolveImageSrc } from "../lib/imageUtils";
 import type { FileNode, RecentFile, SaveStatus } from "../lib/types";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { FileViewer } from "./FileViewer";
+import { FileViewer, isReadOnlyContent } from "./FileViewer";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { TabBar } from "./TabBar";
 
@@ -134,6 +134,8 @@ export function EditorPane({
         )}
         {fileViewerNode ? (
           <FileViewer node={fileViewerNode} onClose={onCloseFileViewer} />
+        ) : selectedFile && isReadOnlyContent(selectedFile) ? (
+          <FileViewer node={selectedFile} onClose={() => onCloseTab(selectedFile.path)} />
         ) : selectedFile ? (
           <ErrorBoundary key={selectedFile.path}>
             <Suspense fallback={<div className="editor-loading">{t("editor.loading")}</div>}>
@@ -168,7 +170,7 @@ export function EditorPane({
           />
         )}
       </div>
-      {selectedFile && (
+      {selectedFile && !isReadOnlyContent(selectedFile) && (
         <PropertiesPanel
           frontmatter={parsedFrontmatter}
           visible={propertiesOpen}

@@ -32,6 +32,15 @@ cargo test --manifest-path src-tauri/Cargo.toml     # Rust tests only
 
 Tests are colocated as `*.test.ts` next to the implementation (e.g. `src/lib/frontmatter.test.ts`, `src/lib/tiptap/FindReplace.test.ts`).
 
+## Development Workflow
+
+For a new feature or non-trivial change:
+
+- **Branch.** Work on a dedicated `feat/<topic>` branch off `main`, not directly on `main`.
+- **Commit in focused slices.** One commit per logical slice (e.g. split a dead-code removal from the feature that replaces it). Keep `bun run validate` green at each commit so the branch stays bisectable. Use Conventional Commit messages; no `Co-Authored-By` trailers.
+- **Tests + docs in the same change.** Add/extend tests for new behavior (Rust parsers, pure helpers, sidebar projections), and update docs when behavior or a documented concept changes — **CONTEXT.md** for concepts/seams, an **ADR** for a new decision, plus **README.md** / **ROADMAP.md** for user-facing capability. `bun run validate` fails on generated-type drift and locale-parity, so regenerate (`cargo test`) and keep both locale files in sync.
+- **Open a PR** into `main` when the branch is green. Committing, pushing, and opening PRs are actions the user authorizes — don't push or open a PR unless asked.
+
 ## Architecture
 
 **[CONTEXT.md](CONTEXT.md) is the canonical description of the domain concepts and architectural seams** (Amytis workspace paths, the typed Tauri seam, sidebar projections, the file-lifecycle vocabulary, the overlay model, scaffolding & collections) — read it for the *why*. The decision history lives in `docs/adr/`. This section is just the map; read the source files for file-level detail.

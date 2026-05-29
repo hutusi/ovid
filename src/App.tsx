@@ -99,6 +99,9 @@ function App() {
     cdnBase,
     defaultAuthor,
     postsBasePath,
+    features,
+    authors,
+    i18n: i18nConfig,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
@@ -145,8 +148,20 @@ function App() {
       workspaceRoot: workspaceRootPath,
       treeRoot: workspaceRoot,
       postsBasePath,
+      features,
+      locales: i18nConfig.locales,
+      defaultLocale: i18nConfig.defaultLocale ?? undefined,
     });
-  }, [sidebarMode, tree, workspaceRoot, workspaceRootPath, postsBasePath]);
+  }, [
+    sidebarMode,
+    tree,
+    workspaceRoot,
+    workspaceRootPath,
+    postsBasePath,
+    features,
+    i18nConfig.locales,
+    i18nConfig.defaultLocale,
+  ]);
 
   // Resolve each collection entry's `items:` to navigable sidebar links.
   const { links: collectionLinks, reload: reloadCollectionLinks } = useCollectionLinks({
@@ -533,6 +548,7 @@ function App() {
             gitStatusMap={gitStatusMap}
             mode={sidebarMode}
             postsBasePath={postsBasePath}
+            features={features}
             collectionLinks={collectionLinks}
             onToggleMode={handleToggleSidebarMode}
             onSelect={handleSidebarSelect}
@@ -645,6 +661,7 @@ function App() {
         selectedFile={selectedFile}
         wechatTitle={wechatTitle}
         wechatAuthor={wechatAuthor}
+        authors={authors}
         wechatDigest={wechatDigest}
         wechatHasMath={wechatHasMath}
         wechatImageCount={wechatImageCount}

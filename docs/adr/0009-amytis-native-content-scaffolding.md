@@ -90,8 +90,10 @@ through `handleNewFile` via a `NewContentKind`, so the two surfaces cannot drift
   other buckets would not be recognized (none are configurable in Amytis today).
 - "New Book"/"New Chapter" are extrapolated — Amytis has no `new-book` script
   (books are imported), so their frontmatter is modeled on existing books.
-- `useContentTypes` / `get_content_types` (which parsed `contentTypes` from the
-  config) are no longer consumed by the UI; kept as infra.
+- `useContentTypes` / `get_content_types` (which parsed an obsolete `contentTypes`
+  block) have since been removed — modern Amytis declares its buckets in a
+  `features:` block instead, parsed into `WorkspaceResult.features` for bucket
+  visibility + localized labels.
 
 ## Cross-references
 

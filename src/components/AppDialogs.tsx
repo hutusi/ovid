@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionCandidate } from "../lib/collection";
+import type { Author } from "../lib/commands/generated/Author";
 import type { FlatFile } from "../lib/fileSearch";
 import type { GitSyncPopoverState } from "../lib/gitUi";
 import { isPerfLoggingEnabled } from "../lib/perf";
@@ -107,6 +108,7 @@ export interface AppDialogsProps {
   selectedFile: FileNode | null;
   wechatTitle: string;
   wechatAuthor: string;
+  authors: Author[];
   wechatDigest: string;
   wechatHasMath: boolean;
   wechatImageCount: number;
@@ -184,6 +186,7 @@ export function AppDialogs({
   selectedFile,
   wechatTitle,
   wechatAuthor,
+  authors,
   wechatDigest,
   wechatHasMath,
   wechatImageCount,
@@ -279,11 +282,13 @@ export function AppDialogs({
           <WechatPublishDialog
             title={wechatTitle}
             author={wechatAuthor}
+            authors={authors}
             excerpt={wechatDigest}
             hasMath={wechatHasMath}
             imageCount={wechatImageCount}
             markdown={wechatMarkdown}
             baseDir={wechatBaseDir}
+            filePath={selectedFile.path}
             assetRoot={assetRoot}
             coverImagePath={wechatCoverImagePath}
             existingMediaId={wechatMediaId}
@@ -320,8 +325,6 @@ export function AppDialogs({
       {modal?.type === "new-file" && (
         <Suspense fallback={null}>
           <NewFileDialog
-            contentTypes={[]}
-            showTypeSelector={false}
             title={t(NEW_FILE_TITLE_KEY[modal.kind])}
             onConfirm={(name) => {
               void handleNewFile(modal.dirPath, name, modal.kind);
@@ -334,11 +337,9 @@ export function AppDialogs({
       {modal?.type === "duplicate-file" && (
         <Suspense fallback={null}>
           <NewFileDialog
-            contentTypes={[]}
             initialFilename={getDuplicateNameSuggestion(modal.node)}
             title={t("new_file_dialog.title_make_copy")}
             confirmLabel={t("new_file_dialog.copy")}
-            showTypeSelector={false}
             onConfirm={(name) => {
               void handleDuplicate(modal.node, name);
               closeModal();
@@ -350,11 +351,9 @@ export function AppDialogs({
       {modal?.type === "new-from-existing" && (
         <Suspense fallback={null}>
           <NewFileDialog
-            contentTypes={[]}
             initialFilename={getNewFromExistingNameSuggestion(modal.node)}
             title={t("new_file_dialog.title_new_from_existing")}
             confirmLabel={t("new_file_dialog.create")}
-            showTypeSelector={false}
             onConfirm={(name) => {
               void handleNewFromExisting(modal.node, name);
               closeModal();

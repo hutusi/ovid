@@ -44,6 +44,22 @@ contributes:
   on `cdn.example.com/path.jpg` is shown via the CDN URL, not the local file).
 - **`postsBasePath`** — the posts bucket folder name (default `posts`), so both
   content creation and the sidebar follow a renamed posts folder.
+- **`features`** — the per-bucket `enabled` flag + localized `name` map for
+  `posts`/`series`/`books`/`flow`. Content mode **never hides** a bucket (the
+  editor works on on-disk content regardless of what the site publishes); a
+  bucket whose feature is `enabled: false` is shown but tagged `disabledForSite`
+  so the sidebar dims it and adds a "hidden from site" badge. Buckets are
+  labeled with their localized `name`; `notes` (absent from `features`) falls
+  back to Ovid's own localized label.
+- **`authors`** — the top-level `authors:` map (display name → bio/avatar/social),
+  distinct from `posts.authors` defaults. Surfaced as an avatar/bio preview in
+  the WeChat publish dialog.
+- **`i18n`** — `locales` + `defaultLocale`, used to group `<slug>.<locale>`
+  translation variants under their base file in the sidebar.
+
+The scanners that read these are best-effort, comment-aware, and degrade to
+empty/`None` on any parse failure, so a malformed or partial config never breaks
+workspace open.
 
 ---
 
@@ -143,11 +159,18 @@ The sidebar has two modes — **Content** (markdown-only, Amytis-aware) and
 **Files** (everything, alpha-sorted). Both render from the **same canonical
 tree** (`useWorkspace.tree`) via pure selectors in `src/lib/sidebarUtils.ts`:
 
-- **`forContentMode(tree, { workspaceRoot, treeRoot, postsBasePath })`** — scope
-  into `content/` (when Amytis), drop dotfiles + non-markdown, prune empty dirs,
-  collapse `folder/index.md` into a single node, sort by content-type priority.
-  Series/book **entry folders are kept as directories** (not collapsed) so they
-  render as expandable collections even with only an `index`.
+- **`forContentMode(tree, { workspaceRoot, treeRoot, postsBasePath, features, locales, defaultLocale })`**
+  — scope into `content/` (when Amytis), drop dotfiles + non-content files
+  (markdown `.md`/`.mdx` **and `.rst`** are kept; `.rst` opens read-only — see
+  `isReadOnlyContent`), prune empty dirs, collapse `folder/index.md` into a
+  single node, sort by content-type priority. When `features` is supplied, a
+  disabled bucket is **tagged `disabledForSite`** (shown + marked, never hidden);
+  when `locales` is supplied, `<slug>.<locale>` files are **grouped under their
+  base file** (`node.translations`, each tagged with `node.locale`). Series/book
+  **entry folders are kept as directories** (not collapsed) so they render as
+  expandable collections even with only an `index`. `features`/`locales` are
+  passed only for the **sidebar** projection, not the `flatFiles` (Cmd+P) one, so
+  every bucket and translation stays openable by path.
 - **`forFilesMode(tree)`** — alpha-sort, directories first; renders everything
   the Rust walk surfaced.
 

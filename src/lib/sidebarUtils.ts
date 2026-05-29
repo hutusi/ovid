@@ -1,3 +1,4 @@
+import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import type { FileNode, GitStatus } from "./types";
 
 export const GIT_PRIORITY: GitStatus[] = ["staged", "modified", "untracked"];
@@ -98,6 +99,74 @@ export function getBucketContentType(
   return BUCKET_CONTENT_TYPE[folderName];
 }
 
+/** Maps a top-level bucket folder name to its `features:` block id (the keys
+ *  Amytis declares: `posts` / `series` / `books` / `flow`). The posts bucket
+ *  follows `posts.basePath`; the flow bucket lives in a `flows/` folder but its
+ *  feature key is singular `flow`. Returns `undefined` for folders Amytis does
+ *  not feature-gate (e.g. `notes`, which has no `features` entry and is always
+ *  shown). */
+function bucketFeatureId(folderName: string, postsBasePath = "posts"): string | undefined {
+  if (folderName === postsBasePath) return "posts";
+  if (folderName === "series") return "series";
+  if (folderName === "books") return "books";
+  if (folderName === "flows") return "flow";
+  return undefined;
+}
+
+/** Whether a top-level bucket is enabled on the published site. `false` only when
+ *  its `features:` entry is explicitly `enabled: false`. Buckets with no feature
+ *  id (notes) or no matching entry default to enabled. Ovid never hides a
+ *  disabled bucket — it stays editable and is merely flagged (`disabledForSite`)
+ *  so the sidebar can mark it "hidden from site". */
+function isBucketEnabled(
+  folderName: string,
+  features: FeatureBucket[] | undefined,
+  postsBasePath?: string
+): boolean {
+  if (!features || features.length === 0) return true;
+  const id = bucketFeatureId(folderName, postsBasePath);
+  if (!id) return true;
+  const feature = features.find((f) => f.id === id);
+  return feature ? feature.enabled : true;
+}
+
+type Translate = (key: string, vars?: Record<string, unknown>) => string;
+
+/** The display label for a top-level bucket, resolved in order:
+ *  1. the localized name from the `features:` block (`features.<id>.name.<locale>`),
+ *     trying the exact UI locale then its language prefix (`zh-CN` → `zh`);
+ *  2. Ovid's own localized label for the recognized bucket type
+ *     (`sidebar.bucket.<type>`) — covers `notes`, which Amytis omits from
+ *     `features`, and any bucket whose config name is missing for the active locale;
+ *  3. the raw folder name. */
+export function bucketLabel(
+  folderName: string,
+  options: {
+    features?: FeatureBucket[];
+    postsBasePath?: string;
+    locale?: string;
+    translate?: Translate;
+  }
+): string {
+  const { features, postsBasePath, locale, translate } = options;
+  const id = bucketFeatureId(folderName, postsBasePath);
+  if (features && features.length > 0 && id) {
+    const names = features.find((f) => f.id === id)?.names;
+    if (names) {
+      const prefix = locale?.split("-")[0];
+      const localized = (locale && names[locale]) || (prefix && names[prefix]);
+      if (localized) return localized;
+    }
+  }
+  const type = getBucketContentType(folderName, postsBasePath);
+  if (type && translate) {
+    const key = `sidebar.bucket.${type}`;
+    const label = translate(key);
+    if (label && label !== key) return label;
+  }
+  return folderName;
+}
+
 function nodeRank(node: FileNode): number {
   if (node.isDirectory) return -1; // directories always first
   return CONTENT_TYPE_RANK[node.contentType ?? ""] ?? 5;
@@ -124,9 +193,10 @@ export function sortTree(nodes: FileNode[]): FileNode[] {
   });
 }
 
-/** Drop dotfiles, non-markdown files, and directories that have no markdown
- *  descendants after the filter. Used by content mode, which has stricter
- *  visibility rules than files mode. */
+/** Drop dotfiles, non-content files, and directories that have no content
+ *  descendants after the filter. Content mode shows markdown (`.md`/`.mdx`) plus
+ *  reStructuredText (`.rst`), which Amytis also publishes; `.rst` opens
+ *  read-only (see `isReadOnlyContent`). */
 function filterContentNodes(nodes: FileNode[]): FileNode[] {
   return nodes.flatMap((node) => {
     if (node.name.startsWith(".")) return [];
@@ -135,7 +205,7 @@ function filterContentNodes(nodes: FileNode[]): FileNode[] {
       if (children.length === 0) return [];
       return [{ ...node, children }];
     }
-    return /\.mdx?$/i.test(node.name) ? [node] : [];
+    return /\.(mdx?|rst)$/i.test(node.name) ? [node] : [];
   });
 }
 
@@ -162,6 +232,74 @@ function isCollectionBucket(folderName: string, postsBasePath?: string): boolean
   return type === "series" || type === "book";
 }
 
+/** Parse a localized filename `<base>.<locale>.<ext>` (Amytis translation
+ *  convention). Returns the base filename (`<base>.<ext>`) and the locale, but
+ *  only when the trailing stem segment is one of the configured `locales` — so
+ *  a CJK-titled or dotted filename without a real locale suffix is left alone. */
+function parseLocaleVariant(
+  name: string,
+  locales: string[]
+): { base: string; locale: string } | null {
+  const extMatch = name.match(/\.(mdx?|rst)$/i);
+  if (!extMatch) return null;
+  const ext = extMatch[0];
+  const stem = name.slice(0, -ext.length);
+  const dot = stem.lastIndexOf(".");
+  if (dot < 0) return null;
+  const locale = stem.slice(dot + 1);
+  if (!locales.includes(locale)) return null;
+  return { base: stem.slice(0, dot) + ext, locale };
+}
+
+/** Group `<slug>.<locale>` translation files under their base `<slug>` file
+ *  among a single directory level's siblings. A variant is only folded in when
+ *  its locale is non-default and the base file exists; otherwise it stays a
+ *  standalone row. The base node gains a `translations` array; each variant is
+ *  tagged with its `locale` for the sidebar badge. */
+function groupTranslations(
+  nodes: FileNode[],
+  locales: string[],
+  defaultLocale?: string
+): FileNode[] {
+  if (locales.length === 0) return nodes;
+  const baseNames = new Set(nodes.filter((n) => !n.isDirectory).map((n) => n.name));
+  const translationsByBase = new Map<string, FileNode[]>();
+  const consumed = new Set<string>();
+
+  for (const node of nodes) {
+    if (node.isDirectory) continue;
+    const variant = parseLocaleVariant(node.name, locales);
+    if (!variant || variant.locale === defaultLocale || !baseNames.has(variant.base)) continue;
+    const list = translationsByBase.get(variant.base) ?? [];
+    list.push({ ...node, locale: variant.locale });
+    translationsByBase.set(variant.base, list);
+    consumed.add(node.name);
+  }
+  if (consumed.size === 0) return nodes;
+
+  return nodes
+    .filter((node) => !consumed.has(node.name))
+    .map((node) => {
+      const translations = translationsByBase.get(node.name);
+      if (!translations) return node;
+      translations.sort((a, b) => (a.locale ?? "").localeCompare(b.locale ?? ""));
+      return { ...node, translations };
+    });
+}
+
+/** Apply `groupTranslations` at every directory level of a projected tree. */
+function groupTranslationsDeep(
+  nodes: FileNode[],
+  locales: string[],
+  defaultLocale?: string
+): FileNode[] {
+  return groupTranslations(nodes, locales, defaultLocale).map((node) =>
+    node.isDirectory
+      ? { ...node, children: groupTranslationsDeep(node.children ?? [], locales, defaultLocale) }
+      : node
+  );
+}
+
 /** Project the canonical workspace tree into the shape Content mode renders.
  *  For Amytis workspaces (`workspaceRoot !== treeRoot`) the tree is first
  *  scoped into the `content/` subtree; for plain workspaces the canonical tree
@@ -171,13 +309,27 @@ function isCollectionBucket(folderName: string, postsBasePath?: string): boolean
  *  expandable collections even when they contain only an `index`. */
 export function forContentMode(
   tree: FileNode[],
-  options: { workspaceRoot: string; treeRoot: string; postsBasePath?: string }
+  options: {
+    workspaceRoot: string;
+    treeRoot: string;
+    postsBasePath?: string;
+    features?: FeatureBucket[];
+    locales?: string[];
+    defaultLocale?: string;
+  }
 ): FileNode[] {
   const scoped =
     options.workspaceRoot === options.treeRoot
       ? tree
       : (findChildrenByPath(tree, options.treeRoot) ?? []);
-  const projected = filterContentNodes(scoped).map((bucket) => {
+  const projected = filterContentNodes(scoped).map((raw) => {
+    // A bucket disabled in `features` is kept (the editor edits on-disk
+    // content regardless of what the published site renders) but tagged so
+    // the sidebar can mark it "hidden from site".
+    const bucket =
+      raw.isDirectory && !isBucketEnabled(raw.name, options.features, options.postsBasePath)
+        ? { ...raw, disabledForSite: true }
+        : raw;
     if (bucket.isDirectory && isCollectionBucket(bucket.name, options.postsBasePath)) {
       // Keep each collection entry as a directory; only collapse folder-backed
       // posts *within* an entry (e.g. a member post stored as `<slug>/index`).
@@ -192,7 +344,10 @@ export function forContentMode(
     }
     return collapseIndexNodes([bucket])[0];
   });
-  return sortTree(projected);
+  const sorted = sortTree(projected);
+  return options.locales && options.locales.length > 0
+    ? groupTranslationsDeep(sorted, options.locales, options.defaultLocale)
+    : sorted;
 }
 
 /** Project the canonical workspace tree into the shape Files mode renders.

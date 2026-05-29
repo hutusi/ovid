@@ -60,6 +60,16 @@
     "clear": "Clear"
   },
   "sidebar": {
+    "bucket": {
+      "post": "Posts",
+      "note": "Notes",
+      "series": "Series",
+      "book": "Books",
+      "flow": "Flow",
+      "page": "Pages"
+    },
+    "hidden_badge": "hidden",
+    "hidden_from_site": "Hidden from the published site",
     "new_file_here": "New file here",
     "rename": "Rename",
     "delete": "Delete",
@@ -109,10 +119,8 @@
   },
   "new_file_dialog": {
     "title_new_file": "New file",
-    "title_new_type": "New {{type}}",
     "file_name_label": "File name",
     "file_name_placeholder": "File name",
-    "type_label": "Type",
     "cancel": "Cancel",
     "create": "Create",
     "copy": "Copy",

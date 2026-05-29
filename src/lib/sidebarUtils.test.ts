@@ -1,5 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import {
+  bucketLabel,
   collapseIndexNodes,
   filterTree,
   findCollectionEntries,
@@ -632,6 +634,19 @@ describe("forContentMode", () => {
     expect(result.map((n) => n.name)).toEqual(["post.md"]);
   });
 
+  it("keeps .rst files (read-only content) but drops other non-markdown", () => {
+    const rst = makeFile("legacy.rst", { path: "/ws/legacy.rst" });
+    rst.extension = ".rst";
+    const txt = makeFile("notes.txt", { path: "/ws/notes.txt" });
+    txt.extension = ".txt";
+    const post = makeFile("post.md", { path: "/ws/post.md" });
+    const result = forContentMode([rst, txt, post], {
+      workspaceRoot: "/ws",
+      treeRoot: "/ws",
+    });
+    expect(result.map((n) => n.name).sort()).toEqual(["legacy.rst", "post.md"]);
+  });
+
   it("drops directories that have no markdown descendants", () => {
     const png = makeFile("photo.png", { path: "/ws/images/photo.png" });
     const imagesDir: FileNode = {
@@ -792,5 +807,168 @@ describe("sortTreeAlpha", () => {
     const nodes = [b, a];
     sortTreeAlpha(nodes);
     expect(nodes.map((n) => n.name)).toEqual(["b.md", "a.md"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// features: bucket visibility & labels
+// ---------------------------------------------------------------------------
+
+function feature(id: string, enabled: boolean, names: Record<string, string> = {}): FeatureBucket {
+  return { id, enabled, names };
+}
+
+function contentTreeWithBuckets(bucketNames: string[]): FileNode[] {
+  const buckets: FileNode[] = bucketNames.map((name) => ({
+    name,
+    path: `/ws/content/${name}`,
+    isDirectory: true,
+    children: [makeFile("a.md", { path: `/ws/content/${name}/a.md` })],
+  }));
+  return [{ name: "content", path: "/ws/content", isDirectory: true, children: buckets }];
+}
+
+describe("forContentMode disabled-bucket marking (features)", () => {
+  const opts = { workspaceRoot: "/ws", treeRoot: "/ws/content" };
+  const find = (nodes: FileNode[], name: string) => nodes.find((n) => n.name === name);
+
+  it("keeps a disabled bucket but tags it disabledForSite", () => {
+    const result = forContentMode(contentTreeWithBuckets(["posts", "books"]), {
+      ...opts,
+      features: [feature("posts", true), feature("books", false)],
+    });
+    expect(result.map((n) => n.name).sort()).toEqual(["books", "posts"]);
+    expect(find(result, "books")?.disabledForSite).toBe(true);
+    expect(find(result, "posts")?.disabledForSite).toBeUndefined();
+  });
+
+  it("does not tag notes (no features entry)", () => {
+    const result = forContentMode(contentTreeWithBuckets(["notes", "books"]), {
+      ...opts,
+      features: [feature("books", false)],
+    });
+    expect(find(result, "notes")?.disabledForSite).toBeUndefined();
+    expect(find(result, "books")?.disabledForSite).toBe(true);
+  });
+
+  it("maps the flows folder to the singular flow feature id", () => {
+    const result = forContentMode(contentTreeWithBuckets(["flows"]), {
+      ...opts,
+      features: [feature("flow", false)],
+    });
+    expect(find(result, "flows")?.disabledForSite).toBe(true);
+  });
+
+  it("follows posts.basePath when resolving the posts feature", () => {
+    const result = forContentMode(contentTreeWithBuckets(["articles"]), {
+      ...opts,
+      postsBasePath: "articles",
+      features: [feature("posts", false)],
+    });
+    expect(find(result, "articles")?.disabledForSite).toBe(true);
+  });
+
+  it("tags nothing when features is empty", () => {
+    const result = forContentMode(contentTreeWithBuckets(["posts", "books"]), {
+      ...opts,
+      features: [],
+    });
+    expect(result.every((n) => !n.disabledForSite)).toBe(true);
+  });
+});
+
+describe("bucketLabel", () => {
+  const features = [
+    feature("posts", true, { en: "Articles", zh: "文章" }),
+    feature("series", true, { en: "Series", zh: "系列" }),
+  ];
+
+  it("returns the localized name for the exact UI locale", () => {
+    expect(bucketLabel("posts", { features, locale: "en" })).toBe("Articles");
+  });
+
+  it("falls back to the language prefix (zh-CN -> zh)", () => {
+    expect(bucketLabel("posts", { features, locale: "zh-CN" })).toBe("文章");
+  });
+
+  it("follows posts.basePath to find the posts feature", () => {
+    expect(bucketLabel("articles", { features, postsBasePath: "articles", locale: "en" })).toBe(
+      "Articles"
+    );
+  });
+
+  it("falls back to the folder name when no feature or names configured", () => {
+    expect(bucketLabel("notes", { features, locale: "en" })).toBe("notes");
+    expect(bucketLabel("posts", { features: [], locale: "en" })).toBe("posts");
+  });
+
+  it("falls back to the folder name when the locale has no matching name", () => {
+    expect(bucketLabel("posts", { features, locale: "fr" })).toBe("posts");
+  });
+
+  it("uses Ovid's localized label for notes (which has no features entry)", () => {
+    const translate = (key: string) => (key === "sidebar.bucket.note" ? "笔记" : key);
+    expect(bucketLabel("notes", { features, locale: "zh-CN", translate })).toBe("笔记");
+  });
+
+  it("prefers the features config name over the Ovid fallback", () => {
+    const translate = (key: string) => (key === "sidebar.bucket.post" ? "Posts" : key);
+    expect(bucketLabel("posts", { features, locale: "en", translate })).toBe("Articles");
+  });
+
+  it("falls back to the folder name when translate has no matching key", () => {
+    const translate = (key: string) => key; // i18next returns the key when missing
+    expect(bucketLabel("notes", { features, locale: "en", translate })).toBe("notes");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// i18n translation grouping (forContentMode with locales)
+// ---------------------------------------------------------------------------
+
+describe("forContentMode translation grouping", () => {
+  const opts = {
+    workspaceRoot: "/ws",
+    treeRoot: "/ws",
+    locales: ["en", "zh"],
+    defaultLocale: "en",
+  };
+
+  function page(name: string): FileNode {
+    const node = makeFile(name, { path: `/ws/${name}` });
+    node.extension = name.endsWith(".mdx") ? ".mdx" : ".md";
+    return node;
+  }
+
+  it("groups a <slug>.<locale> variant under its base file", () => {
+    const result = forContentMode([page("about.mdx"), page("about.zh.mdx")], opts);
+    expect(result.map((n) => n.name)).toEqual(["about.mdx"]);
+    expect(result[0].translations?.map((t) => t.name)).toEqual(["about.zh.mdx"]);
+    expect(result[0].translations?.[0].locale).toBe("zh");
+  });
+
+  it("leaves a variant standalone when its base file is absent", () => {
+    const result = forContentMode([page("solo.zh.mdx")], opts);
+    expect(result.map((n) => n.name)).toEqual(["solo.zh.mdx"]);
+    expect(result[0].translations).toBeUndefined();
+  });
+
+  it("does not group a dotless/CJK-titled file without a locale suffix", () => {
+    const result = forContentMode([page("中文长标题.mdx"), page("post.mdx")], opts);
+    expect(result.map((n) => n.name).sort()).toEqual(["post.mdx", "中文长标题.mdx"]);
+  });
+
+  it("does not group the default-locale variant", () => {
+    const result = forContentMode([page("about.mdx"), page("about.en.mdx")], opts);
+    expect(result.map((n) => n.name).sort()).toEqual(["about.en.mdx", "about.mdx"]);
+    expect(result.find((n) => n.name === "about.mdx")?.translations).toBeUndefined();
+  });
+
+  it("does not group when no locales are configured", () => {
+    const result = forContentMode([page("about.mdx"), page("about.zh.mdx")], {
+      workspaceRoot: "/ws",
+      treeRoot: "/ws",
+    });
+    expect(result.map((n) => n.name).sort()).toEqual(["about.mdx", "about.zh.mdx"]);
   });
 });

@@ -14,8 +14,10 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
+import type { FeatureBucket } from "../lib/commands/generated/FeatureBucket";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import {
+  bucketLabel,
   filterTree,
   getBucketContentType,
   getDirIndexEntry,
@@ -26,6 +28,7 @@ import {
 import type { FileNode, GitStatus } from "../lib/types";
 import { useSidebarExpansion } from "../lib/useSidebarExpansion";
 import { ContentTypeIcon } from "./ContentTypeIcon";
+import { isReadOnlyContent } from "./FileViewer";
 import "./Sidebar.css";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"]);
@@ -52,6 +55,9 @@ interface SidebarProps {
   mode: SidebarMode;
   /** `posts.basePath` from site.config, so the posts bucket follows the config. */
   postsBasePath?: string;
+  /** Content buckets from site.config `features:` — drives bucket visibility
+   *  (handled in the projection) and localized bucket labels. */
+  features?: FeatureBucket[];
   /** Resolved `items:` links per collection entry, keyed by the collection dir path. */
   collectionLinks?: Map<string, CollectionLink[]>;
   onToggleMode: () => void;
@@ -83,6 +89,8 @@ interface FileItemProps {
   bucketType?: string;
   /** `posts.basePath` from site.config — only consulted at depth 0. */
   postsBasePath?: string;
+  /** Content buckets from site.config `features:` — used for localized labels. */
+  features?: FeatureBucket[];
   collectionLinks?: Map<string, CollectionLink[]>;
   onSelect: (node: FileNode) => void;
   onNewFile: (dirPath: string, kind: NewContentKind) => void;
@@ -168,6 +176,7 @@ function FileItem({
   filesMode,
   bucketType,
   postsBasePath,
+  features,
   collectionLinks,
   onSelect,
   onNewFile,
@@ -179,7 +188,7 @@ function FileItem({
   onNewFromExisting,
   onDelete,
 }: FileItemProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const expanded = forceExpand || isExpanded(node, depth);
   const isSelected = node.path === selectedPath;
   const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
@@ -265,7 +274,13 @@ function FileItem({
       ? (node.children ?? []).filter((child) => child.path !== indexEntry.path)
       : (node.children ?? []);
     const collectionItems = isCollection ? (collectionLinks?.get(node.path) ?? []) : null;
-    const dirLabel = indexEntry ? getSidebarDisplayName(indexEntry) : node.name;
+    // Top-level buckets get their localized `features:` name; entry folders keep
+    // the index title; everything else falls back to the raw folder name.
+    const bucketDisplayName =
+      depth === 0 && !filesMode
+        ? bucketLabel(node.name, { features, postsBasePath, locale: i18n.language, translate: t })
+        : node.name;
+    const dirLabel = indexEntry ? getSidebarDisplayName(indexEntry) : bucketDisplayName;
     const entrySelected = indexEntry?.path === selectedPath;
     const dirRollupDot = dirRollup ? (
       <span
@@ -309,12 +324,17 @@ function FileItem({
           ) : (
             <button
               type="button"
-              className="sidebar-dir"
+              className={`sidebar-dir${node.disabledForSite ? " disabled-for-site" : ""}`}
               aria-expanded={expanded}
               onClick={() => onToggleExpand(node.path, depth)}
             >
               <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
-              {node.name}
+              {dirLabel}
+              {node.disabledForSite && (
+                <span className="sidebar-bucket-badge" title={t("sidebar.hidden_from_site")}>
+                  {t("sidebar.hidden_badge")}
+                </span>
+              )}
               {dirRollupDot}
             </button>
           )}
@@ -367,7 +387,7 @@ function FileItem({
     );
   }
 
-  if (!isMarkdown && !filesMode) return null;
+  if (!isMarkdown && !isReadOnlyContent(node) && !filesMode) return null;
 
   const ext = (node.extension?.replace(".", "") ?? node.name.split(".").pop() ?? "").toLowerCase();
   const isImage = IMAGE_EXTS.has(ext);
@@ -401,40 +421,68 @@ function FileItem({
   }
 
   return (
-    <div
-      role="none"
-      className={`sidebar-file-row ${isSelected ? "selected" : ""}`}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        if (isMarkdown) showMarkdownContextMenu();
-        else showNonMarkdownContextMenu();
-      }}
-    >
-      <button
-        type="button"
-        className="sidebar-file"
-        style={{ paddingLeft: indent }}
-        onClick={() => onSelect(node)}
-        onKeyDown={(e) => {
-          if (e.key === "F2") onRename(node);
+    <>
+      <div
+        role="none"
+        className={`sidebar-file-row ${isSelected ? "selected" : ""}`}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (isMarkdown) showMarkdownContextMenu();
+          else showNonMarkdownContextMenu();
         }}
       >
-        <span className="sidebar-file-icon-wrap">
-          {isMarkdown ? (
-            <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
-          ) : isImage ? (
-            <FileImage size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
-          ) : (
-            <FileText size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
-          )}
-          {node.containerDirPath && <span className="sidebar-file-icon-badge" />}
-        </span>
-        <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
-          {displayName}
-        </span>
-        {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
-      </button>
-    </div>
+        <button
+          type="button"
+          className="sidebar-file"
+          style={{ paddingLeft: indent }}
+          onClick={() => onSelect(node)}
+          onKeyDown={(e) => {
+            if (e.key === "F2") onRename(node);
+          }}
+        >
+          <span className="sidebar-file-icon-wrap">
+            {isMarkdown ? (
+              <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
+            ) : isImage ? (
+              <FileImage size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
+            ) : (
+              <FileText size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
+            )}
+            {node.containerDirPath && <span className="sidebar-file-icon-badge" />}
+          </span>
+          <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
+            {displayName}
+          </span>
+          {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
+        </button>
+      </div>
+      {node.translations?.map((translation) => {
+        const trSelected = translation.path === selectedPath;
+        const trGit = gitStatusMap.get(translation.path);
+        return (
+          <div
+            key={translation.path}
+            role="none"
+            className={`sidebar-file-row ${trSelected ? "selected" : ""}`}
+          >
+            <button
+              type="button"
+              className="sidebar-file"
+              style={{ paddingLeft: `${12 + (depth + 1) * 14}px` }}
+              onClick={() => onSelect(translation)}
+            >
+              <span className="sidebar-file-icon-wrap">
+                <span className="sidebar-locale-badge">
+                  {(translation.locale ?? "").toUpperCase()}
+                </span>
+              </span>
+              <span className="sidebar-file-name">{displayName}</span>
+              {trGit && <span className={`git-dot git-dot-${trGit}`} title={trGit} />}
+            </button>
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -452,6 +500,7 @@ export function Sidebar({
   gitStatusMap,
   mode,
   postsBasePath,
+  features,
   collectionLinks,
   onToggleMode,
   onSelect,
@@ -662,6 +711,7 @@ export function Sidebar({
                 forceExpand={filterQuery.length > 0}
                 filesMode={filesMode}
                 postsBasePath={postsBasePath}
+                features={features}
                 collectionLinks={collectionLinks}
                 onSelect={onSelect}
                 onNewFile={onNewFile}

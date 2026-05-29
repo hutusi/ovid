@@ -19,7 +19,6 @@ mod workspace;
 
 use app::restart_app;
 use assets::{pick_image_file, save_asset, save_asset_from_bytes};
-use content_types::get_content_types;
 use files::{
     create_dir, create_file, duplicate_entry, ensure_dir, read_file, rename_file, trash_file,
     write_file,
@@ -120,7 +119,6 @@ pub fn run() {
             create_dir,
             ensure_dir,
             search_workspace,
-            get_content_types,
             get_git_status,
             get_git_commit_changes,
             get_git_branch,

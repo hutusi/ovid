@@ -24,6 +24,14 @@ export interface FileNode {
   draft?: boolean;
   contentType?: string;
   containerDirPath?: string;
+  /** Sidebar projection only: non-default-locale `<slug>.<locale>` variants
+   *  grouped under this base file by `groupTranslations`. */
+  translations?: FileNode[];
+  /** Sidebar projection only: the locale code of a translation variant row. */
+  locale?: string;
+  /** Sidebar projection only: a top-level bucket whose `features.<id>.enabled`
+   *  is `false` — shown but marked "hidden from the published site". */
+  disabledForSite?: boolean;
 }
 
 export interface WorkspaceState {
@@ -37,10 +45,6 @@ export interface RecentFile {
   path: string;
   name: string;
   title?: string;
-}
-
-export interface ContentType {
-  name: string;
 }
 
 export interface RecentWorkspace {

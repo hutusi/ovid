@@ -9,6 +9,9 @@ import {
   setCollectionItems,
 } from "./collection";
 import { commands } from "./commands";
+import type { Author } from "./commands/generated/Author";
+import type { FeatureBucket } from "./commands/generated/FeatureBucket";
+import type { I18nConfig } from "./commands/generated/I18nConfig";
 import { type FlatFile, flattenTree } from "./fileSearch";
 import { createTodayFlowFrontmatter } from "./frontmatter";
 import { measureAsync } from "./perf";
@@ -27,6 +30,9 @@ interface WorkspaceResult {
   cdnBase?: string;
   defaultAuthor?: string;
   postsBasePath?: string;
+  features?: FeatureBucket[];
+  authors?: Author[];
+  i18n?: I18nConfig;
 }
 
 interface UseWorkspaceOptions {
@@ -84,6 +90,9 @@ export function useWorkspace({
   const [cdnBase, setCdnBase] = useState<string | undefined>(undefined);
   const [defaultAuthor, setDefaultAuthor] = useState<string | undefined>(undefined);
   const [postsBasePath, setPostsBasePath] = useState<string | undefined>(undefined);
+  const [features, setFeatures] = useState<FeatureBucket[]>([]);
+  const [authors, setAuthors] = useState<Author[]>([]);
+  const [i18n, setI18n] = useState<I18nConfig>({ locales: [], defaultLocale: null });
   const refreshIdRef = useRef(0);
 
   // Cmd+P / openFileByPath operate on the markdown-only projection of the
@@ -128,6 +137,9 @@ export function useWorkspace({
       setCdnBase(result.cdnBase ?? undefined);
       setDefaultAuthor(result.defaultAuthor ?? undefined);
       setPostsBasePath(result.postsBasePath ?? undefined);
+      setFeatures(result.features ?? []);
+      setAuthors(result.authors ?? []);
+      setI18n(result.i18n ?? { locales: [], defaultLocale: null });
       resetFileState();
       if (!result.isAmytisWorkspace) {
         showToast("This folder doesn't look like an Amytis workspace.");
@@ -361,6 +373,9 @@ export function useWorkspace({
     cdnBase,
     defaultAuthor,
     postsBasePath,
+    features,
+    authors,
+    i18n,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,

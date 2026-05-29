@@ -1,18 +1,437 @@
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::path::Path;
 use ts_rs::TS;
 
-use tauri::State;
+// ── Features ─────────────────────────────────────────────────────────────────
 
-use crate::state::WorkspaceState;
-
-// ── Content types ──────────────────────────────────────────────────────────
-
+/// A content bucket declared in `site.config.ts`'s `features:` block. `id` is the
+/// bucket key (`posts` / `series` / `books` / `flow`); `names` maps a locale code
+/// to the bucket's display name. Amytis has no `features.notes` entry — notes is
+/// an always-on bucket — so the frontend treats a missing bucket as enabled.
 #[derive(Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/lib/commands/generated/")]
-pub(crate) struct ContentType {
+pub(crate) struct FeatureBucket {
+    pub(crate) id: String,
+    pub(crate) enabled: bool,
+    pub(crate) names: BTreeMap<String, String>,
+}
+
+/// Return the slice after `key:` when `line` contains `key` as a bare property
+/// name at a word boundary. Used to read scalar fields (`enabled:`) and locate
+/// the `name:` sub-object inside a feature bucket.
+fn value_after_key<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
+    let mut from = 0;
+    while let Some(rel) = line[from..].find(key) {
+        let pos = from + rel;
+        let before_ok = pos == 0 || !is_ident(line.as_bytes()[pos - 1]);
+        let rest = line[pos + key.len()..].trim_start();
+        if before_ok {
+            if let Some(after_colon) = rest.strip_prefix(':') {
+                return Some(after_colon);
+            }
+        }
+        from = pos + key.len();
+    }
+    None
+}
+
+/// Parse a single `<locale>: "name"` pair from a comma-delimited fragment such as
+/// `{ en: "Articles"` or ` zh: "文章" }`. Returns `None` when the fragment is not
+/// a string-valued entry (e.g. `enabled: true` or the `name: {` opener).
+fn extract_locale_pair(part: &str) -> Option<(String, String)> {
+    let part = part.trim().trim_start_matches('{').trim();
+    let colon = part.find(':')?;
+    let key = part[..colon].trim().trim_matches('"').trim_matches('\'');
+    if key.is_empty()
+        || !key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return None;
+    }
+    let value = extract_quoted_string(part[colon + 1..].trim())?;
+    Some((key.to_string(), value))
+}
+
+/// Best-effort scanner: read the `features:` block from `site.config.ts`. Each
+/// top-level key is a content bucket with an `enabled` flag and a localized
+/// `name` object. Returns an empty vec on any parse failure so callers fall back
+/// to the conventional bucket names.
+pub(crate) fn parse_features(config_path: &Path) -> Vec<FeatureBucket> {
+    let Ok(content) = std::fs::read_to_string(config_path) else {
+        return Vec::new();
+    };
+    let mut buckets: Vec<FeatureBucket> = Vec::new();
+    let mut current: Option<FeatureBucket> = None;
+    let mut depth: i32 = 0;
+    let mut found_features = false;
+    let mut features_depth: Option<i32> = None;
+    let mut in_name = false;
+
+    for raw in content.lines() {
+        let trimmed = raw.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') || trimmed.starts_with("/*") {
+            continue;
+        }
+        let opens = raw.chars().filter(|&c| c == '{').count() as i32;
+        let closes = raw.chars().filter(|&c| c == '}').count() as i32;
+
+        match features_depth {
+            None if !found_features => {
+                if value_after_key(trimmed, "features").is_some() {
+                    found_features = true;
+                    depth += opens - closes;
+                    if opens > 0 {
+                        features_depth = Some(depth);
+                    }
+                } else {
+                    depth += opens - closes;
+                }
+            }
+            None => {
+                depth += opens - closes;
+                if opens > 0 {
+                    features_depth = Some(depth);
+                }
+            }
+            Some(fdepth) => {
+                let prev_depth = depth;
+                depth += opens - closes;
+                if depth < fdepth {
+                    if let Some(b) = current.take() {
+                        buckets.push(b);
+                    }
+                    break;
+                }
+                if prev_depth == fdepth && opens > 0 {
+                    // A new bucket key: `posts: {`.
+                    if let Some(b) = current.take() {
+                        buckets.push(b);
+                    }
+                    in_name = false;
+                    if let Some(colon) = trimmed.find(':') {
+                        let key = trimmed[..colon].trim().trim_matches('"').trim_matches('\'');
+                        if !key.is_empty()
+                            && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                        {
+                            current = Some(FeatureBucket {
+                                id: key.to_string(),
+                                enabled: true,
+                                names: BTreeMap::new(),
+                            });
+                        }
+                    }
+                } else if let Some(bucket) = current.as_mut() {
+                    if let Some(rest) = value_after_key(trimmed, "enabled") {
+                        let rest = rest.trim_start();
+                        if rest.starts_with("true") {
+                            bucket.enabled = true;
+                        } else if rest.starts_with("false") {
+                            bucket.enabled = false;
+                        }
+                    }
+                    if let Some(after) = value_after_key(trimmed, "name") {
+                        for part in after.split(',') {
+                            if let Some((k, v)) = extract_locale_pair(part) {
+                                bucket.names.insert(k, v);
+                            }
+                        }
+                        // Track an unbalanced `name: {` that spills onto later lines.
+                        in_name = after.matches('{').count() > after.matches('}').count();
+                    } else if in_name {
+                        if let Some((k, v)) = extract_locale_pair(trimmed) {
+                            bucket.names.insert(k, v);
+                        }
+                        if trimmed.contains('}') {
+                            in_name = false;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if let Some(b) = current.take() {
+        buckets.push(b);
+    }
+    buckets
+}
+
+// ── Authors ──────────────────────────────────────────────────────────────────
+
+/// A social link/QR entry under an author profile in `site.config.ts`'s
+/// `authors:` map.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/lib/commands/generated/")]
+pub(crate) struct AuthorSocial {
+    pub(crate) image: String,
+    pub(crate) description: String,
+}
+
+/// An author profile declared in `site.config.ts`'s top-level `authors:` map
+/// (display name → bio / avatar / social). Distinct from `posts.authors`, which
+/// only holds defaults; that block has no quoted-string keys, so it contributes
+/// no entries here.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/lib/commands/generated/")]
+pub(crate) struct Author {
     pub(crate) name: String,
+    pub(crate) bio: Option<String>,
+    pub(crate) avatar: Option<String>,
+    pub(crate) social: Vec<AuthorSocial>,
+}
+
+/// Read a quoted property-name key (e.g. `"John Hu": {`) from the start of a
+/// line. Bare keys (`default:`) return `None`, which is how author profiles are
+/// told apart from the scalar fields in `posts.authors`.
+fn extract_quoted_key(line: &str) -> Option<String> {
+    let line = line.trim();
+    let first = line.chars().next()?;
+    if first != '"' && first != '\'' {
+        return None;
+    }
+    extract_quoted_string(line)
+}
+
+/// Best-effort scanner: read author profiles from any `authors:` block in
+/// `site.config.ts`. Only entries with a quoted-string key (the author's display
+/// name) mapping to an object are collected, so `posts.authors` (bare keys)
+/// yields nothing. Returns an empty vec on any parse failure.
+pub(crate) fn parse_authors(config_path: &Path) -> Vec<Author> {
+    let Ok(content) = std::fs::read_to_string(config_path) else {
+        return Vec::new();
+    };
+    let mut authors: Vec<Author> = Vec::new();
+    let mut depth: i32 = 0;
+    let mut authors_depth: Option<i32> = None;
+    let mut current: Option<Author> = None;
+    // A social entry's `image` and `description` may sit on separate lines, so
+    // accumulate them and flush once both are known (handles inline and
+    // multiline `{ image, description }` objects regardless of key order).
+    let mut pending_image: Option<String> = None;
+    let mut pending_desc: Option<String> = None;
+
+    for raw in content.lines() {
+        let trimmed = raw.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') || trimmed.starts_with("/*") {
+            continue;
+        }
+        let opens = raw.chars().filter(|&c| c == '{').count() as i32;
+        let closes = raw.chars().filter(|&c| c == '}').count() as i32;
+        let after = depth + opens - closes;
+
+        if let Some(adepth) = authors_depth {
+            if current.is_none() {
+                if depth == adepth && opens > 0 {
+                    if let Some(name) = extract_quoted_key(trimmed) {
+                        pending_image = None;
+                        pending_desc = None;
+                        current = Some(Author {
+                            name,
+                            bio: None,
+                            avatar: None,
+                            social: Vec::new(),
+                        });
+                    }
+                }
+            } else if let Some(author) = current.as_mut() {
+                if let Some(v) = value_after_key(trimmed, "bio") {
+                    if let Some(s) = extract_quoted_string(v.trim_start()) {
+                        author.bio = Some(s);
+                    }
+                }
+                if let Some(v) = value_after_key(trimmed, "avatar") {
+                    if let Some(s) = extract_quoted_string(v.trim_start()) {
+                        author.avatar = Some(s);
+                    }
+                }
+                if let Some(v) = value_after_key(trimmed, "image") {
+                    if let Some(s) = extract_quoted_string(v.trim_start()) {
+                        pending_image = Some(s);
+                    }
+                }
+                if let Some(v) = value_after_key(trimmed, "description") {
+                    if let Some(s) = extract_quoted_string(v.trim_start()) {
+                        pending_desc = Some(s);
+                    }
+                }
+                if pending_image.is_some() && pending_desc.is_some() {
+                    author.social.push(AuthorSocial {
+                        image: pending_image.take().unwrap(),
+                        description: pending_desc.take().unwrap(),
+                    });
+                }
+                // The author object closes when depth returns to the key level.
+                if after <= adepth {
+                    authors.push(current.take().unwrap());
+                    pending_image = None;
+                    pending_desc = None;
+                }
+            }
+            depth = after;
+            if depth < adepth {
+                authors_depth = None;
+            }
+            continue;
+        }
+
+        if value_after_key(trimmed, "authors").is_some() && opens > closes {
+            authors_depth = Some(depth + 1);
+        }
+        depth = after;
+    }
+    if let Some(a) = current.take() {
+        authors.push(a);
+    }
+    authors
+}
+
+// ── i18n ─────────────────────────────────────────────────────────────────────
+
+/// The `i18n:` settings Ovid cares about: the configured `locales` and the
+/// `defaultLocale`. Used to group `<slug>.<locale>` translation variants under
+/// their base file in the sidebar. Empty `locales` disables grouping.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/lib/commands/generated/")]
+pub(crate) struct I18nConfig {
+    pub(crate) locales: Vec<String>,
+    pub(crate) default_locale: Option<String>,
+}
+
+/// Extract every quoted string from an inline array fragment such as
+/// `['en', 'zh']`.
+fn extract_string_array(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = s;
+    loop {
+        let Some(qpos) = rest.find(['\'', '"', '`']) else {
+            break;
+        };
+        let sub = &rest[qpos..];
+        let Some(value) = extract_quoted_string(sub) else {
+            break;
+        };
+        out.push(value);
+        let quote = sub.chars().next().unwrap();
+        let after_open = &sub[quote.len_utf8()..];
+        let Some(end) = after_open.find(quote) else {
+            break;
+        };
+        rest = &rest[qpos + quote.len_utf8() + end + quote.len_utf8()..];
+    }
+    out
+}
+
+/// Capture the inner text of the first `key: { ... }` object as a single string,
+/// joining its lines (comment lines skipped). Brace-counted so it works whether
+/// the object is written on one line or many; expects the opening `{` on the
+/// same line as `key`. Returns `None` when the key/object isn't found.
+fn capture_object_block(content: &str, key: &str) -> Option<String> {
+    let mut buf = String::new();
+    let mut depth: i32 = 0;
+    let mut started = false;
+
+    for raw in content.lines() {
+        let trimmed = raw.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') || trimmed.starts_with("/*") {
+            continue;
+        }
+        if !started {
+            let Some(after) = value_after_key(trimmed, key) else {
+                continue;
+            };
+            let Some(brace) = after.find('{') else {
+                continue;
+            };
+            started = true;
+            let from_brace = &after[brace..];
+            for ch in from_brace.chars() {
+                if ch == '{' {
+                    depth += 1;
+                } else if ch == '}' {
+                    depth -= 1;
+                }
+            }
+            buf.push_str(&from_brace[1..]);
+            buf.push('\n');
+            if depth <= 0 {
+                return Some(buf);
+            }
+        } else {
+            for ch in trimmed.chars() {
+                if ch == '{' {
+                    depth += 1;
+                } else if ch == '}' {
+                    depth -= 1;
+                }
+            }
+            buf.push_str(trimmed);
+            buf.push('\n');
+            if depth <= 0 {
+                return Some(buf);
+            }
+        }
+    }
+    if started { Some(buf) } else { None }
+}
+
+/// Return the text between the first `[` and its matching `]` in `s`.
+fn slice_bracketed(s: &str) -> Option<&str> {
+    let start = s.find('[')?;
+    let mut depth = 0i32;
+    for (i, ch) in s[start..].char_indices() {
+        if ch == '[' {
+            depth += 1;
+        } else if ch == ']' {
+            depth -= 1;
+            if depth == 0 {
+                return Some(&s[start + 1..start + i]);
+            }
+        }
+    }
+    None
+}
+
+/// Best-effort scanner: read `i18n.locales` and `i18n.defaultLocale` from
+/// `site.config.ts`. Captures the whole `i18n { ... }` block first, so it works
+/// for single-line objects and multi-line `locales` arrays alike. When
+/// `i18n.enabled` is `false`, the site uses a single locale, so the returned
+/// `locales` is empty (grouping disabled). Returns an empty config on any parse
+/// failure.
+pub(crate) fn parse_i18n(config_path: &Path) -> I18nConfig {
+    let mut result = I18nConfig {
+        locales: Vec::new(),
+        default_locale: None,
+    };
+    let Ok(content) = std::fs::read_to_string(config_path) else {
+        return result;
+    };
+    let Some(block) = capture_object_block(&content, "i18n") else {
+        return result;
+    };
+
+    let enabled = match value_after_key(&block, "enabled") {
+        Some(v) => !v.trim_start().starts_with("false"),
+        None => true,
+    };
+    if !enabled {
+        return result;
+    }
+
+    if let Some(v) = value_after_key(&block, "defaultLocale") {
+        if let Some(s) = extract_quoted_string(v.trim_start()) {
+            result.default_locale = Some(s);
+        }
+    }
+    if let Some(v) = value_after_key(&block, "locales") {
+        result.locales = extract_string_array(slice_bracketed(v).unwrap_or(v));
+    }
+    result
 }
 
 /// Extract the first quoted string value from the beginning of `s`.
@@ -192,95 +611,6 @@ pub(crate) fn parse_posts_base_path(config_path: &Path) -> Option<String> {
         }
     }
     None
-}
-
-/// Best-effort scanner: find `contentTypes` in `site.config.ts` and extract
-/// the top-level key names (post, page, note, …). Returns empty vec on any
-/// parse failure so callers gracefully degrade to the default frontmatter.
-pub(crate) fn parse_content_types(config_path: &Path) -> Vec<ContentType> {
-    use std::io::{BufRead, BufReader};
-    let Ok(file) = std::fs::File::open(config_path) else {
-        return Vec::new();
-    };
-    let mut reader = BufReader::new(file);
-    let mut type_names: Vec<ContentType> = Vec::new();
-    let mut depth: i32 = 0;
-    let mut found_content_types = false;
-    let mut content_types_depth: Option<i32> = None;
-    let mut line = String::new();
-
-    loop {
-        line.clear();
-        if reader.read_line(&mut line).unwrap_or(0) == 0 {
-            break;
-        }
-        let trimmed = line.trim();
-        let open_count = line.chars().filter(|&c| c == '{').count() as i32;
-        let close_count = line.chars().filter(|&c| c == '}').count() as i32;
-
-        match content_types_depth {
-            None if !found_content_types => {
-                if trimmed.contains("contentTypes") {
-                    found_content_types = true;
-                    depth += open_count - close_count;
-                    if open_count > 0 {
-                        content_types_depth = Some(depth);
-                    }
-                } else {
-                    depth += open_count - close_count;
-                }
-            }
-            None => {
-                // found keyword, waiting for opening brace
-                depth += open_count - close_count;
-                if open_count > 0 {
-                    content_types_depth = Some(depth);
-                }
-            }
-            Some(ct_depth) => {
-                let prev_depth = depth;
-                depth += open_count - close_count;
-                if depth < ct_depth {
-                    break;
-                }
-                if prev_depth == ct_depth {
-                    if let Some(name) = extract_ts_key(trimmed) {
-                        type_names.push(ContentType { name });
-                    }
-                }
-            }
-        }
-    }
-    type_names
-}
-
-pub(crate) fn extract_ts_key(line: &str) -> Option<String> {
-    let line = line.trim();
-    if line.starts_with("//") || line.starts_with('*') || line.starts_with("/*") {
-        return None;
-    }
-    let end = line.find(':')?;
-    let key = line[..end].trim().trim_matches('"').trim_matches('\'');
-    if !key.is_empty() && key.chars().all(|c| c.is_alphanumeric() || c == '_') {
-        Some(key.to_string())
-    } else {
-        None
-    }
-}
-
-#[tauri::command]
-pub(crate) fn get_content_types(state: State<'_, WorkspaceState>) -> Result<Vec<ContentType>, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = match root_guard.as_ref() {
-        Some(r) => r.clone(),
-        None => return Ok(Vec::new()),
-    };
-    drop(root_guard);
-    let config = root.join("site.config.ts");
-    if !config.is_file() {
-        return Ok(Vec::new());
-    }
-    Ok(parse_content_types(&config))
 }
 
 #[cfg(test)]
@@ -556,5 +886,259 @@ mod tests {
             "/* This config has no CDN\n  cdnBase: 'https://cdn.example.com'\n*/\nexport const config = {};\n",
         );
         assert_eq!(parse_cdn_base(&path), None);
+    }
+
+    // ── parse_features ───────────────────────────────────────────────────────
+
+    const FEATURES_CONFIG: &str = r#"export const siteConfig = {
+  nav: [{ name: "Posts", url: "/posts" }],
+  features: {
+    posts: {
+      enabled: true,
+      name: { en: "Articles", zh: "文章" },
+    },
+    series: {
+      enabled: true,
+      name: { en: "Series", zh: "系列" },
+    },
+    books: {
+      enabled: false,
+      name: { en: "Books", zh: "书籍" },
+    },
+    flow: {
+      enabled: true,
+      name: { en: "Flow", zh: "随笔" },
+    },
+  },
+  hero: { title: "x" },
+};
+"#;
+
+    #[test]
+    fn parse_features_reads_all_buckets_in_order() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, FEATURES_CONFIG);
+        let buckets = parse_features(&path);
+        let ids: Vec<&str> = buckets.iter().map(|b| b.id.as_str()).collect();
+        assert_eq!(ids, vec!["posts", "series", "books", "flow"]);
+    }
+
+    #[test]
+    fn parse_features_reads_enabled_flag() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, FEATURES_CONFIG);
+        let buckets = parse_features(&path);
+        let books = buckets.iter().find(|b| b.id == "books").unwrap();
+        assert!(!books.enabled);
+        let posts = buckets.iter().find(|b| b.id == "posts").unwrap();
+        assert!(posts.enabled);
+    }
+
+    #[test]
+    fn parse_features_reads_localized_names() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, FEATURES_CONFIG);
+        let buckets = parse_features(&path);
+        let posts = buckets.iter().find(|b| b.id == "posts").unwrap();
+        assert_eq!(posts.names.get("en").map(String::as_str), Some("Articles"));
+        assert_eq!(posts.names.get("zh").map(String::as_str), Some("文章"));
+    }
+
+    #[test]
+    fn parse_features_handles_multiline_name_object() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  features: {\n    posts: {\n      enabled: true,\n      name: {\n        en: \"Articles\",\n        zh: \"文章\",\n      },\n    },\n  },\n};\n",
+        );
+        let buckets = parse_features(&path);
+        let posts = buckets.iter().find(|b| b.id == "posts").unwrap();
+        assert_eq!(posts.names.get("en").map(String::as_str), Some("Articles"));
+        assert_eq!(posts.names.get("zh").map(String::as_str), Some("文章"));
+    }
+
+    #[test]
+    fn parse_features_returns_empty_without_block() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, "export const siteConfig = { posts: { toc: true } };\n");
+        assert!(parse_features(&path).is_empty());
+    }
+
+    #[test]
+    fn parse_features_returns_empty_when_file_missing() {
+        assert!(parse_features(Path::new("/nonexistent/site.config.ts")).is_empty());
+    }
+
+    // ── parse_authors ────────────────────────────────────────────────────────
+
+    const AUTHORS_CONFIG: &str = r#"export const siteConfig = {
+  posts: {
+    authors: {
+      default: ["John Hu"] as string[],
+      showInHeader: true,
+      showAuthorCard: true,
+    },
+  },
+  authors: {
+    "John Hu": {
+      bio: "Coder, Writer, Creator.",
+      avatar: "/images/avatar.jpg",
+      social: [
+        { image: "/images/wechat-qr.jpg", description: "Follow on WeChat" },
+      ],
+    },
+    "Jane Doe": {
+      bio: "Designer.",
+      avatar: "/images/jane.jpg",
+      social: [],
+    },
+  } as Record<string, {
+    bio?: string;
+    avatar?: string;
+    social?: Array<{
+      image: string;
+      description: string;
+    }>;
+  }>,
+};
+"#;
+
+    #[test]
+    fn parse_authors_reads_profiles_skipping_posts_authors_defaults() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, AUTHORS_CONFIG);
+        let authors = parse_authors(&path);
+        let names: Vec<&str> = authors.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, vec!["John Hu", "Jane Doe"]);
+    }
+
+    #[test]
+    fn parse_authors_reads_bio_avatar_and_social() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, AUTHORS_CONFIG);
+        let authors = parse_authors(&path);
+        let john = authors.iter().find(|a| a.name == "John Hu").unwrap();
+        assert_eq!(john.bio.as_deref(), Some("Coder, Writer, Creator."));
+        assert_eq!(john.avatar.as_deref(), Some("/images/avatar.jpg"));
+        assert_eq!(john.social.len(), 1);
+        assert_eq!(john.social[0].image, "/images/wechat-qr.jpg");
+        assert_eq!(john.social[0].description, "Follow on WeChat");
+    }
+
+    #[test]
+    fn parse_authors_handles_empty_social_array() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, AUTHORS_CONFIG);
+        let authors = parse_authors(&path);
+        let jane = authors.iter().find(|a| a.name == "Jane Doe").unwrap();
+        assert_eq!(jane.bio.as_deref(), Some("Designer."));
+        assert!(jane.social.is_empty());
+    }
+
+    #[test]
+    fn parse_authors_does_not_treat_type_annotation_as_authors() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, AUTHORS_CONFIG);
+        // The `} as Record<string, { ... }>` type annotation must not leak in.
+        let authors = parse_authors(&path);
+        assert_eq!(authors.len(), 2);
+    }
+
+    #[test]
+    fn parse_authors_returns_empty_when_file_missing() {
+        assert!(parse_authors(Path::new("/nonexistent/site.config.ts")).is_empty());
+    }
+
+    #[test]
+    fn parse_authors_reads_multiline_social_object() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  authors: {\n    \"John Hu\": {\n      bio: \"Coder.\",\n      social: [\n        {\n          image: \"/images/wechat-qr.jpg\",\n          description: \"Follow on WeChat\",\n        },\n      ],\n    },\n  },\n};\n",
+        );
+        let authors = parse_authors(&path);
+        let john = authors.iter().find(|a| a.name == "John Hu").unwrap();
+        assert_eq!(john.social.len(), 1);
+        assert_eq!(john.social[0].image, "/images/wechat-qr.jpg");
+        assert_eq!(john.social[0].description, "Follow on WeChat");
+    }
+
+    // ── parse_i18n ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_i18n_reads_locales_and_default_locale() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: {\n    enabled: true,\n    defaultLocale: 'en',\n    locales: ['en', 'zh'],\n  },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert_eq!(cfg.locales, vec!["en".to_string(), "zh".to_string()]);
+        assert_eq!(cfg.default_locale.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn parse_i18n_disabled_yields_no_locales() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: {\n    enabled: false,\n    defaultLocale: 'en',\n    locales: ['en', 'zh'],\n  },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert!(cfg.locales.is_empty());
+    }
+
+    #[test]
+    fn parse_i18n_does_not_confuse_default_locale_with_locales() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: {\n    defaultLocale: 'zh',\n    locales: ['en', 'zh', 'ja'],\n  },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert_eq!(cfg.default_locale.as_deref(), Some("zh"));
+        assert_eq!(cfg.locales.len(), 3);
+    }
+
+    #[test]
+    fn parse_i18n_returns_empty_when_absent() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, "export const siteConfig = { posts: { toc: true } };\n");
+        let cfg = parse_i18n(&path);
+        assert!(cfg.locales.is_empty());
+        assert!(cfg.default_locale.is_none());
+    }
+
+    #[test]
+    fn parse_i18n_reads_single_line_block() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: { enabled: true, defaultLocale: 'en', locales: ['en', 'zh'] },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert_eq!(cfg.locales, vec!["en".to_string(), "zh".to_string()]);
+        assert_eq!(cfg.default_locale.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn parse_i18n_reads_multiline_locales_array() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: {\n    defaultLocale: 'en',\n    locales: [\n      'en',\n      'zh',\n      'ja',\n    ],\n  },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert_eq!(
+            cfg.locales,
+            vec!["en".to_string(), "zh".to_string(), "ja".to_string()]
+        );
+        assert_eq!(cfg.default_locale.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn parse_i18n_returns_empty_when_file_missing() {
+        let cfg = parse_i18n(Path::new("/nonexistent/site.config.ts"));
+        assert!(cfg.locales.is_empty());
     }
 }
