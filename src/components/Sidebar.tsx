@@ -416,40 +416,68 @@ function FileItem({
   }
 
   return (
-    <div
-      role="none"
-      className={`sidebar-file-row ${isSelected ? "selected" : ""}`}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        if (isMarkdown) showMarkdownContextMenu();
-        else showNonMarkdownContextMenu();
-      }}
-    >
-      <button
-        type="button"
-        className="sidebar-file"
-        style={{ paddingLeft: indent }}
-        onClick={() => onSelect(node)}
-        onKeyDown={(e) => {
-          if (e.key === "F2") onRename(node);
+    <>
+      <div
+        role="none"
+        className={`sidebar-file-row ${isSelected ? "selected" : ""}`}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          if (isMarkdown) showMarkdownContextMenu();
+          else showNonMarkdownContextMenu();
         }}
       >
-        <span className="sidebar-file-icon-wrap">
-          {isMarkdown ? (
-            <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
-          ) : isImage ? (
-            <FileImage size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
-          ) : (
-            <FileText size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
-          )}
-          {node.containerDirPath && <span className="sidebar-file-icon-badge" />}
-        </span>
-        <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
-          {displayName}
-        </span>
-        {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
-      </button>
-    </div>
+        <button
+          type="button"
+          className="sidebar-file"
+          style={{ paddingLeft: indent }}
+          onClick={() => onSelect(node)}
+          onKeyDown={(e) => {
+            if (e.key === "F2") onRename(node);
+          }}
+        >
+          <span className="sidebar-file-icon-wrap">
+            {isMarkdown ? (
+              <ContentTypeIcon type={node.contentType} className="sidebar-file-icon" />
+            ) : isImage ? (
+              <FileImage size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
+            ) : (
+              <FileText size={13} className="sidebar-file-icon sidebar-file-icon-generic" />
+            )}
+            {node.containerDirPath && <span className="sidebar-file-icon-badge" />}
+          </span>
+          <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
+            {displayName}
+          </span>
+          {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
+        </button>
+      </div>
+      {node.translations?.map((translation) => {
+        const trSelected = translation.path === selectedPath;
+        const trGit = gitStatusMap.get(translation.path);
+        return (
+          <div
+            key={translation.path}
+            role="none"
+            className={`sidebar-file-row ${trSelected ? "selected" : ""}`}
+          >
+            <button
+              type="button"
+              className="sidebar-file"
+              style={{ paddingLeft: `${12 + (depth + 1) * 14}px` }}
+              onClick={() => onSelect(translation)}
+            >
+              <span className="sidebar-file-icon-wrap">
+                <span className="sidebar-locale-badge">
+                  {(translation.locale ?? "").toUpperCase()}
+                </span>
+              </span>
+              <span className="sidebar-file-name">{displayName}</span>
+              {trGit && <span className={`git-dot git-dot-${trGit}`} title={trGit} />}
+            </button>
+          </div>
+        );
+      })}
+    </>
   );
 }
 

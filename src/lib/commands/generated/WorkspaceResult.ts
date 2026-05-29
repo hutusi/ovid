@@ -2,6 +2,7 @@
 import type { Author } from "./Author";
 import type { FeatureBucket } from "./FeatureBucket";
 import type { FileNode } from "./FileNode";
+import type { I18nConfig } from "./I18nConfig";
 
 export type WorkspaceResult = { name: string, rootPath: string, treeRoot: string, 
 /**
@@ -29,4 +30,9 @@ features: Array<FeatureBucket>,
  * Author profiles from the top-level `authors:` map in `site.config.ts`
  * (display name → bio / avatar / social). Empty when the block is absent.
  */
-authors: Array<Author>, };
+authors: Array<Author>, 
+/**
+ * `i18n` locales + default locale, used to group `<slug>.<locale>`
+ * translation variants in the sidebar.
+ */
+i18n: I18nConfig, };

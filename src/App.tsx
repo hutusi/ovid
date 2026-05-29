@@ -101,6 +101,7 @@ function App() {
     postsBasePath,
     features,
     authors,
+    i18n: i18nConfig,
     handleOpenWorkspace,
     openWorkspaceAtPath,
     handleNewFile,
@@ -148,8 +149,19 @@ function App() {
       treeRoot: workspaceRoot,
       postsBasePath,
       features,
+      locales: i18nConfig.locales,
+      defaultLocale: i18nConfig.defaultLocale ?? undefined,
     });
-  }, [sidebarMode, tree, workspaceRoot, workspaceRootPath, postsBasePath, features]);
+  }, [
+    sidebarMode,
+    tree,
+    workspaceRoot,
+    workspaceRootPath,
+    postsBasePath,
+    features,
+    i18nConfig.locales,
+    i18nConfig.defaultLocale,
+  ]);
 
   // Resolve each collection entry's `items:` to navigable sidebar links.
   const { links: collectionLinks, reload: reloadCollectionLinks } = useCollectionLinks({

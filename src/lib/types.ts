@@ -24,6 +24,11 @@ export interface FileNode {
   draft?: boolean;
   contentType?: string;
   containerDirPath?: string;
+  /** Sidebar projection only: non-default-locale `<slug>.<locale>` variants
+   *  grouped under this base file by `groupTranslations`. */
+  translations?: FileNode[];
+  /** Sidebar projection only: the locale code of a translation variant row. */
+  locale?: string;
 }
 
 export interface WorkspaceState {

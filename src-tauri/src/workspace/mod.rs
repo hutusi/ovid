@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use ts_rs::TS;
 
-use crate::content_types::{Author, FeatureBucket, parse_cdn_base};
+use crate::content_types::{Author, FeatureBucket, I18nConfig, parse_cdn_base};
 
 mod cache;
 pub(crate) mod commands;
@@ -52,6 +52,9 @@ pub(crate) struct WorkspaceResult {
     /// Author profiles from the top-level `authors:` map in `site.config.ts`
     /// (display name → bio / avatar / social). Empty when the block is absent.
     pub(crate) authors: Vec<Author>,
+    /// `i18n` locales + default locale, used to group `<slug>.<locale>`
+    /// translation variants in the sidebar.
+    pub(crate) i18n: I18nConfig,
 }
 
 /// Compute the asset-serving root and CDN base for a workspace.

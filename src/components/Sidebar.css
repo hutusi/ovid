@@ -358,6 +358,26 @@
   opacity: 0.85;
 }
 
+.sidebar-locale-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 13px;
+  padding: 0 3px;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  border-radius: 3px;
+  color: var(--color-fg-subtle);
+  background: color-mix(in srgb, var(--color-fg) 8%, transparent);
+}
+
+.sidebar-file-row.selected .sidebar-locale-badge {
+  color: var(--color-accent);
+}
+
 .sidebar-file-row.selected .sidebar-file-icon {
   color: var(--color-accent);
   opacity: 1;

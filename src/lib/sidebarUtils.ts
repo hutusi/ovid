@@ -213,6 +213,74 @@ function isCollectionBucket(folderName: string, postsBasePath?: string): boolean
   return type === "series" || type === "book";
 }
 
+/** Parse a localized filename `<base>.<locale>.<ext>` (Amytis translation
+ *  convention). Returns the base filename (`<base>.<ext>`) and the locale, but
+ *  only when the trailing stem segment is one of the configured `locales` — so
+ *  a CJK-titled or dotted filename without a real locale suffix is left alone. */
+function parseLocaleVariant(
+  name: string,
+  locales: string[]
+): { base: string; locale: string } | null {
+  const extMatch = name.match(/\.(mdx?|rst)$/i);
+  if (!extMatch) return null;
+  const ext = extMatch[0];
+  const stem = name.slice(0, -ext.length);
+  const dot = stem.lastIndexOf(".");
+  if (dot < 0) return null;
+  const locale = stem.slice(dot + 1);
+  if (!locales.includes(locale)) return null;
+  return { base: stem.slice(0, dot) + ext, locale };
+}
+
+/** Group `<slug>.<locale>` translation files under their base `<slug>` file
+ *  among a single directory level's siblings. A variant is only folded in when
+ *  its locale is non-default and the base file exists; otherwise it stays a
+ *  standalone row. The base node gains a `translations` array; each variant is
+ *  tagged with its `locale` for the sidebar badge. */
+function groupTranslations(
+  nodes: FileNode[],
+  locales: string[],
+  defaultLocale?: string
+): FileNode[] {
+  if (locales.length === 0) return nodes;
+  const baseNames = new Set(nodes.filter((n) => !n.isDirectory).map((n) => n.name));
+  const translationsByBase = new Map<string, FileNode[]>();
+  const consumed = new Set<string>();
+
+  for (const node of nodes) {
+    if (node.isDirectory) continue;
+    const variant = parseLocaleVariant(node.name, locales);
+    if (!variant || variant.locale === defaultLocale || !baseNames.has(variant.base)) continue;
+    const list = translationsByBase.get(variant.base) ?? [];
+    list.push({ ...node, locale: variant.locale });
+    translationsByBase.set(variant.base, list);
+    consumed.add(node.name);
+  }
+  if (consumed.size === 0) return nodes;
+
+  return nodes
+    .filter((node) => !consumed.has(node.name))
+    .map((node) => {
+      const translations = translationsByBase.get(node.name);
+      if (!translations) return node;
+      translations.sort((a, b) => (a.locale ?? "").localeCompare(b.locale ?? ""));
+      return { ...node, translations };
+    });
+}
+
+/** Apply `groupTranslations` at every directory level of a projected tree. */
+function groupTranslationsDeep(
+  nodes: FileNode[],
+  locales: string[],
+  defaultLocale?: string
+): FileNode[] {
+  return groupTranslations(nodes, locales, defaultLocale).map((node) =>
+    node.isDirectory
+      ? { ...node, children: groupTranslationsDeep(node.children ?? [], locales, defaultLocale) }
+      : node
+  );
+}
+
 /** Project the canonical workspace tree into the shape Content mode renders.
  *  For Amytis workspaces (`workspaceRoot !== treeRoot`) the tree is first
  *  scoped into the `content/` subtree; for plain workspaces the canonical tree
@@ -227,6 +295,8 @@ export function forContentMode(
     treeRoot: string;
     postsBasePath?: string;
     features?: FeatureBucket[];
+    locales?: string[];
+    defaultLocale?: string;
   }
 ): FileNode[] {
   const scoped =
@@ -253,7 +323,10 @@ export function forContentMode(
       }
       return collapseIndexNodes([bucket])[0];
     });
-  return sortTree(projected);
+  const sorted = sortTree(projected);
+  return options.locales && options.locales.length > 0
+    ? groupTranslationsDeep(sorted, options.locales, options.defaultLocale)
+    : sorted;
 }
 
 /** Project the canonical workspace tree into the shape Files mode renders.

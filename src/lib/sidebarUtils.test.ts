@@ -903,3 +903,54 @@ describe("bucketLabel", () => {
     expect(bucketLabel("posts", { features, locale: "fr" })).toBe("posts");
   });
 });
+
+// ---------------------------------------------------------------------------
+// i18n translation grouping (forContentMode with locales)
+// ---------------------------------------------------------------------------
+
+describe("forContentMode translation grouping", () => {
+  const opts = {
+    workspaceRoot: "/ws",
+    treeRoot: "/ws",
+    locales: ["en", "zh"],
+    defaultLocale: "en",
+  };
+
+  function page(name: string): FileNode {
+    const node = makeFile(name, { path: `/ws/${name}` });
+    node.extension = name.endsWith(".mdx") ? ".mdx" : ".md";
+    return node;
+  }
+
+  it("groups a <slug>.<locale> variant under its base file", () => {
+    const result = forContentMode([page("about.mdx"), page("about.zh.mdx")], opts);
+    expect(result.map((n) => n.name)).toEqual(["about.mdx"]);
+    expect(result[0].translations?.map((t) => t.name)).toEqual(["about.zh.mdx"]);
+    expect(result[0].translations?.[0].locale).toBe("zh");
+  });
+
+  it("leaves a variant standalone when its base file is absent", () => {
+    const result = forContentMode([page("solo.zh.mdx")], opts);
+    expect(result.map((n) => n.name)).toEqual(["solo.zh.mdx"]);
+    expect(result[0].translations).toBeUndefined();
+  });
+
+  it("does not group a dotless/CJK-titled file without a locale suffix", () => {
+    const result = forContentMode([page("中文长标题.mdx"), page("post.mdx")], opts);
+    expect(result.map((n) => n.name).sort()).toEqual(["post.mdx", "中文长标题.mdx"]);
+  });
+
+  it("does not group the default-locale variant", () => {
+    const result = forContentMode([page("about.mdx"), page("about.en.mdx")], opts);
+    expect(result.map((n) => n.name).sort()).toEqual(["about.en.mdx", "about.mdx"]);
+    expect(result.find((n) => n.name === "about.mdx")?.translations).toBeUndefined();
+  });
+
+  it("does not group when no locales are configured", () => {
+    const result = forContentMode([page("about.mdx"), page("about.zh.mdx")], {
+      workspaceRoot: "/ws",
+      treeRoot: "/ws",
+    });
+    expect(result.map((n) => n.name).sort()).toEqual(["about.mdx", "about.zh.mdx"]);
+  });
+});

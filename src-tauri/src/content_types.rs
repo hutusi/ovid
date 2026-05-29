@@ -274,6 +274,105 @@ pub(crate) fn parse_authors(config_path: &Path) -> Vec<Author> {
     authors
 }
 
+// ── i18n ─────────────────────────────────────────────────────────────────────
+
+/// The `i18n:` settings Ovid cares about: the configured `locales` and the
+/// `defaultLocale`. Used to group `<slug>.<locale>` translation variants under
+/// their base file in the sidebar. Empty `locales` disables grouping.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/lib/commands/generated/")]
+pub(crate) struct I18nConfig {
+    pub(crate) locales: Vec<String>,
+    pub(crate) default_locale: Option<String>,
+}
+
+/// Extract every quoted string from an inline array fragment such as
+/// `['en', 'zh']`.
+fn extract_string_array(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = s;
+    loop {
+        let Some(qpos) = rest.find(['\'', '"', '`']) else {
+            break;
+        };
+        let sub = &rest[qpos..];
+        let Some(value) = extract_quoted_string(sub) else {
+            break;
+        };
+        out.push(value);
+        let quote = sub.chars().next().unwrap();
+        let after_open = &sub[quote.len_utf8()..];
+        let Some(end) = after_open.find(quote) else {
+            break;
+        };
+        rest = &rest[qpos + quote.len_utf8() + end + quote.len_utf8()..];
+    }
+    out
+}
+
+/// Best-effort scanner: read `i18n.locales` and `i18n.defaultLocale` from
+/// `site.config.ts`. When `i18n.enabled` is `false`, the site uses a single
+/// locale, so the returned `locales` is empty (grouping disabled). Returns an
+/// empty config on any parse failure.
+pub(crate) fn parse_i18n(config_path: &Path) -> I18nConfig {
+    let mut result = I18nConfig {
+        locales: Vec::new(),
+        default_locale: None,
+    };
+    let Ok(content) = std::fs::read_to_string(config_path) else {
+        return result;
+    };
+    let mut depth: i32 = 0;
+    let mut i18n_depth: Option<i32> = None;
+    let mut enabled = true;
+    let mut locales: Vec<String> = Vec::new();
+    let mut default_locale: Option<String> = None;
+
+    for raw in content.lines() {
+        let trimmed = raw.trim();
+        if trimmed.starts_with("//") || trimmed.starts_with('*') || trimmed.starts_with("/*") {
+            continue;
+        }
+        let opens = raw.chars().filter(|&c| c == '{').count() as i32;
+        let closes = raw.chars().filter(|&c| c == '}').count() as i32;
+
+        match i18n_depth {
+            None => {
+                let before = depth;
+                depth += opens - closes;
+                if value_after_key(trimmed, "i18n").is_some() && opens > closes {
+                    i18n_depth = Some(before + 1);
+                }
+            }
+            Some(block_depth) => {
+                if let Some(v) = value_after_key(trimmed, "enabled") {
+                    if v.trim_start().starts_with("false") {
+                        enabled = false;
+                    }
+                }
+                if let Some(v) = value_after_key(trimmed, "defaultLocale") {
+                    if let Some(s) = extract_quoted_string(v.trim_start()) {
+                        default_locale = Some(s);
+                    }
+                }
+                if let Some(v) = value_after_key(trimmed, "locales") {
+                    locales = extract_string_array(v);
+                }
+                depth += opens - closes;
+                if depth < block_depth {
+                    break;
+                }
+            }
+        }
+    }
+    if enabled {
+        result.locales = locales;
+        result.default_locale = default_locale;
+    }
+    result
+}
+
 /// Extract the first quoted string value from the beginning of `s`.
 pub(crate) fn extract_quoted_string(s: &str) -> Option<String> {
     let s = s.trim();
@@ -887,5 +986,57 @@ mod tests {
     #[test]
     fn parse_authors_returns_empty_when_file_missing() {
         assert!(parse_authors(Path::new("/nonexistent/site.config.ts")).is_empty());
+    }
+
+    // ── parse_i18n ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_i18n_reads_locales_and_default_locale() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: {\n    enabled: true,\n    defaultLocale: 'en',\n    locales: ['en', 'zh'],\n  },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert_eq!(cfg.locales, vec!["en".to_string(), "zh".to_string()]);
+        assert_eq!(cfg.default_locale.as_deref(), Some("en"));
+    }
+
+    #[test]
+    fn parse_i18n_disabled_yields_no_locales() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: {\n    enabled: false,\n    defaultLocale: 'en',\n    locales: ['en', 'zh'],\n  },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert!(cfg.locales.is_empty());
+    }
+
+    #[test]
+    fn parse_i18n_does_not_confuse_default_locale_with_locales() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: {\n    defaultLocale: 'zh',\n    locales: ['en', 'zh', 'ja'],\n  },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert_eq!(cfg.default_locale.as_deref(), Some("zh"));
+        assert_eq!(cfg.locales.len(), 3);
+    }
+
+    #[test]
+    fn parse_i18n_returns_empty_when_absent() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(&dir, "export const siteConfig = { posts: { toc: true } };\n");
+        let cfg = parse_i18n(&path);
+        assert!(cfg.locales.is_empty());
+        assert!(cfg.default_locale.is_none());
+    }
+
+    #[test]
+    fn parse_i18n_returns_empty_when_file_missing() {
+        let cfg = parse_i18n(Path::new("/nonexistent/site.config.ts"));
+        assert!(cfg.locales.is_empty());
     }
 }
