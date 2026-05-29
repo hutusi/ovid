@@ -13,6 +13,7 @@ export const MENU_KEYS = [
   "about_item",
   "about_title",
   "about_body",
+  "file_preferences",
   "file_new_post",
   "file_new_flow",
   "file_new_note",

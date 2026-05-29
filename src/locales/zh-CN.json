@@ -65,7 +65,8 @@
     "theme_light": "切换到浅色模式",
     "theme_dark": "切换到深色模式",
     "theme_toggle": "切换主题",
-    "language": "语言"
+    "language": "语言",
+    "preferences": "偏好设置"
   },
   "workspace_refresh": {
     "changed_with_unsaved": "工作区已在磁盘上更改，但你有未保存的编辑。",
@@ -384,6 +385,7 @@
     "about_item": "关于 Ovid",
     "about_title": "关于 Ovid",
     "about_body": "为 Amytis 内容工作区打造的\n极简桌面 Markdown 编辑器。",
+    "file_preferences": "设置…",
     "file_new_post": "新建文章",
     "file_new_flow": "新建日志",
     "file_new_note": "新建笔记",
@@ -527,6 +529,7 @@
     "save": "保存",
     "close_file": "关闭文件或标签",
     "git_commit": "打开提交对话框",
+    "open_preferences": "打开偏好设置",
     "show_shortcuts": "显示此对话框",
     "insert_link": "插入链接",
     "paste_plain": "粘贴为纯文本",

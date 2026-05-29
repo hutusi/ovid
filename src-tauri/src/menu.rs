@@ -25,10 +25,18 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
     #[cfg(not(target_os = "macos"))]
     let about_item = MenuItemBuilder::with_id("about", get("about_item")).build(app)?;
 
+    // Settings… — native home is the app menu on macOS; kept in the same
+    // submenu elsewhere. The accelerator matches the Cmd+, global shortcut.
+    let preferences_item = MenuItemBuilder::with_id("open-preferences", get("file_preferences"))
+        .accelerator("CmdOrCtrl+,")
+        .build(app)?;
+
     #[cfg(target_os = "macos")]
     let ovid_menu = SubmenuBuilder::new(app, "Ovid")
         .items(&[
             &about_item,
+            &PredefinedMenuItem::separator(app)?,
+            &preferences_item,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::hide(app, None)?,
             &PredefinedMenuItem::hide_others(app, None)?,
@@ -41,6 +49,8 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
     let ovid_menu = SubmenuBuilder::new(app, "Ovid")
         .items(&[
             &about_item,
+            &PredefinedMenuItem::separator(app)?,
+            &preferences_item,
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::quit(app, None)?,
         ])
@@ -288,6 +298,7 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
         ("about_item", "About Ovid"),
         ("about_title", "About Ovid"),
         ("about_body", "A minimalist desktop Markdown editor\nfor Amytis workspaces."),
+        ("file_preferences", "Settings\u{2026}"),
         ("file_new_post", "New Post"),
         ("file_new_flow", "New Flow"),
         ("file_new_note", "New Note"),

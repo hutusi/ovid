@@ -652,6 +652,7 @@ function App() {
         onSetFontSize={(s) => updatePrefs({ fontSize: s })}
         onToggleSpellCheck={() => updatePrefs({ spellCheck: !prefs.spellCheck })}
         onSetWordCountGoal={setWordCountGoal}
+        onOpenPreferences={() => overlay.open({ kind: "preferences" })}
       />
       <AppDialogs
         overlay={overlay}

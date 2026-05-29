@@ -252,6 +252,13 @@ const GLOBAL_ENTRIES: ShortcutEntry[] = [
     source: "global",
   },
   {
+    id: "open-preferences",
+    keys: { mod: true, key: "," },
+    descriptionKey: "open_preferences",
+    category: "view",
+    source: "global",
+  },
+  {
     id: "show-shortcuts",
     keys: { mod: false, shift: true, key: "?" },
     descriptionKey: "show_shortcuts",

@@ -182,6 +182,9 @@ export function useMenuActions({
         case "toggle-spell-check":
           updatePrefs({ spellCheck: !prefs.spellCheck });
           break;
+        case "open-preferences":
+          if (!blocked) overlay.open({ kind: "preferences" });
+          break;
         case "check-updates":
           if (!blocked) overlay.open({ kind: "update" });
           break;

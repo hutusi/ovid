@@ -65,7 +65,8 @@
     "theme_light": "Switch to light mode",
     "theme_dark": "Switch to dark mode",
     "theme_toggle": "Toggle theme",
-    "language": "Language"
+    "language": "Language",
+    "preferences": "Preferences"
   },
   "workspace_refresh": {
     "changed_with_unsaved": "Workspace changed on disk while you have unsaved edits.",
@@ -384,6 +385,7 @@
     "about_item": "About Ovid",
     "about_title": "About Ovid",
     "about_body": "A minimalist desktop Markdown editor\nfor Amytis workspaces.",
+    "file_preferences": "Settings…",
     "file_new_post": "New Post",
     "file_new_flow": "New Flow",
     "file_new_note": "New Note",
@@ -527,6 +529,7 @@
     "save": "Save",
     "close_file": "Close file or tab",
     "git_commit": "Open commit dialog",
+    "open_preferences": "Open preferences",
     "show_shortcuts": "Show this dialog",
     "insert_link": "Insert link",
     "paste_plain": "Paste as plain text",

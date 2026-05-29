@@ -7,6 +7,7 @@ import {
   Keyboard,
   MoonStar,
   PencilLine,
+  Settings,
   SunMedium,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -64,6 +65,7 @@ interface StatusBarProps {
   onSetFontSize: (s: FontSize) => void;
   onToggleSpellCheck: () => void;
   onSetWordCountGoal: (n: number | null) => void;
+  onOpenPreferences: () => void;
 }
 
 export function StatusBar({
@@ -96,6 +98,7 @@ export function StatusBar({
   onSetFontSize,
   onToggleSpellCheck,
   onSetWordCountGoal,
+  onOpenPreferences,
 }: StatusBarProps) {
   const { t, i18n } = useTranslation();
   const goalProgress =
@@ -249,6 +252,15 @@ export function StatusBar({
           aria-label={t("status_bar.language")}
         >
           {i18n.language === "zh-CN" ? "中" : "EN"}
+        </button>
+        <button
+          type="button"
+          className="statusbar-control"
+          onClick={onOpenPreferences}
+          title={t("status_bar.preferences")}
+          aria-label={t("status_bar.preferences")}
+        >
+          <Settings className="statusbar-mode-icon" aria-hidden="true" />
         </button>
       </div>
     </div>

@@ -52,6 +52,7 @@ function renderStatusBar(gitChangeLabel: string | null, onOpenCommit = mock(() =
       onSetFontSize: () => {},
       onToggleSpellCheck: () => {},
       onSetWordCountGoal: () => {},
+      onOpenPreferences: () => {},
     }),
   };
 }
