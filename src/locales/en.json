@@ -29,7 +29,8 @@
       "word_count_goal_hint": "Target words for the writing-progress meter. Leave empty for none."
     },
     "language": {
-      "app_language": "Display language"
+      "app_language": "Display language",
+      "change_failed": "Failed to change language"
     },
     "content": {
       "format": "New file format",

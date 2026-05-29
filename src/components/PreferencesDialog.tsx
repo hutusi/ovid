@@ -25,6 +25,7 @@ interface PreferencesDialogProps {
   onUpdateContentPrefs: (updates: Partial<ContentPreferences>) => void;
   appPrefs: AppPreferences;
   onUpdateAppPrefs: (updates: Partial<AppPreferences>) => void;
+  showToast: (message: string) => void;
   onClose: () => void;
 }
 
@@ -39,6 +40,7 @@ export function PreferencesDialog({
   onUpdateContentPrefs,
   appPrefs,
   onUpdateAppPrefs,
+  showToast,
   onClose,
 }: PreferencesDialogProps) {
   const { t, i18n } = useTranslation();
@@ -59,10 +61,14 @@ export function PreferencesDialog({
 
   const currentLanguage = i18n.language === "zh-CN" ? "zh-CN" : "en";
 
-  function changeLanguage(lng: string) {
-    void i18n.changeLanguage(lng).then(() => {
-      void commands.menu.setLanguage({ labels: buildMenuLabels(i18n.t.bind(i18n)) });
-    });
+  async function changeLanguage(lng: string) {
+    try {
+      await i18n.changeLanguage(lng);
+      await commands.menu.setLanguage({ labels: buildMenuLabels(i18n.t.bind(i18n)) });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      showToast(`${t("preferences.language.change_failed")}: ${detail}`);
+    }
   }
 
   function commitGoal() {
@@ -255,7 +261,7 @@ export function PreferencesDialog({
                   className="pref-select"
                   aria-label={t("preferences.language.app_language")}
                   value={currentLanguage}
-                  onChange={(e) => changeLanguage(e.target.value)}
+                  onChange={(e) => void changeLanguage(e.target.value)}
                 >
                   <option value="en">English</option>
                   <option value="zh-CN">简体中文</option>

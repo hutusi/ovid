@@ -29,7 +29,8 @@
       "word_count_goal_hint": "写作进度条的目标字数。留空则不设目标。"
     },
     "language": {
-      "app_language": "显示语言"
+      "app_language": "显示语言",
+      "change_failed": "切换语言失败"
     },
     "content": {
       "format": "新文件格式",

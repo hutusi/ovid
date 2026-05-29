@@ -188,6 +188,7 @@ export interface AppDialogsProps {
   updateContentPrefs: (updates: Partial<ContentPreferences>) => void;
   appPrefs: AppPreferences;
   updateAppPrefs: (updates: Partial<AppPreferences>) => void;
+  showToast: (message: string) => void;
 }
 
 export function AppDialogs({
@@ -255,6 +256,7 @@ export function AppDialogs({
   updateContentPrefs,
   appPrefs,
   updateAppPrefs,
+  showToast,
 }: AppDialogsProps) {
   const { t } = useTranslation();
   // Pull the modal state out of the overlay union once per render so the
@@ -319,6 +321,7 @@ export function AppDialogs({
             onUpdateContentPrefs={updateContentPrefs}
             appPrefs={appPrefs}
             onUpdateAppPrefs={updateAppPrefs}
+            showToast={showToast}
             onClose={() => overlay.close("preferences")}
           />
         </Suspense>

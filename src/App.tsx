@@ -725,6 +725,7 @@ function App() {
         updateContentPrefs={updateContentPrefs}
         appPrefs={appPrefs}
         updateAppPrefs={updateAppPrefs}
+        showToast={showToast}
       />
     </div>
   );
