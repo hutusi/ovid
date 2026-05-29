@@ -67,12 +67,12 @@ export function PreferencesDialog({
 
   function commitGoal() {
     const trimmed = goalInput.trim();
-    if (trimmed === "") {
+    if (trimmed === "" || !/^\d+$/.test(trimmed)) {
       onSetWordCountGoal(null);
       return;
     }
-    const n = Number.parseInt(trimmed, 10);
-    onSetWordCountGoal(Number.isFinite(n) && n > 0 ? n : null);
+    const n = Number(trimmed);
+    onSetWordCountGoal(n > 0 ? n : null);
   }
 
   function handleTabKeyDown(e: React.KeyboardEvent) {

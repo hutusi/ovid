@@ -2,11 +2,16 @@ import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "ovid:wordCountGoal";
 
-/** Parse a stored goal string into a positive integer, or null if absent/invalid. */
+/** Parse a stored goal string into a positive integer, or null if absent/invalid.
+ *  Rejects partial parses ("12abc", "1.5", "1e2") that `Number.parseInt` would
+ *  silently truncate, so a corrupted localStorage entry clears the goal rather
+ *  than producing a nonsense value. */
 export function parseGoal(raw: string | null): number | null {
   if (!raw) return null;
-  const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const n = Number(trimmed);
+  return n > 0 ? n : null;
 }
 
 /** Truncate to a positive integer; non-positive or non-finite values clear the goal. */

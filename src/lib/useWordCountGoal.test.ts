@@ -13,6 +13,13 @@ describe("parseGoal", () => {
     expect(parseGoal("-5")).toBeNull();
     expect(parseGoal("abc")).toBeNull();
   });
+
+  it("rejects partial numeric parses that parseInt would silently truncate", () => {
+    expect(parseGoal("123abc")).toBeNull();
+    expect(parseGoal("1.5")).toBeNull();
+    expect(parseGoal("1e2")).toBeNull();
+    expect(parseGoal("  500  ")).toBe(500);
+  });
 });
 
 describe("normalizeGoal", () => {
