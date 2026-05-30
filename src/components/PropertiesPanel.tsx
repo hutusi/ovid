@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import {
+  FRONTMATTER_FIELD_SCHEMA,
   getFrontmatterFieldDefaultValue,
   getFrontmatterFieldValue,
   getMissingAddableFrontmatterFields,
@@ -13,7 +14,15 @@ import { CoverImageField } from "./properties/CoverImageField";
 import { CustomMetadataField } from "./properties/CustomMetadataField";
 import { DateField } from "./properties/DateField";
 import { EditableValue } from "./properties/EditableValue";
+import { RemoveFieldButton } from "./properties/RemoveFieldButton";
+import { SelectField } from "./properties/SelectField";
 import { TagInput } from "./properties/TagInput";
+
+const SORT_OPTION_LABEL_KEY: Record<string, string> = {
+  "date-asc": "properties.sort_date_asc",
+  "date-desc": "properties.sort_date_desc",
+  manual: "properties.sort_manual",
+};
 
 interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
@@ -46,11 +55,17 @@ export function PropertiesPanel({
   const titleValue = getFrontmatterFieldValue(frontmatter, "title");
   const dateValue = getFrontmatterFieldValue(frontmatter, "date");
   const tagsValue = getFrontmatterFieldValue(frontmatter, "tags");
+  const sortValue = getFrontmatterFieldValue(frontmatter, "sort");
   const coverImageValue = getFrontmatterFieldValue(frontmatter, "coverImage");
   const title = typeof titleValue === "string" ? titleValue : undefined;
   const date = typeof dateValue === "string" ? dateValue : undefined;
   const tags = Array.isArray(tagsValue) ? tagsValue : undefined;
+  const sort = typeof sortValue === "string" ? sortValue : undefined;
   const coverImage = typeof coverImageValue === "string" ? coverImageValue : undefined;
+  const sortOptions = (FRONTMATTER_FIELD_SCHEMA.sort.options ?? []).map((opt) => ({
+    value: opt,
+    label: t(SORT_OPTION_LABEL_KEY[opt] ?? opt, { defaultValue: opt }),
+  }));
   const publishingFields = PUBLISHING_BOOLEAN_FIELDS.map((key) => ({
     key,
     value: getFrontmatterFieldValue(frontmatter, key),
@@ -101,6 +116,26 @@ export function PropertiesPanel({
             <div className="prop-field">
               <span className="prop-label">{t("properties.tags")}</span>
               <TagInput tags={tags} onSave={(v) => onFieldChange?.("tags", v)} />
+            </div>
+          )}
+
+          {sort !== undefined && (
+            <div className="prop-field">
+              <div className="prop-field-head">
+                <span className="prop-label">{t("properties.sort")}</span>
+                <div className="prop-field-actions">
+                  <RemoveFieldButton
+                    label={t("properties.sort")}
+                    onRemove={() => onFieldChange?.("sort", null)}
+                  />
+                </div>
+              </div>
+              <SelectField
+                ariaLabel={t("properties.sort")}
+                value={sort}
+                options={sortOptions}
+                onSave={(v) => onFieldChange?.("sort", v)}
+              />
             </div>
           )}
         </section>

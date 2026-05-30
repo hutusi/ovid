@@ -1,6 +1,6 @@
 import type { FrontmatterValue, ParsedFrontmatter } from "./frontmatter";
 
-export type FrontmatterFieldKind = "text" | "boolean" | "date" | "tags" | "path";
+export type FrontmatterFieldKind = "text" | "boolean" | "date" | "tags" | "path" | "enum";
 export type CustomFrontmatterValueType = "text" | "boolean" | "number" | "date" | "tags";
 const DATE_STRING_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -11,6 +11,8 @@ export interface FrontmatterFieldSchema {
   hidden?: boolean;
   addable?: boolean;
   defaultValue?: FrontmatterValue;
+  /** Allowed values for `kind: "enum"`. Display order matches the dropdown. */
+  options?: readonly string[];
 }
 
 export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = {
@@ -39,6 +41,14 @@ export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = 
   },
   date: { key: "date", label: "Date", kind: "date" },
   tags: { key: "tags", label: "Tags", kind: "tags" },
+  sort: {
+    key: "sort",
+    label: "Sort",
+    kind: "enum",
+    options: ["date-asc", "date-desc", "manual"],
+    addable: true,
+    defaultValue: "date-desc",
+  },
   coverImage: {
     key: "coverImage",
     label: "Cover Image",
