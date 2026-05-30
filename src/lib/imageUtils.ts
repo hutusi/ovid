@@ -77,6 +77,8 @@ export function resolveRelativePath(baseDir: string, relative: string): string {
  * Resolve an image `src` attribute to a URL usable in Tauri's WebView.
  *
  * - External / data / blob / asset URLs pass through unchanged.
+ * - Amytis text-cover values (`text:Foo`) pass through unchanged so callers
+ *   that forget to branch on `parseCoverImage` don't produce a broken file://.
  * - Root-relative paths (/images/foo.png): prepend CDN base if configured,
  *   otherwise resolve against `assetRoot` (workspace's public/ dir or root).
  * - Relative paths (../assets/foo.png): resolve against `filePath`'s directory.
@@ -92,6 +94,7 @@ export function resolveImageSrc(
   toFileUrl: (path: string) => string = convertFileSrc
 ): string {
   if (!src) return src;
+  if (src.startsWith("text:")) return src;
   if (/^(https?|data|blob|asset):/.test(src)) return src;
 
   if (src.startsWith("/")) {
@@ -107,4 +110,28 @@ export function resolveImageSrc(
   }
 
   return src;
+}
+
+/**
+ * A parsed `coverImage` frontmatter value.
+ *
+ * Amytis supports a `text:Foo` syntax that renders the suffix as a gradient
+ * text card instead of loading an image. Empty/missing values are distinct
+ * from text-cover values: `kind: "empty"` means "render nothing", while
+ * `kind: "text"` with `text: ""` means "render a text cover and fall back
+ * to the title".
+ */
+export type CoverImageRef =
+  | { kind: "empty" }
+  | { kind: "text"; text: string }
+  | { kind: "path"; src: string };
+
+export function parseCoverImage(value: string | undefined | null): CoverImageRef {
+  if (value == null) return { kind: "empty" };
+  const trimmed = value.trim();
+  if (trimmed === "") return { kind: "empty" };
+  if (trimmed.startsWith("text:")) {
+    return { kind: "text", text: trimmed.slice("text:".length).trim() };
+  }
+  return { kind: "path", src: trimmed };
 }

@@ -185,6 +185,8 @@ export function PropertiesPanel({
               filePath={filePath}
               assetRoot={assetRoot}
               cdnBase={cdnBase}
+              slug={slug ?? ""}
+              fallbackText={title ?? slug ?? ""}
               onTogglePreview={() => onToggleCoverImage?.()}
               onSave={(v) => onFieldChange?.("coverImage", v)}
               onRemove={() => onFieldChange?.("coverImage", null)}
