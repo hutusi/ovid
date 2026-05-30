@@ -25,3 +25,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Coverage artifacts
+coverage/
+lcov.info
+*.profraw
+src-tauri/target/llvm-cov-target/

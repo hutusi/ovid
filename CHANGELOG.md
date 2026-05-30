@@ -41,6 +41,13 @@ release cadence and Conventional Commit history.
   subline is restyled to read as the row's value.
 
 ### Internal
+- **Coverage reporting**: added `bun run coverage` (TS via `bun test
+  --coverage`, Rust via `cargo-llvm-cov`) plus HTML variants
+  (`coverage:html` using `genhtml`, `coverage:rust:html` using
+  `cargo-llvm-cov`'s built-in renderer). CI publishes both summaries to
+  the GitHub Actions step summary on every run (non-gating, `if:
+  always()` so they show on red builds). `bun run validate` is unchanged
+  so local pre-commit speed is preserved.
 - **Dependency sweep**: refreshed JS and Rust deps. Within-major bumps across
   Tauri 2.11, Tiptap 3.23.6, React 19.2.6, i18next 26.3, biome 2.4.16,
   tailwindcss 4.3, vite 7.3.3. Five majors taken on the same branch as

@@ -14,6 +14,11 @@
     "lint:fix": "biome check --write src",
     "format": "biome format --write src",
     "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov",
+    "coverage:rust": "command -v cargo-llvm-cov >/dev/null 2>&1 || { echo 'cargo-llvm-cov not installed; run: cargo install cargo-llvm-cov'; exit 1; } && cargo llvm-cov --manifest-path src-tauri/Cargo.toml --summary-only",
+    "coverage:html": "command -v genhtml >/dev/null 2>&1 || { echo 'genhtml not installed; install via: brew install lcov'; exit 1; } && bun run test:coverage && genhtml coverage/lcov.info -o coverage/html --quiet && echo 'Report: coverage/html/index.html'",
+    "coverage:rust:html": "command -v cargo-llvm-cov >/dev/null 2>&1 || { echo 'cargo-llvm-cov not installed; run: cargo install cargo-llvm-cov'; exit 1; } && cargo llvm-cov --manifest-path src-tauri/Cargo.toml --html && echo 'Report: src-tauri/target/llvm-cov/html/index.html'",
+    "coverage": "bun run test:coverage && bun run coverage:rust",
     "validate": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit && biome check src && bun test && bun run build && cargo test --manifest-path src-tauri/Cargo.toml && git diff --exit-code src/lib/commands/generated"
   },
   "dependencies": {

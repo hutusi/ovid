@@ -26,7 +26,7 @@ Tauri/WebView constraints matter here: avoid portal-based UI libraries, prefer n
 
 ## Testing Guidelines
 
-Write Bun unit tests next to the implementation using `*.test.ts`. Focus on pure helpers, frontmatter parsing, file search, and Tiptap extension behavior. Add regression tests for bug fixes. Run `bun run test` locally, or `bun run validate` for the full check.
+Write Bun unit tests next to the implementation using `*.test.ts`. Focus on pure helpers, frontmatter parsing, file search, and Tiptap extension behavior. Add regression tests for bug fixes. Run `bun run test` locally, or `bun run validate` for the full check. For an on-demand coverage report (TS + Rust), run `bun run coverage` — not part of `validate`.
 
 ## Commit & Pull Request Guidelines
 
