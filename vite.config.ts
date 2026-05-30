@@ -66,7 +66,7 @@ export default defineConfig(async () => ({
     },
   },
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         manualChunks,
       },
