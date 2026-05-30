@@ -41,6 +41,25 @@ release cadence and Conventional Commit history.
   subline is restyled to read as the row's value.
 
 ### Internal
+- **Coverage push-up — final pass**: closes the remaining gaps that fit
+  the current toolchain. TS side: `useWorkspace.ts` (63% → 85%) gains
+  tests on `handleNewTodayFlow` / `handleDuplicate` /
+  `handleNewFromExisting` / `addCollectionItem` / `removeCollectionItem`;
+  `useGitUiController.ts` (8% → 96%) gains 20 renderHook tests across
+  dialog state, branch mutation, sync-popover dispatch, and the commit
+  flow; `tiptap/FindReplace.ts` (16% → 99%) and `tiptap/TextFolding.ts`
+  (20% → 85%) gain `Editor.create()`-based ProseMirror command +
+  fold-state-machine tests (per-file happy-dom opt-in for plugin
+  installation). Rust side: `mockito = "1"` joins `[dev-dependencies]`
+  for HTTP layer testing; `wechat/token.rs` (0% → 93%),
+  `wechat/publish.rs` (12% → 58%, with its `create_wechat_draft` /
+  `update_wechat_draft` helpers extracted), and `wechat/upload.rs`
+  (54% → 88%) gain cache + workflow + error-path coverage against
+  mockito servers. Mockito tests use a `.no_proxy()` reqwest client
+  because macOS system proxies otherwise intercept the 127.0.0.1
+  request and return 502. Tauri command shells with `State<…>`
+  arguments, async mutating git commands, and UI components stay
+  uncovered — they're structural limits of the current toolchain.
 - **TS load-bearing hook coverage** (ADR 0012, supersedes the
   testing-strategy note in ADR 0007): adopt `@testing-library/react` +
   `@happy-dom/global-registrator` for hook tests, opted in per file via
