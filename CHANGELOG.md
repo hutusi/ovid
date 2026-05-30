@@ -22,7 +22,9 @@ release cadence and Conventional Commit history.
 - **Sort dropdown**: the `sort` frontmatter field is now a constrained select
   (`date-asc` / `date-desc` / `manual`) instead of a free-text input. Out-of-
   vocabulary existing values are surfaced as an additional option so they
-  aren't silently lost.
+  aren't silently lost. The Add-field affordance only offers `sort` on series
+  (where `posts:` ordering applies); already-present values keep rendering on
+  any file so nothing is hidden by surprise.
 - **Per-bucket content icons**: top-level content buckets in the sidebar
   (`posts/`, `series/`, `books/`, `flows/`, `notes/`, `pages/`) now show a
   type-specific icon instead of the generic Folder/FolderOpen glyph. Entry

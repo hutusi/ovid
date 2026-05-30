@@ -29,6 +29,9 @@ interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
   visible: boolean;
   slug?: string;
+  /** Bucket-derived content type (post/series/book/note/flow/page) used to
+   *  gate context-sensitive addable fields like `sort` (series-only). */
+  contentType?: string;
   coverImageVisible?: boolean;
   filePath?: string;
   assetRoot?: string;
@@ -44,6 +47,7 @@ export function PropertiesPanel({
   frontmatter,
   visible,
   slug,
+  contentType,
   coverImageVisible = false,
   filePath,
   assetRoot,
@@ -74,7 +78,7 @@ export function PropertiesPanel({
     value: getFrontmatterFieldValue(frontmatter, key),
   })).filter((field): field is { key: string; value: FrontmatterValue } => field.value != null);
   const isEmpty = Object.values(frontmatter).every((v) => v == null);
-  const addableKeys = getMissingAddableFrontmatterFields(frontmatter);
+  const addableKeys = getMissingAddableFrontmatterFields(frontmatter, { contentType });
   const customKeys = Object.keys(frontmatter)
     .filter((k) => frontmatter[k] != null && !isKnownFrontmatterField(k))
     .sort();

@@ -191,6 +191,7 @@ export function EditorPane({
           frontmatter={parsedFrontmatter}
           visible={propertiesOpen}
           slug={selectedFile.name.replace(/\.mdx?$/, "")}
+          contentType={selectedFile.contentType}
           coverImageVisible={coverImageVisible}
           filePath={selectedFile.path}
           assetRoot={assetRoot}

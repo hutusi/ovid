@@ -20,6 +20,11 @@ export interface FrontmatterFieldSchema {
   defaultValue?: FrontmatterValue;
   /** Allowed values for `kind: "enum"`. Display order matches the dropdown. */
   options?: readonly string[];
+  /** Optional context-gate for `addable: true`. When present, the field only
+   *  appears in the "Add field" affordance if this predicate is satisfied
+   *  (e.g. `sort` only makes sense on series). Already-present values still
+   *  render unconditionally. */
+  addableFor?: (contentType: string | undefined) => boolean;
 }
 
 export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = {
@@ -61,6 +66,7 @@ export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = 
     kind: "enum",
     options: ["date-asc", "date-desc", "manual"],
     addable: true,
+    addableFor: (contentType) => contentType === "series",
     defaultValue: "date-desc",
   },
   coverImage: {
@@ -133,14 +139,21 @@ export function setFrontmatterFieldValue(
   return updated;
 }
 
-export function getMissingAddableFrontmatterFields(frontmatter: ParsedFrontmatter): string[] {
+export function getMissingAddableFrontmatterFields(
+  frontmatter: ParsedFrontmatter,
+  context: { contentType?: string } = {}
+): string[] {
   const presentKeys = new Set(
     Object.entries(frontmatter)
       .filter(([, value]) => value != null)
       .map(([key]) => resolveKnownFrontmatterFieldKey(key) ?? key)
   );
   return Object.values(FRONTMATTER_FIELD_SCHEMA)
-    .filter((field) => field.addable && !presentKeys.has(field.key))
+    .filter((field) => {
+      if (!field.addable || presentKeys.has(field.key)) return false;
+      if (field.addableFor && !field.addableFor(context.contentType)) return false;
+      return true;
+    })
     .map((field) => field.key);
 }
 
