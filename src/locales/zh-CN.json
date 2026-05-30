@@ -314,6 +314,7 @@
     "frontmatter": "前置数据",
     "document_metadata": "文档元数据",
     "title": "标题",
+    "excerpt": "摘要",
     "slug": "URL 标识",
     "date": "日期",
     "tags": "标签",

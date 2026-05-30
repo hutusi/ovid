@@ -1,6 +1,13 @@
 import type { FrontmatterValue, ParsedFrontmatter } from "./frontmatter";
 
-export type FrontmatterFieldKind = "text" | "boolean" | "date" | "tags" | "path" | "enum";
+export type FrontmatterFieldKind =
+  | "text"
+  | "longtext"
+  | "boolean"
+  | "date"
+  | "tags"
+  | "path"
+  | "enum";
 export type CustomFrontmatterValueType = "text" | "boolean" | "number" | "date" | "tags";
 const DATE_STRING_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -18,6 +25,13 @@ export interface FrontmatterFieldSchema {
 export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = {
   title: { key: "title", label: "Title", kind: "text" },
   type: { key: "type", label: "Type", kind: "text", hidden: true },
+  excerpt: {
+    key: "excerpt",
+    label: "Excerpt",
+    kind: "longtext",
+    addable: true,
+    defaultValue: "",
+  },
   draft: {
     key: "draft",
     label: "Draft",

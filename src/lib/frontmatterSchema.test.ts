@@ -52,7 +52,7 @@ describe("frontmatter schema", () => {
         title: "Post",
         featured: false,
       })
-    ).toEqual(["draft", "pinned", "sort", "coverImage"]);
+    ).toEqual(["excerpt", "draft", "pinned", "sort", "coverImage"]);
   });
 
   test("treats mixed-case known keys as present for addable fields", () => {
@@ -61,7 +61,7 @@ describe("frontmatter schema", () => {
         Featured: true,
         CoverImage: "/hero.png",
       })
-    ).toEqual(["draft", "pinned", "sort"]);
+    ).toEqual(["excerpt", "draft", "pinned", "sort"]);
   });
 
   test("treats null-valued known keys as absent for addable fields", () => {
@@ -70,7 +70,7 @@ describe("frontmatter schema", () => {
         featured: null,
         pinned: false,
       })
-    ).toEqual(["draft", "featured", "sort", "coverImage"]);
+    ).toEqual(["excerpt", "draft", "featured", "sort", "coverImage"]);
   });
 
   test("coerces custom metadata values by type", () => {

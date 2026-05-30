@@ -14,6 +14,7 @@ import { CoverImageField } from "./properties/CoverImageField";
 import { CustomMetadataField } from "./properties/CustomMetadataField";
 import { DateField } from "./properties/DateField";
 import { EditableValue } from "./properties/EditableValue";
+import { LongTextField } from "./properties/LongTextField";
 import { RemoveFieldButton } from "./properties/RemoveFieldButton";
 import { SelectField } from "./properties/SelectField";
 import { TagInput } from "./properties/TagInput";
@@ -53,11 +54,13 @@ export function PropertiesPanel({
 }: PropertiesPanelProps) {
   const { t } = useTranslation();
   const titleValue = getFrontmatterFieldValue(frontmatter, "title");
+  const excerptValue = getFrontmatterFieldValue(frontmatter, "excerpt");
   const dateValue = getFrontmatterFieldValue(frontmatter, "date");
   const tagsValue = getFrontmatterFieldValue(frontmatter, "tags");
   const sortValue = getFrontmatterFieldValue(frontmatter, "sort");
   const coverImageValue = getFrontmatterFieldValue(frontmatter, "coverImage");
   const title = typeof titleValue === "string" ? titleValue : undefined;
+  const excerpt = typeof excerptValue === "string" ? excerptValue : undefined;
   const date = typeof dateValue === "string" ? dateValue : undefined;
   const tags = Array.isArray(tagsValue) ? tagsValue : undefined;
   const sort = typeof sortValue === "string" ? sortValue : undefined;
@@ -94,6 +97,25 @@ export function PropertiesPanel({
                 label={t("properties.title")}
                 value={title}
                 onSave={(v) => onFieldChange?.("title", v)}
+              />
+            </div>
+          )}
+
+          {excerpt !== undefined && (
+            <div className="prop-field">
+              <div className="prop-field-head">
+                <span className="prop-label">{t("properties.excerpt")}</span>
+                <div className="prop-field-actions">
+                  <RemoveFieldButton
+                    label={t("properties.excerpt")}
+                    onRemove={() => onFieldChange?.("excerpt", null)}
+                  />
+                </div>
+              </div>
+              <LongTextField
+                ariaLabel={t("properties.excerpt")}
+                value={excerpt}
+                onSave={(v) => onFieldChange?.("excerpt", v)}
               />
             </div>
           )}

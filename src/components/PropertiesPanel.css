@@ -305,6 +305,58 @@
   color: var(--color-fg-subtle);
 }
 
+/* ── Long-text (textarea field) ──────────────── */
+.prop-longtext-area {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 7px;
+  margin: 0 -7px;
+  border-radius: 7px;
+  cursor: text;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+  box-sizing: content-box;
+}
+
+.prop-longtext-area:hover {
+  background: var(--color-surface-hover);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.prop-longtext-value {
+  display: block;
+  font-size: 13px;
+  color: var(--color-fg);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+.prop-longtext-input {
+  display: block;
+  width: 100%;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  line-height: 1.5;
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.prop-longtext-input:focus-visible {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
 /* ── Select (enum field) ─────────────────────── */
 .prop-select {
   width: 100%;

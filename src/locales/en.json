@@ -314,6 +314,7 @@
     "frontmatter": "Frontmatter",
     "document_metadata": "Document metadata",
     "title": "Title",
+    "excerpt": "Excerpt",
     "slug": "Slug",
     "date": "Date",
     "tags": "Tags",
