@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use crate::paths::validate_path;
 
+use super::token::DEFAULT_WECHAT_API_BASE;
+
 pub(crate) fn wechat_mime_type(path: &Path) -> &'static str {
     match path
         .extension()
@@ -22,6 +24,17 @@ pub(crate) async fn wechat_upload_body_image(
     token: &str,
     path: &Path,
 ) -> Result<String, String> {
+    wechat_upload_body_image_with(client, DEFAULT_WECHAT_API_BASE, token, path).await
+}
+
+/// Inner body-image upload with an injectable api_base. The public wrapper
+/// uses DEFAULT_WECHAT_API_BASE; tests pass `server.url()` from mockito.
+pub(crate) async fn wechat_upload_body_image_with(
+    client: &reqwest::Client,
+    api_base: &str,
+    token: &str,
+    path: &Path,
+) -> Result<String, String> {
     let bytes = tokio::fs::read(path)
         .await
         .map_err(|e| format!("Cannot read image {}: {}", path.display(), e))?;
@@ -36,8 +49,8 @@ pub(crate) async fn wechat_upload_body_image(
         .map_err(|e| e.to_string())?;
     let form = reqwest::multipart::Form::new().part("media", part);
     let url = format!(
-        "https://api.weixin.qq.com/cgi-bin/media/uploadimg?access_token={}",
-        token
+        "{}/cgi-bin/media/uploadimg?access_token={}",
+        api_base, token
     );
     // Strip URLs from reqwest errors — the request URL carries access_token
     // as a query param, which would otherwise surface in error toasts/logs.
@@ -68,6 +81,15 @@ pub(crate) async fn wechat_upload_thumb(
     token: &str,
     path: &Path,
 ) -> Result<String, String> {
+    wechat_upload_thumb_with(client, DEFAULT_WECHAT_API_BASE, token, path).await
+}
+
+pub(crate) async fn wechat_upload_thumb_with(
+    client: &reqwest::Client,
+    api_base: &str,
+    token: &str,
+    path: &Path,
+) -> Result<String, String> {
     let bytes = tokio::fs::read(path)
         .await
         .map_err(|e| format!("Cannot read cover image {}: {}", path.display(), e))?;
@@ -84,8 +106,8 @@ pub(crate) async fn wechat_upload_thumb(
         .text("type", "image")
         .part("media", media_part);
     let url = format!(
-        "https://api.weixin.qq.com/cgi-bin/material/add_material?access_token={}&type=image",
-        token
+        "{}/cgi-bin/material/add_material?access_token={}&type=image",
+        api_base, token
     );
     // Same access_token-stripping as wechat_upload_body_image.
     let resp: serde_json::Value = client
@@ -317,5 +339,107 @@ mod tests {
             "nonexistent/image.jpg",
         );
         assert!(result.is_err());
+    }
+
+    // ── upload HTTP layer (mockito) ─────────────────────────────────────────
+
+    use mockito::{Matcher, Server};
+
+    fn no_proxy_client() -> reqwest::Client {
+        reqwest::Client::builder().no_proxy().build().unwrap()
+    }
+
+    fn write_test_image(dir: &Path) -> PathBuf {
+        let path = dir.join("test.png");
+        std::fs::write(&path, b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR").unwrap();
+        path
+    }
+
+    #[tokio::test]
+    async fn upload_body_image_returns_the_url_on_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/cgi-bin/media/uploadimg")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"url":"https://mmbiz.qpic.cn/img/xyz"}"#)
+            .create_async()
+            .await;
+
+        let dir = TempDir::new().unwrap();
+        let image = write_test_image(dir.path());
+
+        let url = wechat_upload_body_image_with(&no_proxy_client(), &server.url(), "TOKEN", &image)
+            .await
+            .expect("upload body image");
+
+        assert_eq!(url, "https://mmbiz.qpic.cn/img/xyz");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn upload_body_image_propagates_errcode() {
+        let mut server = Server::new_async().await;
+        let _mock = server
+            .mock("POST", "/cgi-bin/media/uploadimg")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"errcode":40004,"errmsg":"invalid media type"}"#)
+            .create_async()
+            .await;
+
+        let dir = TempDir::new().unwrap();
+        let image = write_test_image(dir.path());
+
+        let err = wechat_upload_body_image_with(&no_proxy_client(), &server.url(), "TOKEN", &image)
+            .await
+            .expect_err("nonzero errcode");
+
+        assert!(err.contains("40004"));
+        assert!(err.contains("invalid media type"));
+    }
+
+    #[tokio::test]
+    async fn upload_thumb_returns_media_id_on_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/cgi-bin/material/add_material")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"media_id":"THUMB_42","url":"https://mmbiz.qpic.cn/cover/42"}"#)
+            .create_async()
+            .await;
+
+        let dir = TempDir::new().unwrap();
+        let image = write_test_image(dir.path());
+
+        let media_id = wechat_upload_thumb_with(&no_proxy_client(), &server.url(), "TOKEN", &image)
+            .await
+            .expect("upload thumb");
+
+        assert_eq!(media_id, "THUMB_42");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn upload_thumb_returns_err_when_no_media_id_in_response() {
+        let mut server = Server::new_async().await;
+        let _mock = server
+            .mock("POST", "/cgi-bin/material/add_material")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            // Response missing media_id (some other field instead).
+            .with_body(r#"{"errcode":0,"other":"value"}"#)
+            .create_async()
+            .await;
+
+        let dir = TempDir::new().unwrap();
+        let image = write_test_image(dir.path());
+
+        let err = wechat_upload_thumb_with(&no_proxy_client(), &server.url(), "TOKEN", &image)
+            .await
+            .expect_err("missing media_id");
+
+        assert!(err.contains("No media_id"), "unexpected error: {err}");
     }
 }
