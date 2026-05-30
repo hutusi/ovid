@@ -28,7 +28,7 @@ tokio = { version = "1", features = ["sync"] }
 trash = "5"
 sys-locale = "0.3"
 reqwest = { version = "0.13", features = ["json", "multipart"] }
-ts-rs = { version = "11", features = ["serde-compat"] }
+ts-rs = { version = "12", features = ["serde-compat"] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -66,7 +66,11 @@ export default defineConfig(async () => ({
     },
   },
   build: {
-    rollupOptions: {
+    // Vite 8 deprecated the `manualChunks` function form in favour of Rolldown's
+    // declarative `codeSplitting` (https://rolldown.rs/reference/OutputOptions.codeSplitting).
+    // The function still works and keeps the six named editor/vendor bundles distinct;
+    // migrating is a separate rethink and out of scope for the dep sweep.
+    rolldownOptions: {
       output: {
         manualChunks,
       },
