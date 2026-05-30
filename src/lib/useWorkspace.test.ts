@@ -209,7 +209,7 @@ describe("useWorkspace", () => {
     expect(created[0]?.path).toBe(capturedNewPath as unknown as string);
   });
 
-  it("handleRename calls files_rename then fires onPathRenamed with a tree lookup", async () => {
+  it("handleRename calls rename_file then fires onPathRenamed with a tree lookup", async () => {
     const oldNode = makeNode("/ws/content/posts/old.md");
     const newPath = "/ws/content/posts/new.md";
     const renameCalls: Array<{ oldPath: string; newPath: string; resolved?: FileNode }> = [];

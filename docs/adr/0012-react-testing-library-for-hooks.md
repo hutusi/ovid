@@ -41,15 +41,25 @@ unblocks broad hook coverage, not to write one-off refactors per hook.
 ## Decision
 
 Adopt **`@testing-library/react`** + **`@happy-dom/global-registrator`** as
-the hook testing toolchain, wired in via a Bun test preload:
+the hook testing toolchain, wired in **per-file** rather than via a global
+`bunfig.toml` preload:
 
-- `bunfig.toml` declares a `[test] preload = ["./scripts/test-setup.ts"]`.
-- `scripts/test-setup.ts` calls `GlobalRegistrator.register({ url: ... })`
-  and sets `globalThis.IS_REACT_ACT_ENVIRONMENT = true` so React 18+ async
-  state updates don't log `act()` warnings.
+- `scripts/test-setup.ts` exports `registerHappyDom()` and
+  `unregisterHappyDom()`. The first calls
+  `GlobalRegistrator.register({ url: ... })` and sets
+  `globalThis.IS_REACT_ACT_ENVIRONMENT = true` so React 18+ async state
+  updates don't log `act()` warnings; the second tears the DOM down.
+- Hook test files opt in with `beforeAll(registerHappyDom)` and
+  `afterAll(unregisterHappyDom)`, scoping the DOM to the file's tests.
 - Hook tests use `renderHook(() => useFoo(args))` and `act(...)` to drive
   the hook, then assert against `result.current.*` and against spy
   functions passed in as args.
+
+A global `bunfig.toml` preload was tried first and rejected: Bun runs
+every test file in one process, and a globally-registered `document`
+makes Tiptap/ProseMirror's serialization path produce extra trailing
+paragraphs, breaking five `tiptap/ListBackspace.test.ts` cases. Per-file
+scope avoids the interference.
 
 **Pure-helper extraction remains the *first* tool.** If a piece of logic is a
 decision rule that doesn't depend on React or external I/O, it stays a pure
