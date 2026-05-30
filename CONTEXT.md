@@ -35,6 +35,12 @@ The two paths matter when reasoning about *where* files live:
 - **`assetRoot`** — where root-relative image paths (`/images/cover.jpg`)
   resolve to. For Amytis workspaces this is the project's `public/` dir; for
   generic workspaces it falls back to `workspaceRootPath`.
+- **`coverImage` accepts a `text:` prefix** — `coverImage: text:Issue 1` is an
+  Amytis convention that renders a gradient text card instead of loading an
+  image. `parseCoverImage` (`src/lib/imageUtils.ts`) classifies the raw value
+  into `{ empty | text | path }` so the editor banner and the properties-panel
+  thumbnail render through one shared `TextCover` component, with palette
+  derived from `slug.length % 7` to match Amytis's rendering exactly.
 
 `site.config.ts` (parsed in `src-tauri/src/content_types.rs`) optionally
 contributes:
