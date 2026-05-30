@@ -195,6 +195,14 @@ offer *New &lt;Type&gt;*; an entry folder shows its title + members; a collectio
 shows its `items:` as link rows with add/remove. `findCollectionEntries` and
 `isCollectionEntry` (sidebarUtils) drive collection detection.
 
+Row icons in content mode also reflect type: file rows pass `node.contentType`
+through `ContentTypeIcon` (post → FileText, series → ListOrdered, book →
+BookOpen, flow → ArrowLeftRight, note → StickyNote, page → LayoutTemplate),
+and top-level **bucket folders** reuse the same mapping so each bucket is
+recognisable at a glance. Entry folders (a series's own folder) and every
+Files-mode folder keep the generic Folder/FolderOpen glyph so the
+expand/collapse signal stays intact on the rows where it matters.
+
 Noise-dir filtering (`.git`, `node_modules`, `target`, `dist`, `.next`, etc.)
 lives in `walk_tree` (Rust, `src-tauri/src/workspace/tree.rs`) so the projection
 selectors don't have to know about build outputs. The full tree from `walk_tree`
