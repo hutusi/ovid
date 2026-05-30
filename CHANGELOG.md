@@ -43,7 +43,7 @@ release cadence and Conventional Commit history.
 ### Internal
 - **Dependency sweep**: refreshed JS and Rust deps. Within-major bumps across
   Tauri 2.11, Tiptap 3.23.6, React 19.2.6, i18next 26.3, biome 2.4.16,
-  tailwindcss 4.3, vite 7.3.3. Six majors taken on the same branch as
+  tailwindcss 4.3, vite 7.3.3. Five majors taken on the same branch as
   bisectable single commits: `lucide-react` 0.577 → 1.17 (all 25 in-use icons
   survived), `katex` 0.16 → 0.17 (CSS-only consumer), `typescript` 5.8 → 6.0
   (removed deprecated `baseUrl`; opted out of the new
