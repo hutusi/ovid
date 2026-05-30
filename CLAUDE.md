@@ -44,6 +44,23 @@ bun run coverage:rust:html  # Rust — uses cargo-llvm-cov built-in HTML
 
 Tests are colocated as `*.test.ts` next to the implementation (e.g. `src/lib/frontmatter.test.ts`, `src/lib/tiptap/FindReplace.test.ts`).
 
+**Hook tests** run under happy-dom via per-file opt-in (not a global preload — a globally-registered `document` changes Tiptap/ProseMirror's serialization path). Pattern:
+
+```typescript
+import { afterAll, beforeAll, describe, it } from "bun:test";
+import { renderHook } from "@testing-library/react";
+import { registerHappyDom, unregisterHappyDom } from "../../scripts/test-setup";
+
+beforeAll(registerHappyDom);
+afterAll(unregisterHappyDom);
+
+// renderHook(() => useFoo(args)) + act(...) — see useEditorSession.test.ts
+// for the canonical example, useWorkspace.test.ts for the mock.module()
+// pattern that stubs @tauri-apps/api/core's invoke.
+```
+
+See [ADR 0012](docs/adr/0012-react-testing-library-for-hooks.md). Pure-helper extraction remains the first choice for decision logic; the renderer is for orchestration that can't be extracted without distortion.
+
 ## Development Workflow
 
 For a new feature or non-trivial change:
