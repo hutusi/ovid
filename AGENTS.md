@@ -26,7 +26,7 @@ Tauri/WebView constraints matter here: avoid portal-based UI libraries, prefer n
 
 ## Testing Guidelines
 
-Write Bun unit tests next to the implementation using `*.test.ts`. Focus on pure helpers, frontmatter parsing, file search, and Tiptap extension behavior. Add regression tests for bug fixes. Run `bun run test` locally, or `bun run validate` for the full check. For an on-demand coverage report (TS + Rust), run `bun run coverage` — not part of `validate`.
+Write Bun unit tests next to the implementation using `*.test.ts`. Focus on pure helpers, frontmatter parsing, file search, and Tiptap extension behavior. Add regression tests for bug fixes. Run `bun run test` locally, or `bun run validate` for the full check. For an on-demand coverage report (TS + Rust), run `bun run coverage` — not part of `validate`. **Hook tests** use `renderHook` from `@testing-library/react` under happy-dom, opted-in per-file via `registerHappyDom` / `unregisterHappyDom` from `scripts/test-setup`; see `useEditorSession.test.ts` for the canonical pattern and ADR 0012 for the rationale.
 
 ## Commit & Pull Request Guidelines
 

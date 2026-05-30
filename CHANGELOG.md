@@ -41,6 +41,18 @@ release cadence and Conventional Commit history.
   subline is restyled to read as the row's value.
 
 ### Internal
+- **TS load-bearing hook coverage** (ADR 0012, supersedes the
+  testing-strategy note in ADR 0007): adopt `@testing-library/react` +
+  `@happy-dom/global-registrator` for hook tests, opted in per file via
+  `registerHappyDom` / `unregisterHappyDom` from `scripts/test-setup`
+  (per-file scope keeps Tiptap/ProseMirror tests on their headless
+  serialization path). Add seven orchestration tests for
+  `useEditorSession` covering the four invariants its doc-comment
+  promises (open / rename / remove / close-active-with-neighbour), and
+  seven action-path tests for `useWorkspace` that mock the Tauri seam
+  via `mock.module()`. Line coverage: `useEditorSession.ts` 15.3% → 99%,
+  `useWorkspace.ts` 3.6% → 63%, with transitive lift on `useOpenTabs.ts`
+  (31% → 92%) and `useRecentFiles.ts` (27% → 91%).
 - **Rust seam coverage**: extracted `build_workspace_result_core` as a
   pure helper of `workspace::commands` and added smoke tests for the
   Amytis-workspace / plain-directory / missing-path / cache-population
