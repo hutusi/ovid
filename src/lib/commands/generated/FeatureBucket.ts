@@ -6,4 +6,4 @@
  * to the bucket's display name. Amytis has no `features.notes` entry — notes is
  * an always-on bucket — so the frontend treats a missing bucket as enabled.
  */
-export type FeatureBucket = { id: string, enabled: boolean, names: { [key in string]?: string }, };
+export type FeatureBucket = { id: string, enabled: boolean, names: { [key in string]: string }, };
