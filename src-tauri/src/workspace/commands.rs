@@ -1,4 +1,5 @@
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use tauri::{Manager, State};
@@ -9,7 +10,7 @@ use crate::content_types::{
 };
 use crate::paths::to_slash;
 use crate::perf::log_perf;
-use crate::state::WorkspaceState;
+use crate::state::{CachedFrontmatter, WorkspaceState};
 
 use super::revision::compute_workspace_revision;
 use super::tree::walk_tree;
@@ -86,9 +87,9 @@ pub(crate) async fn open_workspace(
     Ok(Some(result))
 }
 
-/// Shared body for `open_workspace` / `open_workspace_at_path`. Validates the
-/// folder, stores roots in shared state, walks the canonical workspace tree
-/// once, and assembles the result the frontend consumes.
+/// Pure assembly of a `WorkspaceResult` from a workspace root and an externally
+/// owned frontmatter cache. Does the canonical tree walk, frontmatter parse,
+/// metadata derivation, and `site.config.ts` parsing.
 ///
 /// Note: the canonical tree is rooted at `workspace_root` (the project root),
 /// not at `tree_root` (the Amytis `content/` subtree). The frontend applies
@@ -96,32 +97,22 @@ pub(crate) async fn open_workspace(
 /// `content/` for Amytis workspaces, files mode shows the full tree. This is
 /// what lets Files mode see top-level files like `site.config.ts` without a
 /// second backend call.
-fn build_workspace_result(
-    root: &PathBuf,
-    state: &State<'_, WorkspaceState>,
-    app: &tauri::AppHandle,
-) -> Result<WorkspaceResult, String> {
+///
+/// Pure: no Tauri State, no AppHandle, no shared-mutex locks. State storage
+/// and asset-protocol scope are handled by the calling wrapper.
+pub(crate) fn build_workspace_result_core(
+    root: &Path,
+    frontmatter_cache: &mut HashMap<PathBuf, CachedFrontmatter>,
+) -> WorkspaceResult {
     let name = root
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| root.to_string_lossy().to_string());
 
-    let content_dir = root.join("content");
-    let tree_root = if content_dir.is_dir() {
-        content_dir
-    } else {
-        root.clone()
-    };
-
-    *state.tree_root.lock().map_err(|e| e.to_string())? = Some(tree_root.clone());
-    *state.workspace_root.lock().map_err(|e| e.to_string())? = Some(root.clone());
-
+    let tree_root = derive_tree_root(root);
     let is_amytis_workspace =
         root.join("site.config.ts").is_file() && root.join("content").is_dir();
-    let tree = {
-        let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        walk_tree(root, &mut cache)
-    };
+    let tree = walk_tree(root, frontmatter_cache);
     let (asset_root, cdn_base) = derive_workspace_meta(root);
     let config_path = root.join("site.config.ts");
     let default_author = parse_default_author(&config_path);
@@ -130,18 +121,7 @@ fn build_workspace_result(
     let authors = parse_authors(&config_path);
     let i18n = parse_i18n(&config_path);
 
-    // Grant asset protocol access to the entire workspace root so that both
-    // root-relative paths (resolved inside public/) and relative paths
-    // (resolved anywhere within the workspace) can be served.
-    // Note: Tauri 2's Scope API has no reset/clear, so allowances from prior
-    // workspace sessions accumulate in long-running processes. This is an
-    // accepted trade-off; the scope is bounded to workspace roots the user
-    // explicitly opened.
-    if let Err(e) = app.asset_protocol_scope().allow_directory(root, true) {
-        eprintln!("Failed to grant asset protocol access for {root:?}: {e}");
-    }
-
-    Ok(WorkspaceResult {
+    WorkspaceResult {
         name,
         root_path: to_slash(root),
         tree_root: to_slash(&tree_root),
@@ -154,7 +134,48 @@ fn build_workspace_result(
         features,
         authors,
         i18n,
-    })
+    }
+}
+
+fn derive_tree_root(root: &Path) -> PathBuf {
+    let content_dir = root.join("content");
+    if content_dir.is_dir() {
+        content_dir
+    } else {
+        root.to_path_buf()
+    }
+}
+
+/// Shared body for `open_workspace` / `open_workspace_at_path`. Stores roots
+/// in shared state, calls the pure core to assemble the result, and grants
+/// asset-protocol scope.
+fn build_workspace_result(
+    root: &PathBuf,
+    state: &State<'_, WorkspaceState>,
+    app: &tauri::AppHandle,
+) -> Result<WorkspaceResult, String> {
+    let tree_root = derive_tree_root(root);
+
+    *state.tree_root.lock().map_err(|e| e.to_string())? = Some(tree_root);
+    *state.workspace_root.lock().map_err(|e| e.to_string())? = Some(root.clone());
+
+    let result = {
+        let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
+        build_workspace_result_core(root, &mut cache)
+    };
+
+    // Grant asset protocol access to the entire workspace root so that both
+    // root-relative paths (resolved inside public/) and relative paths
+    // (resolved anywhere within the workspace) can be served.
+    // Note: Tauri 2's Scope API has no reset/clear, so allowances from prior
+    // workspace sessions accumulate in long-running processes. This is an
+    // accepted trade-off; the scope is bounded to workspace roots the user
+    // explicitly opened.
+    if let Err(e) = app.asset_protocol_scope().allow_directory(root, true) {
+        eprintln!("Failed to grant asset protocol access for {root:?}: {e}");
+    }
+
+    Ok(result)
 }
 
 /// Re-walk the workspace tree from `workspace_root` and return the full
