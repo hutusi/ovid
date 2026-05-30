@@ -656,6 +656,13 @@
   outline: none;
 }
 
+.prop-cover-text-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--color-fg-subtle);
+}
+
 .prop-cover-action-btn {
   font-size: 11px;
   color: var(--color-fg-muted);

@@ -258,7 +258,12 @@ export function CoverImageField({
 
         <div className="prop-cover-actions">
           {isTextCover ? (
-            <button type="button" className="prop-cover-action-btn" onClick={() => onSave("")}>
+            <button
+              type="button"
+              className="prop-cover-action-btn"
+              title={t("properties.cover_use_image_tooltip")}
+              onClick={() => onSave("")}
+            >
               {t("properties.cover_use_image")}
             </button>
           ) : (
@@ -274,6 +279,7 @@ export function CoverImageField({
               <button
                 type="button"
                 className="prop-cover-action-btn"
+                title={t("properties.cover_use_text_tooltip")}
                 onClick={() => onSave("text:")}
               >
                 {t("properties.cover_use_text")}
@@ -284,10 +290,13 @@ export function CoverImageField({
       </fieldset>
 
       {isTextCover ? (
-        <CoverTextInput
-          text={cover.text}
-          onSave={(next) => onSave(next ? `text:${next}` : "text:")}
-        />
+        <>
+          <CoverTextInput
+            text={cover.text}
+            onSave={(next) => onSave(next ? `text:${next}` : "text:")}
+          />
+          <p className="prop-cover-text-hint">{t("properties.cover_text_hint")}</p>
+        </>
       ) : (
         <EditableValue label={t("properties.cover_path")} value={value} onSave={onSave} />
       )}
