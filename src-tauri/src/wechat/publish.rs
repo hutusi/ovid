@@ -6,11 +6,97 @@ use tauri::{Emitter, State};
 use crate::state::{WechatPublishResult, WechatState, WechatUploadProgress, WorkspaceState};
 
 use super::creds::wechat_creds_path;
-use super::token::wechat_get_or_refresh_token;
+use super::token::{wechat_get_or_refresh_token, DEFAULT_WECHAT_API_BASE};
 use super::upload::{
     extract_img_srcs, remove_img_tag, resolve_wechat_asset_path, wechat_upload_body_image,
     wechat_upload_thumb,
 };
+
+/// Outcome of an update-draft call. The publish workflow uses this to decide
+/// between "report updated" and "fall through to create".
+#[derive(Debug)]
+pub(crate) enum DraftUpdateOutcome {
+    Updated,
+    Invalid, // errcode 40007 — fall through to create
+}
+
+/// POST a new draft to /cgi-bin/draft/add. Returns the assigned media_id.
+/// Pure async helper — no Tauri state, no app handle. Tested via mockito.
+pub(crate) async fn create_wechat_draft(
+    client: &reqwest::Client,
+    api_base: &str,
+    token: &str,
+    article: serde_json::Value,
+) -> Result<String, String> {
+    let body = serde_json::json!({ "articles": [article] });
+    let url = format!("{}/cgi-bin/draft/add?access_token={}", api_base, token);
+
+    let resp: serde_json::Value = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Draft creation network error: {}", e.without_url()))?
+        .json()
+        .await
+        .map_err(|e| format!("Draft creation parse error: {}", e.without_url()))?;
+
+    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
+        if errcode != 0 {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("WeChat draft creation error {}: {}", errcode, errmsg));
+        }
+    }
+
+    resp.get("media_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| format!("No media_id in WeChat draft response: {resp}"))
+}
+
+/// POST to /cgi-bin/draft/update. Returns:
+/// - `Ok(DraftUpdateOutcome::Updated)` when WeChat accepted the update.
+/// - `Ok(DraftUpdateOutcome::Invalid)` when WeChat returned errcode 40007
+///   (invalid/expired media_id) — caller should fall through to create.
+/// - `Err(_)` for any other errcode (including a missing errcode, which we
+///   treat as malformed — silently succeeding would write a bogus media_id
+///   back to frontmatter while no update actually happened).
+pub(crate) async fn update_wechat_draft(
+    client: &reqwest::Client,
+    api_base: &str,
+    token: &str,
+    existing_media_id: &str,
+    article: serde_json::Value,
+) -> Result<DraftUpdateOutcome, String> {
+    let body = serde_json::json!({
+        "media_id": existing_media_id,
+        "index": 0,
+        "articles": article,
+    });
+    let url = format!("{}/cgi-bin/draft/update?access_token={}", api_base, token);
+
+    let resp: serde_json::Value = client
+        .post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Draft update network error: {}", e.without_url()))?
+        .json()
+        .await
+        .map_err(|e| format!("Draft update parse error: {}", e.without_url()))?;
+
+    match resp.get("errcode").and_then(|v| v.as_i64()) {
+        Some(0) => Ok(DraftUpdateOutcome::Updated),
+        Some(40007) => Ok(DraftUpdateOutcome::Invalid),
+        Some(errcode) => {
+            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            Err(format!("WeChat draft update error {}: {}", errcode, errmsg))
+        }
+        None => Err(format!(
+            "Malformed WeChat draft update response (no errcode): {resp}"
+        )),
+    }
+}
 
 /// Return the items in `input` with duplicates removed, preserving first-occurrence order.
 /// Used to dedupe `<img src>` values before upload — `String::replace` rewrites every
@@ -150,86 +236,32 @@ pub(crate) async fn wechat_publish_draft(
     article["need_open_comment"] = serde_json::json!(if need_open_comment { 1 } else { 0 });
     article["can_reward"] = serde_json::json!(if can_reward { 1 } else { 0 });
 
-    // Update existing draft if a media_id was provided
+    // Update existing draft if a media_id was provided. On 40007 (invalid
+    // media_id) fall through to create; on any other errcode propagate.
     if let Some(ref existing_id) = existing_media_id {
-        let update_body = serde_json::json!({
-            "media_id": existing_id,
-            "index": 0,
-            "articles": article
-        });
-        let update_url = format!(
-            "https://api.weixin.qq.com/cgi-bin/draft/update?access_token={}",
-            token
-        );
-        let update_resp: serde_json::Value = client
-            .post(&update_url)
-            .json(&update_body)
-            .send()
-            .await
-            .map_err(|e| format!("Draft update network error: {}", e.without_url()))?
-            .json()
-            .await
-            .map_err(|e| format!("Draft update parse error: {}", e.without_url()))?;
-
-        // Require an explicit errcode in the response. A missing errcode
-        // (e.g. a malformed body, an HTML error page) must not be silently
-        // treated as success — that would write a bogus media_id to
-        // frontmatter while no update actually happened.
-        match update_resp.get("errcode").and_then(|v| v.as_i64()) {
-            Some(0) => {
+        match update_wechat_draft(
+            &client,
+            DEFAULT_WECHAT_API_BASE,
+            &token,
+            existing_id,
+            article.clone(),
+        )
+        .await?
+        {
+            DraftUpdateOutcome::Updated => {
                 return Ok(WechatPublishResult {
                     media_id: existing_id.clone(),
                     updated: true,
                 });
             }
-            Some(40007) => {
-                // Invalid/expired media_id — fall through to create a new draft.
-            }
-            Some(errcode) => {
-                let errmsg = update_resp
-                    .get("errmsg")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown");
-                return Err(format!("WeChat draft update error {}: {}", errcode, errmsg));
-            }
-            None => {
-                return Err(format!(
-                    "Malformed WeChat draft update response (no errcode): {}",
-                    update_resp
-                ));
+            DraftUpdateOutcome::Invalid => {
+                // Fall through to create_wechat_draft below.
             }
         }
     }
 
-    // Create draft via WeChat API
-    let draft_body = serde_json::json!({ "articles": [article] });
-
-    let url = format!(
-        "https://api.weixin.qq.com/cgi-bin/draft/add?access_token={}",
-        token
-    );
-    let resp: serde_json::Value = client
-        .post(&url)
-        .json(&draft_body)
-        .send()
-        .await
-        .map_err(|e| format!("Draft creation network error: {}", e.without_url()))?
-        .json()
-        .await
-        .map_err(|e| format!("Draft creation parse error: {}", e.without_url()))?;
-
-    if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
-        if errcode != 0 {
-            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
-            return Err(format!("WeChat draft creation error {}: {}", errcode, errmsg));
-        }
-    }
-
-    let media_id = resp
-        .get("media_id")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| format!("No media_id in WeChat draft response: {}", resp))?
-        .to_string();
+    let media_id =
+        create_wechat_draft(&client, DEFAULT_WECHAT_API_BASE, &token, article).await?;
 
     Ok(WechatPublishResult {
         media_id,
@@ -270,5 +302,130 @@ mod tests {
         let html = r#"<p><img src="images/a.png"/><img src="images/b.png"/><img src="images/a.png"/></p>"#;
         let result = dedupe_preserving_order(extract_img_srcs(html));
         assert_eq!(result, s(&["images/a.png", "images/b.png"]));
+    }
+
+    // ── create_wechat_draft / update_wechat_draft (mockito) ─────────────────
+
+    use mockito::{Matcher, Server};
+
+    fn no_proxy_client() -> reqwest::Client {
+        reqwest::Client::builder().no_proxy().build().unwrap()
+    }
+
+    fn article() -> serde_json::Value {
+        serde_json::json!({
+            "title": "My post",
+            "author": "me",
+            "content": "<p>Hello</p>",
+        })
+    }
+
+    #[tokio::test]
+    async fn create_wechat_draft_returns_media_id_on_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/cgi-bin/draft/add")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"media_id":"DRAFT_ID_42"}"#)
+            .create_async()
+            .await;
+
+        let media_id = create_wechat_draft(&no_proxy_client(), &server.url(), "TOKEN", article())
+            .await
+            .expect("create draft");
+
+        assert_eq!(media_id, "DRAFT_ID_42");
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn create_wechat_draft_returns_err_on_nonzero_errcode() {
+        let mut server = Server::new_async().await;
+        let _mock = server
+            .mock("POST", "/cgi-bin/draft/add")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"errcode":40001,"errmsg":"invalid credential"}"#)
+            .create_async()
+            .await;
+
+        let err = create_wechat_draft(&no_proxy_client(), &server.url(), "TOKEN", article())
+            .await
+            .expect_err("nonzero errcode");
+
+        assert!(err.contains("40001"));
+        assert!(err.contains("invalid credential"));
+    }
+
+    #[tokio::test]
+    async fn update_wechat_draft_signals_updated_on_errcode_zero() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("POST", "/cgi-bin/draft/update")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"errcode":0,"errmsg":"ok"}"#)
+            .create_async()
+            .await;
+
+        let outcome =
+            update_wechat_draft(&no_proxy_client(), &server.url(), "TOKEN", "MEDIA_ID", article())
+                .await
+                .expect("update draft");
+
+        assert!(matches!(outcome, DraftUpdateOutcome::Updated));
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn update_wechat_draft_signals_invalid_on_errcode_40007() {
+        let mut server = Server::new_async().await;
+        let _mock = server
+            .mock("POST", "/cgi-bin/draft/update")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"errcode":40007,"errmsg":"invalid media_id"}"#)
+            .create_async()
+            .await;
+
+        let outcome = update_wechat_draft(
+            &no_proxy_client(),
+            &server.url(),
+            "TOKEN",
+            "STALE_MEDIA_ID",
+            article(),
+        )
+        .await
+        .expect("update draft handles 40007");
+
+        // The publish workflow uses this signal to fall through to create.
+        assert!(matches!(outcome, DraftUpdateOutcome::Invalid));
+    }
+
+    #[tokio::test]
+    async fn update_wechat_draft_treats_missing_errcode_as_error() {
+        let mut server = Server::new_async().await;
+        let _mock = server
+            .mock("POST", "/cgi-bin/draft/update")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            // No errcode field — malformed body, treated as error so we don't
+            // silently write a bogus media_id back to frontmatter.
+            .with_body(r#"{"some_other_field":"value"}"#)
+            .create_async()
+            .await;
+
+        let err = update_wechat_draft(
+            &no_proxy_client(),
+            &server.url(),
+            "TOKEN",
+            "MEDIA_ID",
+            article(),
+        )
+        .await
+        .expect_err("missing errcode treated as malformed");
+
+        assert!(err.contains("no errcode") || err.contains("Malformed"), "unexpected error: {err}");
     }
 }
