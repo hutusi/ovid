@@ -1,6 +1,9 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { Editor } from "@tiptap/core";
 import { Schema } from "@tiptap/pm/model";
-import { getHeadingRanges } from "./TextFolding";
+import StarterKit from "@tiptap/starter-kit";
+import { registerHappyDom, unregisterHappyDom } from "../../../scripts/test-setup";
+import { FOLD_KEY, getHeadingRanges, TextFolding } from "./TextFolding";
 
 const schema = new Schema({
   nodes: {
@@ -135,5 +138,119 @@ describe("getHeadingRanges", () => {
     expect(ranges[2].contentTo).toBe(nextSectionPos);
     expect(ranges[3].level).toBe(3);
     expect(ranges[3].contentTo).toBe(d.content.size);
+  });
+});
+
+// ── TextFolding plugin state machine ───────────────────────────────────────
+//
+// Tests dispatch fold-toggle transactions via FOLD_KEY meta (the same path
+// the chevron's mousedown handler uses internally) and assert on the
+// plugin's `folded: Set<number>` state. Bypasses the DOM event surface to
+// avoid happy-dom's flaky focus/event simulation; the meta is the contract.
+
+function createEditorWithDoc(docJson: Record<string, unknown>) {
+  // EditorView needs a DOM element for extension plugins to install — see
+  // FindReplace.test.ts for the same rationale.
+  const element = document.createElement("div");
+  return new Editor({
+    element,
+    extensions: [StarterKit, TextFolding],
+    content: docJson,
+  });
+}
+
+const para = (text: string) => ({
+  type: "paragraph",
+  content: text ? [{ type: "text", text }] : [],
+});
+
+const heading = (level: 1 | 2 | 3, text: string) => ({
+  type: "heading",
+  attrs: { level },
+  content: [{ type: "text", text }],
+});
+
+const docOf = (...nodes: Record<string, unknown>[]) => ({ type: "doc", content: nodes });
+
+function toggleFold(editor: Editor, headingPos: number) {
+  editor.view.dispatch(
+    editor.state.tr.setMeta(FOLD_KEY, { togglePos: headingPos }).setMeta("addToHistory", false)
+  );
+}
+
+function getFoldedSet(editor: Editor): ReadonlySet<number> {
+  return FOLD_KEY.getState(editor.state)?.folded ?? new Set<number>();
+}
+
+describe("TextFolding fold state machine", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  it("starts with an empty folded set", () => {
+    const editor = createEditorWithDoc(docOf(heading(1, "Title"), para("body")));
+    expect(getFoldedSet(editor).size).toBe(0);
+  });
+
+  it("toggling a heading position adds it to the folded set", () => {
+    const editor = createEditorWithDoc(docOf(heading(1, "Title"), para("body")));
+    const [range] = getHeadingRanges(editor.state.doc);
+    expect(range).toBeDefined();
+
+    toggleFold(editor, range.headingFrom);
+
+    const folded = getFoldedSet(editor);
+    expect(folded.has(range.headingFrom)).toBe(true);
+    expect(folded.size).toBe(1);
+  });
+
+  it("toggling the same position twice removes it from the folded set", () => {
+    const editor = createEditorWithDoc(docOf(heading(1, "Title"), para("body")));
+    const [range] = getHeadingRanges(editor.state.doc);
+
+    toggleFold(editor, range.headingFrom);
+    expect(getFoldedSet(editor).size).toBe(1);
+
+    toggleFold(editor, range.headingFrom);
+    expect(getFoldedSet(editor).size).toBe(0);
+  });
+
+  it("folding two sibling headings independently keeps both in the set", () => {
+    const editor = createEditorWithDoc(
+      docOf(heading(1, "First"), para("a"), heading(1, "Second"), para("b"))
+    );
+    const ranges = getHeadingRanges(editor.state.doc);
+    expect(ranges).toHaveLength(2);
+
+    toggleFold(editor, ranges[0].headingFrom);
+    toggleFold(editor, ranges[1].headingFrom);
+
+    const folded = getFoldedSet(editor);
+    expect(folded.size).toBe(2);
+    expect(folded.has(ranges[0].headingFrom)).toBe(true);
+    expect(folded.has(ranges[1].headingFrom)).toBe(true);
+  });
+
+  it("folded positions are kept in sync through document edits via mapping", () => {
+    // After a non-folded-position doc change, the folded set should remap
+    // its positions to track moved headings (per the apply()'s mapping branch).
+    const editor = createEditorWithDoc(
+      docOf(para("intro paragraph"), heading(1, "H"), para("body"))
+    );
+    const headingPos = getHeadingRanges(editor.state.doc)[0]?.headingFrom;
+    expect(headingPos).toBeDefined();
+
+    toggleFold(editor, headingPos as number);
+    expect(getFoldedSet(editor).has(headingPos as number)).toBe(true);
+
+    // Insert text at position 1 (inside the intro paragraph). The heading
+    // shifts right by the inserted length, and the folded set should follow.
+    const insertText = "X";
+    editor.view.dispatch(editor.state.tr.insertText(insertText, 1));
+
+    const newHeadingPos = getHeadingRanges(editor.state.doc)[0]?.headingFrom;
+    expect(newHeadingPos).toBeDefined();
+    expect(newHeadingPos).not.toBe(headingPos);
+    // The fold state should now point at the new heading position.
+    expect(getFoldedSet(editor).has(newHeadingPos as number)).toBe(true);
   });
 });
