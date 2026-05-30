@@ -30,6 +30,14 @@ bun test --test-name-pattern "parses frontmatter"   # Filter by test name
 cargo test --manifest-path src-tauri/Cargo.toml     # Rust tests only
 ```
 
+Coverage (not part of `validate` — run on demand):
+
+```bash
+bun run test:coverage    # TS coverage (text + coverage/lcov.info)
+bun run coverage:rust    # Rust coverage summary (one-time: cargo install cargo-llvm-cov)
+bun run coverage         # Both
+```
+
 Tests are colocated as `*.test.ts` next to the implementation (e.g. `src/lib/frontmatter.test.ts`, `src/lib/tiptap/FindReplace.test.ts`).
 
 ## Development Workflow

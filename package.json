@@ -14,6 +14,9 @@
     "lint:fix": "biome check --write src",
     "format": "biome format --write src",
     "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter=text --coverage-reporter=lcov",
+    "coverage:rust": "cargo llvm-cov --manifest-path src-tauri/Cargo.toml --summary-only",
+    "coverage": "bun run test:coverage && bun run coverage:rust",
     "validate": "tsc --noEmit && tsc -p tsconfig.test.json --noEmit && biome check src && bun test && bun run build && cargo test --manifest-path src-tauri/Cargo.toml && git diff --exit-code src/lib/commands/generated"
   },
   "dependencies": {

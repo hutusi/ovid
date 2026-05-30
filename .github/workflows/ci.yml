@@ -31,8 +31,18 @@ jobs:
       - name: Lint
         run: bun run lint
 
-      - name: Test
-        run: bun run test
+      - name: Test with coverage
+        run: bun test --coverage --coverage-reporter=text --coverage-reporter=lcov | tee coverage-output.txt
+
+      - name: Publish TS coverage summary
+        if: always()
+        run: |
+          {
+            echo "## TypeScript Coverage";
+            echo '```';
+            cat coverage-output.txt;
+            echo '```';
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build frontend
         run: bun run build
@@ -57,9 +67,25 @@ jobs:
             patchelf \
             pkg-config
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
 
-      - name: Test Rust backend
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Test Rust backend with coverage
+        run: cargo llvm-cov --manifest-path src-tauri/Cargo.toml --summary-only | tee coverage-rust.txt
+
+      - name: Publish Rust coverage summary
+        if: always()
+        run: |
+          {
+            echo "## Rust Coverage";
+            echo '```';
+            cat coverage-rust.txt;
+            echo '```';
+          } >> "$GITHUB_STEP_SUMMARY"
