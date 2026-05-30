@@ -309,4 +309,227 @@ describe("useWorkspace", () => {
     expect(invokeCalls.filter((c) => c.name === "trash_file")).toHaveLength(0);
     expect(opts.onPathRemoved).not.toHaveBeenCalled();
   });
+
+  it("handleNewTodayFlow ensures the flows directory and creates today's file", async () => {
+    let capturedNewPath: string | null = null;
+    const created: FileNode[] = [];
+
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult(),
+      ensure_dir: () => undefined,
+      create_file: (args) => {
+        capturedNewPath = (args as { path: string }).path;
+        return undefined;
+      },
+      list_workspace_tree: () => {
+        const tree: FileNode[] = [];
+        if (capturedNewPath) tree.push(makeNode(capturedNewPath));
+        return tree;
+      },
+    });
+
+    const opts = makeOptions({
+      onPathCreated: (node) => {
+        created.push(node);
+      },
+    });
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+
+    await act(async () => {
+      await result.current.handleNewTodayFlow();
+    });
+
+    expect(capturedNewPath).not.toBeNull();
+    // Path shape: /ws/content/flows/YYYY/MM/DD.md
+    expect(capturedNewPath).toMatch(/\/flows\/\d{4}\/\d{2}\/\d{2}\.md$/);
+    expect(created).toHaveLength(1);
+  });
+
+  it("handleNewTodayFlow swallows the 'already exists' create_file error", async () => {
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult(),
+      ensure_dir: () => undefined,
+      create_file: () => {
+        throw new Error("file already exists at that path");
+      },
+      list_workspace_tree: () => [],
+    });
+
+    const showToast = mock((_: string) => {});
+    const opts = makeOptions({ showToast });
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+
+    await act(async () => {
+      await result.current.handleNewTodayFlow();
+    });
+
+    // Graceful: refresh happens, no error toast.
+    expect(showToast).not.toHaveBeenCalled();
+    expect(invokeCalls.some((c) => c.name === "list_workspace_tree")).toBe(true);
+  });
+
+  it("handleDuplicate calls duplicate_entry then fires onPathCreated", async () => {
+    const original = makeNode("/ws/content/posts/2026-05-31-original.md");
+    let capturedDest: string | null = null;
+    const created: FileNode[] = [];
+
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult({ tree: [original] }),
+      duplicate_entry: (args) => {
+        capturedDest = (args as { srcPath: string; destPath: string }).destPath;
+        return undefined;
+      },
+      list_workspace_tree: () => {
+        const tree: FileNode[] = [original];
+        if (capturedDest) tree.push(makeNode(capturedDest));
+        return tree;
+      },
+    });
+
+    const opts = makeOptions({
+      onPathCreated: (node) => {
+        created.push(node);
+      },
+    });
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+
+    await act(async () => {
+      await result.current.handleDuplicate(original, "copy");
+    });
+
+    expect(capturedDest).not.toBeNull();
+    expect(created).toHaveLength(1);
+    expect(created[0]?.path).toBe(capturedDest as unknown as string);
+  });
+
+  it("handleNewFromExisting reads source, scaffolds via createPostFromExisting, fires onPathCreated", async () => {
+    const source = makeNode("/ws/content/posts/2026-05-31-source.md");
+    const sourceContent = "---\ntitle: Source\n---\n\nBody text.\n";
+    let capturedDest: string | null = null;
+    let capturedNewContent: string | null = null;
+    const created: FileNode[] = [];
+
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult({ tree: [source] }),
+      read_file: () => sourceContent,
+      create_file: (args) => {
+        const a = args as { path: string; content: string };
+        capturedDest = a.path;
+        capturedNewContent = a.content;
+        return undefined;
+      },
+      list_workspace_tree: () => {
+        const tree: FileNode[] = [source];
+        if (capturedDest) tree.push(makeNode(capturedDest));
+        return tree;
+      },
+    });
+
+    const opts = makeOptions({
+      onPathCreated: (node) => {
+        created.push(node);
+      },
+    });
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+
+    await act(async () => {
+      await result.current.handleNewFromExisting(source, "derived");
+    });
+
+    expect(capturedDest).not.toBeNull();
+    expect(capturedNewContent).not.toBeNull();
+    // createPostFromExistingContent rewrites the frontmatter (resetting fields
+    // like title/date) and drops the body — it's a scaffold from an existing
+    // post's *shape*, not a copy. Assert on the structural contract.
+    const newContent = capturedNewContent as unknown as string;
+    expect(newContent).toMatch(/^---\n/);
+    expect(newContent).toContain("title:");
+    expect(created).toHaveLength(1);
+  });
+
+  it("addCollectionItem reads, transforms, and writes the index file", async () => {
+    const indexPath = "/ws/content/series/my-series/index.md";
+    const indexNode = makeNode(indexPath);
+    const originalContent =
+      "---\ntitle: My Series\ntype: collection\nitems:\n  - post: existing-post\n---\n";
+    let writtenContent: string | null = null;
+
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult({ tree: [indexNode] }),
+      read_file: () => originalContent,
+      write_file: (args) => {
+        writtenContent = (args as { path: string; content: string }).content;
+        return undefined;
+      },
+      list_workspace_tree: () => [indexNode],
+    });
+
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+
+    await act(async () => {
+      await result.current.addCollectionItem(indexPath, { post: "new-post" });
+    });
+
+    expect(writtenContent).not.toBeNull();
+    // The transformed YAML keeps the existing item and appends the new one.
+    const out = writtenContent as unknown as string;
+    expect(out).toContain("existing-post");
+    expect(out).toContain("new-post");
+  });
+
+  it("removeCollectionItem strips an item from the index file", async () => {
+    const indexPath = "/ws/content/series/my-series/index.md";
+    const indexNode = makeNode(indexPath);
+    const originalContent =
+      "---\ntitle: My Series\ntype: collection\nitems:\n  - post: keep-me\n  - post: remove-me\n---\n";
+    let writtenContent: string | null = null;
+
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult({ tree: [indexNode] }),
+      read_file: () => originalContent,
+      write_file: (args) => {
+        writtenContent = (args as { path: string; content: string }).content;
+        return undefined;
+      },
+      list_workspace_tree: () => [indexNode],
+    });
+
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+
+    await act(async () => {
+      // itemKey() prefixes with "post:" / "series:" — see collection.ts.
+      await result.current.removeCollectionItem(indexPath, "post:remove-me");
+    });
+
+    expect(writtenContent).not.toBeNull();
+    const out = writtenContent as unknown as string;
+    expect(out).toContain("keep-me");
+    expect(out).not.toContain("remove-me");
+  });
 });
