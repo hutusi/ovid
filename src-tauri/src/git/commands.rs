@@ -309,3 +309,91 @@ pub(crate) fn open_git_remote(
         .map_err(|e| e.to_string())?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::process::Command;
+    use tempfile::TempDir;
+
+    fn git_available() -> bool {
+        Command::new("git")
+            .arg("--version")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+
+    fn run_in(repo: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(repo)
+            .status()
+            .expect("failed to invoke git");
+        assert!(status.success(), "git {args:?} failed");
+    }
+
+    /// Create a TempDir, `git init -b main`, configure a fake user, and commit
+    /// one file so HEAD resolves. Returns the dir guard and its path as &str.
+    fn init_repo() -> (TempDir, PathBuf) {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        run_in(&root, &["init", "-q", "-b", "main"]);
+        run_in(&root, &["config", "user.email", "test@example.com"]);
+        run_in(&root, &["config", "user.name", "Test"]);
+        std::fs::write(root.join("README.md"), "hello").unwrap();
+        run_in(&root, &["add", "README.md"]);
+        run_in(&root, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"]);
+        (dir, root)
+    }
+
+    #[test]
+    fn get_current_branch_inner_returns_main_after_init() {
+        if !git_available() {
+            return;
+        }
+        let (_dir, root) = init_repo();
+        let branch = get_current_branch_inner(root.to_str().unwrap()).expect("branch lookup");
+        assert_eq!(branch, "main");
+    }
+
+    #[test]
+    fn parse_git_branches_lists_local_branches() {
+        if !git_available() {
+            return;
+        }
+        let (_dir, root) = init_repo();
+        run_in(&root, &["branch", "feature/x"]);
+
+        let branches = parse_git_branches(root.to_str().unwrap()).expect("branches lookup");
+        let names: Vec<&str> = branches.iter().map(|b| b.name.as_str()).collect();
+        assert!(names.contains(&"main"), "main missing from {names:?}");
+        assert!(names.contains(&"feature/x"), "feature/x missing from {names:?}");
+        assert!(
+            branches.iter().find(|b| b.name == "main").unwrap().is_current,
+            "main should be flagged current"
+        );
+    }
+
+    #[test]
+    fn get_git_remote_info_inner_returns_configured_remote() {
+        if !git_available() {
+            return;
+        }
+        let (_dir, root) = init_repo();
+        run_in(
+            &root,
+            &["remote", "add", "origin", "git@github.com:foo/bar.git"],
+        );
+
+        let info = get_git_remote_info_inner(root.to_str().unwrap()).expect("remote info");
+        let names: Vec<&str> = info.remotes.iter().map(|r| r.name.as_str()).collect();
+        assert!(names.contains(&"origin"), "origin missing from {names:?}");
+        let origin = info.remotes.iter().find(|r| r.name == "origin").unwrap();
+        assert!(
+            origin.url.as_deref().is_some(),
+            "origin should expose a URL"
+        );
+    }
+}
