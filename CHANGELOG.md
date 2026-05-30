@@ -5,6 +5,41 @@ All notable changes to Ovid will be documented in this file.
 The format is based on Keep a Changelog, adapted to match the project's
 release cadence and Conventional Commit history.
 
+## Unreleased
+
+### Added
+- **Amytis text-rendered cover images**: `coverImage: text:Issue 1` now renders as
+  a styled gradient card both in the editor banner and the properties-panel
+  thumbnail, matching the Amytis site's rendering. The palette is picked
+  deterministically from the slug, with dark-mode variants. The Cover image
+  field offers a "Use text cover" button (and a "Use image instead" button when
+  switching back), an inline "Cover text" input bound to just the suffix, and a
+  short hint explaining the gradient behaviour.
+- **Excerpt textarea**: the `excerpt` frontmatter field is now a first-class
+  schema entry with a new `longtext` kind. Clicking the excerpt row opens a
+  multi-line, auto-growing textarea that commits on `Cmd/Ctrl+Enter`, cancels
+  on `Esc`, and saves on blur. Bare Enter inserts a newline.
+- **Sort dropdown**: the `sort` frontmatter field is now a constrained select
+  (`date-asc` / `date-desc` / `manual`) instead of a free-text input. Out-of-
+  vocabulary existing values are surfaced as an additional option so they
+  aren't silently lost. The Add-field affordance only offers `sort` on series
+  (where `posts:` ordering applies); already-present values keep rendering on
+  any file so nothing is hidden by surprise.
+- **Per-bucket content icons**: top-level content buckets in the sidebar
+  (`posts/`, `series/`, `books/`, `flows/`, `notes/`, `pages/`) now show a
+  type-specific icon instead of the generic Folder/FolderOpen glyph. Entry
+  folders and Files-mode folders keep the open/closed folder icon.
+
+### Changed
+- **Series row toggle**: clicking a series/book entry name in the sidebar now
+  collapses the row on the second click (when its `index.md` is the active
+  file), instead of being a silent no-op fighting the auto-expand-ancestors
+  effect.
+- **Boolean property labels** (`draft`, `featured`, `pinned`) now share the
+  same uppercase typography and weight as every other property label;
+  the previously divergent bolder styling is gone. The Enabled/Disabled
+  subline is restyled to read as the row's value.
+
 ## 0.14.0 - 2026-05-29
 
 ### Added

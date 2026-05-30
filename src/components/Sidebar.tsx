@@ -16,6 +16,7 @@ import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
 import type { FeatureBucket } from "../lib/commands/generated/FeatureBucket";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
+import { resolveEntryLabelClick } from "../lib/sidebarExpansion";
 import {
   bucketLabel,
   filterTree,
@@ -267,6 +268,19 @@ function FileItem({
 
   if (node.isDirectory) {
     const DirIcon = expanded ? FolderOpen : Folder;
+    // Top-level Content-mode buckets show their type icon instead of a generic
+    // folder. Entry folders and Files mode keep Folder/FolderOpen so the
+    // open/closed visual signal stays intact.
+    const isBucketFolder = depth === 0 && !filesMode && !!effectiveBucketType;
+    const dirIconNode = isBucketFolder ? (
+      <ContentTypeIcon
+        type={effectiveBucketType}
+        size={13}
+        className="sidebar-file-icon sidebar-dir-icon"
+      />
+    ) : (
+      <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
+    );
     const dirRollup = !expanded ? rollupGitStatus(node, gitStatusMap) : undefined;
     // An entry folder's label is the index's title; clicking it opens the
     // index, the chevron toggles expansion, and the index child is hidden.
@@ -310,12 +324,23 @@ function FileItem({
                 aria-label={t("sidebar.toggle_section", { name: dirLabel })}
                 onClick={() => onToggleExpand(node.path, depth)}
               >
-                <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
+                {dirIconNode}
               </button>
               <button
                 type="button"
                 className="sidebar-dir-label"
-                onClick={() => onSelect(indexEntry)}
+                onClick={() => {
+                  // Re-clicking an already-shown index collapses the row; the
+                  // collapse path skips onSelect so selectedPath stays stable
+                  // and the auto-expand-ancestors effect doesn't re-open it.
+                  const action = resolveEntryLabelClick({ entrySelected, expanded });
+                  if (action === "collapse") {
+                    onToggleExpand(node.path, depth);
+                    return;
+                  }
+                  if (action === "expand-and-select") onToggleExpand(node.path, depth);
+                  onSelect(indexEntry);
+                }}
               >
                 <span className="sidebar-file-name">{dirLabel}</span>
                 {dirRollupDot}
@@ -328,7 +353,7 @@ function FileItem({
               aria-expanded={expanded}
               onClick={() => onToggleExpand(node.path, depth)}
             >
-              <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
+              {dirIconNode}
               {dirLabel}
               {node.disabledForSite && (
                 <span className="sidebar-bucket-badge" title={t("sidebar.hidden_from_site")}>

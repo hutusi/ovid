@@ -1,6 +1,13 @@
 import type { FrontmatterValue, ParsedFrontmatter } from "./frontmatter";
 
-export type FrontmatterFieldKind = "text" | "boolean" | "date" | "tags" | "path";
+export type FrontmatterFieldKind =
+  | "text"
+  | "longtext"
+  | "boolean"
+  | "date"
+  | "tags"
+  | "path"
+  | "enum";
 export type CustomFrontmatterValueType = "text" | "boolean" | "number" | "date" | "tags";
 const DATE_STRING_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -11,11 +18,25 @@ export interface FrontmatterFieldSchema {
   hidden?: boolean;
   addable?: boolean;
   defaultValue?: FrontmatterValue;
+  /** Allowed values for `kind: "enum"`. Display order matches the dropdown. */
+  options?: readonly string[];
+  /** Optional context-gate for `addable: true`. When present, the field only
+   *  appears in the "Add field" affordance if this predicate is satisfied
+   *  (e.g. `sort` only makes sense on series). Already-present values still
+   *  render unconditionally. */
+  addableFor?: (contentType: string | undefined) => boolean;
 }
 
 export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = {
   title: { key: "title", label: "Title", kind: "text" },
   type: { key: "type", label: "Type", kind: "text", hidden: true },
+  excerpt: {
+    key: "excerpt",
+    label: "Excerpt",
+    kind: "longtext",
+    addable: true,
+    defaultValue: "",
+  },
   draft: {
     key: "draft",
     label: "Draft",
@@ -39,6 +60,15 @@ export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = 
   },
   date: { key: "date", label: "Date", kind: "date" },
   tags: { key: "tags", label: "Tags", kind: "tags" },
+  sort: {
+    key: "sort",
+    label: "Sort",
+    kind: "enum",
+    options: ["date-asc", "date-desc", "manual"],
+    addable: true,
+    addableFor: (contentType) => contentType === "series",
+    defaultValue: "date-desc",
+  },
   coverImage: {
     key: "coverImage",
     label: "Cover Image",
@@ -109,14 +139,21 @@ export function setFrontmatterFieldValue(
   return updated;
 }
 
-export function getMissingAddableFrontmatterFields(frontmatter: ParsedFrontmatter): string[] {
+export function getMissingAddableFrontmatterFields(
+  frontmatter: ParsedFrontmatter,
+  context: { contentType?: string } = {}
+): string[] {
   const presentKeys = new Set(
     Object.entries(frontmatter)
       .filter(([, value]) => value != null)
       .map(([key]) => resolveKnownFrontmatterFieldKey(key) ?? key)
   );
   return Object.values(FRONTMATTER_FIELD_SCHEMA)
-    .filter((field) => field.addable && !presentKeys.has(field.key))
+    .filter((field) => {
+      if (!field.addable || presentKeys.has(field.key)) return false;
+      if (field.addableFor && !field.addableFor(context.contentType)) return false;
+      return true;
+    })
     .map((field) => field.key);
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   mimeTypeToImageExtension,
+  parseCoverImage,
   resolveImageExtension,
   resolveImageSrc,
   resolveRelativePath,
@@ -283,5 +284,52 @@ describe("resolveImageSrc — relative paths", () => {
   it("ignores assetRoot for relative paths", () => {
     const result = resolveImageSrc("photo.jpg", FILE, ASSET_ROOT, undefined, toFileUrl);
     expect(result).not.toContain("/workspace/public");
+  });
+
+  it("passes the Amytis text:* cover prefix through unchanged", () => {
+    expect(resolveImageSrc("text:Issue 1", FILE, ASSET_ROOT, undefined, toFileUrl)).toBe(
+      "text:Issue 1"
+    );
+    expect(resolveImageSrc("text:", FILE, ASSET_ROOT, "https://cdn.example", toFileUrl)).toBe(
+      "text:"
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseCoverImage
+// ---------------------------------------------------------------------------
+
+describe("parseCoverImage", () => {
+  it("returns empty for null, undefined, and blank strings", () => {
+    expect(parseCoverImage(undefined)).toEqual({ kind: "empty" });
+    expect(parseCoverImage(null)).toEqual({ kind: "empty" });
+    expect(parseCoverImage("")).toEqual({ kind: "empty" });
+    expect(parseCoverImage("   ")).toEqual({ kind: "empty" });
+  });
+
+  it("strips and trims the text: prefix", () => {
+    expect(parseCoverImage("text:Issue 1")).toEqual({ kind: "text", text: "Issue 1" });
+    expect(parseCoverImage("text:  spaces  ")).toEqual({ kind: "text", text: "spaces" });
+  });
+
+  it("treats a bare text: prefix as a title fallback marker", () => {
+    expect(parseCoverImage("text:")).toEqual({ kind: "text", text: "" });
+    expect(parseCoverImage("text:   ")).toEqual({ kind: "text", text: "" });
+  });
+
+  it("returns kind: path for image references", () => {
+    expect(parseCoverImage("/images/hero.jpg")).toEqual({ kind: "path", src: "/images/hero.jpg" });
+    expect(parseCoverImage("../images/x.png")).toEqual({ kind: "path", src: "../images/x.png" });
+    expect(parseCoverImage("https://cdn.example/x.png")).toEqual({
+      kind: "path",
+      src: "https://cdn.example/x.png",
+    });
+  });
+
+  it("is case-sensitive on the prefix (matches Amytis)", () => {
+    // Amytis uses startsWith('text:') verbatim, so Text:/TEXT: are treated as paths.
+    expect(parseCoverImage("Text:Foo")).toEqual({ kind: "path", src: "Text:Foo" });
+    expect(parseCoverImage("TEXT:Foo")).toEqual({ kind: "path", src: "TEXT:Foo" });
   });
 });

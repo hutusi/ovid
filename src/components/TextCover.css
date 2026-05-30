@@ -1,0 +1,154 @@
+/* Text-cover card: gradient background + serif label + accent bars.
+   Mirrors Amytis's CoverImage palette set so a published site and Ovid look
+   the same. Palette index is slug.length % 7 (deterministic by content). */
+
+.text-cover {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 1.5rem;
+  text-align: center;
+  overflow: hidden;
+}
+
+.text-cover-label {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  font-size: clamp(1rem, 2.6vw, 1.5rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  max-width: 80%;
+  overflow-wrap: anywhere;
+}
+
+.text-cover-accent {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3rem;
+  height: 2px;
+  border-radius: 9999px;
+}
+
+.text-cover-accent-top {
+  top: 1rem;
+}
+
+.text-cover-accent-bottom {
+  bottom: 1rem;
+}
+
+/* ── Palette 0 — Warm amber ──────────────────────── */
+.text-cover-palette-0 {
+  background: linear-gradient(135deg, #fffbeb 0%, #fff7ed 50%, #fef9c3 100%);
+  color: #92400e;
+}
+.text-cover-accent-0 {
+  background: rgb(251 191 36 / 0.6);
+}
+[data-theme="dark"] .text-cover-palette-0 {
+  background: linear-gradient(135deg, #451a03 0%, #431407 50%, #422006 100%);
+  color: #fde68a;
+}
+[data-theme="dark"] .text-cover-accent-0 {
+  background: rgb(245 158 11 / 0.4);
+}
+
+/* ── Palette 1 — Cool slate-blue ─────────────────── */
+.text-cover-palette-1 {
+  background: linear-gradient(135deg, #f1f5f9 0%, #eff6ff 50%, #e0e7ff 100%);
+  color: #334155;
+}
+.text-cover-accent-1 {
+  background: rgb(129 140 248 / 0.6);
+}
+[data-theme="dark"] .text-cover-palette-1 {
+  background: linear-gradient(135deg, #0f172a 0%, #172554 50%, #1e1b4b 100%);
+  color: #e2e8f0;
+}
+[data-theme="dark"] .text-cover-accent-1 {
+  background: rgb(129 140 248 / 0.4);
+}
+
+/* ── Palette 2 — Sage green ──────────────────────── */
+.text-cover-palette-2 {
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 50%, #ccfbf1 100%);
+  color: #065f46;
+}
+.text-cover-accent-2 {
+  background: rgb(52 211 153 / 0.6);
+}
+[data-theme="dark"] .text-cover-palette-2 {
+  background: linear-gradient(135deg, #022c22 0%, #052e16 50%, #042f2e 100%);
+  color: #a7f3d0;
+}
+[data-theme="dark"] .text-cover-accent-2 {
+  background: rgb(16 185 129 / 0.4);
+}
+
+/* ── Palette 3 — Dusty rose ──────────────────────── */
+.text-cover-palette-3 {
+  background: linear-gradient(135deg, #fff1f2 0%, #fdf2f8 50%, #fae8ff 100%);
+  color: #9f1239;
+}
+.text-cover-accent-3 {
+  background: rgb(251 113 133 / 0.6);
+}
+[data-theme="dark"] .text-cover-palette-3 {
+  background: linear-gradient(135deg, #4c0519 0%, #500724 50%, #4a044e 100%);
+  color: #fecdd3;
+}
+[data-theme="dark"] .text-cover-accent-3 {
+  background: rgb(251 113 133 / 0.4);
+}
+
+/* ── Palette 4 — Neutral stone ───────────────────── */
+.text-cover-palette-4 {
+  background: linear-gradient(135deg, #f5f5f4 0%, #fafaf9 50%, #f4f4f5 100%);
+  color: #44403c;
+}
+.text-cover-accent-4 {
+  background: rgb(168 162 158 / 0.6);
+}
+[data-theme="dark"] .text-cover-palette-4 {
+  background: linear-gradient(135deg, #1c1917 0%, #0c0a09 50%, #18181b 100%);
+  color: #d6d3d1;
+}
+[data-theme="dark"] .text-cover-accent-4 {
+  background: rgb(120 113 108 / 0.4);
+}
+
+/* ── Palette 5 — Soft violet ─────────────────────── */
+.text-cover-palette-5 {
+  background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 50%, #e0e7ff 100%);
+  color: #5b21b6;
+}
+.text-cover-accent-5 {
+  background: rgb(167 139 250 / 0.6);
+}
+[data-theme="dark"] .text-cover-palette-5 {
+  background: linear-gradient(135deg, #2e1065 0%, #3b0764 50%, #1e1b4b 100%);
+  color: #ddd6fe;
+}
+[data-theme="dark"] .text-cover-accent-5 {
+  background: rgb(167 139 250 / 0.4);
+}
+
+/* ── Palette 6 — Warm teal ───────────────────────── */
+.text-cover-palette-6 {
+  background: linear-gradient(135deg, #f0fdfa 0%, #ecfeff 50%, #e0f2fe 100%);
+  color: #115e59;
+}
+.text-cover-accent-6 {
+  background: rgb(45 212 191 / 0.6);
+}
+[data-theme="dark"] .text-cover-palette-6 {
+  background: linear-gradient(135deg, #042f2e 0%, #083344 50%, #0c4a6e 100%);
+  color: #99f6e4;
+}
+[data-theme="dark"] .text-cover-accent-6 {
+  background: rgb(45 212 191 / 0.4);
+}

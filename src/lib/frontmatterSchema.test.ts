@@ -46,31 +46,53 @@ describe("frontmatter schema", () => {
     expect(getFrontmatterFieldDefaultValue("unknownField")).toBeNull();
   });
 
-  test("lists missing addable known fields", () => {
+  test("lists missing addable known fields for a series (sort is in scope)", () => {
     expect(
-      getMissingAddableFrontmatterFields({
-        title: "Post",
-        featured: false,
-      })
-    ).toEqual(["draft", "pinned", "coverImage"]);
+      getMissingAddableFrontmatterFields(
+        {
+          title: "Post",
+          featured: false,
+        },
+        { contentType: "series" }
+      )
+    ).toEqual(["excerpt", "draft", "pinned", "sort", "coverImage"]);
   });
 
   test("treats mixed-case known keys as present for addable fields", () => {
     expect(
-      getMissingAddableFrontmatterFields({
-        Featured: true,
-        CoverImage: "/hero.png",
-      })
-    ).toEqual(["draft", "pinned"]);
+      getMissingAddableFrontmatterFields(
+        {
+          Featured: true,
+          CoverImage: "/hero.png",
+        },
+        { contentType: "series" }
+      )
+    ).toEqual(["excerpt", "draft", "pinned", "sort"]);
   });
 
   test("treats null-valued known keys as absent for addable fields", () => {
     expect(
-      getMissingAddableFrontmatterFields({
-        featured: null,
-        pinned: false,
-      })
-    ).toEqual(["draft", "featured", "coverImage"]);
+      getMissingAddableFrontmatterFields(
+        {
+          featured: null,
+          pinned: false,
+        },
+        { contentType: "series" }
+      )
+    ).toEqual(["excerpt", "draft", "featured", "sort", "coverImage"]);
+  });
+
+  test("hides sort from the addable list for non-series content (posts, books, notes, flows)", () => {
+    const baseline = ["excerpt", "draft", "featured", "pinned", "coverImage"];
+    expect(getMissingAddableFrontmatterFields({}, { contentType: "post" })).toEqual(baseline);
+    expect(getMissingAddableFrontmatterFields({}, { contentType: "book" })).toEqual(baseline);
+    expect(getMissingAddableFrontmatterFields({}, { contentType: "note" })).toEqual(baseline);
+    expect(getMissingAddableFrontmatterFields({}, { contentType: "flow" })).toEqual(baseline);
+  });
+
+  test("hides sort from the addable list when contentType is unknown", () => {
+    expect(getMissingAddableFrontmatterFields({}, {})).not.toContain("sort");
+    expect(getMissingAddableFrontmatterFields({})).not.toContain("sort");
   });
 
   test("coerces custom metadata values by type", () => {

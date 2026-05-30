@@ -1,10 +1,17 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "../../lib/commands";
 import type { FrontmatterValue } from "../../lib/frontmatter";
-import { resolveImageExtension, resolveImageSrc, toAssetRootRelative } from "../../lib/imageUtils";
+import {
+  parseCoverImage,
+  resolveImageExtension,
+  resolveImageSrc,
+  toAssetRootRelative,
+} from "../../lib/imageUtils";
+import { TextCover } from "../TextCover";
 import { EditableValue } from "./EditableValue";
 import { RemoveFieldButton } from "./RemoveFieldButton";
+import { METADATA_TEXT_INPUT_PROPS } from "./shared";
 
 const IMAGE_MIME_RE = /^image\/(png|jpe?g|gif|webp|avif|svg\+xml)$/;
 
@@ -62,6 +69,8 @@ export function CoverImageField({
   filePath,
   assetRoot,
   cdnBase,
+  slug,
+  fallbackText,
   onTogglePreview,
   onSave,
   onRemove,
@@ -72,6 +81,8 @@ export function CoverImageField({
   filePath?: string;
   assetRoot?: string;
   cdnBase?: string;
+  slug: string;
+  fallbackText: string;
   onTogglePreview: () => void;
   onSave: (v: FrontmatterValue) => void;
   onRemove: () => void;
@@ -83,9 +94,12 @@ export function CoverImageField({
   const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
   const dropRef = useRef<HTMLFieldSetElement>(null);
 
+  const cover = parseCoverImage(value);
+  const isTextCover = cover.kind === "text";
   const trimmed = value.trim();
   const hasValue = trimmed.length > 0;
-  const thumbSrc = hasValue ? resolveImageSrc(trimmed, filePath, assetRoot, cdnBase) : "";
+  const thumbSrc =
+    cover.kind === "path" ? resolveImageSrc(cover.src, filePath, assetRoot, cdnBase) : "";
   const thumbBroken = brokenSrc !== null && brokenSrc === thumbSrc;
 
   async function handleFile(file: File) {
@@ -131,6 +145,7 @@ export function CoverImageField({
   }
 
   function handleDragOver(e: React.DragEvent) {
+    if (isTextCover) return;
     if (Array.from(e.dataTransfer.items).some((item) => IMAGE_MIME_RE.test(item.type))) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
@@ -145,6 +160,7 @@ export function CoverImageField({
   }
 
   function handleDrop(e: React.DragEvent) {
+    if (isTextCover) return;
     setDragActive(false);
     const file = Array.from(e.dataTransfer.files).find((f) => IMAGE_MIME_RE.test(f.type));
     if (!file) return;
@@ -153,6 +169,7 @@ export function CoverImageField({
   }
 
   function handlePaste(e: React.ClipboardEvent) {
+    if (isTextCover) return;
     const item = Array.from(e.clipboardData.items).find(
       (i) => i.kind === "file" && IMAGE_MIME_RE.test(i.type)
     );
@@ -165,6 +182,7 @@ export function CoverImageField({
   const dropZoneClass = [
     "prop-cover-dropzone",
     hasValue ? "is-populated" : "is-empty",
+    isTextCover ? "is-text" : "",
     dragActive ? "is-drag-active" : "",
     busy ? "is-busy" : "",
   ]
@@ -201,7 +219,14 @@ export function CoverImageField({
         onDrop={handleDrop}
         onPaste={handlePaste}
       >
-        {hasValue && !thumbBroken ? (
+        {isTextCover ? (
+          <TextCover
+            text={cover.text}
+            fallbackText={fallbackText}
+            slug={slug}
+            className="prop-cover-text-thumb"
+          />
+        ) : hasValue && !thumbBroken ? (
           <img
             className="prop-cover-thumb"
             src={thumbSrc}
@@ -232,18 +257,100 @@ export function CoverImageField({
         )}
 
         <div className="prop-cover-actions">
-          <button
-            type="button"
-            className="prop-cover-action-btn"
-            disabled={busy}
-            onClick={handleChooseFile}
-          >
-            {busy ? t("properties.cover_saving") : t("properties.cover_choose")}
-          </button>
+          {isTextCover ? (
+            <button
+              type="button"
+              className="prop-cover-action-btn"
+              title={t("properties.cover_use_image_tooltip")}
+              onClick={() => onSave("")}
+            >
+              {t("properties.cover_use_image")}
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="prop-cover-action-btn"
+                disabled={busy}
+                onClick={handleChooseFile}
+              >
+                {busy ? t("properties.cover_saving") : t("properties.cover_choose")}
+              </button>
+              <button
+                type="button"
+                className="prop-cover-action-btn"
+                title={t("properties.cover_use_text_tooltip")}
+                onClick={() => onSave("text:")}
+              >
+                {t("properties.cover_use_text")}
+              </button>
+            </>
+          )}
         </div>
       </fieldset>
 
-      <EditableValue label={t("properties.cover_path")} value={value} onSave={onSave} />
+      {isTextCover ? (
+        <>
+          <CoverTextInput
+            text={cover.text}
+            onSave={(next) => onSave(next ? `text:${next}` : "text:")}
+          />
+          <p className="prop-cover-text-hint">{t("properties.cover_text_hint")}</p>
+        </>
+      ) : (
+        <EditableValue label={t("properties.cover_path")} value={value} onSave={onSave} />
+      )}
     </div>
+  );
+}
+
+function CoverTextInput({ text, onSave }: { text: string; onSave: (text: string) => void }) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState(text);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const skipBlurCommitRef = useRef(false);
+
+  // Sync the local draft if the external text changes while we're not editing
+  // (e.g. the user just toggled into text mode, or pasted into the raw path
+  // field below).
+  useEffect(() => {
+    if (document.activeElement !== inputRef.current) {
+      setDraft(text);
+    }
+  }, [text]);
+
+  function commit() {
+    if (draft.trim() !== text) onSave(draft.trim());
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      className="prop-cover-text-input"
+      aria-label={t("properties.cover_text_label")}
+      placeholder={t("properties.cover_text_placeholder")}
+      {...METADATA_TEXT_INPUT_PROPS}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          skipBlurCommitRef.current = true;
+          commit();
+          (e.target as HTMLInputElement).blur();
+        } else if (e.key === "Escape") {
+          skipBlurCommitRef.current = true;
+          setDraft(text);
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      onBlur={() => {
+        if (skipBlurCommitRef.current) {
+          skipBlurCommitRef.current = false;
+          return;
+        }
+        commit();
+      }}
+    />
   );
 }

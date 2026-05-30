@@ -1,13 +1,14 @@
 import { lazy, Suspense, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
-import { resolveImageSrc } from "../lib/imageUtils";
+import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
 import type { FileNode, RecentFile, SaveStatus } from "../lib/types";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FileViewer, isReadOnlyContent } from "./FileViewer";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { TabBar } from "./TabBar";
+import { TextCover } from "./TextCover";
 
 export type EditorViewState = { selection: number; scrollTop: number };
 
@@ -124,14 +125,29 @@ export function EditorPane({
             onReorder={onReorderTabs}
           />
         )}
-        {selectedFile && coverImageVisible && coverImagePath && (
-          <div className="cover-image-banner">
-            <img
-              src={resolveImageSrc(coverImagePath, selectedFile.path, assetRoot, cdnBase)}
-              alt={editorTitle}
-            />
-          </div>
-        )}
+        {selectedFile &&
+          coverImageVisible &&
+          coverImagePath &&
+          (() => {
+            const cover = parseCoverImage(coverImagePath);
+            if (cover.kind === "empty") return null;
+            if (cover.kind === "text") {
+              const coverSlug = selectedFile.name.replace(/\.mdx?$/, "");
+              return (
+                <div className="cover-image-banner cover-image-banner-text">
+                  <TextCover text={cover.text} fallbackText={editorTitle} slug={coverSlug} />
+                </div>
+              );
+            }
+            return (
+              <div className="cover-image-banner">
+                <img
+                  src={resolveImageSrc(cover.src, selectedFile.path, assetRoot, cdnBase)}
+                  alt={editorTitle}
+                />
+              </div>
+            );
+          })()}
         {fileViewerNode ? (
           <FileViewer node={fileViewerNode} onClose={onCloseFileViewer} />
         ) : selectedFile && isReadOnlyContent(selectedFile) ? (
@@ -175,6 +191,7 @@ export function EditorPane({
           frontmatter={parsedFrontmatter}
           visible={propertiesOpen}
           slug={selectedFile.name.replace(/\.mdx?$/, "")}
+          contentType={selectedFile.contentType}
           coverImageVisible={coverImageVisible}
           filePath={selectedFile.path}
           assetRoot={assetRoot}

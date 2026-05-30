@@ -35,6 +35,12 @@ The two paths matter when reasoning about *where* files live:
 - **`assetRoot`** — where root-relative image paths (`/images/cover.jpg`)
   resolve to. For Amytis workspaces this is the project's `public/` dir; for
   generic workspaces it falls back to `workspaceRootPath`.
+- **`coverImage` accepts a `text:` prefix** — `coverImage: text:Issue 1` is an
+  Amytis convention that renders a gradient text card instead of loading an
+  image. `parseCoverImage` (`src/lib/imageUtils.ts`) classifies the raw value
+  into `{ empty | text | path }` so the editor banner and the properties-panel
+  thumbnail render through one shared `TextCover` component, with palette
+  derived from `slug.length % 7` to match Amytis's rendering exactly.
 
 `site.config.ts` (parsed in `src-tauri/src/content_types.rs`) optionally
 contributes:
@@ -88,10 +94,12 @@ behavior (`mdx`/flat file), so the defaults stay byte-for-byte identical to the
 stay folder-backed regardless of `layout`. See [ADR 0011](docs/adr/0011-configurable-scaffolding-format-layout.md).
 
 An **entry folder** is a directory holding an `index.md(x)` — a series or book.
-The sidebar labels it with the index's title, opens the index on click, and
-expands to its members. `forContentMode` deliberately does **not** collapse
-series/book entries into single nodes (only folder-backed posts collapse), so a
-series with just an `index` still renders as an expandable collection.
+The sidebar labels it with the index's title, opens the index on click and
+expands to its members; re-clicking the same row (while the index is already
+the active file) collapses it. `forContentMode` deliberately does **not**
+collapse series/book entries into single nodes (only folder-backed posts
+collapse), so a series with just an `index` still renders as an expandable
+collection.
 
 A **collection** is a series whose `index.mdx` is typed `type: collection` and
 references posts/series **elsewhere** via an `items:` list
@@ -186,6 +194,14 @@ collections* above): top-level buckets are protected from rename/delete and
 offer *New &lt;Type&gt;*; an entry folder shows its title + members; a collection
 shows its `items:` as link rows with add/remove. `findCollectionEntries` and
 `isCollectionEntry` (sidebarUtils) drive collection detection.
+
+Row icons in content mode also reflect type: file rows pass `node.contentType`
+through `ContentTypeIcon` (post → FileText, series → ListOrdered, book →
+BookOpen, flow → ArrowLeftRight, note → StickyNote, page → LayoutTemplate),
+and top-level **bucket folders** reuse the same mapping so each bucket is
+recognisable at a glance. Entry folders (a series's own folder) and every
+Files-mode folder keep the generic Folder/FolderOpen glyph so the
+expand/collapse signal stays intact on the rows where it matters.
 
 Noise-dir filtering (`.git`, `node_modules`, `target`, `dist`, `.next`, etc.)
 lives in `walk_tree` (Rust, `src-tauri/src/workspace/tree.rs`) so the projection
