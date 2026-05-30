@@ -19,6 +19,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    /* TS 6 enabled noUncheckedSideEffectImports by default; our `import "./Foo.css"`
+       side-effect imports cannot be satisfied by wildcard `declare module "*.css"`
+       (the rule requires an on-disk declaration for the exact path), and adding a
+       .d.ts per CSS file is busywork without real safety benefit. Opt out. */
     "noUncheckedSideEffectImports": false,
 
     /* Path aliases */
