@@ -372,3 +372,177 @@ describe("useGitUiController — dialogs + branch actions", () => {
     expect(spies.showToast).toHaveBeenCalledWith("Checked out feature/x");
   });
 });
+
+describe("useGitUiController — sync popover + commit flow", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  it("handleGitSyncAction dispatches pull when the popover actionKind is 'pull'", async () => {
+    const spies = makeSpies();
+    // upstream + aheadBehind "<" → actionKind: "pull"
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "git@github.com:foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "git@github.com:foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: "<",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+
+    expect(spies.flushPendingSave).toHaveBeenCalled();
+    expect(spies.handlePull).toHaveBeenCalledTimes(1);
+    expect(spies.handlePush).not.toHaveBeenCalled();
+    expect(spies.showToast).toHaveBeenCalledWith("Pulled latest changes");
+  });
+
+  it("handleGitSyncAction dispatches push when the popover actionKind is 'push'", async () => {
+    const spies = makeSpies();
+    // upstream + aheadBehind ">" → actionKind: "push"
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "git@github.com:foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "git@github.com:foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: ">",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+
+    expect(spies.handlePush).toHaveBeenCalledTimes(1);
+    expect(spies.handlePush.mock.calls[0]?.[0]).toBeUndefined();
+    expect(spies.handlePull).not.toHaveBeenCalled();
+  });
+
+  it("handleGitSyncAction passes the remote name on push-track", async () => {
+    const spies = makeSpies();
+    // !upstream + remoteName → actionKind: "push-track"
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "git@github.com:foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "git@github.com:foo/bar.git",
+      upstream: null,
+      aheadBehind: null,
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+
+    expect(spies.handlePush).toHaveBeenCalledWith("origin");
+  });
+
+  it("handleGitSyncAction toasts the formatted error when push rejects", async () => {
+    const spies = makeSpies();
+    spies.handlePush = mock(() => Promise.reject(new Error("auth required")));
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "git@github.com:foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "git@github.com:foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: ">",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+
+    expect(spies.showToast).toHaveBeenCalledWith("push failed: auth required");
+  });
+
+  it("handleCommitDialogCommit calls handleCommit and closes the commit dialog", async () => {
+    const spies = makeSpies();
+    spies.getBranch = mock(() => Promise.resolve("main"));
+    spies.getCommitChanges = mock(() => Promise.resolve([sampleChange]));
+    const { result } = renderController({ spies });
+
+    // Open the commit dialog first so we can verify it closes.
+    await act(async () => {
+      await result.current.controller.openCommitDialog("My change");
+    });
+    expect(result.current.controller.commitDialog).not.toBeNull();
+
+    await act(async () => {
+      await result.current.controller.handleCommitDialogCommit(
+        "My change",
+        [sampleChange.path],
+        false
+      );
+    });
+
+    expect(spies.flushPendingSave).toHaveBeenCalled();
+    expect(spies.handleCommit).toHaveBeenCalledWith("My change", [sampleChange.path], false);
+    expect(result.current.controller.commitDialog).toBeNull();
+  });
+
+  it("handleCommitDialogCommit toasts a formatted error when handleCommit rejects", async () => {
+    const spies = makeSpies();
+    spies.handleCommit = mock(() => Promise.reject(new Error("nothing to commit")));
+    const { result } = renderController({ spies });
+
+    await act(async () => {
+      await result.current.controller.handleCommitDialogCommit("msg", [], false);
+    });
+
+    expect(spies.showToast).toHaveBeenCalledWith("Commit failed: nothing to commit");
+  });
+
+  it("openRemote toasts a formatted error when handleOpenRemote rejects", async () => {
+    const spies = makeSpies();
+    spies.handleOpenRemote = mock(() => Promise.reject(new Error("no remote")));
+    const { result } = renderController({ spies });
+
+    await act(async () => {
+      await result.current.controller.openRemote("origin");
+    });
+
+    expect(spies.handleOpenRemote).toHaveBeenCalledWith("origin");
+    expect(spies.showToast).toHaveBeenCalledWith("Open remote failed: no remote");
+  });
+
+  it("copyRemoteUrl toasts when no remote URL is configured", async () => {
+    const spies = makeSpies();
+    // EMPTY_REMOTE_INFO has remoteUrl: null
+    const { result } = renderController({ spies });
+
+    await act(async () => {
+      await result.current.controller.copyRemoteUrl();
+    });
+
+    expect(spies.showToast).toHaveBeenCalledWith("No remote URL configured");
+  });
+
+  it("copyRemoteUrl writes to the clipboard when a URL exists", async () => {
+    const spies = makeSpies();
+    const writeText = mock((_: string) => Promise.resolve());
+    // happy-dom provides navigator; install a stub clipboard.
+    Object.defineProperty(globalThis.navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "git@github.com:foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "https://github.com/foo/bar",
+      upstream: null,
+      aheadBehind: null,
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.copyRemoteUrl();
+    });
+
+    expect(writeText).toHaveBeenCalledWith("https://github.com/foo/bar");
+    expect(spies.showToast).toHaveBeenCalledWith("Copied remote URL");
+  });
+});
