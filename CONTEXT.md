@@ -88,10 +88,12 @@ behavior (`mdx`/flat file), so the defaults stay byte-for-byte identical to the
 stay folder-backed regardless of `layout`. See [ADR 0011](docs/adr/0011-configurable-scaffolding-format-layout.md).
 
 An **entry folder** is a directory holding an `index.md(x)` — a series or book.
-The sidebar labels it with the index's title, opens the index on click, and
-expands to its members. `forContentMode` deliberately does **not** collapse
-series/book entries into single nodes (only folder-backed posts collapse), so a
-series with just an `index` still renders as an expandable collection.
+The sidebar labels it with the index's title, opens the index on click and
+expands to its members; re-clicking the same row (while the index is already
+the active file) collapses it. `forContentMode` deliberately does **not**
+collapse series/book entries into single nodes (only folder-backed posts
+collapse), so a series with just an `index` still renders as an expandable
+collection.
 
 A **collection** is a series whose `index.mdx` is typed `type: collection` and
 references posts/series **elsewhere** via an `items:` list

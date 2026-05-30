@@ -16,6 +16,7 @@ import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
 import type { FeatureBucket } from "../lib/commands/generated/FeatureBucket";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
+import { resolveEntryLabelClick } from "../lib/sidebarExpansion";
 import {
   bucketLabel,
   filterTree,
@@ -315,7 +316,18 @@ function FileItem({
               <button
                 type="button"
                 className="sidebar-dir-label"
-                onClick={() => onSelect(indexEntry)}
+                onClick={() => {
+                  // Re-clicking an already-shown index collapses the row; the
+                  // collapse path skips onSelect so selectedPath stays stable
+                  // and the auto-expand-ancestors effect doesn't re-open it.
+                  const action = resolveEntryLabelClick({ entrySelected, expanded });
+                  if (action === "collapse") {
+                    onToggleExpand(node.path, depth);
+                    return;
+                  }
+                  if (action === "expand-and-select") onToggleExpand(node.path, depth);
+                  onSelect(indexEntry);
+                }}
               >
                 <span className="sidebar-file-name">{dirLabel}</span>
                 {dirRollupDot}

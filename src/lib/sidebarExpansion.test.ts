@@ -5,6 +5,7 @@ import {
   forceExpandAncestors,
   getNodeExpanded,
   parseExpandedPaths,
+  resolveEntryLabelClick,
   shouldDefaultExpand,
 } from "./sidebarExpansion";
 import type { FileNode } from "./types";
@@ -146,5 +147,24 @@ describe("getNodeExpanded", () => {
   it("falls back to default depth-based expansion", () => {
     expect(getNodeExpanded("/workspace/posts", 0, {})).toBe(true);
     expect(getNodeExpanded("/workspace/posts/2024", 1, {})).toBe(false);
+  });
+});
+
+describe("resolveEntryLabelClick", () => {
+  it("collapses when the entry index is already selected and visible", () => {
+    expect(resolveEntryLabelClick({ entrySelected: true, expanded: true })).toBe("collapse");
+  });
+
+  it("expands and selects when the row is closed", () => {
+    expect(resolveEntryLabelClick({ entrySelected: false, expanded: false })).toBe(
+      "expand-and-select"
+    );
+    expect(resolveEntryLabelClick({ entrySelected: true, expanded: false })).toBe(
+      "expand-and-select"
+    );
+  });
+
+  it("just selects when the row is already open but another file is active", () => {
+    expect(resolveEntryLabelClick({ entrySelected: false, expanded: true })).toBe("select");
   });
 });

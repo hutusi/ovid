@@ -77,3 +77,18 @@ export function getNodeExpanded(
   if (persisted !== undefined) return persisted;
   return shouldDefaultExpand(depth);
 }
+
+export type EntryLabelClickAction = "collapse" | "expand-and-select" | "select";
+
+// A directory row whose index is already selected and visible should collapse
+// on a second label click. Otherwise the click expands (if needed) and selects
+// the index. The "collapse" branch must skip selectedPath updates so the
+// auto-expand-ancestors effect doesn't immediately re-open the row.
+export function resolveEntryLabelClick(args: {
+  entrySelected: boolean;
+  expanded: boolean;
+}): EntryLabelClickAction {
+  if (args.entrySelected && args.expanded) return "collapse";
+  if (!args.expanded) return "expand-and-select";
+  return "select";
+}
