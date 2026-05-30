@@ -62,3 +62,38 @@ pub(crate) async fn wechat_get_or_refresh_token(
 
     Ok(token)
 }
+
+#[cfg(test)]
+mod tests {
+    use mockito::Server;
+
+    /// Smoke test that mockito + reqwest + tokio dev-deps are wired
+    /// correctly. The real token-fetch tests live alongside the upcoming
+    /// `_with_base` refactor; this one just proves the toolchain works
+    /// end-to-end so a broken setup surfaces before the real tests.
+    #[tokio::test]
+    async fn mockito_with_reqwest_smoke() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("GET", "/ping")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("pong")
+            .create_async()
+            .await;
+
+        let url = format!("{}/ping", server.url());
+        // Explicit no-proxy client — macOS's system proxies otherwise
+        // intercept the 127.0.0.1 request and return 502.
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .unwrap();
+        let resp = client.get(&url).send().await.unwrap();
+        let status = resp.status();
+        let body = resp.text().await.unwrap();
+        assert_eq!(status, 200, "unexpected status {status}: body={body:?}");
+        assert_eq!(body, "pong");
+        mock.assert_async().await;
+    }
+}
