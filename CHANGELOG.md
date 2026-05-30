@@ -41,6 +41,19 @@ release cadence and Conventional Commit history.
   subline is restyled to read as the row's value.
 
 ### Internal
+- **Rust seam coverage**: extracted `build_workspace_result_core` as a
+  pure helper of `workspace::commands` and added smoke tests for the
+  Amytis-workspace / plain-directory / missing-path / cache-population
+  paths. Integration-tested the read-only git command helpers
+  (`get_current_branch_inner`, `parse_git_branches`,
+  `get_git_remote_info_inner`) against a real `git init -b main` repo
+  via `tempfile`; tests skip cleanly when `git` is unavailable. Added a
+  cross-language parity guard in `menu.rs` asserting
+  `default_menu_labels()` covers every key in `en.json`'s `menu` block;
+  the guard's first run exposed five toast strings (`git_pull_success`,
+  `git_fetch_success`, `file_wechat_copy_success`,
+  `file_wechat_copy_no_content`, `file_wechat_copy_math_warning`)
+  without Rust fallbacks, now added.
 - **Coverage reporting**: added `bun run coverage` (TS via `bun test
   --coverage`, Rust via `cargo-llvm-cov`) plus HTML variants
   (`coverage:html` using `genhtml`, `coverage:rust:html` using
