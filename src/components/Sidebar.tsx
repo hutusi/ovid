@@ -268,6 +268,19 @@ function FileItem({
 
   if (node.isDirectory) {
     const DirIcon = expanded ? FolderOpen : Folder;
+    // Top-level Content-mode buckets show their type icon instead of a generic
+    // folder. Entry folders and Files mode keep Folder/FolderOpen so the
+    // open/closed visual signal stays intact.
+    const isBucketFolder = depth === 0 && !filesMode && !!effectiveBucketType;
+    const dirIconNode = isBucketFolder ? (
+      <ContentTypeIcon
+        type={effectiveBucketType}
+        size={13}
+        className="sidebar-file-icon sidebar-dir-icon"
+      />
+    ) : (
+      <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
+    );
     const dirRollup = !expanded ? rollupGitStatus(node, gitStatusMap) : undefined;
     // An entry folder's label is the index's title; clicking it opens the
     // index, the chevron toggles expansion, and the index child is hidden.
@@ -311,7 +324,7 @@ function FileItem({
                 aria-label={t("sidebar.toggle_section", { name: dirLabel })}
                 onClick={() => onToggleExpand(node.path, depth)}
               >
-                <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
+                {dirIconNode}
               </button>
               <button
                 type="button"
@@ -340,7 +353,7 @@ function FileItem({
               aria-expanded={expanded}
               onClick={() => onToggleExpand(node.path, depth)}
             >
-              <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
+              {dirIconNode}
               {dirLabel}
               {node.disabledForSite && (
                 <span className="sidebar-bucket-badge" title={t("sidebar.hidden_from_site")}>
