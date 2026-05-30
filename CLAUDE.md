@@ -33,9 +33,13 @@ cargo test --manifest-path src-tauri/Cargo.toml     # Rust tests only
 Coverage (not part of `validate` — run on demand):
 
 ```bash
-bun run test:coverage    # TS coverage (text + coverage/lcov.info)
-bun run coverage:rust    # Rust coverage summary (one-time: cargo install cargo-llvm-cov)
-bun run coverage         # Both
+bun run test:coverage       # TS coverage (text + coverage/lcov.info)
+bun run coverage:rust       # Rust coverage summary (one-time: cargo install cargo-llvm-cov)
+bun run coverage            # Both summaries
+
+# HTML reports (open the printed path in a browser)
+bun run coverage:html       # TS — requires lcov (`brew install lcov` for genhtml)
+bun run coverage:rust:html  # Rust — uses cargo-llvm-cov built-in HTML
 ```
 
 Tests are colocated as `*.test.ts` next to the implementation (e.g. `src/lib/frontmatter.test.ts`, `src/lib/tiptap/FindReplace.test.ts`).
