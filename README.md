@@ -17,6 +17,7 @@ Ovid combines the core workflows needed for Amytis-native writing in one desktop
 - manage frontmatter and content-type metadata inline
 - search files and full workspace text quickly
 - handle daily Git actions such as commit, push, pull, fetch, and branch switching
+- tune appearance, editor, language, and new-content defaults in Preferences (`Cmd+,`)
 
 Current release status:
 
@@ -127,7 +128,7 @@ Only `.md` and `.mdx` files appear in the sidebar.
 
 ### Auto-reopen
 
-Ovid remembers the last workspace you had open and reopens it automatically on next launch. To suppress this, close the workspace and relaunch — the auto-reopen is skipped once a session starts without a workspace.
+Ovid remembers the last workspace you had open and reopens it (with its tabs) automatically on next launch. To suppress this, turn off **Restore last session on launch** in Preferences → General (`Cmd+,`).
 
 ### Switching workspaces
 
@@ -298,18 +299,19 @@ The status bar (bottom of the window) shows:
 - **Save indicator** — grey dot = saved, amber dot = unsaved changes
 - **Word count** — total words in the current file
 - **Session words** — `+N` words added since the file was opened; resets on file switch
-- **Aa** — editor settings (font, size, spell check, session goal)
+- **Aa** — editor settings (font, size, spell check, word-count goal)
 - **⌨** — typewriter mode toggle
 - **◎** — zen mode toggle
 - **Theme toggle** — moon/sun icon for dark/light mode
+- **Gear** — open Preferences (`Cmd+,`)
 
 ### Force save (`Cmd+S`)
 
 Bypasses the 750 ms debounce and saves immediately.
 
-### Session word count goal
+### Word count goal
 
-Open the **Aa** popover, enter a target word count, and click **Set**. The status bar shows your progress (`+N/GOAL`). The goal resets when you quit the app.
+Open the **Aa** popover (or Preferences → Editor), enter a target word count, and click **Set**. The status bar shows your progress (`+N/GOAL`). The goal persists across restarts.
 
 ---
 

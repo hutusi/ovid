@@ -73,6 +73,13 @@ export function useKeyboardShortcuts({
         setZenMode((v) => !v);
         return;
       }
+      // Cmd/Ctrl+, opens Preferences — handled here (before the input-focus
+      // guard) so it works even while the editor is focused.
+      if (key === "," && !e.shiftKey && !e.altKey && !overlay.isBlocking) {
+        e.preventDefault();
+        overlay.open({ kind: "preferences" });
+        return;
+      }
       // Mode toggles work even when editor has focus
       if (e.shiftKey && key === "p") {
         e.preventDefault();

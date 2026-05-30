@@ -19,6 +19,7 @@ export type Overlay =
   | { kind: "update" }
   | { kind: "wechatPublish" }
   | { kind: "shortcutsHelp" }
+  | { kind: "preferences" }
   | { kind: "commit"; state: NonNullable<CommitDialogState> }
   | { kind: "branchSwitcher"; state: NonNullable<BranchSwitcherState> }
   | { kind: "newBranch" }

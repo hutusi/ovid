@@ -18,11 +18,17 @@ type TestElementProps = {
   children?: ReactNode;
   className?: string;
   onClick?: () => void;
+  "aria-label"?: string;
 };
 
-function renderStatusBar(gitChangeLabel: string | null, onOpenCommit = mock(() => {})) {
+function renderStatusBar(
+  gitChangeLabel: string | null,
+  onOpenCommit = mock(() => {}),
+  onOpenPreferences = mock(() => {})
+) {
   return {
     onOpenCommit,
+    onOpenPreferences,
     tree: StatusBar({
       fileLabel: "draft.md",
       wordCount: 120,
@@ -52,6 +58,7 @@ function renderStatusBar(gitChangeLabel: string | null, onOpenCommit = mock(() =
       onSetFontSize: () => {},
       onToggleSpellCheck: () => {},
       onSetWordCountGoal: () => {},
+      onOpenPreferences,
     }),
   };
 }
@@ -119,5 +126,18 @@ describe("StatusBar git change summary", () => {
     badges[0].props.onClick?.();
 
     expect(onOpenCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("wires the Preferences gear click to onOpenPreferences", () => {
+    const { tree, onOpenPreferences } = renderStatusBar(null);
+    const gears = collectElements(
+      tree,
+      (element) => element.props["aria-label"] === "status_bar.preferences"
+    );
+
+    expect(gears).toHaveLength(1);
+    gears[0].props.onClick?.();
+
+    expect(onOpenPreferences).toHaveBeenCalledTimes(1);
   });
 });

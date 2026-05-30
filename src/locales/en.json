@@ -1,6 +1,45 @@
 {
   "common": {
-    "close": "Close"
+    "close": "Close",
+    "done": "Done"
+  },
+  "preferences": {
+    "title": "Preferences",
+    "tabs": {
+      "general": "General",
+      "appearance": "Appearance",
+      "editor": "Editor",
+      "language": "Language",
+      "content": "Content"
+    },
+    "general": {
+      "restore_session": "Restore last session on launch",
+      "restore_session_hint": "Reopen the last workspace and its tabs when Ovid starts."
+    },
+    "appearance": {
+      "theme": "Theme",
+      "theme_system": "System",
+      "theme_light": "Light",
+      "theme_dark": "Dark"
+    },
+    "editor": {
+      "font_family": "Font",
+      "font_size": "Font size",
+      "word_count_goal": "Word-count goal",
+      "word_count_goal_hint": "Target words for the writing-progress meter. Leave empty for none."
+    },
+    "language": {
+      "app_language": "Display language",
+      "change_failed": "Failed to change language"
+    },
+    "content": {
+      "format": "New file format",
+      "format_hint": "Extension for new content. Plain notes and flows always use .md.",
+      "layout": "New file layout",
+      "layout_hint": "Single file, or a folder with index plus a co-located images folder.",
+      "layout_file": "Single file",
+      "layout_folder": "Folder with index"
+    }
   },
   "empty_state": {
     "select_file": "Select a file to start writing",
@@ -27,7 +66,8 @@
     "theme_light": "Switch to light mode",
     "theme_dark": "Switch to dark mode",
     "theme_toggle": "Toggle theme",
-    "language": "Language"
+    "language": "Language",
+    "preferences": "Preferences"
   },
   "workspace_refresh": {
     "changed_with_unsaved": "Workspace changed on disk while you have unsaved edits.",
@@ -346,6 +386,7 @@
     "about_item": "About Ovid",
     "about_title": "About Ovid",
     "about_body": "A minimalist desktop Markdown editor\nfor Amytis workspaces.",
+    "file_preferences": "Settings…",
     "file_new_post": "New Post",
     "file_new_flow": "New Flow",
     "file_new_note": "New Note",
@@ -489,6 +530,7 @@
     "save": "Save",
     "close_file": "Close file or tab",
     "git_commit": "Open commit dialog",
+    "open_preferences": "Open preferences",
     "show_shortcuts": "Show this dialog",
     "insert_link": "Insert link",
     "paste_plain": "Paste as plain text",

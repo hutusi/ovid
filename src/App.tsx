@@ -13,7 +13,9 @@ import { getGitBranchTitle } from "./lib/gitUi";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
 import type { CollectionItem, FileNode } from "./lib/types";
+import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
+import { useContentPreferences } from "./lib/useContentPreferences";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
 import { useFilesMode } from "./lib/useFilesMode";
@@ -35,7 +37,6 @@ import "./styles/global.css";
 import "./App.css";
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
-const AUTO_REOPEN_KEY = "ovid:skipAutoReopen";
 
 const SearchPanel = lazy(async () => ({
   default: (await import("./components/SearchPanel")).SearchPanel,
@@ -43,7 +44,9 @@ const SearchPanel = lazy(async () => ({
 
 function App() {
   const { t } = useTranslation();
-  const { resolvedTheme, setPreference } = useTheme();
+  const { preference: themePreference, resolvedTheme, setPreference } = useTheme();
+  const { prefs: appPrefs, updatePrefs: updateAppPrefs } = useAppPreferences();
+  const { prefs: contentPrefs, updatePrefs: updateContentPrefs } = useContentPreferences();
   const [sidebarVisible, setSidebarVisible] = useState(
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
@@ -124,6 +127,7 @@ function App() {
     showToast,
     flushPendingSave,
     resetFileState,
+    contentPrefs,
     fileEditor: {
       selectedFile,
       selectedPathRef,
@@ -346,14 +350,21 @@ function App() {
     }
   }, [workspaceRootPath, workspaceName, pushRecentWorkspace]);
 
-  // Auto-reopen last workspace on launch (once)
+  // Auto-reopen the last workspace + its tabs on launch (once), when the
+  // "restore last session" preference is on. useOpenTabs rehydrates the tab
+  // bar from the workspace's persisted tab list; here we additionally surface
+  // the most-recent file as the active tab.
+  //
+  // The preference is latched at mount: toggling it mid-session must NOT
+  // trigger an auto-reopen, only affect the next launch.
+  const initialRestoreLastSession = useRef(appPrefs.restoreLastSession);
   const autoReopenAttempted = useRef(false);
   useEffect(() => {
     if (
       autoReopenAttempted.current ||
       workspaceRootPath !== null ||
       recentWorkspaces.length === 0 ||
-      localStorage.getItem(AUTO_REOPEN_KEY) === "true"
+      !initialRestoreLastSession.current
     )
       return;
     autoReopenAttempted.current = true;
@@ -645,6 +656,7 @@ function App() {
         onSetFontSize={(s) => updatePrefs({ fontSize: s })}
         onToggleSpellCheck={() => updatePrefs({ spellCheck: !prefs.spellCheck })}
         onSetWordCountGoal={setWordCountGoal}
+        onOpenPreferences={() => overlay.open({ kind: "preferences" })}
       />
       <AppDialogs
         overlay={overlay}
@@ -703,6 +715,17 @@ function App() {
         renameBranch={renameBranch}
         deleteBranchDialog={deleteBranchDialog}
         deleteBranch={deleteBranch}
+        themePreference={themePreference}
+        setThemePreference={setPreference}
+        editorPrefs={prefs}
+        updateEditorPrefs={updatePrefs}
+        wordCountGoal={wordCountGoal}
+        setWordCountGoal={setWordCountGoal}
+        contentPrefs={contentPrefs}
+        updateContentPrefs={updateContentPrefs}
+        appPrefs={appPrefs}
+        updateAppPrefs={updateAppPrefs}
+        showToast={showToast}
       />
     </div>
   );

@@ -1,6 +1,45 @@
 {
   "common": {
-    "close": "关闭"
+    "close": "关闭",
+    "done": "完成"
+  },
+  "preferences": {
+    "title": "偏好设置",
+    "tabs": {
+      "general": "通用",
+      "appearance": "外观",
+      "editor": "编辑器",
+      "language": "语言",
+      "content": "内容"
+    },
+    "general": {
+      "restore_session": "启动时恢复上次会话",
+      "restore_session_hint": "Ovid 启动时重新打开上次的工作区及其标签页。"
+    },
+    "appearance": {
+      "theme": "主题",
+      "theme_system": "跟随系统",
+      "theme_light": "浅色",
+      "theme_dark": "深色"
+    },
+    "editor": {
+      "font_family": "字体",
+      "font_size": "字号",
+      "word_count_goal": "字数目标",
+      "word_count_goal_hint": "写作进度条的目标字数。留空则不设目标。"
+    },
+    "language": {
+      "app_language": "显示语言",
+      "change_failed": "切换语言失败"
+    },
+    "content": {
+      "format": "新文件格式",
+      "format_hint": "新内容的扩展名。普通笔记和动态始终使用 .md。",
+      "layout": "新文件布局",
+      "layout_hint": "单个文件，或包含 index 与同级 images 文件夹的目录。",
+      "layout_file": "单个文件",
+      "layout_folder": "目录加 index"
+    }
   },
   "empty_state": {
     "select_file": "选择文件，开始写作",
@@ -27,7 +66,8 @@
     "theme_light": "切换到浅色模式",
     "theme_dark": "切换到深色模式",
     "theme_toggle": "切换主题",
-    "language": "语言"
+    "language": "语言",
+    "preferences": "偏好设置"
   },
   "workspace_refresh": {
     "changed_with_unsaved": "工作区已在磁盘上更改，但你有未保存的编辑。",
@@ -346,6 +386,7 @@
     "about_item": "关于 Ovid",
     "about_title": "关于 Ovid",
     "about_body": "为 Amytis 内容工作区打造的\n极简桌面 Markdown 编辑器。",
+    "file_preferences": "设置…",
     "file_new_post": "新建文章",
     "file_new_flow": "新建日志",
     "file_new_note": "新建笔记",
@@ -489,6 +530,7 @@
     "save": "保存",
     "close_file": "关闭文件或标签",
     "git_commit": "打开提交对话框",
+    "open_preferences": "打开偏好设置",
     "show_shortcuts": "显示此对话框",
     "insert_link": "插入链接",
     "paste_plain": "粘贴为纯文本",

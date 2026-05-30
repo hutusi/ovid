@@ -80,6 +80,13 @@ it via a `NewContentKind` (`post`, `series`, `note`, `book`, `seriesPost`,
 `chapter`, `page`, `generic`); flows are date-based (`flows/Y/M/D`) and created
 via the today's-flow path.
 
+Two scaffolding choices are **user-configurable** via `useContentPreferences`
+(surfaced in Preferences → Content) and threaded into `buildNewContent` as
+`format` (`md`/`mdx`) and `layout` (`file`/`folder`). Both default to the Amytis
+behavior (`mdx`/flat file), so the defaults stay byte-for-byte identical to the
+`new-*` scripts; `generic`/`flow` always stay plain `.md`, and `series`/`book`
+stay folder-backed regardless of `layout`. See [ADR 0011](docs/adr/0011-configurable-scaffolding-format-layout.md).
+
 An **entry folder** is a directory holding an `index.md(x)` — a series or book.
 The sidebar labels it with the index's title, opens the index on click, and
 expands to its members. `forContentMode` deliberately does **not** collapse
@@ -200,7 +207,7 @@ tagged-union state where the rule "only one overlay can be active at a time"
 is enforced by the type, not by convention. See [ADR 0006](docs/adr/0006-overlay-stack-tagged-union.md)
 for the rationale.
 
-The twelve `Overlay` kinds:
+The `Overlay` kinds:
 
 | Kind | Owner of the *payload* | Blocking? |
 |---|---|---|
@@ -210,6 +217,8 @@ The twelve `Overlay` kinds:
 | `search` | — | yes |
 | `update` | — | yes |
 | `wechatPublish` | — | yes |
+| `shortcutsHelp` | — | yes |
+| `preferences` | — | yes |
 | `commit` | `useGitUiController` | yes |
 | `branchSwitcher` | `useGitUiController` | yes |
 | `newBranch` | — | yes |
@@ -232,6 +241,18 @@ instead of storing a separate `isOpen` boolean.
 - `useKeyboardShortcuts` and `useMenuActions` both take `overlay` and use
   `overlay.isBlocking` for the "should this shortcut fire?" guard. The
   duplicated 11-flag conjunction they each used to do is gone.
+
+**Preferences.** The `preferences` overlay renders `PreferencesDialog` — a
+tabbed (General / Appearance / Editor / Language / Content) view that is a thin
+shell over existing per-domain hooks. It does *not* own persistence: it reads
+and writes through the same `useTheme`, `useEditorPreferences`, `i18n`, and
+`useWordCountGoal` instances App already holds, so the dialog and the quick
+controls (StatusBar theme/language toggles, `FontSettings` popover) stay in
+lockstep. The two genuinely new preferences have their own hooks —
+`useAppPreferences` (`restoreLastSession`, gating the launch auto-reopen) and
+`useContentPreferences` (new-content `format`/`layout`, threaded through
+`useWorkspaceSession` into `buildNewContent`). Opened via `Cmd+,`, the native
+"Settings…" app-menu item, or the StatusBar gear.
 
 ---
 

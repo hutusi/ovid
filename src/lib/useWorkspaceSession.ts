@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import type { FileNode } from "./types";
+import type { ContentPreferences } from "./useContentPreferences";
 import { useEditorSession } from "./useEditorSession";
 import { useWorkspace } from "./useWorkspace";
 
@@ -22,6 +23,8 @@ interface UseWorkspaceSessionOptions {
    * Wrapping it here would duplicate that ownership.
    */
   fileEditor: FileEditorHandle;
+  /** New-content format/layout choice, forwarded to `useWorkspace`. */
+  contentPrefs?: ContentPreferences;
 }
 
 /**
@@ -49,6 +52,7 @@ export function useWorkspaceSession({
   flushPendingSave,
   resetFileState,
   fileEditor,
+  contentPrefs,
 }: UseWorkspaceSessionOptions) {
   const sessionRef = useRef<ReturnType<typeof useEditorSession> | null>(null);
 
@@ -56,6 +60,7 @@ export function useWorkspaceSession({
     showToast,
     flushPendingSave,
     resetFileState,
+    contentPrefs,
     onPathCreated: (node) => sessionRef.current?.openFile(node) ?? Promise.resolve(),
     onPathRenamed: (oldPath, newPath, lookup) =>
       sessionRef.current?.notifyPathRenamed(oldPath, newPath, lookup),
