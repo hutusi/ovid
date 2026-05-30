@@ -212,3 +212,82 @@ pub(crate) fn get_workspace_revision(state: State<'_, WorkspaceState>) -> Result
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     Ok(compute_workspace_revision(root))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    fn write_markdown_file(path: &Path, title: &str, body: &str) {
+        let content = format!("---\ntitle: \"{title}\"\ntype: post\n---\n\n{body}\n");
+        fs::write(path, content).unwrap();
+    }
+
+    #[test]
+    fn build_workspace_result_core_recognizes_amytis_workspace() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::write(root.join("site.config.ts"), "export const config = {};").unwrap();
+        fs::create_dir_all(root.join("content/posts")).unwrap();
+        write_markdown_file(&root.join("content/posts/hello.md"), "Hello", "body");
+
+        let mut cache = HashMap::new();
+        let result = build_workspace_result_core(root, &mut cache);
+
+        assert!(result.is_amytis_workspace);
+        assert!(
+            result.tree_root.ends_with("/content"),
+            "tree_root should dive into content/ for Amytis workspaces, got {:?}",
+            result.tree_root
+        );
+        assert_eq!(result.asset_root, result.root_path);
+        assert!(!result.tree.is_empty(), "tree should include workspace files");
+    }
+
+    #[test]
+    fn build_workspace_result_core_plain_directory_is_not_amytis() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        write_markdown_file(&root.join("note.md"), "Note", "body");
+
+        let mut cache = HashMap::new();
+        let result = build_workspace_result_core(root, &mut cache);
+
+        assert!(!result.is_amytis_workspace);
+        assert_eq!(
+            result.tree_root, result.root_path,
+            "tree_root falls back to root when no content/ dir is present"
+        );
+        assert!(result.tree.iter().any(|n| n.name == "note.md"));
+    }
+
+    #[test]
+    fn build_workspace_result_core_missing_path_returns_empty_tree_without_panic() {
+        let missing = PathBuf::from("/this/path/does/not/exist/ovid-test");
+        let mut cache = HashMap::new();
+        let result = build_workspace_result_core(&missing, &mut cache);
+
+        assert!(result.tree.is_empty());
+        assert!(!result.is_amytis_workspace);
+    }
+
+    #[test]
+    fn build_workspace_result_core_populates_frontmatter_cache() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        write_markdown_file(&root.join("a.md"), "A", "body");
+        write_markdown_file(&root.join("b.md"), "B", "body");
+
+        let mut cache = HashMap::new();
+        assert!(cache.is_empty());
+
+        let _ = build_workspace_result_core(root, &mut cache);
+
+        assert!(
+            cache.contains_key(&root.join("a.md")),
+            "cache should be populated for markdown files after a walk"
+        );
+        assert!(cache.contains_key(&root.join("b.md")));
+    }
+}
