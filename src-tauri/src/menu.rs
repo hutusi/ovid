@@ -349,6 +349,14 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
         ("git_push", "Push"),
         ("git_pull", "Pull"),
         ("git_fetch", "Fetch"),
+        ("git_pull_success", "Pulled latest changes"),
+        ("git_fetch_success", "Fetched remote updates"),
+        ("file_wechat_copy_success", "Copied for WeChat"),
+        ("file_wechat_copy_no_content", "No content to copy"),
+        (
+            "file_wechat_copy_math_warning",
+            "Copied for WeChat (math blocks removed \u{2014} WeChat cannot render LaTeX)",
+        ),
         ("help_check_updates", "Check for Updates\u{2026}"),
         ("help_shortcuts", "Keyboard Shortcuts"),
         ("help_docs", "Ovid Documentation"),
@@ -376,4 +384,38 @@ pub(crate) fn set_menu_language(
     let menu = build_app_menu(&app, &labels).map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::default_menu_labels;
+    use std::collections::HashSet;
+
+    /// Rust side of the cross-language menu contract: every key the locale
+    /// JSON declares under `menu.*` must have a Rust fallback in
+    /// `default_menu_labels()`. The TS side (`MENU_KEYS` ↔ locale) is
+    /// guarded by `src/lib/i18n.test.ts`; together the two tests stop a
+    /// menu key from being added in only one language at a time.
+    #[test]
+    fn default_menu_labels_covers_every_locale_menu_key() {
+        const EN: &str = include_str!("../../src/locales/en.json");
+        let en: serde_json::Value = serde_json::from_str(EN).expect("en.json is valid JSON");
+        let locale_menu = en
+            .get("menu")
+            .and_then(|m| m.as_object())
+            .expect("en.json must contain a `menu` object");
+
+        let locale_keys: HashSet<&str> = locale_menu.keys().map(String::as_str).collect();
+        let default_keys: HashSet<String> = default_menu_labels().keys().cloned().collect();
+
+        let missing: Vec<&str> = locale_keys
+            .iter()
+            .copied()
+            .filter(|k| !default_keys.contains(*k))
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "default_menu_labels() is missing fallback for locale menu key(s): {missing:?}"
+        );
+    }
 }
