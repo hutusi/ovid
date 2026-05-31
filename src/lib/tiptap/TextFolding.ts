@@ -3,9 +3,9 @@ import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
-const FOLD_KEY = new PluginKey<FoldState>("textFolding");
+export const FOLD_KEY = new PluginKey<FoldState>("textFolding");
 
-interface FoldState {
+export interface FoldState {
   folded: ReadonlySet<number>;
   decorations: DecorationSet;
 }

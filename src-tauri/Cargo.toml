@@ -32,3 +32,5 @@ ts-rs = { version = "12", features = ["serde-compat"] }
 
 [dev-dependencies]
 tempfile = "3"
+mockito = "1"
+tokio = { version = "1", features = ["sync", "macros", "rt"] }

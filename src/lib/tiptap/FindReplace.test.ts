@@ -1,6 +1,9 @@
-import { describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
+import { Editor } from "@tiptap/core";
 import { Schema } from "@tiptap/pm/model";
-import { collectMatches } from "./FindReplace";
+import StarterKit from "@tiptap/starter-kit";
+import { registerHappyDom, unregisterHappyDom } from "../../../scripts/test-setup";
+import { collectMatches, FIND_REPLACE_KEY, FindReplace } from "./FindReplace";
 
 // Minimal schema: doc > paragraph > text
 const schema = new Schema({
@@ -92,5 +95,125 @@ describe("collectMatches", () => {
     for (let i = 1; i < matches.length; i++) {
       expect(matches[i].from).toBeGreaterThanOrEqual(matches[i - 1].to);
     }
+  });
+});
+
+// ── FindReplace ProseMirror commands ───────────────────────────────────────
+//
+// Tests exercise the actual extension end-to-end via Editor.create() (the
+// same pattern as ListBackspace.test.ts). No DOM is required — Tiptap runs
+// commands against an in-memory editor state. Assertions hit the plugin
+// state via FIND_REPLACE_KEY plus the doc text via editor.getText().
+
+// Track every Editor created in this file so afterEach can destroy them
+// — Tiptap views hold references to the global `document` that
+// unregisterHappyDom tears down in afterAll, so a leaked view can survive
+// the DOM.
+const createdEditors: Editor[] = [];
+
+function createEditor(text: string) {
+  // Tiptap doesn't install extension plugins into the EditorState until an
+  // EditorView is constructed; constructing the view needs a DOM element.
+  // happy-dom (registered in beforeAll) provides document; we attach to a
+  // detached div and explicitly destroy() in afterEach.
+  const element = document.createElement("div");
+  const editor = new Editor({
+    element,
+    extensions: [StarterKit, FindReplace],
+    content: {
+      type: "doc",
+      content: [{ type: "paragraph", content: text ? [{ type: "text", text }] : [] }],
+    },
+  });
+  createdEditors.push(editor);
+  return editor;
+}
+
+describe("FindReplace commands", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+  afterEach(() => {
+    while (createdEditors.length) createdEditors.pop()?.destroy();
+  });
+
+  it("setFindTerm populates plugin state with the match positions", () => {
+    const editor = createEditor("hello hello world");
+    editor.commands.setFindTerm("hello");
+
+    const state = FIND_REPLACE_KEY.getState(editor.state);
+    expect(state?.matches).toHaveLength(2);
+    expect(state?.currentIndex).toBe(0);
+  });
+
+  it("setFindTerm with empty string clears matches and leaves the doc untouched", () => {
+    const editor = createEditor("hello hello");
+    editor.commands.setFindTerm("hello");
+    expect(FIND_REPLACE_KEY.getState(editor.state)?.matches).toHaveLength(2);
+
+    editor.commands.setFindTerm("");
+    const state = FIND_REPLACE_KEY.getState(editor.state);
+    expect(state?.matches).toHaveLength(0);
+    expect(editor.getText()).toBe("hello hello");
+  });
+
+  it("findNext advances and wraps around at the end", () => {
+    const editor = createEditor("foo bar foo baz foo");
+    editor.commands.setFindTerm("foo");
+    expect(FIND_REPLACE_KEY.getState(editor.state)?.currentIndex).toBe(0);
+
+    editor.commands.findNext();
+    expect(FIND_REPLACE_KEY.getState(editor.state)?.currentIndex).toBe(1);
+
+    editor.commands.findNext();
+    expect(FIND_REPLACE_KEY.getState(editor.state)?.currentIndex).toBe(2);
+
+    editor.commands.findNext(); // wraps back to 0
+    expect(FIND_REPLACE_KEY.getState(editor.state)?.currentIndex).toBe(0);
+  });
+
+  it("findPrev steps backward and wraps from 0 to the last index", () => {
+    const editor = createEditor("a a a a");
+    editor.commands.setFindTerm("a");
+    expect(FIND_REPLACE_KEY.getState(editor.state)?.currentIndex).toBe(0);
+
+    editor.commands.findPrev(); // wraps to last (3)
+    expect(FIND_REPLACE_KEY.getState(editor.state)?.currentIndex).toBe(3);
+  });
+
+  it("replaceOne replaces the current match with the replacement text", () => {
+    const editor = createEditor("hello world hello");
+    editor.commands.setFindTerm("hello");
+    editor.commands.replaceOne("hi");
+
+    expect(editor.getText()).toBe("hi world hello");
+  });
+
+  it("replaceOne with empty replacement deletes the current match", () => {
+    const editor = createEditor("hello world hello");
+    editor.commands.setFindTerm("hello");
+    editor.commands.replaceOne("");
+
+    expect(editor.getText()).toBe(" world hello");
+  });
+
+  it("replaceAll replaces every match end-to-start (positions don't drift)", () => {
+    const editor = createEditor("foo bar foo baz foo");
+    editor.commands.setFindTerm("foo");
+    editor.commands.replaceAll("quux");
+
+    expect(editor.getText()).toBe("quux bar quux baz quux");
+  });
+
+  it("findNext is a no-op when there are no matches", () => {
+    const editor = createEditor("hello");
+    editor.commands.setFindTerm("absent");
+
+    const before = FIND_REPLACE_KEY.getState(editor.state);
+    expect(before?.matches).toHaveLength(0);
+
+    // findNext returns false when matches is empty; the editor state stays put.
+    expect(editor.commands.findNext()).toBe(false);
+    const after = FIND_REPLACE_KEY.getState(editor.state);
+    expect(after?.matches).toHaveLength(0);
   });
 });
