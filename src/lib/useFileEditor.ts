@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { commands } from "./commands";
 import {
   type FrontmatterValue,
@@ -16,6 +17,7 @@ const SAVE_DELAY_MS = 750;
 type FlushMode = "blocking" | "background";
 
 export function useFileEditor({ showToast }: { showToast: (msg: string) => void }) {
+  const { t } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [fileContent, setFileContent] = useState("");
   const [wordCount, setWordCount] = useState(0);
@@ -101,14 +103,14 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
         if (mode === "background") {
           pendingWrite.catch((err) => {
             console.error("Failed to flush pending save:", err);
-            showToast("Failed to save — check console for details");
+            showToast(t("errors.save_failed"));
           });
         } else {
           try {
             await pendingWrite;
           } catch (err) {
             console.error("Failed to flush pending save:", err);
-            showToast("Failed to save — check console for details");
+            showToast(t("errors.save_failed"));
             throw err;
           }
         }
@@ -124,12 +126,12 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
           await awaitInFlightWrites();
         } catch (err) {
           console.error("Failed to finish in-flight save:", err);
-          showToast("Failed to save — check console for details");
+          showToast(t("errors.save_failed"));
           throw err;
         }
       }
     },
-    [awaitInFlightWrites, showToast, writeMarkdown]
+    [awaitInFlightWrites, showToast, t, writeMarkdown]
   );
 
   const resetFileState = useCallback(() => {
@@ -170,7 +172,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       setSelectedFile(node);
     } catch (err) {
       console.error("Failed to read file:", err);
-      showToast("Failed to open file — check console for details");
+      showToast(t("errors.open_file_failed"));
       if (selectedPathRef.current === node.path) selectedPathRef.current = prevPath;
     }
   }
@@ -194,11 +196,11 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
         return true;
       } catch (err) {
         console.error("Failed to reload file:", err);
-        showToast("Failed to reload file — check console for details");
+        showToast(t("errors.reload_file_failed"));
         return false;
       }
     },
-    [showToast]
+    [showToast, t]
   );
 
   function handleEditorChange(markdown: string) {
@@ -219,7 +221,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
         }
       } catch (err) {
         console.error("Failed to save file:", err);
-        showToast("Failed to save — check console for details");
+        showToast(t("errors.save_failed"));
       }
     }, SAVE_DELAY_MS);
   }
@@ -248,7 +250,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
         body = parseFrontmatter(raw).body;
       } catch (err) {
         console.error("Failed to read file body for frontmatter update:", err);
-        showToast("Failed to load file — check console for details");
+        showToast(t("errors.load_file_failed"));
         return;
       }
     }
@@ -262,7 +264,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       }
     } catch (err) {
       console.error("Failed to save frontmatter:", err);
-      showToast("Failed to save — check console for details");
+      showToast(t("errors.save_failed"));
     }
   }
 
