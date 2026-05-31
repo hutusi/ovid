@@ -7,6 +7,8 @@ release cadence and Conventional Commit history.
 
 ## Unreleased
 
+## 0.15.0 - 2026-05-31
+
 ### Added
 - **Amytis text-rendered cover images**: `coverImage: text:Issue 1` now renders as
   a styled gradient card both in the editor banner and the properties-panel
@@ -29,6 +31,25 @@ release cadence and Conventional Commit history.
   (`posts/`, `series/`, `books/`, `flows/`, `notes/`, `pages/`) now show a
   type-specific icon instead of the generic Folder/FolderOpen glyph. Entry
   folders and Files-mode folders keep the open/closed folder icon.
+- **Internationalization sweep**: translated the remaining editor surfaces —
+  bubble menu, find & replace, link dialog, search panel, code block, and the
+  tab bar — alongside error toasts in the file editor, git, and workspace
+  hooks. The properties panel labels (including `featured` and `pinned`) now
+  route through `t()`, dates in the properties panel and update dialog are
+  localized, new-content scaffolds localize body and excerpt placeholders, and
+  common Amytis frontmatter keys (`tags`, `categories`, `series`, …) are
+  translated in `CustomMetadataField`.
+- **Tabbed Preferences dialog**: a new Preferences dialog (opened with `Cmd+,`,
+  the menu, or the status-bar gear) groups app and content preferences behind
+  tabbed navigation. Launch session restore is now gated behind a preference,
+  the new-content format and layout are configurable, and the dialog is
+  dismissible via the × button and document-level `Esc`.
+- **site.config integration**: the sidebar honors the `site.config.ts`
+  `features` block for bucket visibility and labels (site-disabled buckets are
+  marked rather than hidden in Content mode, with localized fallback labels
+  for standard buckets), the WeChat publish dialog surfaces the `authors` map,
+  `.rst` content files open read-only, and locale-variant translations are
+  grouped together in the sidebar.
 
 ### Changed
 - **Series row toggle**: clicking a series/book entry name in the sidebar now
@@ -39,6 +60,16 @@ release cadence and Conventional Commit history.
   same uppercase typography and weight as every other property label;
   the previously divergent bolder styling is gone. The Enabled/Disabled
   subline is restyled to read as the row's value.
+
+### Fixed
+- **Language-switch failures** are now surfaced via the toast system instead
+  of failing silently.
+- **`site.config.ts` parsers and WeChat avatar resolution** were hardened
+  against malformed input (CodeRabbit follow-up on PR #90).
+- **Word-count goal** input now rejects partial numeric parses (e.g. `"100x"`
+  is no longer silently accepted as `100`).
+- **`restoreLastSession`** is latched at mount so the preference can't toggle
+  the restore behavior mid-session.
 
 ### Internal
 - **Coverage push-up — final pass**: closes the remaining gaps that fit
