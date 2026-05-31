@@ -19,7 +19,11 @@ export function localT(key: string, vars?: Record<string, unknown>): string {
   let str = typeof value === "string" ? value : key;
   if (vars) {
     for (const [k, v] of Object.entries(vars)) {
-      str = str.replace(`{{${k}}}`, String(v));
+      // split+join replaces every occurrence (the ES2020 lib doesn't expose
+      // replaceAll). Matters when a translation string repeats the same
+      // placeholder, e.g. `"{{name}} … {{name}}"` — real i18next resolves
+      // every match, and so should the mock.
+      str = str.split(`{{${k}}}`).join(String(v));
     }
   }
   return str;

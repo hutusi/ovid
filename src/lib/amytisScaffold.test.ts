@@ -173,6 +173,25 @@ describe("buildNewContent", () => {
     expect(out.dirsToCreate).toEqual(["/ws/content/misc"]);
   });
 
+  it("threads the translator through to body and excerpt placeholders", () => {
+    // Sentinel t proves the Translate parameter is actually invoked for the
+    // scaffold.* keys rather than the body/excerpt being hardcoded English.
+    // A pure-localT assertion would only verify en.json content and pass
+    // even if buildNewContent ignored t.
+    const stubT = (key: string, _vars?: Record<string, unknown>) => `<<${key}>>`;
+
+    const post = buildNewContent({ ...base, kind: "post", title: "Hi" }, stubT);
+    expect(post.content).toContain("<<scaffold.post_body>>");
+
+    const series = buildNewContent({ ...base, kind: "series", title: "Hi" }, stubT);
+    expect(series.content).toContain("<<scaffold.series_body>>");
+    expect(series.content).toContain("<<scaffold.excerpt_placeholder>>");
+
+    const book = buildNewContent({ ...base, kind: "book", title: "Hi" }, stubT);
+    expect(book.content).toContain("<<scaffold.book_body>>");
+    expect(book.content).toContain("<<scaffold.excerpt_placeholder>>");
+  });
+
   it("series: folder layout is unchanged but format sets the index extension", () => {
     const out = buildNewContent(
       {

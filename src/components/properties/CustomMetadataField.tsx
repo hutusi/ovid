@@ -64,7 +64,7 @@ export function CustomMetadataField({
           if (Number.isFinite(parsed)) {
             onSave(parsed);
           } else {
-            onError?.(t("properties.error_must_be_number", { key: fieldKey }));
+            onError?.(t("properties.error_must_be_number", { key: displayLabel }));
           }
         }}
       />
