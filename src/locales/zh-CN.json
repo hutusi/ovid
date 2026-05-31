@@ -335,6 +335,8 @@
     "disabled": "已禁用",
     "draft": "草稿",
     "published": "已发布",
+    "featured": "精选",
+    "pinned": "置顶",
     "cover_image": "封面图片",
     "cover_image_metadata": "封面图片元数据",
     "cover_hide": "隐藏封面图片预览",

@@ -11,9 +11,13 @@ export type FrontmatterFieldKind =
 export type CustomFrontmatterValueType = "text" | "boolean" | "number" | "date" | "tags";
 const DATE_STRING_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+type Translate = (key: string, vars?: Record<string, unknown>) => string;
+
 export interface FrontmatterFieldSchema {
   key: string;
-  label: string;
+  /** i18n key resolved against the active locale at render time. Optional for
+   *  hidden fields that never reach the UI. */
+  labelKey?: string;
   kind: FrontmatterFieldKind;
   hidden?: boolean;
   addable?: boolean;
@@ -28,41 +32,41 @@ export interface FrontmatterFieldSchema {
 }
 
 export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = {
-  title: { key: "title", label: "Title", kind: "text" },
-  type: { key: "type", label: "Type", kind: "text", hidden: true },
+  title: { key: "title", labelKey: "properties.title", kind: "text" },
+  type: { key: "type", kind: "text", hidden: true },
   excerpt: {
     key: "excerpt",
-    label: "Excerpt",
+    labelKey: "properties.excerpt",
     kind: "longtext",
     addable: true,
     defaultValue: "",
   },
   draft: {
     key: "draft",
-    label: "Draft",
+    labelKey: "properties.draft",
     kind: "boolean",
     addable: true,
     defaultValue: false,
   },
   featured: {
     key: "featured",
-    label: "Featured",
+    labelKey: "properties.featured",
     kind: "boolean",
     addable: true,
     defaultValue: false,
   },
   pinned: {
     key: "pinned",
-    label: "Pinned",
+    labelKey: "properties.pinned",
     kind: "boolean",
     addable: true,
     defaultValue: false,
   },
-  date: { key: "date", label: "Date", kind: "date" },
-  tags: { key: "tags", label: "Tags", kind: "tags" },
+  date: { key: "date", labelKey: "properties.date", kind: "date" },
+  tags: { key: "tags", labelKey: "properties.tags", kind: "tags" },
   sort: {
     key: "sort",
-    label: "Sort",
+    labelKey: "properties.sort",
     kind: "enum",
     options: ["date-asc", "date-desc", "manual"],
     addable: true,
@@ -71,7 +75,7 @@ export const FRONTMATTER_FIELD_SCHEMA: Record<string, FrontmatterFieldSchema> = 
   },
   coverImage: {
     key: "coverImage",
-    label: "Cover Image",
+    labelKey: "properties.cover_image",
     kind: "path",
     addable: true,
     defaultValue: "",
@@ -99,8 +103,9 @@ export function isKnownFrontmatterField(key: string): boolean {
   return resolveKnownFrontmatterFieldKey(key) !== null;
 }
 
-export function getFrontmatterFieldLabel(key: string): string {
-  return getFrontmatterFieldSchema(key)?.label ?? key;
+export function getFrontmatterFieldLabel(key: string, t: Translate): string {
+  const schema = getFrontmatterFieldSchema(key);
+  return schema?.labelKey ? t(schema.labelKey) : key;
 }
 
 export function resolveDocumentFrontmatterKey(

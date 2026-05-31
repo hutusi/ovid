@@ -335,6 +335,8 @@
     "disabled": "Disabled",
     "draft": "Draft",
     "published": "Published",
+    "featured": "Featured",
+    "pinned": "Pinned",
     "cover_image": "Cover Image",
     "cover_image_metadata": "Cover image metadata",
     "cover_hide": "Hide cover image preview",

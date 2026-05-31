@@ -56,7 +56,7 @@ export function PublishingBooleanField({
   const checked = readBooleanFrontmatterValue(value);
   return (
     <BooleanField
-      label={getFrontmatterFieldLabel(fieldKey)}
+      label={getFrontmatterFieldLabel(fieldKey, t)}
       checked={checked}
       stateLabel={
         fieldKey === "draft"
@@ -68,7 +68,7 @@ export function PublishingBooleanField({
       onSave={(nextValue) => onSave(fieldKey, nextValue)}
       action={
         onRemove ? (
-          <RemoveFieldButton label={getFrontmatterFieldLabel(fieldKey)} onRemove={onRemove} />
+          <RemoveFieldButton label={getFrontmatterFieldLabel(fieldKey, t)} onRemove={onRemove} />
         ) : undefined
       }
     />
