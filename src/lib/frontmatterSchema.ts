@@ -103,9 +103,29 @@ export function isKnownFrontmatterField(key: string): boolean {
   return resolveKnownFrontmatterFieldKey(key) !== null;
 }
 
+/** Known Amytis frontmatter keys that aren't in FRONTMATTER_FIELD_SCHEMA but
+ *  still appear in standard scaffolds (post/note/book/chapter templates) and
+ *  benefit from a translated display label when rendered through
+ *  CustomMetadataField. Keys are case-normalized at lookup time so e.g.
+ *  `Authors:` in YAML still resolves. User-defined keys not in this table
+ *  fall through to the raw key. */
+const EXTRA_FRONTMATTER_LABEL_KEYS: Record<string, string> = {
+  authors: "properties.authors",
+  category: "properties.category",
+  layout: "properties.layout",
+  latex: "properties.latex",
+  aliases: "properties.aliases",
+  chapters: "properties.chapters",
+  description: "properties.description",
+  slug: "properties.slug",
+};
+
 export function getFrontmatterFieldLabel(key: string, t: Translate): string {
   const schema = getFrontmatterFieldSchema(key);
-  return schema?.labelKey ? t(schema.labelKey) : key;
+  if (schema?.labelKey) return t(schema.labelKey);
+  const extraKey = EXTRA_FRONTMATTER_LABEL_KEYS[normalizeFrontmatterKey(key)];
+  if (extraKey) return t(extraKey);
+  return key;
 }
 
 export function resolveDocumentFrontmatterKey(
