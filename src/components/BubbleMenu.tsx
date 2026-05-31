@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu as TiptapBubbleMenu } from "@tiptap/react/menus";
+import { useTranslation } from "react-i18next";
 import "./BubbleMenu.css";
 
 interface BubbleMenuProps {
@@ -9,6 +10,7 @@ interface BubbleMenuProps {
 }
 
 export function BubbleMenu({ editor, onLinkClick }: BubbleMenuProps) {
+  const { t } = useTranslation();
   const activeStates = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -29,7 +31,7 @@ export function BubbleMenu({ editor, onLinkClick }: BubbleMenuProps) {
         return !sel.empty && !("node" in sel);
       }}
     >
-      <div className="bubble-menu" role="toolbar" aria-label="Formatting options">
+      <div className="bubble-menu" role="toolbar" aria-label={t("bubble_menu.toolbar_label")}>
         <button
           type="button"
           className={`bubble-btn bubble-bold${activeStates.bold ? " active" : ""}`}
@@ -37,8 +39,8 @@ export function BubbleMenu({ editor, onLinkClick }: BubbleMenuProps) {
             e.preventDefault();
             editor.chain().focus().toggleBold().run();
           }}
-          title="Bold (⌘B)"
-          aria-label="Bold"
+          title={t("bubble_menu.bold_tooltip")}
+          aria-label={t("bubble_menu.bold")}
           aria-pressed={activeStates.bold}
         >
           B
@@ -50,8 +52,8 @@ export function BubbleMenu({ editor, onLinkClick }: BubbleMenuProps) {
             e.preventDefault();
             editor.chain().focus().toggleItalic().run();
           }}
-          title="Italic (⌘I)"
-          aria-label="Italic"
+          title={t("bubble_menu.italic_tooltip")}
+          aria-label={t("bubble_menu.italic")}
           aria-pressed={activeStates.italic}
         >
           I
@@ -63,8 +65,8 @@ export function BubbleMenu({ editor, onLinkClick }: BubbleMenuProps) {
             e.preventDefault();
             editor.chain().focus().toggleStrike().run();
           }}
-          title="Strikethrough"
-          aria-label="Strikethrough"
+          title={t("bubble_menu.strikethrough")}
+          aria-label={t("bubble_menu.strikethrough")}
           aria-pressed={activeStates.strike}
         >
           S
@@ -76,8 +78,8 @@ export function BubbleMenu({ editor, onLinkClick }: BubbleMenuProps) {
             e.preventDefault();
             editor.chain().focus().toggleCode().run();
           }}
-          title="Inline code (⌘E)"
-          aria-label="Inline code"
+          title={t("bubble_menu.inline_code_tooltip")}
+          aria-label={t("bubble_menu.inline_code")}
           aria-pressed={activeStates.code}
         >
           {"</>"}
@@ -90,8 +92,8 @@ export function BubbleMenu({ editor, onLinkClick }: BubbleMenuProps) {
             e.preventDefault();
             onLinkClick();
           }}
-          title="Link (⌘K)"
-          aria-label="Link"
+          title={t("bubble_menu.link_tooltip")}
+          aria-label={t("bubble_menu.link")}
           aria-pressed={activeStates.link}
         >
           ↗

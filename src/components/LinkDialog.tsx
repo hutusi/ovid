@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useFocusTrap } from "../lib/useFocusTrap";
 import "./Modal.css";
 
@@ -10,6 +11,7 @@ interface LinkDialogProps {
 }
 
 export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDialogProps) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState(initialHref);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useFocusTrap<HTMLDivElement>();
@@ -31,37 +33,42 @@ export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDia
 
   return (
     <div className="modal-overlay" role="presentation">
-      <button type="button" className="modal-backdrop" aria-label="Close" onClick={onCancel} />
+      <button
+        type="button"
+        className="modal-backdrop"
+        aria-label={t("link_dialog.close_label")}
+        onClick={onCancel}
+      />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Insert link"
+        aria-label={t("link_dialog.title")}
         className="modal-panel"
         style={{ width: 360, maxWidth: "calc(100vw - 48px)" }}
         onKeyDown={handleDialogKeyDown}
       >
-        <p className="modal-title">Insert link</p>
+        <p className="modal-title">{t("link_dialog.title")}</p>
 
         <input
           ref={inputRef}
           className="modal-input"
           type="url"
-          aria-label="URL"
+          aria-label={t("link_dialog.url_label")}
           value={url}
-          placeholder="https://"
+          placeholder={t("link_dialog.url_placeholder")}
           onChange={(e) => setUrl(e.target.value)}
         />
 
         <div className="modal-actions">
           {initialHref && (
             <button type="button" className="modal-btn modal-btn-danger" onClick={onRemove}>
-              Remove
+              {t("link_dialog.remove")}
             </button>
           )}
           <div className="modal-spacer" />
           <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel}>
-            Cancel
+            {t("link_dialog.cancel")}
           </button>
           <button
             type="button"
@@ -69,7 +76,7 @@ export function LinkDialog({ initialHref, onApply, onRemove, onCancel }: LinkDia
             disabled={!url.trim()}
             onClick={() => url.trim() && onApply(url.trim())}
           >
-            Apply
+            {t("link_dialog.apply")}
           </button>
         </div>
       </div>

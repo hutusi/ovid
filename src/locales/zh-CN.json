@@ -465,6 +465,72 @@
     "aria_label": "文档标题",
     "placeholder": "无标题"
   },
+  "bubble_menu": {
+    "toolbar_label": "格式化选项",
+    "bold": "粗体",
+    "bold_tooltip": "粗体（⌘B）",
+    "italic": "斜体",
+    "italic_tooltip": "斜体（⌘I）",
+    "strikethrough": "删除线",
+    "inline_code": "行内代码",
+    "inline_code_tooltip": "行内代码（⌘E）",
+    "link": "链接",
+    "link_tooltip": "链接（⌘K）"
+  },
+  "find_replace": {
+    "find_aria": "查找",
+    "find_placeholder": "查找",
+    "find_and_replace_aria": "查找和替换",
+    "no_results": "无结果",
+    "prev_match": "上一个匹配",
+    "prev_match_tooltip": "上一个匹配（Shift+Enter）",
+    "next_match": "下一个匹配",
+    "next_match_tooltip": "下一个匹配（Enter）",
+    "close_aria": "关闭查找和替换",
+    "close_tooltip": "关闭（Esc）",
+    "replace_aria": "替换",
+    "replace_placeholder": "替换",
+    "replace_one": "替换",
+    "replace_all": "全部"
+  },
+  "link_dialog": {
+    "title": "插入链接",
+    "close_label": "关闭",
+    "url_label": "URL",
+    "url_placeholder": "https://",
+    "remove": "移除",
+    "cancel": "取消",
+    "apply": "应用"
+  },
+  "search_panel": {
+    "placeholder": "在工作区中搜索…",
+    "aria_label": "搜索工作区",
+    "close_tooltip": "关闭搜索（Esc）",
+    "searching": "搜索中…",
+    "no_results": "未找到「{{query}}」的结果",
+    "summary": "{{matches}}，{{files}}",
+    "matches_one": "{{count}} 个匹配",
+    "matches_other": "{{count}} 个匹配",
+    "files_one": "{{count}} 个文件",
+    "files_other": "{{count}} 个文件",
+    "overflow": "在此文件中显示 {{total}} 个匹配中的 {{shown}} 个"
+  },
+  "code_block": {
+    "change_language": "更改语言",
+    "copy_tooltip": "复制代码",
+    "copied_tooltip": "已复制",
+    "copy_button": "复制",
+    "copied_button": "已复制",
+    "failed_button": "失败",
+    "plain": "纯文本",
+    "custom_language": "自定义语言",
+    "custom_language_placeholder": "mermaid、toml、tsx",
+    "apply": "应用"
+  },
+  "tab_bar": {
+    "open_files": "打开的文件",
+    "close_tab": "关闭 {{label}}"
+  },
   "editor": {
     "h1_warning": "⚠ 此文档已有标题。建议将此处改为 ## 二级标题。",
     "paste_image_error": "粘贴图片失败：{{reason}}",

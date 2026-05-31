@@ -465,6 +465,72 @@
     "aria_label": "Document title",
     "placeholder": "Untitled"
   },
+  "bubble_menu": {
+    "toolbar_label": "Formatting options",
+    "bold": "Bold",
+    "bold_tooltip": "Bold (⌘B)",
+    "italic": "Italic",
+    "italic_tooltip": "Italic (⌘I)",
+    "strikethrough": "Strikethrough",
+    "inline_code": "Inline code",
+    "inline_code_tooltip": "Inline code (⌘E)",
+    "link": "Link",
+    "link_tooltip": "Link (⌘K)"
+  },
+  "find_replace": {
+    "find_aria": "Find",
+    "find_placeholder": "Find",
+    "find_and_replace_aria": "Find and replace",
+    "no_results": "No results",
+    "prev_match": "Previous match",
+    "prev_match_tooltip": "Previous match (Shift+Enter)",
+    "next_match": "Next match",
+    "next_match_tooltip": "Next match (Enter)",
+    "close_aria": "Close find and replace",
+    "close_tooltip": "Close (Esc)",
+    "replace_aria": "Replace",
+    "replace_placeholder": "Replace",
+    "replace_one": "Replace",
+    "replace_all": "All"
+  },
+  "link_dialog": {
+    "title": "Insert link",
+    "close_label": "Close",
+    "url_label": "URL",
+    "url_placeholder": "https://",
+    "remove": "Remove",
+    "cancel": "Cancel",
+    "apply": "Apply"
+  },
+  "search_panel": {
+    "placeholder": "Search in workspace…",
+    "aria_label": "Search workspace",
+    "close_tooltip": "Close search (Esc)",
+    "searching": "Searching…",
+    "no_results": "No results for \"{{query}}\"",
+    "summary": "{{matches}} in {{files}}",
+    "matches_one": "{{count}} match",
+    "matches_other": "{{count}} matches",
+    "files_one": "{{count}} file",
+    "files_other": "{{count}} files",
+    "overflow": "Showing {{shown}} of {{total}} matches in this file"
+  },
+  "code_block": {
+    "change_language": "Change language",
+    "copy_tooltip": "Copy code",
+    "copied_tooltip": "Copied",
+    "copy_button": "copy",
+    "copied_button": "copied",
+    "failed_button": "failed",
+    "plain": "plain",
+    "custom_language": "Custom language",
+    "custom_language_placeholder": "mermaid, toml, tsx",
+    "apply": "Apply"
+  },
+  "tab_bar": {
+    "open_files": "Open files",
+    "close_tab": "Close {{label}}"
+  },
   "editor": {
     "h1_warning": "⚠ This document already has a title. Consider changing this heading to ##.",
     "paste_image_error": "Failed to paste image: {{reason}}",
