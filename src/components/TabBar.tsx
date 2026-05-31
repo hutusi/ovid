@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { findNodeByPath } from "../lib/appRestore";
 import { getSidebarDisplayName } from "../lib/sidebarUtils";
 import type { FileNode, SaveStatus } from "../lib/types";
@@ -32,6 +33,7 @@ export function TabBar({
   onClose,
   onReorder,
 }: TabBarProps) {
+  const { t } = useTranslation();
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const activeTabRef = useRef<HTMLDivElement | null>(null);
@@ -42,7 +44,7 @@ export function TabBar({
   }, [activePath]);
 
   return (
-    <div className="tab-bar" role="toolbar" aria-label="Open files">
+    <div className="tab-bar" role="toolbar" aria-label={t("tab_bar.open_files")}>
       {tabs.map((path, index) => {
         const node = nodeForPath(tree, path);
         const label = getSidebarDisplayName(node);
@@ -115,7 +117,7 @@ export function TabBar({
             <button
               type="button"
               className="tab-bar-close"
-              aria-label={`Close ${label}`}
+              aria-label={t("tab_bar.close_tab", { label })}
               onClick={(e) => {
                 e.stopPropagation();
                 onClose(path);

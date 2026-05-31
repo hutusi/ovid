@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import en from "../locales/en.json";
 import zhCN from "../locales/zh-CN.json";
+import { FRONTMATTER_FIELD_SCHEMA } from "./frontmatterSchema";
 import { MENU_KEYS } from "./menuLabels";
 
 // Recursively collect every leaf key path from a nested object.
@@ -51,3 +52,42 @@ describe("MENU_KEYS locale coverage", () => {
     });
   }
 });
+
+describe("FRONTMATTER_FIELD_SCHEMA locale coverage", () => {
+  const labelKeys = Object.values(FRONTMATTER_FIELD_SCHEMA)
+    .map((field) => field.labelKey)
+    .filter((labelKey): labelKey is string => typeof labelKey === "string");
+
+  const locales = [
+    { name: "en", flat: new Map<string, unknown>() },
+    { name: "zh-CN", flat: new Map<string, unknown>() },
+  ];
+  for (const [path, value] of Object.entries(flattenLocale(en as Record<string, unknown>, ""))) {
+    locales[0].flat.set(path, value);
+  }
+  for (const [path, value] of Object.entries(flattenLocale(zhCN as Record<string, unknown>, ""))) {
+    locales[1].flat.set(path, value);
+  }
+
+  for (const { name, flat } of locales) {
+    it(`every schema labelKey resolves to a non-empty string in ${name}`, () => {
+      const missing = labelKeys.filter((key) => {
+        const val = flat.get(key);
+        return typeof val !== "string" || val.trim() === "";
+      });
+      expect(missing).toEqual([]);
+    });
+  }
+});
+
+function flattenLocale(obj: Record<string, unknown>, prefix: string): Record<string, unknown> {
+  return Object.entries(obj).reduce<Record<string, unknown>>((acc, [key, value]) => {
+    const fullKey = prefix ? `${prefix}.${key}` : key;
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      Object.assign(acc, flattenLocale(value as Record<string, unknown>, fullKey));
+    } else {
+      acc[fullKey] = value;
+    }
+    return acc;
+  }, {});
+}

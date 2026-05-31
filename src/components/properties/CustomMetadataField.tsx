@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { FrontmatterValue } from "../../lib/frontmatter";
 import {
+  getFrontmatterFieldLabel,
   inferCustomFrontmatterValueType,
   readBooleanFrontmatterValue,
 } from "../../lib/frontmatterSchema";
@@ -25,12 +26,13 @@ export function CustomMetadataField({
 }) {
   const { t } = useTranslation();
   const inferredType = inferCustomFrontmatterValueType(value);
-  const removeButton = <RemoveFieldButton label={fieldKey} onRemove={onRemove} />;
+  const displayLabel = getFrontmatterFieldLabel(fieldKey, t);
+  const removeButton = <RemoveFieldButton label={displayLabel} onRemove={onRemove} />;
 
   if (inferredType === "boolean") {
     return (
       <BooleanField
-        label={fieldKey}
+        label={displayLabel}
         checked={readBooleanFrontmatterValue(value)}
         onSave={(nextValue) => onSave(nextValue)}
         action={removeButton}
@@ -51,7 +53,7 @@ export function CustomMetadataField({
   } else if (inferredType === "number") {
     editor = (
       <EditableValue
-        label={fieldKey}
+        label={displayLabel}
         value={value}
         onSave={(nextValue) => {
           if (nextValue === null) {
@@ -62,21 +64,21 @@ export function CustomMetadataField({
           if (Number.isFinite(parsed)) {
             onSave(parsed);
           } else {
-            onError?.(t("properties.error_must_be_number", { key: fieldKey }));
+            onError?.(t("properties.error_must_be_number", { key: displayLabel }));
           }
         }}
       />
     );
   } else {
     editor = (
-      <EditableValue label={fieldKey} value={value} onSave={(nextValue) => onSave(nextValue)} />
+      <EditableValue label={displayLabel} value={value} onSave={(nextValue) => onSave(nextValue)} />
     );
   }
 
   return (
     <div className="prop-field">
       <div className="prop-field-head">
-        <span className="prop-label">{fieldKey}</span>
+        <span className="prop-label">{displayLabel}</span>
         <div className="prop-field-actions">{removeButton}</div>
       </div>
       {editor}

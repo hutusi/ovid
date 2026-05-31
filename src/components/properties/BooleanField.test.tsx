@@ -1,27 +1,10 @@
 import { describe, expect, it, mock } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import en from "../../locales/en.json";
+import { localT } from "../../../scripts/test-i18n-mock";
 
 mock.module("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, vars?: Record<string, unknown>) => {
-      const parts = key.split(".");
-      let value: unknown = en;
-      for (const part of parts) {
-        if (value && typeof value === "object") {
-          value = (value as Record<string, unknown>)[part];
-        } else {
-          return key;
-        }
-      }
-      let str = typeof value === "string" ? value : key;
-      if (vars) {
-        for (const [k, v] of Object.entries(vars)) {
-          str = str.replace(`{{${k}}}`, String(v));
-        }
-      }
-      return str;
-    },
+    t: localT,
     i18n: { language: "en", changeLanguage: mock(() => {}) },
   }),
 }));

@@ -63,25 +63,31 @@ interface LoadBranchSwitcherStateOptions {
   getRemoteInfo: () => Promise<GitRemoteInfo>;
 }
 
+type Translate = (key: string, vars?: Record<string, unknown>) => string;
+
 export function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export function formatGitActionError(action: "push" | "pull" | "fetch", message: string): string {
+export function formatGitActionError(
+  action: "push" | "pull" | "fetch",
+  message: string,
+  t: Translate
+): string {
   const normalized = message.trim();
   const lower = normalized.toLowerCase();
   if (lower.startsWith("push ") || lower.startsWith("pull ") || lower.startsWith("fetch ")) {
     return normalized;
   }
-  return `${action} failed: ${normalized}`;
+  return t(`errors.git_${action}_failed`, { message: normalized });
 }
 
-export function formatCommitError(message: string): string {
+export function formatCommitError(message: string, t: Translate): string {
   const normalized = message.trim();
   if (normalized.toLowerCase().startsWith("commit ")) {
     return normalized[0].toUpperCase() + normalized.slice(1);
   }
-  return `Commit failed: ${normalized}`;
+  return t("errors.git_commit_failed", { message: normalized });
 }
 
 export function buildDefaultCommitMessage(parsedTitle?: string, selectedFileName?: string): string {
@@ -219,15 +225,15 @@ export function useGitUiController({
       try {
         const [branch, changes] = await Promise.all([getBranch(), getCommitChanges()]);
         if (changes.length === 0) {
-          showToast("No git changes to commit");
+          showToast(t("errors.git_no_changes"));
           return;
         }
         setCommitDialog({ message, branch, changes });
       } catch {
-        showToast("Failed to load git changes");
+        showToast(t("errors.git_load_changes_failed"));
       }
     },
-    [getBranch, getCommitChanges, showToast, setCommitDialog]
+    [getBranch, getCommitChanges, showToast, t, setCommitDialog]
   );
 
   const runGitAction = useCallback(
@@ -238,10 +244,10 @@ export function useGitUiController({
         showToast(successMessage);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        showToast(formatGitActionError(action, message));
+        showToast(formatGitActionError(action, message, t));
       }
     },
-    [flushPendingSave, showToast]
+    [flushPendingSave, showToast, t]
   );
 
   const openBranchSwitcher = useCallback(async () => {
@@ -249,14 +255,14 @@ export function useGitUiController({
       setGitSyncPopoverOpen(false);
       const nextState = await loadBranchSwitcherData();
       if (!nextState) {
-        showToast("No local branches found");
+        showToast(t("errors.git_no_local_branches"));
         return;
       }
       setBranchSwitcher(nextState);
     } catch {
-      showToast("Failed to load branches");
+      showToast(t("errors.git_load_branches_failed"));
     }
-  }, [loadBranchSwitcherData, showToast, setBranchSwitcher, setGitSyncPopoverOpen]);
+  }, [loadBranchSwitcherData, showToast, t, setBranchSwitcher, setGitSyncPopoverOpen]);
 
   const refreshBranchSwitcher = useCallback(async () => {
     if (!branchSwitcher) return;
@@ -264,9 +270,9 @@ export function useGitUiController({
       const nextState = await loadBranchSwitcherData();
       setBranchSwitcher(nextState);
     } catch {
-      showToast("Failed to refresh branches");
+      showToast(t("errors.git_refresh_branches_failed"));
     }
-  }, [branchSwitcher, loadBranchSwitcherData, showToast, setBranchSwitcher]);
+  }, [branchSwitcher, loadBranchSwitcherData, showToast, t, setBranchSwitcher]);
 
   const copyRemoteUrl = useCallback(
     async (remoteName?: string) => {
@@ -277,18 +283,20 @@ export function useGitUiController({
       const remoteUrl = remoteName != null ? (targetRemote?.url ?? null) : remoteInfo.remoteUrl;
       if (!remoteUrl) {
         showToast(
-          remoteName ? `No remote URL configured for ${remoteName}` : "No remote URL configured"
+          remoteName
+            ? t("errors.git_no_remote_url_for", { remote: remoteName })
+            : t("errors.git_no_remote_url")
         );
         return;
       }
       try {
         await navigator.clipboard.writeText(remoteUrl);
-        showToast("Copied remote URL");
+        showToast(t("toast.copied_remote_url"));
       } catch {
-        showToast("Failed to copy remote URL");
+        showToast(t("errors.git_copy_remote_failed"));
       }
     },
-    [remoteInfo.remoteUrl, remoteInfo.remotes, showToast]
+    [remoteInfo.remoteUrl, remoteInfo.remotes, showToast, t]
   );
 
   const openRemote = useCallback(
@@ -297,10 +305,10 @@ export function useGitUiController({
         await handleOpenRemote(remoteName);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        showToast(`Open remote failed: ${message}`);
+        showToast(t("errors.git_open_remote_failed", { message }));
       }
     },
-    [handleOpenRemote, showToast]
+    [handleOpenRemote, showToast, t]
   );
 
   const switchBranch = useCallback(
@@ -311,10 +319,10 @@ export function useGitUiController({
         closeBranchSwitcher();
         setNewBranchDialogOpen(false);
         await reloadWorkspaceAfterGitChange();
-        showToast(`Switched to ${branch}`);
+        showToast(t("toast.git_switched_to", { branch }));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        showToast(`Switch branch failed: ${message}`);
+        showToast(t("errors.git_switch_branch_failed", { message }));
       }
     },
     [
@@ -323,6 +331,7 @@ export function useGitUiController({
       handleSwitchBranch,
       reloadWorkspaceAfterGitChange,
       showToast,
+      t,
       setNewBranchDialogOpen,
     ]
   );
@@ -335,10 +344,10 @@ export function useGitUiController({
         setNewBranchDialogOpen(false);
         closeBranchSwitcher();
         await reloadWorkspaceAfterGitChange();
-        showToast(`Created and switched to ${branch}`);
+        showToast(t("toast.git_created_and_switched_to", { branch }));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        showToast(`Create branch failed: ${message}`);
+        showToast(t("errors.git_create_branch_failed", { message }));
       }
     },
     [
@@ -347,6 +356,7 @@ export function useGitUiController({
       handleCreateBranch,
       reloadWorkspaceAfterGitChange,
       showToast,
+      t,
       setNewBranchDialogOpen,
     ]
   );
@@ -360,10 +370,10 @@ export function useGitUiController({
         closeBranchSwitcher();
         setNewBranchDialogOpen(false);
         await reloadWorkspaceAfterGitChange();
-        showToast(`Checked out ${branchName || remoteRef}`);
+        showToast(t("toast.git_checked_out", { ref: branchName || remoteRef }));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        showToast(`Checkout branch failed: ${message}`);
+        showToast(t("errors.git_checkout_failed", { message }));
       }
     },
     [
@@ -372,6 +382,7 @@ export function useGitUiController({
       handleCheckoutRemoteBranch,
       reloadWorkspaceAfterGitChange,
       showToast,
+      t,
       setNewBranchDialogOpen,
     ]
   );
@@ -383,13 +394,20 @@ export function useGitUiController({
         await handleRenameBranch(oldBranch, newBranch);
         setRenameBranchDialog(null);
         await refreshBranchSwitcher();
-        showToast(`Renamed ${oldBranch} to ${newBranch}`);
+        showToast(t("toast.git_renamed", { from: oldBranch, to: newBranch }));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        showToast(`Rename branch failed: ${message}`);
+        showToast(t("errors.git_rename_branch_failed", { message }));
       }
     },
-    [flushPendingSave, handleRenameBranch, refreshBranchSwitcher, showToast, setRenameBranchDialog]
+    [
+      flushPendingSave,
+      handleRenameBranch,
+      refreshBranchSwitcher,
+      showToast,
+      t,
+      setRenameBranchDialog,
+    ]
   );
 
   const deleteBranch = useCallback(
@@ -399,20 +417,27 @@ export function useGitUiController({
         await handleDeleteBranch(branch);
         setDeleteBranchDialog(null);
         await refreshBranchSwitcher();
-        showToast(`Deleted ${branch}`);
+        showToast(t("toast.git_deleted", { branch }));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        showToast(`Delete branch failed: ${message}`);
+        showToast(t("errors.git_delete_branch_failed", { message }));
       }
     },
-    [flushPendingSave, handleDeleteBranch, refreshBranchSwitcher, showToast, setDeleteBranchDialog]
+    [
+      flushPendingSave,
+      handleDeleteBranch,
+      refreshBranchSwitcher,
+      showToast,
+      t,
+      setDeleteBranchDialog,
+    ]
   );
 
   const handleGitSyncAction = useCallback(async () => {
     if (!gitSyncPopover?.actionKind) return;
     setGitSyncPopoverOpen(false);
     if (gitSyncPopover.actionKind === "pull") {
-      await runGitAction("pull", () => handlePull(), "Pulled latest changes");
+      await runGitAction("pull", () => handlePull(), t("toast.git_pulled"));
       return;
     }
     await runGitAction(
@@ -436,10 +461,10 @@ export function useGitUiController({
         await handleCommit(message, selectedPaths, push);
         setCommitDialog(null);
       } catch (err) {
-        showToast(formatCommitError(getErrorMessage(err)));
+        showToast(formatCommitError(getErrorMessage(err), t));
       }
     },
-    [flushPendingSave, handleCommit, showToast, setCommitDialog]
+    [flushPendingSave, handleCommit, showToast, t, setCommitDialog]
   );
 
   return {

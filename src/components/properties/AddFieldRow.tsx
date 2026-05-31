@@ -31,7 +31,7 @@ export function AddFieldRow({
                 className="prop-add-known-btn"
                 onClick={() => onAddKnownField(fieldKey)}
               >
-                + {getFrontmatterFieldLabel(fieldKey)}
+                + {getFrontmatterFieldLabel(fieldKey, t)}
               </button>
             ))}
           </div>

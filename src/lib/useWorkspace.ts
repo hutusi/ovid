@@ -1,5 +1,6 @@
 import { confirm } from "@tauri-apps/plugin-dialog";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { buildNewContent, type NewContentKind } from "./amytisScaffold";
 import {
   addItem,
@@ -85,6 +86,7 @@ export function useWorkspace({
   onPathRenamed,
   onPathRemoved,
 }: UseWorkspaceOptions) {
+  const { t } = useTranslation();
   const [tree, setTree] = useState<FileNode[]>([]);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
@@ -125,10 +127,10 @@ export function useWorkspace({
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("Failed to refresh tree:", err);
-      showToast(`Failed to refresh workspace: ${message}`);
+      showToast(t("workspace_refresh.refresh_failed", { message }));
       return [];
     }
-  }, [showToast]);
+  }, [showToast, t]);
 
   const applyWorkspaceResult = useCallback(
     (result: WorkspaceResult) => {
@@ -146,10 +148,10 @@ export function useWorkspace({
       setI18n(result.i18n ?? { locales: [], defaultLocale: null });
       resetFileState();
       if (!result.isAmytisWorkspace) {
-        showToast("This folder doesn't look like an Amytis workspace.");
+        showToast(t("errors.not_amytis_workspace"));
       }
     },
-    [resetFileState, showToast]
+    [resetFileState, showToast, t]
   );
 
   const openWorkspaceAtPath = useCallback(
@@ -163,13 +165,17 @@ export function useWorkspace({
         )) as WorkspaceResult | null;
         if (result) {
           applyWorkspaceResult(result);
-        } else showToast("Could not open workspace — path may no longer be valid.");
+        } else showToast(t("errors.workspace_path_invalid"));
       } catch (err) {
         console.error("Failed to open workspace:", err);
-        showToast(`Failed to open workspace: ${err instanceof Error ? err.message : String(err)}`);
+        showToast(
+          t("errors.open_workspace_failed", {
+            message: err instanceof Error ? err.message : String(err),
+          })
+        );
       }
     },
-    [flushPendingSave, showToast, applyWorkspaceResult]
+    [flushPendingSave, showToast, t, applyWorkspaceResult]
   );
 
   const handleOpenWorkspace = useCallback(async () => {
@@ -183,9 +189,13 @@ export function useWorkspace({
       }
     } catch (err) {
       console.error("Failed to open workspace:", err);
-      showToast(`Failed to open workspace: ${err instanceof Error ? err.message : String(err)}`);
+      showToast(
+        t("errors.open_workspace_failed", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
     }
-  }, [flushPendingSave, showToast, applyWorkspaceResult]);
+  }, [flushPendingSave, showToast, t, applyWorkspaceResult]);
 
   const handleNewTodayFlow = useCallback(async () => {
     if (!workspaceRoot) return;
@@ -207,9 +217,13 @@ export function useWorkspace({
       if (node) await onPathCreated?.(node);
     } catch (err) {
       console.error("Failed to open today's flow:", err);
-      showToast(`Failed to open today's flow: ${err instanceof Error ? err.message : String(err)}`);
+      showToast(
+        t("errors.open_today_flow_failed", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
     }
-  }, [workspaceRoot, refreshTree, onPathCreated, showToast]);
+  }, [workspaceRoot, refreshTree, onPathCreated, showToast, t]);
 
   async function handleNewFile(dirPath: string, title: string, kind: NewContentKind = "generic") {
     const date = new Date().toISOString().slice(0, 10);
@@ -226,18 +240,21 @@ export function useWorkspace({
         // No template file — buildNewContent uses the built-in default.
       }
     }
-    const { dirsToCreate, filePath, content } = buildNewContent({
-      kind,
-      title,
-      date,
-      contentRoot,
-      basePath: postsBasePath || "posts",
-      dirPath,
-      postTemplate,
-      defaultAuthor,
-      format: contentPrefs?.format,
-      layout: contentPrefs?.layout,
-    });
+    const { dirsToCreate, filePath, content } = buildNewContent(
+      {
+        kind,
+        title,
+        date,
+        contentRoot,
+        basePath: postsBasePath || "posts",
+        dirPath,
+        postTemplate,
+        defaultAuthor,
+        format: contentPrefs?.format,
+        layout: contentPrefs?.layout,
+      },
+      t
+    );
     try {
       for (const dir of dirsToCreate) {
         await commands.files.ensureDir({ path: dir });
@@ -248,7 +265,11 @@ export function useWorkspace({
       if (newNode) await onPathCreated?.(newNode);
     } catch (err) {
       console.error("Failed to create file:", err);
-      showToast(`Failed to create file: ${err instanceof Error ? err.message : String(err)}`);
+      showToast(
+        t("errors.create_file_failed", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
     }
   }
 
@@ -266,7 +287,11 @@ export function useWorkspace({
       onPathRenamed?.(oldPath, newPath, (path) => findNode(updated, path));
     } catch (err) {
       console.error("Failed to rename file:", err);
-      showToast(`Failed to rename: ${err instanceof Error ? err.message : String(err)}`);
+      showToast(
+        t("errors.rename_failed", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
     }
   }
 
@@ -284,7 +309,11 @@ export function useWorkspace({
       }
     } catch (err) {
       console.error("Failed to duplicate file:", err);
-      showToast(`Failed to duplicate: ${err instanceof Error ? err.message : String(err)}`);
+      showToast(
+        t("errors.duplicate_failed", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
     }
   }
 
@@ -294,7 +323,7 @@ export function useWorkspace({
     const targetPath = folderBacked ? `${newPath}/${entryFileName}` : newPath;
 
     if (findNode(tree, newPath)) {
-      showToast(`Failed to create post from existing: "${newName}" already exists`);
+      showToast(t("errors.new_from_existing_conflict", { name: newName }));
       return;
     }
 
@@ -315,15 +344,17 @@ export function useWorkspace({
     } catch (err) {
       console.error("Failed to create post from existing:", err);
       showToast(
-        `Failed to create post from existing: ${err instanceof Error ? err.message : String(err)}`
+        t("errors.new_from_existing_failed", {
+          message: err instanceof Error ? err.message : String(err),
+        })
       );
     }
   }
 
   async function handleDelete(node: FileNode) {
     const targetPath = node.containerDirPath ?? node.path;
-    const confirmed = await confirm(`Move "${node.name}" to Trash?`, {
-      title: "Delete",
+    const confirmed = await confirm(t("confirm.move_to_trash", { name: node.name }), {
+      title: t("confirm.delete_title"),
       kind: "warning",
     });
     if (!confirmed) return;
@@ -337,7 +368,11 @@ export function useWorkspace({
       await refreshTree();
     } catch (err) {
       console.error("Failed to delete file:", err);
-      showToast(`Failed to delete: ${err instanceof Error ? err.message : String(err)}`);
+      showToast(
+        t("errors.delete_failed", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
     }
   }
 
@@ -356,7 +391,11 @@ export function useWorkspace({
       await refreshTree();
     } catch (err) {
       console.error("Failed to update collection:", err);
-      showToast(`Failed to update collection: ${err instanceof Error ? err.message : String(err)}`);
+      showToast(
+        t("errors.update_collection_failed", {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
     }
   }
 

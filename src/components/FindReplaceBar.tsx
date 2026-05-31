@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import { FIND_REPLACE_KEY } from "../lib/tiptap/FindReplace";
 import "./FindReplaceBar.css";
@@ -13,6 +14,7 @@ interface FindReplaceBarProps {
 }
 
 export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarProps) {
+  const { t } = useTranslation();
   const [findTerm, setFindTerm] = useState("");
   const [replaceTerm, setReplaceTerm] = useState("");
   const findInputRef = useRef<HTMLInputElement>(null);
@@ -72,19 +74,24 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
     findTerm && matchCount > 0
       ? `${currentIndex + 1} / ${matchCount}`
       : findTerm
-        ? "No results"
+        ? t("find_replace.no_results")
         : "";
 
   return (
-    <search className="find-replace-bar" aria-label={showReplace ? "Find and replace" : "Find"}>
+    <search
+      className="find-replace-bar"
+      aria-label={
+        showReplace ? t("find_replace.find_and_replace_aria") : t("find_replace.find_aria")
+      }
+    >
       <div className="find-replace-row">
         <div className="find-replace-input-wrap">
           <input
             ref={findInputRef}
             className="find-replace-input"
             type="text"
-            placeholder="Find"
-            aria-label="Find"
+            placeholder={t("find_replace.find_placeholder")}
+            aria-label={t("find_replace.find_aria")}
             value={findTerm}
             onChange={(e) => handleFindChange(e.target.value)}
             onKeyDown={handleFindKeyDown}
@@ -100,8 +107,8 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
         <button
           type="button"
           className="find-replace-nav-btn"
-          title="Previous match (Shift+Enter)"
-          aria-label="Previous match"
+          title={t("find_replace.prev_match_tooltip")}
+          aria-label={t("find_replace.prev_match")}
           disabled={matchCount === 0}
           onClick={() => editor.commands.findPrev()}
         >
@@ -110,8 +117,8 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
         <button
           type="button"
           className="find-replace-nav-btn"
-          title="Next match (Enter)"
-          aria-label="Next match"
+          title={t("find_replace.next_match_tooltip")}
+          aria-label={t("find_replace.next_match")}
           disabled={matchCount === 0}
           onClick={() => editor.commands.findNext()}
         >
@@ -120,8 +127,8 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
         <button
           type="button"
           className="find-replace-close-btn"
-          title="Close (Esc)"
-          aria-label="Close find and replace"
+          title={t("find_replace.close_tooltip")}
+          aria-label={t("find_replace.close_aria")}
           onClick={onClose}
         >
           ×
@@ -132,8 +139,8 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
           <input
             className="find-replace-input"
             type="text"
-            placeholder="Replace"
-            aria-label="Replace"
+            placeholder={t("find_replace.replace_placeholder")}
+            aria-label={t("find_replace.replace_aria")}
             value={replaceTerm}
             onChange={(e) => setReplaceTerm(e.target.value)}
             onKeyDown={handleReplaceKeyDown}
@@ -146,7 +153,7 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
             disabled={matchCount === 0}
             onClick={() => editor.commands.replaceOne(replaceTerm)}
           >
-            Replace
+            {t("find_replace.replace_one")}
           </button>
           <button
             type="button"
@@ -154,7 +161,7 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
             disabled={matchCount === 0}
             onClick={() => editor.commands.replaceAll(replaceTerm)}
           >
-            All
+            {t("find_replace.replace_all")}
           </button>
         </div>
       )}

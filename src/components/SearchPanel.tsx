@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { commands } from "../lib/commands";
 import { isPerfLoggingEnabled, logPerf, measureAsync, measureSync } from "../lib/perf";
 import type { SearchResult } from "../lib/types";
@@ -13,6 +14,7 @@ interface SearchPanelProps {
 const DEBOUNCE_MS = 300;
 
 export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
+  const { t } = useTranslation();
   const renderStartedAtRef = useRef(0);
   renderStartedAtRef.current = performance.now();
   const [query, setQuery] = useState("");
@@ -91,34 +93,36 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
       <div className="search-panel-header">
         <Input
           ref={inputRef}
-          placeholder="Search in workspace…"
+          placeholder={t("search_panel.placeholder")}
           value={query}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          aria-label="Search workspace"
+          aria-label={t("search_panel.aria_label")}
           className="h-7 text-[13px]"
         />
         <button
           type="button"
           className="search-close-btn"
           onClick={onClose}
-          title="Close search (Esc)"
+          title={t("search_panel.close_tooltip")}
         >
           ✕
         </button>
       </div>
 
       <div className="search-results">
-        {searching && <p className="search-status">Searching…</p>}
+        {searching && <p className="search-status">{t("search_panel.searching")}</p>}
 
         {!searching && query.trim() && results.length === 0 && (
-          <p className="search-status">No results for "{query}"</p>
+          <p className="search-status">{t("search_panel.no_results", { query })}</p>
         )}
 
         {!searching && results.length > 0 && (
           <p className="search-summary">
-            {totalMatches} {totalMatches === 1 ? "match" : "matches"} in {results.length}{" "}
-            {results.length === 1 ? "file" : "files"}
+            {t("search_panel.summary", {
+              matches: t("search_panel.matches", { count: totalMatches }),
+              files: t("search_panel.files", { count: results.length }),
+            })}
           </p>
         )}
 
@@ -154,7 +158,10 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
               ))}
               {result.hasMoreMatches && (
                 <p className="search-status">
-                  Showing {result.matches.length} of {result.totalMatches} matches in this file
+                  {t("search_panel.overflow", {
+                    shown: result.matches.length,
+                    total: result.totalMatches,
+                  })}
                 </p>
               )}
             </div>

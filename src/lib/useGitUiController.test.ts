@@ -1,16 +1,25 @@
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { act, renderHook } from "@testing-library/react";
+import { localT } from "../../scripts/test-i18n-mock";
 import { registerHappyDom, unregisterHappyDom } from "../../scripts/test-setup";
 import type { GitBranch, GitCommitChange, GitRemoteBranch, GitRemoteInfo } from "./types";
-import {
+
+mock.module("react-i18next", () => ({
+  useTranslation: () => ({
+    t: localT,
+    i18n: { language: "en", changeLanguage: mock(() => {}) },
+  }),
+}));
+
+const {
   buildDefaultCommitMessage,
   formatCommitError,
   formatGitActionError,
   getErrorMessage,
   loadBranchSwitcherState,
   useGitUiController,
-} from "./useGitUiController";
-import { useOverlayStack } from "./useOverlayStack";
+} = await import("./useGitUiController");
+const { useOverlayStack } = await import("./useOverlayStack");
 
 describe("useGitUiController helpers", () => {
   it("buildDefaultCommitMessage prefers title over file name", () => {
@@ -22,29 +31,29 @@ describe("useGitUiController helpers", () => {
   });
 
   it("formatGitActionError preserves already classified backend messages", () => {
-    expect(formatGitActionError("push", "Push rejected. Remote has new commits.")).toBe(
+    expect(formatGitActionError("push", "Push rejected. Remote has new commits.", localT)).toBe(
       "Push rejected. Remote has new commits."
     );
   });
 
   it("formatGitActionError prefixes unclassified messages", () => {
-    expect(formatGitActionError("pull", "fatal: test failure")).toBe(
+    expect(formatGitActionError("pull", "fatal: test failure", localT)).toBe(
       "pull failed: fatal: test failure"
     );
   });
 
   it("formatCommitError preserves commit-specific wording", () => {
-    expect(formatCommitError("commit created, but push failed: auth")).toBe(
+    expect(formatCommitError("commit created, but push failed: auth", localT)).toBe(
       "Commit created, but push failed: auth"
     );
   });
 
   it("formatCommitError prefixes generic failures", () => {
-    expect(formatCommitError("fatal: bad path")).toBe("Commit failed: fatal: bad path");
+    expect(formatCommitError("fatal: bad path", localT)).toBe("Commit failed: fatal: bad path");
   });
 
   it("getErrorMessage normalizes Error instances for commit error formatting", () => {
-    expect(formatCommitError(getErrorMessage(new Error("fatal: bad path")))).toBe(
+    expect(formatCommitError(getErrorMessage(new Error("fatal: bad path")), localT)).toBe(
       "Commit failed: fatal: bad path"
     );
   });

@@ -1,6 +1,7 @@
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CODE_BLOCK_LANGUAGES,
   isPresetCodeBlockLanguage,
@@ -10,6 +11,7 @@ import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import "./CodeBlockView.css";
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
   const [customLanguage, setCustomLanguage] = useState("");
@@ -71,21 +73,27 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
         <button
           type="button"
           className="code-block-lang-btn"
-          title="Change language"
+          title={t("code_block.change_language")}
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
         >
-          {language || "plain"}
+          {language || t("code_block.plain")}
         </button>
         <button
           type="button"
           className={`code-block-copy-btn${copyState !== "idle" ? ` is-${copyState}` : ""}`}
-          title={copyState === "copied" ? "Copied" : "Copy code"}
+          title={
+            copyState === "copied" ? t("code_block.copied_tooltip") : t("code_block.copy_tooltip")
+          }
           onClick={() => {
             void handleCopy();
           }}
         >
-          {copyState === "copied" ? "copied" : copyState === "error" ? "failed" : "copy"}
+          {copyState === "copied"
+            ? t("code_block.copied_button")
+            : copyState === "error"
+              ? t("code_block.failed_button")
+              : t("code_block.copy_button")}
         </button>
 
         {open && (
@@ -95,7 +103,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
               className={`code-block-lang-option${!language ? " active" : ""}`}
               onClick={() => selectLang(null)}
             >
-              plain
+              {t("code_block.plain")}
             </button>
             {CODE_BLOCK_LANGUAGES.map((lang) => (
               <button
@@ -109,7 +117,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
             ))}
             <div className="code-block-custom-language">
               <label className="code-block-custom-label" htmlFor="code-block-custom-language">
-                Custom language
+                {t("code_block.custom_language")}
               </label>
               <div className="code-block-custom-row">
                 <input
@@ -117,7 +125,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
                   ref={customInputRef}
                   type="text"
                   className="code-block-custom-input"
-                  placeholder="mermaid, toml, tsx"
+                  placeholder={t("code_block.custom_language_placeholder")}
                   value={customLanguage}
                   {...PLAIN_TEXT_INPUT_PROPS}
                   onChange={(e) => setCustomLanguage(e.target.value)}
@@ -133,7 +141,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
                   className="code-block-custom-apply"
                   onClick={() => submitCustomLanguage()}
                 >
-                  Apply
+                  {t("code_block.apply")}
                 </button>
               </div>
             </div>

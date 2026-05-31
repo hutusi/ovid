@@ -1,7 +1,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, mock } from "bun:test";
 import { act, renderHook } from "@testing-library/react";
+import { localT } from "../../scripts/test-i18n-mock";
 import { registerHappyDom, unregisterHappyDom } from "../../scripts/test-setup";
 import type { FileNode } from "./types";
+
+mock.module("react-i18next", () => ({
+  useTranslation: () => ({
+    t: localT,
+    i18n: { language: "en", changeLanguage: mock(() => {}) },
+  }),
+}));
 
 // ── Tauri seam mock ────────────────────────────────────────────────────────
 //
