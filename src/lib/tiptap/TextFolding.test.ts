@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
 import { Editor } from "@tiptap/core";
 import { Schema } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
@@ -148,15 +148,23 @@ describe("getHeadingRanges", () => {
 // plugin's `folded: Set<number>` state. Bypasses the DOM event surface to
 // avoid happy-dom's flaky focus/event simulation; the meta is the contract.
 
+// Track every Editor created in this file so afterEach can destroy them
+// — ProseMirror views hold references to the global `document` that
+// unregisterHappyDom tears down in afterAll, so a leaked view can survive
+// the DOM. Same pattern as FindReplace.test.ts.
+const createdEditors: Editor[] = [];
+
 function createEditorWithDoc(docJson: Record<string, unknown>) {
   // EditorView needs a DOM element for extension plugins to install — see
   // FindReplace.test.ts for the same rationale.
   const element = document.createElement("div");
-  return new Editor({
+  const editor = new Editor({
     element,
     extensions: [StarterKit, TextFolding],
     content: docJson,
   });
+  createdEditors.push(editor);
+  return editor;
 }
 
 const para = (text: string) => ({
@@ -185,6 +193,9 @@ function getFoldedSet(editor: Editor): ReadonlySet<number> {
 describe("TextFolding fold state machine", () => {
   beforeAll(registerHappyDom);
   afterAll(unregisterHappyDom);
+  afterEach(() => {
+    while (createdEditors.length) createdEditors.pop()?.destroy();
+  });
 
   it("starts with an empty folded set", () => {
     const editor = createEditorWithDoc(docOf(heading(1, "Title"), para("body")));

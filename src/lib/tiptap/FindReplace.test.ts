@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
 import { Editor } from "@tiptap/core";
 import { Schema } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
@@ -105,13 +105,19 @@ describe("collectMatches", () => {
 // commands against an in-memory editor state. Assertions hit the plugin
 // state via FIND_REPLACE_KEY plus the doc text via editor.getText().
 
+// Track every Editor created in this file so afterEach can destroy them
+// — Tiptap views hold references to the global `document` that
+// unregisterHappyDom tears down in afterAll, so a leaked view can survive
+// the DOM.
+const createdEditors: Editor[] = [];
+
 function createEditor(text: string) {
   // Tiptap doesn't install extension plugins into the EditorState until an
   // EditorView is constructed; constructing the view needs a DOM element.
   // happy-dom (registered in beforeAll) provides document; we attach to a
-  // detached div which gets garbage-collected when the test ends.
+  // detached div and explicitly destroy() in afterEach.
   const element = document.createElement("div");
-  return new Editor({
+  const editor = new Editor({
     element,
     extensions: [StarterKit, FindReplace],
     content: {
@@ -119,11 +125,16 @@ function createEditor(text: string) {
       content: [{ type: "paragraph", content: text ? [{ type: "text", text }] : [] }],
     },
   });
+  createdEditors.push(editor);
+  return editor;
 }
 
 describe("FindReplace commands", () => {
   beforeAll(registerHappyDom);
   afterAll(unregisterHappyDom);
+  afterEach(() => {
+    while (createdEditors.length) createdEditors.pop()?.destroy();
+  });
 
   it("setFindTerm populates plugin state with the match positions", () => {
     const editor = createEditor("hello hello world");

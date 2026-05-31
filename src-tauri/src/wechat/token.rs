@@ -1,5 +1,5 @@
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::state::{WechatState, WechatTokenCache};
 
@@ -12,7 +12,13 @@ pub(crate) async fn wechat_get_or_refresh_token(
     creds_path: &Path,
     wechat_state: &WechatState,
 ) -> Result<String, String> {
-    let client = reqwest::Client::new();
+    // Match wechat_publish_draft's 30s bound — a stalled cgi-bin/token
+    // endpoint should surface as an error rather than hang the publish action
+    // (or any caller awaiting the token).
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to initialize WeChat HTTP client: {e}"))?;
     wechat_get_or_refresh_token_with(&client, DEFAULT_WECHAT_API_BASE, creds_path, wechat_state)
         .await
 }
