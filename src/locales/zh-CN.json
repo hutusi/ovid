@@ -625,6 +625,12 @@
     "delete_title": "删除",
     "move_to_trash": "将「{{name}}」移到废纸篓？"
   },
+  "scaffold": {
+    "post_body": "在此处编写内容……",
+    "excerpt_placeholder": "{{title}} 的简介。",
+    "series_body": "欢迎来到《{{title}}》系列。",
+    "book_body": "欢迎来到《{{title}}》。"
+  },
   "toast": {
     "copied_remote_url": "已复制远端 URL",
     "git_pulled": "已拉取最新更改",

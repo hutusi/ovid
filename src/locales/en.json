@@ -625,6 +625,12 @@
     "delete_title": "Delete",
     "move_to_trash": "Move \"{{name}}\" to Trash?"
   },
+  "scaffold": {
+    "post_body": "Write your content here...",
+    "excerpt_placeholder": "A description for {{title}}.",
+    "series_body": "Welcome to the {{title}} series.",
+    "book_body": "Welcome to {{title}}."
+  },
   "toast": {
     "copied_remote_url": "Copied remote URL",
     "git_pulled": "Pulled latest changes",

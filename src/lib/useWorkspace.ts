@@ -240,18 +240,21 @@ export function useWorkspace({
         // No template file — buildNewContent uses the built-in default.
       }
     }
-    const { dirsToCreate, filePath, content } = buildNewContent({
-      kind,
-      title,
-      date,
-      contentRoot,
-      basePath: postsBasePath || "posts",
-      dirPath,
-      postTemplate,
-      defaultAuthor,
-      format: contentPrefs?.format,
-      layout: contentPrefs?.layout,
-    });
+    const { dirsToCreate, filePath, content } = buildNewContent(
+      {
+        kind,
+        title,
+        date,
+        contentRoot,
+        basePath: postsBasePath || "posts",
+        dirPath,
+        postTemplate,
+        defaultAuthor,
+        format: contentPrefs?.format,
+        layout: contentPrefs?.layout,
+      },
+      t
+    );
     try {
       for (const dir of dirsToCreate) {
         await commands.files.ensureDir({ path: dir });

@@ -3,6 +3,12 @@
 // `.mdx`/`.md` extension, date-prefixed posts, and per-type frontmatter.
 // Amytis derives a file's content type from its folder, so none of these
 // templates write a `type:` field.
+//
+// Body and excerpt placeholders are localized via `t` so a user in zh-CN
+// mode gets Chinese seed content. YAML field VALUES (category, authors,
+// layout) stay English because Amytis filters/groups on those downstream.
+
+type Translate = (key: string, vars?: Record<string, unknown>) => string;
 
 export type NewContentKind =
   | "post"
@@ -82,25 +88,34 @@ draft: false
 latex: false
 ---
 
-Write your content here...
+{{body}}
 `;
 
-function renderPostTemplate(template: string | undefined, title: string, date: string): string {
+function renderPostTemplate(
+  template: string | undefined,
+  title: string,
+  date: string,
+  t: Translate
+): string {
   const safeTitle = title.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  // {{body}} is only present in the built-in DEFAULT_POST_TEMPLATE; user
+  // workspace templates (templates/default.mdx) own their body text and are
+  // rendered verbatim — leaving the no-op `{{body}}` replace safe either way.
   return (template ?? DEFAULT_POST_TEMPLATE)
     .replace(/\{\{title\}\}/g, safeTitle)
-    .replace(/\{\{date\}\}/g, date);
+    .replace(/\{\{date\}\}/g, date)
+    .replace(/\{\{body\}\}/g, t("scaffold.post_body"));
 }
 
-function seriesFrontmatter(title: string, date: string): string {
+function seriesFrontmatter(title: string, date: string, t: Translate): string {
   return `---
 title: ${dq(title)}
-excerpt: ${dq(`A description for ${title}.`)}
+excerpt: ${dq(t("scaffold.excerpt_placeholder", { title }))}
 date: ${dq(date)}
 coverImage: ""
 ---
 
-Welcome to the ${title} series.
+${t("scaffold.series_body", { title })}
 `;
 }
 
@@ -115,10 +130,10 @@ aliases: []
 `;
 }
 
-function bookFrontmatter(title: string, date: string, author: string): string {
+function bookFrontmatter(title: string, date: string, author: string, t: Translate): string {
   return `---
 title: ${dq(title)}
-excerpt: ${dq(`A description for ${title}.`)}
+excerpt: ${dq(t("scaffold.excerpt_placeholder", { title }))}
 date: ${dq(date)}
 coverImage: ""
 featured: false
@@ -128,7 +143,7 @@ authors:
 chapters: []
 ---
 
-Welcome to ${title}.
+${t("scaffold.book_body", { title })}
 `;
 }
 
@@ -177,8 +192,9 @@ function flatEntry(
 /** Resolve the on-disk path, directories to create, and file contents for a
  *  new content entry, mirroring the Amytis `new-*` scripts. The `format` and
  *  `layout` inputs let the user opt out of the Amytis defaults (`mdx`/`file`);
- *  `generic`/`flow` stay plain `.md` files and `series`/`book` stay folder-based. */
-export function buildNewContent(input: ScaffoldInput): ScaffoldOutput {
+ *  `generic`/`flow` stay plain `.md` files and `series`/`book` stay folder-based.
+ *  `t` localizes only body and excerpt seed text — YAML values stay English. */
+export function buildNewContent(input: ScaffoldInput, t: Translate): ScaffoldOutput {
   const { kind, title, date, contentRoot, basePath, dirPath } = input;
   const slug = slugify(title);
   const ext: ContentFormat = input.format ?? "mdx";
@@ -192,7 +208,7 @@ export function buildNewContent(input: ScaffoldInput): ScaffoldOutput {
         `${date}-${slug}`,
         ext,
         layout,
-        renderPostTemplate(input.postTemplate, title, date)
+        renderPostTemplate(input.postTemplate, title, date, t)
       );
     }
     case "seriesPost": {
@@ -202,7 +218,7 @@ export function buildNewContent(input: ScaffoldInput): ScaffoldOutput {
         slug,
         ext,
         layout,
-        renderPostTemplate(input.postTemplate, title, date)
+        renderPostTemplate(input.postTemplate, title, date, t)
       );
     }
     case "series": {
@@ -210,7 +226,7 @@ export function buildNewContent(input: ScaffoldInput): ScaffoldOutput {
       return {
         dirsToCreate: [dir, `${dir}/images`],
         filePath: `${dir}/index.${ext}`,
-        content: seriesFrontmatter(title, date),
+        content: seriesFrontmatter(title, date, t),
       };
     }
     case "book": {
@@ -218,7 +234,7 @@ export function buildNewContent(input: ScaffoldInput): ScaffoldOutput {
       return {
         dirsToCreate: [dir, `${dir}/images`],
         filePath: `${dir}/index.${ext}`,
-        content: bookFrontmatter(title, date, input.defaultAuthor || "Amytis"),
+        content: bookFrontmatter(title, date, input.defaultAuthor || "Amytis", t),
       };
     }
     case "chapter": {
