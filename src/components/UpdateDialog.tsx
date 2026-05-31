@@ -41,11 +41,11 @@ function getErrorMessage(error: unknown) {
   return String(error);
 }
 
-function formatDate(value?: string) {
+function formatDate(value: string | undefined, locale: string) {
   if (!value) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString();
+  return parsed.toLocaleString(locale);
 }
 
 function formatBytes(bytes: number) {
@@ -55,7 +55,7 @@ function formatBytes(bytes: number) {
 }
 
 export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const dialogRef = useFocusTrap<HTMLDivElement>();
   const updateRef = useRef<PendingUpdate | null>(null);
   const mountedRef = useRef(true);
@@ -243,7 +243,7 @@ export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
             </div>
             {state.date && (
               <p className="modal-copy">
-                {t("update_dialog.published", { date: formatDate(state.date) })}
+                {t("update_dialog.published", { date: formatDate(state.date, i18n.language) })}
               </p>
             )}
             <p className="modal-copy">{t("update_dialog.update_available")}</p>
