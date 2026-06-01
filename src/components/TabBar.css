@@ -61,7 +61,10 @@
 }
 
 .tab-bar-item.is-drop-target {
-  box-shadow: inset 2px 0 0 var(--color-accent);
+  box-shadow:
+    inset 3px 0 0 var(--color-accent),
+    inset 0 -1px 0 var(--color-accent);
+  background: var(--color-accent-subtle);
 }
 
 .tab-bar-label {

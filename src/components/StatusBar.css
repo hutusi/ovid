@@ -165,8 +165,10 @@
 
 .statusbar-lang-toggle {
   font-size: var(--text-xs);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.02em;
+  min-width: 28px;
+  font-variant-numeric: tabular-nums;
 }
 
 .statusbar-zen-icon {
