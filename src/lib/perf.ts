@@ -71,8 +71,21 @@ export function formatDetail(
   return leadingSpace ? ` ${suffix}` : suffix;
 }
 
+let notifyScheduled = false;
+
+// `pushPerfEvent` can fire during another component's render (e.g. Sidebar's
+// `useMemo` wraps its projection in `measureSync`). Calling listeners
+// synchronously would trigger setState in subscribers like PerfPanel while
+// another component is rendering — React warns about that. Defer to a
+// microtask so listener setState lands after the current render commits, and
+// coalesce repeated pushes in the same tick into one notification.
 function notifyPerfListeners(): void {
-  for (const listener of perfListeners) listener();
+  if (notifyScheduled) return;
+  notifyScheduled = true;
+  queueMicrotask(() => {
+    notifyScheduled = false;
+    for (const listener of perfListeners) listener();
+  });
 }
 
 function pushPerfEvent(

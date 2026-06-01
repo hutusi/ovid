@@ -174,7 +174,10 @@ export function Editor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ codeBlock: false }),
+      // `link` is disabled here because we register a customised Link below
+      // (input rule + `openOnClick: false`). StarterKit v3 includes Link by
+      // default, so without this the editor logs a duplicate-extension warning.
+      StarterKit.configure({ codeBlock: false, link: false }),
       CodeBlockLowlight.extend({
         addNodeView() {
           return ReactNodeViewRenderer(CodeBlockView);
@@ -419,7 +422,14 @@ export function Editor({
         const text = measureSync("editor.wordCountText", () => editor.getText(), {
           docSize: editor.state.doc.content.size,
         });
-        onWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
+        const count = text.trim() ? text.trim().split(/\s+/).length : 0;
+        // `useEditor` constructs the Tiptap editor synchronously in its
+        // `useState` initializer, and ProseMirror dispatches an initial
+        // transaction during that construction — so onUpdate can fire while
+        // Editor is still rendering. Calling `onWordCount` synchronously
+        // would setState in App mid-render. The microtask lands after the
+        // current render commits.
+        queueMicrotask(() => onWordCount(count));
       }
 
       if (isPerfLoggingEnabled()) {
