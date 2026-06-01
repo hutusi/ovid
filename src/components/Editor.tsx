@@ -422,7 +422,14 @@ export function Editor({
         const text = measureSync("editor.wordCountText", () => editor.getText(), {
           docSize: editor.state.doc.content.size,
         });
-        onWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
+        const count = text.trim() ? text.trim().split(/\s+/).length : 0;
+        // `useEditor` constructs the Tiptap editor synchronously in its
+        // `useState` initializer, and ProseMirror dispatches an initial
+        // transaction during that construction — so onUpdate can fire while
+        // Editor is still rendering. Calling `onWordCount` synchronously
+        // would setState in App mid-render. The microtask lands after the
+        // current render commits.
+        queueMicrotask(() => onWordCount(count));
       }
 
       if (isPerfLoggingEnabled()) {
