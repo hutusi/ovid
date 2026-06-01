@@ -23,8 +23,8 @@
   border-radius: 50%;
   flex-shrink: 0;
   transition:
-    background-color 0.3s ease,
-    opacity 0.3s ease;
+    background-color var(--duration-base) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
   opacity: 0;
 }
 

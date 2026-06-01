@@ -285,6 +285,7 @@
   align-items: center;
   padding-right: 6px;
   border-radius: var(--radius-sm);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .sidebar-file-row:hover {

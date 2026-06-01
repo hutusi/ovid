@@ -108,6 +108,7 @@
   cursor: pointer;
   flex-shrink: 0;
   opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .tab-bar-item:hover .tab-bar-close,

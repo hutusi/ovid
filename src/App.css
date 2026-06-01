@@ -97,6 +97,17 @@
   }
 }
 
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.toast.is-leaving {
+  animation: toast-out var(--duration-base) var(--ease-in) forwards;
+}
+
 .perf-panel {
   position: fixed;
   right: 14px;
