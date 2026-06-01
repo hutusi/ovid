@@ -7,6 +7,23 @@ release cadence and Conventional Commit history.
 
 ## Unreleased
 
+## 0.15.1 - 2026-06-01
+
+### Fixed
+- **Sidebar collection links unstuck**: clicking items under a `type: collection`
+  series (e.g. `series/modern-web-dev`) now reliably opens the referenced post.
+  The resolution itself was correct, but Sidebar's render-time `measureSync` was
+  synchronously firing PerfPanel setState mid-render, interrupting reconciliation
+  before the resolved `collectionLinks` Map landed on the rendered rows. Perf
+  listener notifications are now deferred via `queueMicrotask` and coalesced per
+  tick. Includes an end-to-end test that runs the full `forContentMode →
+  flattenTree → resolveCollectionItems` pipeline against my-garden-shaped
+  fixtures so the contract is locked in.
+- **Editor warnings silenced**: removed the duplicate-extension warning by
+  disabling StarterKit's bundled `Link` (we register a customised one alongside),
+  and deferred the `onWordCount` call in `onUpdate` so it no longer setState's
+  App mid-render during initial Tiptap construction.
+
 ## 0.15.0 - 2026-05-31
 
 ### Added
