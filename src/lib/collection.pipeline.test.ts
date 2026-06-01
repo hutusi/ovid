@@ -165,6 +165,9 @@ describe("collection-link pipeline (real forContentMode → flattenTree → reso
       { series: "nextjs-deep-dive" },
     ]);
     const links = resolveCollectionItems(items, flatFiles, opts);
+    // `every` returns true for []; assert the length so a regression that
+    // drops links (rather than failing to resolve them) still fails.
+    expect(links).toHaveLength(3);
     expect(links.every((l) => l.node !== undefined)).toBe(true);
   });
 
