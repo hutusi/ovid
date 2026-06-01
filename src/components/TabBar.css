@@ -100,7 +100,7 @@
   background: transparent;
   padding: 2px;
   margin-left: 2px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -423,7 +423,7 @@
   cursor: pointer;
   opacity: 0.65;
   border-radius: 2px;
-  transition: opacity 0.12s;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .link-url-hint:hover {
@@ -436,7 +436,7 @@
 .tiptap-mathematics-render {
   cursor: pointer;
   border-radius: 3px;
-  transition: background 0.12s;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .tiptap-mathematics-render:hover {
@@ -587,7 +587,7 @@
   max-width: 100%;
   border-radius: 4px;
   margin: 0;
-  transition: outline 0.1s;
+  transition: outline var(--duration-fast) var(--ease-out);
 }
 
 .image-selected img {
@@ -603,13 +603,13 @@
   height: 30px;
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-lg);
   display: flex;
   align-items: center;
   padding: 0 10px;
   gap: 1px;
   z-index: 20;
-  box-shadow: 0 4px 16px var(--shadow-tooltip);
+  box-shadow: var(--shadow-sm);
 }
 
 .image-edit-syntax {
@@ -659,13 +659,13 @@
   max-width: 360px;
   background: var(--color-surface-subtle);
   border: 1px solid var(--color-border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 5px 10px;
   font-size: 12px;
   font-family: var(--font-ui);
   color: var(--color-fg-muted);
   pointer-events: none;
-  box-shadow: 0 4px 12px var(--shadow-tooltip);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

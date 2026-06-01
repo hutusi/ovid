@@ -51,7 +51,7 @@
   -webkit-appearance: none;
   border: 1px solid transparent;
   background: transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   height: 22px;
   padding: 0 8px;
   font-size: 11px;
@@ -70,9 +70,9 @@
   text-align: left;
   flex-shrink: 1;
   transition:
-    border-color 0.12s,
-    color 0.12s,
-    background 0.12s;
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .statusbar-file-button:hover,
@@ -110,7 +110,7 @@
   height: 22px;
   min-width: 24px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   background: transparent;
   color: var(--color-fg-muted);
@@ -122,9 +122,9 @@
   justify-content: center;
   flex-shrink: 0;
   transition:
-    border-color 0.12s,
-    color 0.12s,
-    background 0.12s;
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .statusbar-control:hover,
@@ -173,7 +173,7 @@
   width: 13px;
   height: 13px;
   border: 1.6px solid currentColor;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   flex-shrink: 0;
 }
 
@@ -208,7 +208,7 @@
   border: 1px solid transparent;
   background: transparent;
   color: var(--color-fg-muted);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   height: 22px;
   padding: 0 9px;
   font-size: 11.5px;
@@ -218,9 +218,9 @@
   align-items: center;
   gap: 5px;
   transition:
-    border-color 0.12s,
-    color 0.12s,
-    background 0.12s;
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .statusbar-branch:hover,
@@ -232,7 +232,7 @@
 
 .statusbar-git-sync,
 .statusbar-git-changes {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   height: 22px;
   padding: 0 8px;
   font-size: 11px;
@@ -244,9 +244,9 @@
   border: 1px solid transparent;
   background: transparent;
   transition:
-    border-color 0.12s,
-    color 0.12s,
-    background 0.12s;
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .statusbar-git-sync {
@@ -298,7 +298,7 @@
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 2px;
 }
 

@@ -14,9 +14,9 @@
   overflow-x: hidden;
   user-select: none;
   transition:
-    width 0.2s ease,
-    min-width 0.2s ease,
-    border-left-color 0.2s ease;
+    width var(--duration-base) var(--ease-out),
+    min-width var(--duration-base) var(--ease-out),
+    border-left-color var(--duration-base) var(--ease-out);
 }
 
 .properties-panel.hidden {
@@ -146,12 +146,12 @@
   height: 20px;
   flex-shrink: 0;
   border: 1px solid var(--color-border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--color-fg) 8%, var(--color-surface));
   cursor: pointer;
   transition:
-    background 0.15s,
-    border-color 0.15s;
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
 }
 
 .prop-boolean-toggle.is-on {
@@ -165,12 +165,12 @@
   left: 3px;
   width: 12px;
   height: 12px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-fg-muted);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--color-fg) 18%, transparent);
   transition:
-    background 0.15s,
-    transform 0.15s;
+    background var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
 }
 
 .prop-boolean-toggle.is-on .prop-boolean-knob {
@@ -185,15 +185,15 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--color-fg-subtle);
   background: transparent;
   opacity: 0;
   pointer-events: none;
   transition:
-    opacity 0.15s,
-    color 0.15s,
-    background 0.15s;
+    opacity var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out);
 }
 
 .prop-field:hover .prop-remove-btn,
@@ -216,7 +216,7 @@
   font-family: var(--font-mono, monospace);
   word-break: break-all;
   padding: 5px 7px;
-  border-radius: 7px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-fg) 4%, var(--color-surface));
 }
 
@@ -227,11 +227,11 @@
   text-align: left;
   padding: 6px 7px;
   margin: 0 -7px;
-  border-radius: 7px;
+  border-radius: var(--radius-lg);
   cursor: text;
   transition:
-    background 0.15s,
-    box-shadow 0.15s;
+    background var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
   box-sizing: content-box;
 }
 
@@ -248,11 +248,11 @@
   gap: 4px;
   padding: 4px 6px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   cursor: text;
   min-height: 28px;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-base) var(--ease-out);
 }
 
 .tag-input-area:focus-within {
@@ -266,7 +266,7 @@
   font-size: 11px;
   color: var(--color-accent);
   background: var(--color-accent-subtle);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 1px 6px 1px 8px;
   line-height: 1.6;
 }
@@ -281,7 +281,7 @@
   opacity: 0.6;
   padding: 0 1px;
   border-radius: 2px;
-  transition: opacity 0.1s;
+  transition: opacity var(--duration-fast) var(--ease-out);
   cursor: pointer;
 }
 
@@ -312,11 +312,11 @@
   text-align: left;
   padding: 6px 7px;
   margin: 0 -7px;
-  border-radius: 7px;
+  border-radius: var(--radius-lg);
   cursor: text;
   transition:
-    background 0.15s,
-    box-shadow 0.15s;
+    background var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
   box-sizing: content-box;
 }
 
@@ -342,13 +342,13 @@
   color: var(--color-fg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 6px 8px;
   line-height: 1.5;
   resize: none;
   overflow: hidden;
   box-sizing: border-box;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-base) var(--ease-out);
 }
 
 .prop-longtext-input:focus-visible {
@@ -364,10 +364,10 @@
   color: var(--color-fg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 5px 8px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-base) var(--ease-out);
 }
 
 .prop-select:hover,
@@ -384,7 +384,7 @@
   color: var(--color-fg-subtle);
   padding: 10px 12px;
   border: 1px dashed color-mix(in srgb, var(--color-border) 80%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   text-align: center;
 }
 
@@ -409,11 +409,11 @@
   color: var(--color-fg-muted);
   padding: 5px 8px;
   border: 1px dashed var(--color-border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   cursor: pointer;
   transition:
-    color 0.15s,
-    background 0.15s;
+    color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out);
 }
 
 .prop-add-known-btn:hover,
@@ -452,7 +452,7 @@
   height: 32px;
   min-width: 72px;
   padding: 0 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-fg-muted);
@@ -460,9 +460,9 @@
   font-family: var(--font-ui);
   cursor: pointer;
   transition:
-    color 0.15s,
-    background 0.15s,
-    border-color 0.15s;
+    color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
 }
 
 .prop-dialog-choice.is-active {
@@ -500,10 +500,10 @@
   color: var(--color-fg);
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
-  border-radius: 7px;
+  border-radius: var(--radius-lg);
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-base) var(--ease-out);
 }
 
 .prop-input:focus {
@@ -537,12 +537,12 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: var(--radius-lg);
   color: var(--color-fg-subtle);
   cursor: pointer;
   transition:
-    color 0.15s,
-    background 0.15s;
+    color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out);
 }
 
 .prop-cover-eye-btn:hover {
@@ -569,11 +569,11 @@
   min-inline-size: 0;
   padding: 8px;
   border: 1px dashed color-mix(in srgb, var(--color-border-strong) 90%, transparent);
-  border-radius: 10px;
+  border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--color-surface) 60%, transparent);
   transition:
-    border-color 0.15s,
-    background 0.15s;
+    border-color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out);
   outline: none;
 }
 
@@ -602,7 +602,7 @@
   width: 100%;
   max-height: 132px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--color-fg) 4%, var(--color-surface));
 }
 
@@ -634,7 +634,7 @@
    so the layout doesn't jump when switching modes. */
 .prop-cover-text-thumb {
   height: 132px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .prop-cover-text-input {
@@ -645,9 +645,9 @@
   color: var(--color-fg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 5px 8px;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-base) var(--ease-out);
 }
 
 .prop-cover-text-input:focus-visible {
@@ -667,13 +667,13 @@
   color: var(--color-fg-muted);
   padding: 4px 10px;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--color-surface);
   cursor: pointer;
   transition:
-    color 0.15s,
-    background 0.15s,
-    border-color 0.15s;
+    color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
 }
 
 .prop-cover-action-btn:hover:not(:disabled) {

@@ -81,9 +81,9 @@
   color: var(--color-surface);
   font-size: 12.5px;
   padding: 7px 16px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   white-space: nowrap;
-  animation: toast-in 0.15s ease;
+  animation: toast-in var(--duration-base) var(--ease-out);
 }
 
 @keyframes toast-in {
@@ -111,7 +111,7 @@
   border-radius: 12px;
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   backdrop-filter: blur(12px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-lg);
   z-index: 900;
   pointer-events: auto;
 }
@@ -122,7 +122,7 @@
   bottom: calc(var(--statusbar-height) + 12px);
   z-index: 900;
   border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
   color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
   font-size: 11px;
@@ -130,7 +130,7 @@
   line-height: 1;
   padding: 6px 10px;
   backdrop-filter: blur(12px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+  box-shadow: var(--shadow-md);
 }
 
 .perf-panel-show:hover,
@@ -170,7 +170,7 @@
 .perf-panel-toggle,
 .perf-panel-clear {
   border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
   color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
   font: inherit;
@@ -193,7 +193,7 @@
 
 .perf-panel-item {
   padding: 7px 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-fg) 5%, var(--color-surface));
 }
 
