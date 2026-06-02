@@ -278,7 +278,7 @@ export function AppDialogs({
       {toasts.length > 0 && (
         <div className="toast-container" aria-live="polite" aria-atomic="true">
           {toasts.map((toast) => (
-            <div key={toast.id} className="toast">
+            <div key={toast.id} className={toast.leaving ? "toast is-leaving" : "toast"}>
               {toast.message}
             </div>
           ))}

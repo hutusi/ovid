@@ -9,9 +9,9 @@
   overflow: hidden;
   user-select: none;
   transition:
-    width 0.2s ease,
-    min-width 0.2s ease,
-    border-right-color 0.2s ease;
+    width var(--duration-base) var(--ease-out),
+    min-width var(--duration-base) var(--ease-out),
+    border-right-color var(--duration-base) var(--ease-out);
 }
 
 .sidebar.resizing {
@@ -36,7 +36,7 @@
   width: 2px;
   height: 100%;
   background: transparent;
-  transition: background 0.15s;
+  transition: background var(--duration-base) var(--ease-out);
 }
 
 .sidebar-resize-handle:hover::after {
@@ -61,11 +61,11 @@
   align-items: center;
   gap: 5px;
   background: color-mix(in srgb, var(--color-fg) 5%, transparent);
-  border-radius: 7px;
+  border-radius: var(--radius-lg);
   padding: 4px 8px;
   transition:
-    background 0.15s,
-    box-shadow 0.15s;
+    background var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
 }
 
 .sidebar-filter-inner:focus-within {
@@ -100,12 +100,12 @@
   justify-content: center;
   flex-shrink: 0;
   color: var(--color-fg-subtle);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 1px;
   opacity: 0.6;
   transition:
-    opacity 0.1s,
-    color 0.1s;
+    opacity var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .sidebar-filter-clear:hover {
@@ -131,10 +131,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 1px 3px;
   margin-left: -3px;
-  transition: color 0.15s;
+  transition: color var(--duration-base) var(--ease-out);
   cursor: pointer;
 }
 
@@ -147,10 +147,10 @@
   color: var(--color-fg-subtle);
   line-height: 1;
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   transition:
-    color 0.15s,
-    background 0.15s;
+    color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out);
   flex-shrink: 0;
 }
 
@@ -167,7 +167,7 @@
   padding: 2px;
   border: none;
   background: var(--color-surface-active);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .sidebar-mode-btn {
@@ -175,15 +175,15 @@
   align-items: center;
   justify-content: center;
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   color: var(--color-fg-subtle);
   background: none;
   border: none;
   cursor: pointer;
   transition:
-    color 0.15s,
-    background 0.15s,
-    box-shadow 0.15s;
+    color var(--duration-base) var(--ease-out),
+    background var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
   flex-shrink: 0;
 }
 
@@ -194,7 +194,7 @@
 .sidebar-mode-btn[aria-pressed="true"] {
   color: var(--color-fg);
   background: var(--color-surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-xs);
 }
 
 .sidebar-file-icon-generic {
@@ -232,8 +232,8 @@
   color: var(--color-fg);
   text-align: left;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.1s;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .sidebar-dir:hover {
@@ -246,9 +246,9 @@
   align-items: center;
   flex-shrink: 0;
   padding: 5px 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .sidebar-dir-toggle:hover {
@@ -267,8 +267,8 @@
   color: var(--color-fg);
   text-align: left;
   cursor: pointer;
-  border-radius: 4px;
-  transition: background 0.1s;
+  border-radius: var(--radius-sm);
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .sidebar-dir-label:hover {
@@ -284,7 +284,8 @@
   display: flex;
   align-items: center;
   padding-right: 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--duration-fast) var(--ease-out);
 }
 
 .sidebar-file-row:hover {
@@ -369,7 +370,7 @@
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.03em;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   color: var(--color-fg-subtle);
   background: color-mix(in srgb, var(--color-fg) 8%, transparent);
 }
@@ -389,7 +390,7 @@
   font-size: 9px;
   font-weight: 500;
   line-height: 1.5;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   color: var(--color-fg-subtle);
   background: color-mix(in srgb, var(--color-fg) 8%, transparent);
   white-space: nowrap;
@@ -429,9 +430,9 @@
   font-size: 13px;
   color: var(--color-accent);
   border: 1px solid var(--color-accent);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 6px 14px;
-  transition: background 0.15s;
+  transition: background var(--duration-base) var(--ease-out);
 }
 
 .sidebar-open-workspace-btn:hover {

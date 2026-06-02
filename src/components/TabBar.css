@@ -61,7 +61,10 @@
 }
 
 .tab-bar-item.is-drop-target {
-  box-shadow: inset 2px 0 0 var(--color-accent);
+  box-shadow:
+    inset 3px 0 0 var(--color-accent),
+    inset 0 -1px 0 var(--color-accent);
+  background: var(--color-accent-subtle);
 }
 
 .tab-bar-label {
@@ -100,7 +103,7 @@
   background: transparent;
   padding: 2px;
   margin-left: 2px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -108,6 +111,7 @@
   cursor: pointer;
   flex-shrink: 0;
   opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .tab-bar-item:hover .tab-bar-close,

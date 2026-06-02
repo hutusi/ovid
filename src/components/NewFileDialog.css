@@ -11,7 +11,7 @@
 .nfd-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--color-backdrop);
   border: none;
   cursor: default;
 }
@@ -23,10 +23,8 @@
   max-width: calc(100vw - 48px);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.18),
-    0 2px 8px rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -52,10 +50,10 @@
   color: var(--color-fg);
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-base) var(--ease-out);
 }
 
 .nfd-input:focus {
@@ -94,13 +92,13 @@
   color: var(--color-fg-muted);
   background: var(--color-surface-subtle);
   border: 1px solid var(--color-border);
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   text-transform: capitalize;
   transition:
-    background 0.12s,
-    color 0.12s,
-    border-color 0.12s;
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
 
 .nfd-chip:hover {
@@ -129,11 +127,11 @@
   font-size: 13px;
   font-family: var(--font-ui);
   font-weight: 500;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition:
-    background 0.12s,
-    opacity 0.12s;
+    background var(--duration-fast) var(--ease-out),
+    opacity var(--duration-fast) var(--ease-out);
 }
 
 .nfd-cancel {

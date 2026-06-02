@@ -33,10 +33,10 @@
   gap: 2px;
   width: 100%;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   text-align: left;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background var(--duration-fast) var(--ease-out);
   background: transparent;
   border: none;
 }
@@ -126,17 +126,17 @@
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-fg-subtle);
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
   transition:
-    opacity 0.12s,
-    background 0.12s,
-    border-color 0.12s,
-    color 0.12s;
+    opacity var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .ws-item:hover .ws-overflow-btn,
@@ -162,12 +162,10 @@
   flex-direction: column;
   min-width: 120px;
   padding: 4px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.12),
-    0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-md);
 }
 
 .ws-actions-menu-btn {
@@ -177,7 +175,7 @@
   font-size: 12px;
   font-family: var(--font-ui);
   text-align: left;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 6px 8px;
   cursor: pointer;
 }

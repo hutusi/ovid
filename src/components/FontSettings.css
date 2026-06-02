@@ -10,10 +10,8 @@
   width: 188px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.12),
-    0 1px 4px rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -41,14 +39,14 @@
   padding: 4px 6px;
   font-size: 11.5px;
   font-family: var(--font-ui);
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   color: var(--color-fg-muted);
   background: transparent;
   border: none;
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .fsp-chip:hover {
@@ -74,7 +72,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 4px 6px;
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   font-size: 11.5px;
   font-family: var(--font-ui);
   color: var(--color-fg-muted);
@@ -83,8 +81,8 @@
   cursor: pointer;
   width: 100%;
   transition:
-    background 0.12s,
-    color 0.12s;
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .fsp-toggle:hover {
@@ -118,9 +116,9 @@
   color: var(--color-fg);
   background: var(--color-surface);
   border: 1px solid var(--color-border-strong);
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-base) var(--ease-out);
 }
 
 .fsp-goal-input:focus {
@@ -140,9 +138,9 @@
   color: var(--color-accent);
   background: transparent;
   border: 1px solid var(--color-accent);
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .fsp-goal-set:hover {
@@ -158,9 +156,9 @@
   color: var(--color-fg-muted);
   background: transparent;
   border: 1px solid var(--color-border-strong);
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background var(--duration-fast) var(--ease-out);
 }
 
 .fsp-goal-clear:hover {

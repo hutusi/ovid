@@ -3,7 +3,11 @@ import { useCallback, useRef, useState } from "react";
 export interface Toast {
   id: number;
   message: string;
+  leaving?: boolean;
 }
+
+const VISIBLE_MS = 2000;
+const EXIT_MS = 180;
 
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -12,7 +16,10 @@ export function useToast() {
   const showToast = useCallback((message: string) => {
     const id = ++idRef.current;
     setToasts((prev) => [...prev, { id, message }]);
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 2000);
+    setTimeout(() => {
+      setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
+      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), EXIT_MS);
+    }, VISIBLE_MS);
   }, []);
 
   return { toasts, showToast };

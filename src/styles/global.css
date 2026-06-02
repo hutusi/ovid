@@ -34,6 +34,9 @@
   --color-error: #c0392b;
   --color-danger: #e53e3e;
 
+  /* Modal/overlay backdrop (theme-aware via dark override below) */
+  --color-backdrop: rgba(0, 0, 0, 0.3);
+
   /* Syntax highlighting */
   --color-syntax-comment: #a1a1aa;
   --color-syntax-keyword: #6366f1;
@@ -77,6 +80,8 @@
   --color-syntax-meta: #fcd34d;
   --color-syntax-attr: #a78bfa;
   --color-syntax-number: #fb923c;
+
+  --color-backdrop: rgba(0, 0, 0, 0.55);
 }
 
 /* ── Constants (not in @theme — would conflict with Tailwind defaults) ──── */
@@ -94,8 +99,28 @@
   --sidebar-width: 240px;
   --statusbar-height: 28px;
 
-  /* Shadows */
+  /* Shadows (theme-aware via dark :root override below) */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.08);
+  /* Legacy alias — kept while consumers migrate (see C2). */
   --shadow-tooltip: rgba(0, 0, 0, 0.12);
+
+  /* Radii */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
 
   font-family: var(--font-ui);
   font-size: 14px;
@@ -109,12 +134,23 @@
 }
 
 [data-theme="dark"] {
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-tooltip: rgba(0, 0, 0, 0.28);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
     transition: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
