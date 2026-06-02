@@ -545,15 +545,7 @@ function App() {
 
   return (
     <div className="app" data-zen={zenMode ? "true" : undefined}>
-      <TitleBar
-        tabs={tabs}
-        tree={tree}
-        activePath={selectedFile?.path ?? null}
-        saveStatus={saveStatus}
-        onSelectTab={handleSelectFromTab}
-        onCloseTab={handleCloseTab}
-        onReorderTabs={reorderTabs}
-      />
+      <TitleBar />
       <div className="app-body">
         {overlay.is("search") ? (
           <Suspense fallback={null}>
@@ -596,8 +588,13 @@ function App() {
         <EditorPane
           workspaceRootPath={workspaceRootPath}
           workspaceRoot={workspaceRoot}
+          tabs={tabs}
+          tree={tree}
+          saveStatus={saveStatus}
           selectedFile={selectedFile}
+          onSelectFromTab={handleSelectFromTab}
           onCloseTab={handleCloseTab}
+          onReorderTabs={reorderTabs}
           coverImageVisible={coverImageVisible}
           coverImagePath={coverImagePath}
           assetRoot={assetRoot}

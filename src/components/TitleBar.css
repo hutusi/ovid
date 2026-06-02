@@ -7,14 +7,9 @@
   align-items: stretch;
 }
 
-/* Left gutter on macOS so tabs clear the native traffic lights overlay. */
-.title-bar-gutter {
-  flex-shrink: 0;
-  width: 78px;
-}
-
 /* ── Window controls (Windows / Linux only — macOS uses native traffic lights) ── */
 .window-controls {
+  margin-left: auto;
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
