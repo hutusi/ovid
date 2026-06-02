@@ -498,10 +498,10 @@
   color: var(--color-fg-subtle);
   cursor: pointer;
   user-select: none;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   transition:
-    color 0.12s,
-    background 0.12s;
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .fold-chevron::before {
