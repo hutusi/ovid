@@ -2,11 +2,12 @@ import { lazy, Suspense, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
-import type { FileNode, RecentFile } from "../lib/types";
+import type { FileNode, RecentFile, SaveStatus } from "../lib/types";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FileViewer, isReadOnlyContent } from "./FileViewer";
 import { PropertiesPanel } from "./PropertiesPanel";
+import { TabBar } from "./TabBar";
 import { TextCover } from "./TextCover";
 
 export type EditorViewState = { selection: number; scrollTop: number };
@@ -21,9 +22,14 @@ export interface EditorPaneProps {
   workspaceRootPath: string | null;
   workspaceRoot: string | null;
 
-  // Editor file context
+  // Tab bar
+  tabs: string[];
+  tree: FileNode[];
+  saveStatus: SaveStatus;
   selectedFile: FileNode | null;
+  onSelectFromTab: (path: string) => void;
   onCloseTab: (path: string) => void;
+  onReorderTabs: (fromIndex: number, toIndex: number) => void;
 
   // Cover image banner
   coverImageVisible: boolean;
@@ -62,8 +68,13 @@ export interface EditorPaneProps {
 export function EditorPane({
   workspaceRootPath,
   workspaceRoot,
+  tabs,
+  tree,
+  saveStatus,
   selectedFile,
+  onSelectFromTab,
   onCloseTab,
+  onReorderTabs,
   coverImageVisible,
   coverImagePath,
   assetRoot,
@@ -103,6 +114,17 @@ export function EditorPane({
   return (
     <>
       <div className="editor-column">
+        {tabs.length > 0 && (
+          <TabBar
+            tabs={tabs}
+            tree={tree}
+            activePath={selectedFile?.path ?? null}
+            saveStatus={saveStatus}
+            onSelect={onSelectFromTab}
+            onClose={onCloseTab}
+            onReorder={onReorderTabs}
+          />
+        )}
         {selectedFile &&
           coverImageVisible &&
           coverImagePath &&

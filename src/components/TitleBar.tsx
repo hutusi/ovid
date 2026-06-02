@@ -2,41 +2,11 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Minus, Square, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isMac } from "../lib/platform";
-import type { FileNode, SaveStatus } from "../lib/types";
-import { TabBar } from "./TabBar";
 import "./TitleBar.css";
 
-interface TitleBarProps {
-  tabs: string[];
-  tree: FileNode[];
-  activePath: string | null;
-  saveStatus: SaveStatus;
-  onSelectTab: (path: string) => void;
-  onCloseTab: (path: string) => void;
-  onReorderTabs: (fromIndex: number, toIndex: number) => void;
-}
-
-export function TitleBar({
-  tabs,
-  tree,
-  activePath,
-  saveStatus,
-  onSelectTab,
-  onCloseTab,
-  onReorderTabs,
-}: TitleBarProps) {
+export function TitleBar() {
   return (
     <div className="title-bar" data-tauri-drag-region>
-      {isMac && <div className="title-bar-gutter" data-tauri-drag-region />}
-      <TabBar
-        tabs={tabs}
-        tree={tree}
-        activePath={activePath}
-        saveStatus={saveStatus}
-        onSelect={onSelectTab}
-        onClose={onCloseTab}
-        onReorder={onReorderTabs}
-      />
       {!isMac && <WindowControls />}
     </div>
   );
