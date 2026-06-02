@@ -1,6 +1,6 @@
 .title-bar {
   flex-shrink: 0;
-  height: 36px;
+  height: 28px;
   background: var(--color-surface-subtle);
   border-bottom: 1px solid var(--color-border);
   display: flex;
