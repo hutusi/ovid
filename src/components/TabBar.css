@@ -41,13 +41,16 @@
   color: var(--color-fg);
 }
 
-/* Active tab matches the editor surface below; a 2px accent stroke at the
-   top serves as the active marker so the lift reads clearly against both
-   the subtle strip bg and the editor surface below. */
+/* Active tab matches the editor surface below; a 1px ring in --color-border
+   draws around all four sides. The bottom edge sits exactly where the strip's
+   inset baseline would be (same colour, same weight, same y position), so the
+   strip baseline appears to flow up the left side of the tab, across the top,
+   down the right, and continues along the baseline — one continuous outline,
+   the Obsidian-style folder-flap effect. */
 .tab-bar-item.is-active {
   color: var(--color-fg);
   background: var(--color-surface);
-  box-shadow: inset 0 2px 0 var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
 /* Thin vertical separator in the gap between adjacent tabs. Inset top/bottom
