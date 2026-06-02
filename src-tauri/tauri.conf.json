@@ -19,7 +19,7 @@
         "minHeight": 500,
         "dragDropEnabled": false,
         "titleBarStyle": "Overlay",
-        "trafficLightPosition": { "x": 14, "y": 18 }
+        "trafficLightPosition": { "x": 14, "y": 11 }
       }
     ],
     "security": {

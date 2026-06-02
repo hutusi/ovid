@@ -48,6 +48,13 @@
   height: 100%;
 }
 
+/* Dark theme: --color-surface (#1c1c1e) and --color-surface-subtle (#161618)
+   are visually close. A subtle accent stroke at the top of the active tab
+   anchors it so the lift is still perceptible. */
+[data-theme="dark"] .tab-bar-item.is-active {
+  box-shadow: inset 0 2px 0 var(--color-accent-subtle);
+}
+
 .tab-bar-item.is-dragging {
   opacity: 0.5;
 }
@@ -133,8 +140,4 @@
   opacity: 1;
   outline: 1px solid var(--color-accent);
   outline-offset: -1px;
-}
-
-.app[data-zen] .tab-bar {
-  display: none;
 }
