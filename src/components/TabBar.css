@@ -1,12 +1,11 @@
 .tab-bar {
   display: flex;
-  flex-shrink: 0;
-  align-items: stretch;
+  align-items: flex-end;
+  flex: 1;
+  min-width: 0;
   gap: 0;
   padding: 0 6px;
-  height: 32px;
-  background: var(--color-surface-subtle);
-  border-bottom: 1px solid var(--color-border);
+  height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -16,44 +15,37 @@
   display: none;
 }
 
+/* ── Tab item ──────────────────────────────────── */
 .tab-bar-item {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 4px 0 8px;
-  height: 100%;
+  height: calc(100% - 1px);
   min-width: 0;
   max-width: 200px;
-  border-right: 1px solid transparent;
-  border-left: 1px solid transparent;
-  position: relative;
+  padding: 0 2px 0 8px;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   color: var(--color-fg-muted);
   font-family: var(--font-ui);
-  font-size: 12px;
+  font-size: 12.5px;
   cursor: default;
   user-select: none;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .tab-bar-item:hover {
   color: var(--color-fg);
-  background: var(--color-surface-hover);
 }
 
+/* Active tab lifts into the editor: matches editor surface, rounded top, no
+   bottom border (the +1px height handled by `calc(100% - 1px)` above keeps it
+   flush with the strip's bottom edge). */
 .tab-bar-item.is-active {
   color: var(--color-fg);
   background: var(--color-surface);
-  border-left-color: var(--color-border);
-  border-right-color: var(--color-border);
-}
-
-.tab-bar-item.is-active::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1px;
-  background: var(--color-surface);
+  height: 100%;
 }
 
 .tab-bar-item.is-dragging {
@@ -67,6 +59,7 @@
   background: var(--color-accent-subtle);
 }
 
+/* ── Inner label button ───────────────────────── */
 .tab-bar-label {
   appearance: none;
   -webkit-appearance: none;
@@ -85,6 +78,17 @@
   cursor: pointer;
 }
 
+.tab-bar-icon {
+  flex-shrink: 0;
+  color: var(--color-fg-subtle);
+  opacity: 0.8;
+}
+
+.tab-bar-item.is-active .tab-bar-icon {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
 .tab-bar-label-text {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,6 +100,7 @@
   flex-shrink: 0;
 }
 
+/* ── Close button ─────────────────────────────── */
 .tab-bar-close {
   appearance: none;
   -webkit-appearance: none;
