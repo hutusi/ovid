@@ -1,13 +1,11 @@
 .tab-bar {
   display: flex;
   align-items: flex-end;
-  flex-shrink: 0;
+  flex: 1;
   min-width: 0;
-  gap: 0;
+  gap: 1px;
   padding: 0 6px;
-  height: 36px;
-  background: var(--color-surface-subtle);
-  border-bottom: 1px solid var(--color-border);
+  height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -22,14 +20,14 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  height: calc(100% - 1px);
+  height: 100%;
   min-width: 0;
   max-width: 200px;
-  padding: 0 2px 0 8px;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: 0 4px 0 10px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--color-fg-muted);
   font-family: var(--font-ui);
-  font-size: 12.5px;
+  font-size: 12px;
   cursor: default;
   user-select: none;
   transition:
@@ -41,20 +39,11 @@
   color: var(--color-fg);
 }
 
-/* Active tab lifts into the editor: matches editor surface, rounded top, no
-   bottom border (the +1px height handled by `calc(100% - 1px)` above keeps it
-   flush with the strip's bottom edge). */
+/* Active tab matches the editor surface and reads as a single sheet with
+   the content below — no border, no shadow. */
 .tab-bar-item.is-active {
   color: var(--color-fg);
   background: var(--color-surface);
-  height: 100%;
-}
-
-/* Dark theme: --color-surface (#1c1c1e) and --color-surface-subtle (#161618)
-   are visually close. A subtle accent stroke at the top of the active tab
-   anchors it so the lift is still perceptible. */
-[data-theme="dark"] .tab-bar-item.is-active {
-  box-shadow: inset 0 2px 0 var(--color-accent-subtle);
 }
 
 .tab-bar-item.is-dragging {
@@ -90,7 +79,7 @@
 .tab-bar-icon {
   flex-shrink: 0;
   color: var(--color-fg-subtle);
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
 .tab-bar-item.is-active .tab-bar-icon {
@@ -116,7 +105,7 @@
   border: none;
   background: transparent;
   padding: 2px;
-  margin-left: 2px;
+  margin-left: 4px;
   border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;
@@ -142,8 +131,4 @@
   opacity: 1;
   outline: 1px solid var(--color-accent);
   outline-offset: -1px;
-}
-
-.app[data-zen] .tab-bar {
-  display: none;
 }

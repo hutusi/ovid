@@ -538,6 +538,11 @@
     "open_files": "Open files",
     "close_tab": "Close {{label}}"
   },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "close": "Close window"
+  },
   "editor": {
     "h1_warning": "⚠ This document already has a title. Consider changing this heading to ##.",
     "paste_image_error": "Failed to paste image: {{reason}}",

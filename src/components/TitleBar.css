@@ -1,0 +1,47 @@
+.title-bar {
+  flex-shrink: 0;
+  height: 32px;
+  background: var(--color-surface-subtle);
+  display: flex;
+  align-items: stretch;
+}
+
+/* macOS gutter so tabs clear the native traffic lights overlay. */
+.title-bar-gutter {
+  flex-shrink: 0;
+  width: 78px;
+}
+
+/* ── Window controls (Windows / Linux only) ──────────────────── */
+.window-controls {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.window-control {
+  width: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-fg-subtle);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.window-control:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-fg);
+}
+
+.window-control-close:hover {
+  background: var(--color-danger);
+  color: #ffffff;
+}
+
+.window-control:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
