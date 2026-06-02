@@ -538,11 +538,6 @@
     "open_files": "打开的文件",
     "close_tab": "关闭 {{label}}"
   },
-  "window": {
-    "minimize": "最小化",
-    "maximize": "最大化",
-    "close": "关闭窗口"
-  },
   "editor": {
     "h1_warning": "⚠ 此文档已有标题。建议将此处改为 ## 二级标题。",
     "paste_image_error": "粘贴图片失败：{{reason}}",

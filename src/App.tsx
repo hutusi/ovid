@@ -6,7 +6,6 @@ import { EditorPane } from "./components/EditorPane";
 import { getFileViewKind } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
-import { TitleBar } from "./components/TitleBar";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
 import { parseFrontmatter } from "./lib/frontmatter";
@@ -545,7 +544,6 @@ function App() {
 
   return (
     <div className="app" data-zen={zenMode ? "true" : undefined}>
-      <TitleBar />
       <div className="app-body">
         {overlay.is("search") ? (
           <Suspense fallback={null}>

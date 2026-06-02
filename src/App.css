@@ -45,10 +45,6 @@
 }
 
 /* ── Zen mode ────────────────────────────────── */
-.app[data-zen] .title-bar {
-  display: none;
-}
-
 .app[data-zen] .statusbar {
   display: none;
 }
