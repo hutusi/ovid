@@ -39,6 +39,7 @@ import "./styles/global.css";
 import "./App.css";
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
+const PROPERTIES_OPEN_KEY = "ovid:propertiesOpen";
 
 const SearchPanel = lazy(async () => ({
   default: (await import("./components/SearchPanel")).SearchPanel,
@@ -52,7 +53,9 @@ function App() {
   const [sidebarVisible, setSidebarVisible] = useState(
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
-  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [propertiesOpen, setPropertiesOpen] = useState(
+    () => localStorage.getItem(PROPERTIES_OPEN_KEY) !== "false"
+  );
   // Keep the native View menu's check-mark in sync with panel visibility so
   // the menu reflects the panel state the way Obsidian / VS Code do.
   useEffect(() => {
@@ -641,7 +644,13 @@ function App() {
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}
           propertiesOpen={propertiesOpen}
-          onToggleProperties={() => setPropertiesOpen((v) => !v)}
+          onToggleProperties={() =>
+            setPropertiesOpen((prev) => {
+              const next = !prev;
+              localStorage.setItem(PROPERTIES_OPEN_KEY, String(next));
+              return next;
+            })
+          }
           onToggleCoverImage={() => setCoverImageVisible((v) => !v)}
         />
       </div>

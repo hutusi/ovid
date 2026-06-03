@@ -9,6 +9,7 @@ import { markdownToWechatHtml } from "./wechatHtml";
 
 // Mirrors the key used in App.tsx for localStorage persistence.
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
+const PROPERTIES_OPEN_KEY = "ovid:propertiesOpen";
 
 // Native "New <type>" menu actions → content kind. The single source of truth
 // for which menu actions open the New-file dialog; add an entry to support a
@@ -162,7 +163,11 @@ export function useMenuActions({
           });
           break;
         case "toggle-properties":
-          setPropertiesOpen((v) => !v);
+          setPropertiesOpen((v) => {
+            const next = !v;
+            localStorage.setItem(PROPERTIES_OPEN_KEY, String(next));
+            return next;
+          });
           break;
         case "toggle-search":
           if (workspaceRoot) {

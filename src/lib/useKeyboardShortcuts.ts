@@ -4,6 +4,7 @@ import type { FileNode } from "./types";
 import type { OverlayStack } from "./useOverlayStack";
 
 const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
+const PROPERTIES_OPEN_KEY = "ovid:propertiesOpen";
 
 interface UseKeyboardShortcutsOptions {
   overlay: OverlayStack;
@@ -83,7 +84,11 @@ export function useKeyboardShortcuts({
       // Mode toggles work even when editor has focus
       if (e.shiftKey && key === "p") {
         e.preventDefault();
-        setPropertiesOpen((v) => !v);
+        setPropertiesOpen((v) => {
+          const next = !v;
+          localStorage.setItem(PROPERTIES_OPEN_KEY, String(next));
+          return next;
+        });
         return;
       }
       if (e.shiftKey && key === "f") {
