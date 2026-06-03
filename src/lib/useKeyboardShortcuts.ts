@@ -91,6 +91,15 @@ export function useKeyboardShortcuts({
         });
         return;
       }
+      if (e.shiftKey && key === "l") {
+        e.preventDefault();
+        setSidebarVisible((v) => {
+          const next = !v;
+          localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(next));
+          return next;
+        });
+        return;
+      }
       if (e.shiftKey && key === "f") {
         e.preventDefault();
         if (workspaceRoot) {
@@ -107,14 +116,6 @@ export function useKeyboardShortcuts({
       )
         return;
       switch (key) {
-        case "\\":
-          e.preventDefault();
-          setSidebarVisible((v) => {
-            const next = !v;
-            localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(next));
-            return next;
-          });
-          break;
         case "o":
           e.preventDefault();
           if (e.shiftKey) {
