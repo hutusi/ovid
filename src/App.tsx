@@ -627,6 +627,7 @@ function App() {
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}
           propertiesOpen={propertiesOpen}
+          onToggleProperties={() => setPropertiesOpen((v) => !v)}
           onToggleCoverImage={() => setCoverImageVisible((v) => !v)}
         />
       </div>

@@ -313,6 +313,7 @@
   "properties": {
     "metadata": "Metadata",
     "frontmatter": "Frontmatter",
+    "collapse": "Collapse properties panel",
     "document_metadata": "Document metadata",
     "title": "Title",
     "excerpt": "Excerpt",

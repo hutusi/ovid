@@ -62,6 +62,7 @@ export interface EditorPaneProps {
 
   // Properties panel
   propertiesOpen: boolean;
+  onToggleProperties: () => void;
   onToggleCoverImage: () => void;
 }
 
@@ -97,6 +98,7 @@ export function EditorPane({
   onOpenWorkspace,
   onOpenRecent,
   propertiesOpen,
+  onToggleProperties,
   onToggleCoverImage,
 }: EditorPaneProps) {
   const { t } = useTranslation();
@@ -198,6 +200,7 @@ export function EditorPane({
           cdnBase={cdnBase}
           onFieldChange={onFieldChange}
           onToggleCoverImage={onToggleCoverImage}
+          onToggle={onToggleProperties}
           onError={onError}
         />
       )}

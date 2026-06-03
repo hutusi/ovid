@@ -313,6 +313,7 @@
   "properties": {
     "metadata": "元数据",
     "frontmatter": "前置数据",
+    "collapse": "收起属性面板",
     "document_metadata": "文档元数据",
     "title": "标题",
     "excerpt": "摘要",
