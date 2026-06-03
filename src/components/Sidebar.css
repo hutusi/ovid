@@ -122,6 +122,13 @@
   min-height: 44px;
 }
 
+/* On macOS the traffic lights overlay onto the top-left of the sidebar
+   (titleBarStyle: Overlay). Add ~28px top padding to keep the header
+   content (workspace name, mode switcher) clear of the buttons. */
+.app[data-platform="darwin"] .sidebar-header {
+  padding-top: 38px;
+}
+
 .sidebar-workspace-name {
   font-size: 12px;
   font-weight: 600;

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { findNodeByPath } from "../lib/appRestore";
 import { getSidebarDisplayName } from "../lib/sidebarUtils";
 import type { FileNode, SaveStatus } from "../lib/types";
+import { ContentTypeIcon } from "./ContentTypeIcon";
 import "./TabBar.css";
 
 interface TabBarProps {
@@ -108,6 +109,7 @@ export function TabBar({
               }}
               title={path}
             >
+              <ContentTypeIcon type={node.contentType} size={14} className="tab-bar-icon" />
               <span
                 className={`save-dot ${showUnsaved ? "unsaved" : "saved"} tab-bar-dot`}
                 aria-hidden="true"

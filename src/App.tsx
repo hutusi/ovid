@@ -10,6 +10,7 @@ import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
 import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
+import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
 import type { CollectionItem, FileNode } from "./lib/types";
@@ -543,7 +544,11 @@ function App() {
   const sessionWordsAdded = sessionBaseline !== null ? Math.max(0, wordCount - sessionBaseline) : 0;
 
   return (
-    <div className="app" data-zen={zenMode ? "true" : undefined}>
+    <div
+      className="app"
+      data-zen={zenMode ? "true" : undefined}
+      data-platform={isMac ? "darwin" : undefined}
+    >
       <div className="app-body">
         {overlay.is("search") ? (
           <Suspense fallback={null}>

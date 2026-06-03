@@ -1,12 +1,13 @@
 .tab-bar {
   display: flex;
+  align-items: flex-end;
   flex-shrink: 0;
-  align-items: stretch;
-  gap: 0;
+  min-width: 0;
+  gap: 1px;
   padding: 0 6px;
-  height: 32px;
+  height: 36px;
   background: var(--color-surface-subtle);
-  border-bottom: 1px solid var(--color-border);
+  box-shadow: inset 0 -1px 0 var(--color-border);
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -16,44 +17,58 @@
   display: none;
 }
 
+/* ── Tab item ──────────────────────────────────── */
 .tab-bar-item {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 4px 0 8px;
   height: 100%;
   min-width: 0;
   max-width: 200px;
-  border-right: 1px solid transparent;
-  border-left: 1px solid transparent;
-  position: relative;
+  padding: 0 4px 0 10px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--color-fg-muted);
   font-family: var(--font-ui);
   font-size: 12px;
   cursor: default;
   user-select: none;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
 }
 
 .tab-bar-item:hover {
   color: var(--color-fg);
-  background: var(--color-surface-hover);
 }
 
+/* Active tab matches the editor surface below; a 1px ring in --color-border
+   draws around all four sides. The bottom edge sits exactly where the strip's
+   inset baseline would be (same colour, same weight, same y position), so the
+   strip baseline appears to flow up the left side of the tab, across the top,
+   down the right, and continues along the baseline — one continuous outline,
+   the Obsidian-style folder-flap effect. */
 .tab-bar-item.is-active {
   color: var(--color-fg);
   background: var(--color-surface);
-  border-left-color: var(--color-border);
-  border-right-color: var(--color-border);
+  box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
-.tab-bar-item.is-active::after {
+/* Thin vertical separator in the gap between adjacent tabs. Inset top/bottom
+   so it doesn't fight the rounded corners; hidden adjacent to the active tab
+   so the lifted sheet reads clean on both sides. */
+.tab-bar-item + .tab-bar-item::before {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1px;
-  background: var(--color-surface);
+  left: -1px;
+  top: 30%;
+  bottom: 30%;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.tab-bar-item.is-active::before,
+.tab-bar-item.is-active + .tab-bar-item::before {
+  display: none;
 }
 
 .tab-bar-item.is-dragging {
@@ -67,6 +82,7 @@
   background: var(--color-accent-subtle);
 }
 
+/* ── Inner label button ───────────────────────── */
 .tab-bar-label {
   appearance: none;
   -webkit-appearance: none;
@@ -85,6 +101,17 @@
   cursor: pointer;
 }
 
+.tab-bar-icon {
+  flex-shrink: 0;
+  color: var(--color-fg-subtle);
+  opacity: 0.75;
+}
+
+.tab-bar-item.is-active .tab-bar-icon {
+  color: var(--color-accent);
+  opacity: 1;
+}
+
 .tab-bar-label-text {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,13 +123,14 @@
   flex-shrink: 0;
 }
 
+/* ── Close button ─────────────────────────────── */
 .tab-bar-close {
   appearance: none;
   -webkit-appearance: none;
   border: none;
   background: transparent;
   padding: 2px;
-  margin-left: 2px;
+  margin-left: 4px;
   border-radius: var(--radius-xs);
   display: inline-flex;
   align-items: center;

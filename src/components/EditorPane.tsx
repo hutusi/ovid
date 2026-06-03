@@ -114,7 +114,7 @@ export function EditorPane({
   return (
     <>
       <div className="editor-column">
-        {tabs.length >= 2 && (
+        {tabs.length > 0 && (
           <TabBar
             tabs={tabs}
             tree={tree}
