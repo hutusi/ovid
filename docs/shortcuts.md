@@ -54,7 +54,7 @@ On macOS, `Cmd` is the ⌘ key and `Alt` is the ⌥ (Option) key. On Windows and
 
 | Shortcut | Action |
 |---|---|
-| `Cmd+\` | Toggle sidebar |
+| `Cmd+Shift+L` | Toggle sidebar |
 | `Cmd+Shift+P` | Toggle properties panel |
 | `Cmd+,` | Open preferences |
 | `Ctrl+Cmd+Z` | Toggle zen mode (macOS) |

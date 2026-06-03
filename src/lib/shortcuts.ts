@@ -169,7 +169,7 @@ const TIPTAP_DEFAULT_ENTRIES: ShortcutEntry[] = [
 const GLOBAL_ENTRIES: ShortcutEntry[] = [
   {
     id: "toggle-sidebar",
-    keys: { mod: true, key: "\\" },
+    keys: { mod: true, shift: true, key: "l" },
     descriptionKey: "toggle_sidebar",
     category: "view",
     source: "global",

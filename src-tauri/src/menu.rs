@@ -213,7 +213,7 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
     let view_menu = SubmenuBuilder::new(app, get("menu_view"))
         .items(&[
             &MenuItemBuilder::with_id("toggle-sidebar", get("view_toggle_sidebar"))
-                .accelerator("CmdOrCtrl+\\")
+                .accelerator("CmdOrCtrl+Shift+L")
                 .build(app)?,
             &MenuItemBuilder::with_id("toggle-properties", get("view_toggle_properties"))
                 .accelerator("CmdOrCtrl+Shift+P")
