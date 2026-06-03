@@ -15,6 +15,7 @@ import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
 import type { CollectionItem, FileNode } from "./lib/types";
+import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useContentPreferences } from "./lib/useContentPreferences";
@@ -37,9 +38,6 @@ import { useWorkspaceSession } from "./lib/useWorkspaceSession";
 import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtml";
 import "./styles/global.css";
 import "./App.css";
-
-const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
-const PROPERTIES_OPEN_KEY = "ovid:propertiesOpen";
 
 const SearchPanel = lazy(async () => ({
   default: (await import("./components/SearchPanel")).SearchPanel,
@@ -579,13 +577,7 @@ function App() {
             features={features}
             collectionLinks={collectionLinks}
             onToggleMode={handleToggleSidebarMode}
-            onToggleVisible={() =>
-              setSidebarVisible((prev) => {
-                const next = !prev;
-                localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(next));
-                return next;
-              })
-            }
+            onToggleVisible={() => togglePersisted(setSidebarVisible, SIDEBAR_VISIBLE_KEY)}
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
@@ -644,13 +636,7 @@ function App() {
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}
           propertiesOpen={propertiesOpen}
-          onToggleProperties={() =>
-            setPropertiesOpen((prev) => {
-              const next = !prev;
-              localStorage.setItem(PROPERTIES_OPEN_KEY, String(next));
-              return next;
-            })
-          }
+          onToggleProperties={() => togglePersisted(setPropertiesOpen, PROPERTIES_OPEN_KEY)}
           onToggleCoverImage={() => setCoverImageVisible((v) => !v)}
         />
       </div>

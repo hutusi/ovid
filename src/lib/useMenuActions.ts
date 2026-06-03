@@ -4,12 +4,9 @@ import type { NewContentKind } from "./amytisScaffold";
 import { listenEvent } from "./commands/internal";
 import { parseFrontmatter } from "./frontmatter";
 import type { FileNode } from "./types";
+import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./uiVisibility";
 import type { OverlayStack } from "./useOverlayStack";
 import { markdownToWechatHtml } from "./wechatHtml";
-
-// Mirrors the key used in App.tsx for localStorage persistence.
-const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
-const PROPERTIES_OPEN_KEY = "ovid:propertiesOpen";
 
 // Native "New <type>" menu actions → content kind. The single source of truth
 // for which menu actions open the New-file dialog; add an entry to support a
@@ -156,18 +153,10 @@ export function useMenuActions({
           closeActiveTabOrFile();
           break;
         case "toggle-sidebar":
-          setSidebarVisible((v) => {
-            const next = !v;
-            localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(next));
-            return next;
-          });
+          togglePersisted(setSidebarVisible, SIDEBAR_VISIBLE_KEY);
           break;
         case "toggle-properties":
-          setPropertiesOpen((v) => {
-            const next = !v;
-            localStorage.setItem(PROPERTIES_OPEN_KEY, String(next));
-            return next;
-          });
+          togglePersisted(setPropertiesOpen, PROPERTIES_OPEN_KEY);
           break;
         case "toggle-search":
           if (workspaceRoot) {
