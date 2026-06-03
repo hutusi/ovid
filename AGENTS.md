@@ -32,9 +32,11 @@ Write Bun unit tests next to the implementation using `*.test.ts`. Focus on pure
 
 Recent history follows concise Conventional Commit-style prefixes such as `feat:`, `fix:`, `test:`, and `refine:`. Keep subjects imperative and scoped, for example `fix: preserve title when renaming flow files`. Avoid `Co-Authored-By` trailers.
 
-For a new feature or non-trivial change, work on a dedicated `feat/<topic>` branch off `main` (not directly on `main`) and commit in focused slices — one logical change per commit (e.g. split a dead-code removal from the feature that replaces it) — keeping `bun run validate` green at each commit so the branch stays bisectable. Update tests and docs in the same change: extend tests for new behavior (Rust parsers, pure helpers, sidebar projections), and update `CONTEXT.md` (concepts/seams), an ADR (new decisions), and `README.md` / `ROADMAP.md` (user-facing capability) whenever behavior or a documented concept changes. `bun run validate` fails on generated-type drift and locale-parity, so regenerate via `cargo test` and keep both locale files in sync.
+For a new feature or non-trivial change, work on a dedicated `<type>/<topic>` branch off `main` (not directly on `main`) and commit in focused slices — one logical change per commit (e.g. split a dead-code removal from the feature that replaces it) — keeping `bun run validate` green at each commit so the branch stays bisectable. Update tests and docs in the same change: extend tests for new behavior (Rust parsers, pure helpers, sidebar projections), and update `CONTEXT.md` (concepts/seams), an ADR (new decisions), and `README.md` / `ROADMAP.md` (user-facing capability) whenever behavior or a documented concept changes. `bun run validate` fails on generated-type drift and locale-parity, so regenerate via `cargo test` and keep both locale files in sync.
 
-Open a PR into `main` once the branch is green; include a short description, linked issue when applicable, and screenshots or recordings for visible UI changes. Call out Rust/Tauri changes separately, and report the result of `bun run validate` in the PR body. Committing, pushing, and opening PRs are actions the user authorizes — do not push or open a PR unless asked.
+Commits follow Conventional Commits: `feat | fix | refactor | perf | chore | docs | test | release`. Subject under ~70 chars; body explains *why*.
+
+Open a PR into `main` once the branch is green; include a short description, linked issue when applicable, and screenshots or recordings for visible UI changes. Call out Rust/Tauri changes separately, and report the result of `bun run validate` in the PR body. Pushing, and opening PRs are actions the user authorizes — do not push or open a PR unless asked.
 
 ## Architecture Notes
 
