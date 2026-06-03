@@ -1,7 +1,9 @@
+import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
 import { lazy, Suspense, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
+import { isMac } from "../lib/platform";
 import type { FileNode, RecentFile, SaveStatus } from "../lib/types";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -30,6 +32,10 @@ export interface EditorPaneProps {
   onSelectFromTab: (path: string) => void;
   onCloseTab: (path: string) => void;
   onReorderTabs: (fromIndex: number, toIndex: number) => void;
+
+  // Sidebar / properties expand state (for editor-top-bar expand buttons)
+  sidebarVisible: boolean;
+  onExpandSidebar: () => void;
 
   // Cover image banner
   coverImageVisible: boolean;
@@ -76,6 +82,8 @@ export function EditorPane({
   onSelectFromTab,
   onCloseTab,
   onReorderTabs,
+  sidebarVisible,
+  onExpandSidebar,
   coverImageVisible,
   coverImagePath,
   assetRoot,
@@ -116,16 +124,45 @@ export function EditorPane({
   return (
     <>
       <div className="editor-column">
-        {tabs.length > 0 && (
-          <TabBar
-            tabs={tabs}
-            tree={tree}
-            activePath={selectedFile?.path ?? null}
-            saveStatus={saveStatus}
-            onSelect={onSelectFromTab}
-            onClose={onCloseTab}
-            onReorder={onReorderTabs}
-          />
+        {(tabs.length > 0 || !sidebarVisible || !propertiesOpen) && (
+          <div className="editor-top-bar">
+            {!sidebarVisible && (
+              <>
+                {isMac && <div className="editor-top-bar-mac-gutter" />}
+                <button
+                  type="button"
+                  className="editor-expand-btn"
+                  onClick={onExpandSidebar}
+                  title={t("sidebar.expand")}
+                  aria-label={t("sidebar.expand")}
+                >
+                  <PanelLeftOpen size={13} aria-hidden="true" />
+                </button>
+              </>
+            )}
+            {tabs.length > 0 && (
+              <TabBar
+                tabs={tabs}
+                tree={tree}
+                activePath={selectedFile?.path ?? null}
+                saveStatus={saveStatus}
+                onSelect={onSelectFromTab}
+                onClose={onCloseTab}
+                onReorder={onReorderTabs}
+              />
+            )}
+            {!propertiesOpen && (
+              <button
+                type="button"
+                className="editor-expand-btn editor-expand-btn-trailing"
+                onClick={onToggleProperties}
+                title={t("properties.expand")}
+                aria-label={t("properties.expand")}
+              >
+                <PanelRightOpen size={13} aria-hidden="true" />
+              </button>
+            )}
+          </div>
         )}
         {selectedFile &&
           coverImageVisible &&

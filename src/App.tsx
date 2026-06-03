@@ -605,6 +605,11 @@ function App() {
           onSelectFromTab={handleSelectFromTab}
           onCloseTab={handleCloseTab}
           onReorderTabs={reorderTabs}
+          sidebarVisible={sidebarVisible}
+          onExpandSidebar={() => {
+            setSidebarVisible(true);
+            localStorage.setItem(SIDEBAR_VISIBLE_KEY, "true");
+          }}
           coverImageVisible={coverImageVisible}
           coverImagePath={coverImagePath}
           assetRoot={assetRoot}
