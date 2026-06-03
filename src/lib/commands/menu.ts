@@ -4,8 +4,11 @@ export interface SetMenuLanguageArgs {
   labels: Record<string, string>;
 }
 
+/** The two checkable View menu items whose state is mirrored from the frontend. */
+export type CheckableMenuItemId = "toggle-sidebar" | "toggle-properties";
+
 export interface SetMenuCheckedArgs {
-  id: string;
+  id: CheckableMenuItemId;
   checked: boolean;
 }
 
