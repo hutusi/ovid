@@ -7,6 +7,7 @@ import {
   Folder,
   FolderOpen,
   Link2,
+  PanelLeftClose,
   Search,
   X,
 } from "lucide-react";
@@ -62,6 +63,7 @@ interface SidebarProps {
   /** Resolved `items:` links per collection entry, keyed by the collection dir path. */
   collectionLinks?: Map<string, CollectionLink[]>;
   onToggleMode: () => void;
+  onToggleVisible: () => void;
   onSelect: (node: FileNode) => void;
   onOpenWorkspace: () => void;
   onOpenSwitcher: () => void;
@@ -528,6 +530,7 @@ export function Sidebar({
   features,
   collectionLinks,
   onToggleMode,
+  onToggleVisible,
   onSelect,
   onOpenWorkspace,
   onOpenSwitcher,
@@ -676,6 +679,15 @@ export function Sidebar({
             aria-label={t("sidebar.open_workspace")}
           >
             ⊕
+          </button>
+          <button
+            type="button"
+            className="sidebar-collapse-btn"
+            onClick={onToggleVisible}
+            title={t("sidebar.collapse")}
+            aria-label={t("sidebar.collapse")}
+          >
+            <PanelLeftClose size={13} />
           </button>
         </div>
       </div>

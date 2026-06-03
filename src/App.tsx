@@ -567,6 +567,13 @@ function App() {
             features={features}
             collectionLinks={collectionLinks}
             onToggleMode={handleToggleSidebarMode}
+            onToggleVisible={() =>
+              setSidebarVisible((prev) => {
+                const next = !prev;
+                localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(next));
+                return next;
+              })
+            }
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}

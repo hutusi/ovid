@@ -117,6 +117,7 @@
     "new_from_existing": "New from Existing",
     "switch_workspace": "Switch workspace",
     "open_workspace": "Open workspace",
+    "collapse": "Collapse sidebar",
     "filter_label": "Filter files",
     "filter_placeholder": "Filter…",
     "clear_filter": "Clear filter",
