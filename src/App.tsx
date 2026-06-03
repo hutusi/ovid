@@ -8,6 +8,7 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
+import { commands } from "./lib/commands";
 import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
@@ -52,6 +53,14 @@ function App() {
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
   const [propertiesOpen, setPropertiesOpen] = useState(true);
+  // Keep the native View menu's check-mark in sync with panel visibility so
+  // the menu reflects the panel state the way Obsidian / VS Code do.
+  useEffect(() => {
+    void commands.menu.setChecked({ id: "toggle-sidebar", checked: sidebarVisible });
+  }, [sidebarVisible]);
+  useEffect(() => {
+    void commands.menu.setChecked({ id: "toggle-properties", checked: propertiesOpen });
+  }, [propertiesOpen]);
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [sessionBaseline, setSessionBaseline] = useState<number | null>(null);

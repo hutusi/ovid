@@ -1,13 +1,24 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use tauri::menu::{MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
+use tauri::menu::{
+    CheckMenuItemBuilder, MenuItemBuilder, MenuItemKind, PredefinedMenuItem, SubmenuBuilder,
+};
 use tauri::State;
 
 // Holds translated strings for the About dialog (non-macOS only).
 pub(crate) struct AboutState {
     pub(crate) title: Mutex<String>,
     pub(crate) body_template: Mutex<String>,
+}
+
+// Tracks the visibility state of the two checkable View menu items
+// (left sidebar / right sidebar) so the menu can be rebuilt with the
+// correct check state on language change. Frontend keeps this in sync
+// via `set_menu_checked`.
+pub(crate) struct ViewToggleState {
+    pub(crate) sidebar_visible: Mutex<bool>,
+    pub(crate) properties_open: Mutex<bool>,
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -17,6 +28,8 @@ pub(crate) struct AboutState {
 pub(crate) fn build_app_menu<R: tauri::Runtime>(
     app: &impl tauri::Manager<R>,
     l: &HashMap<String, String>,
+    sidebar_checked: bool,
+    properties_checked: bool,
 ) -> tauri::Result<tauri::menu::Menu<R>> {
     let get = |key: &str| -> String { l.get(key).cloned().unwrap_or_else(|| key.to_string()) };
 
@@ -212,11 +225,13 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
 
     let view_menu = SubmenuBuilder::new(app, get("menu_view"))
         .items(&[
-            &MenuItemBuilder::with_id("toggle-sidebar", get("view_toggle_sidebar"))
+            &CheckMenuItemBuilder::with_id("toggle-sidebar", get("view_toggle_sidebar"))
                 .accelerator("CmdOrCtrl+Shift+L")
+                .checked(sidebar_checked)
                 .build(app)?,
-            &MenuItemBuilder::with_id("toggle-properties", get("view_toggle_properties"))
+            &CheckMenuItemBuilder::with_id("toggle-properties", get("view_toggle_properties"))
                 .accelerator("CmdOrCtrl+Shift+P")
+                .checked(properties_checked)
                 .build(app)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItemBuilder::with_id("zen-mode", get("view_zen_mode"))
@@ -372,6 +387,7 @@ pub(crate) fn set_menu_language(
     app: tauri::AppHandle,
     labels: HashMap<String, String>,
     about_state: State<'_, AboutState>,
+    view_state: State<'_, ViewToggleState>,
 ) -> Result<(), String> {
     // Update stored about dialog strings for the non-macOS handler.
     if let Some(title) = labels.get("about_title") {
@@ -381,8 +397,38 @@ pub(crate) fn set_menu_language(
         *about_state.body_template.lock().map_err(|e| e.to_string())? = body.clone();
     }
 
-    let menu = build_app_menu(&app, &labels).map_err(|e| e.to_string())?;
+    let sidebar_checked = *view_state.sidebar_visible.lock().map_err(|e| e.to_string())?;
+    let properties_checked = *view_state.properties_open.lock().map_err(|e| e.to_string())?;
+    let menu =
+        build_app_menu(&app, &labels, sidebar_checked, properties_checked).map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// Updates the check state of one of the View menu's checkable items
+// (toggle-sidebar / toggle-properties) and remembers the new value so
+// language-change menu rebuilds preserve it.
+#[tauri::command]
+pub(crate) fn set_menu_checked(
+    app: tauri::AppHandle,
+    id: String,
+    checked: bool,
+    view_state: State<'_, ViewToggleState>,
+) -> Result<(), String> {
+    match id.as_str() {
+        "toggle-sidebar" => {
+            *view_state.sidebar_visible.lock().map_err(|e| e.to_string())? = checked;
+        }
+        "toggle-properties" => {
+            *view_state.properties_open.lock().map_err(|e| e.to_string())? = checked;
+        }
+        _ => return Err(format!("unknown checkable menu id: {id}")),
+    }
+    if let Some(menu) = app.menu() {
+        if let Some(MenuItemKind::Check(item)) = menu.get(&id) {
+            item.set_checked(checked).map_err(|e| e.to_string())?;
+        }
+    }
     Ok(())
 }
 
