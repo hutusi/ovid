@@ -1,9 +1,8 @@
 import type React from "react";
 import { useEffect } from "react";
 import type { FileNode } from "./types";
+import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./uiVisibility";
 import type { OverlayStack } from "./useOverlayStack";
-
-const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
 
 interface UseKeyboardShortcutsOptions {
   overlay: OverlayStack;
@@ -83,7 +82,12 @@ export function useKeyboardShortcuts({
       // Mode toggles work even when editor has focus
       if (e.shiftKey && key === "p") {
         e.preventDefault();
-        setPropertiesOpen((v) => !v);
+        togglePersisted(setPropertiesOpen, PROPERTIES_OPEN_KEY);
+        return;
+      }
+      if (e.shiftKey && key === "l") {
+        e.preventDefault();
+        togglePersisted(setSidebarVisible, SIDEBAR_VISIBLE_KEY);
         return;
       }
       if (e.shiftKey && key === "f") {
@@ -102,14 +106,6 @@ export function useKeyboardShortcuts({
       )
         return;
       switch (key) {
-        case "\\":
-          e.preventDefault();
-          setSidebarVisible((v) => {
-            const next = !v;
-            localStorage.setItem(SIDEBAR_VISIBLE_KEY, String(next));
-            return next;
-          });
-          break;
         case "o":
           e.preventDefault();
           if (e.shiftKey) {

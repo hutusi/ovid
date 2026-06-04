@@ -21,6 +21,66 @@
   overflow: hidden;
 }
 
+/* ── Editor top bar ──────────────────────────────────────
+   Hosts the tab strip + optional expand-sidebar / expand-properties
+   slots. Provides the surface-subtle bg + 1px bottom line that the
+   tab strip used to own — moving them here lets the slot buttons
+   share the same chrome and prevents a doubled bg in the gutter. */
+.editor-top-bar {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  height: 36px;
+  background: var(--color-surface-subtle);
+  box-shadow: inset 0 -1px 0 var(--color-border);
+}
+
+/* macOS-only: reserve clearance for the traffic lights overlay at
+   x:14, y:20 when the sidebar is collapsed and the editor extends
+   to the window's left edge. */
+.editor-top-bar-mac-gutter {
+  flex-shrink: 0;
+  width: 78px;
+}
+
+.editor-expand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: center;
+  width: 22px;
+  height: 22px;
+  margin: 0 4px;
+  padding: 0;
+  color: var(--color-fg-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+
+.editor-expand-btn:hover {
+  color: var(--color-fg);
+  background: var(--color-surface-hover);
+}
+
+.editor-expand-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.editor-expand-btn-trailing {
+  margin-left: auto;
+}
+
+.app[data-zen] .editor-top-bar {
+  display: none;
+}
+
 .editor-loading {
   flex: 1;
   display: grid;

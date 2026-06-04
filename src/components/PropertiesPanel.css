@@ -30,6 +30,8 @@
 .prop-header {
   display: flex;
   align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   padding: 14px 16px 12px;
   border-bottom: 1px solid color-mix(in srgb, var(--color-border) 78%, transparent);
 }
@@ -39,6 +41,34 @@
   min-width: 0;
   flex-direction: column;
   gap: 5px;
+}
+
+.prop-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--color-fg-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+
+.prop-collapse-btn:hover {
+  color: var(--color-fg);
+  background: var(--color-surface-hover);
+}
+
+.prop-collapse-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .prop-panel-kicker,

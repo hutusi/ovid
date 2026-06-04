@@ -8,12 +8,14 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
+import { commands } from "./lib/commands";
 import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
 import type { CollectionItem, FileNode } from "./lib/types";
+import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useContentPreferences } from "./lib/useContentPreferences";
@@ -37,8 +39,6 @@ import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtm
 import "./styles/global.css";
 import "./App.css";
 
-const SIDEBAR_VISIBLE_KEY = "ovid:sidebarVisible";
-
 const SearchPanel = lazy(async () => ({
   default: (await import("./components/SearchPanel")).SearchPanel,
 }));
@@ -51,7 +51,17 @@ function App() {
   const [sidebarVisible, setSidebarVisible] = useState(
     () => localStorage.getItem(SIDEBAR_VISIBLE_KEY) !== "false"
   );
-  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [propertiesOpen, setPropertiesOpen] = useState(
+    () => localStorage.getItem(PROPERTIES_OPEN_KEY) !== "false"
+  );
+  // Keep the native View menu's check-mark in sync with panel visibility so
+  // the menu reflects the panel state the way Obsidian / VS Code do.
+  useEffect(() => {
+    void commands.menu.setChecked({ id: "toggle-sidebar", checked: sidebarVisible });
+  }, [sidebarVisible]);
+  useEffect(() => {
+    void commands.menu.setChecked({ id: "toggle-properties", checked: propertiesOpen });
+  }, [propertiesOpen]);
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
   const [sessionBaseline, setSessionBaseline] = useState<number | null>(null);
@@ -567,6 +577,7 @@ function App() {
             features={features}
             collectionLinks={collectionLinks}
             onToggleMode={handleToggleSidebarMode}
+            onToggleVisible={() => togglePersisted(setSidebarVisible, SIDEBAR_VISIBLE_KEY)}
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
@@ -598,6 +609,11 @@ function App() {
           onSelectFromTab={handleSelectFromTab}
           onCloseTab={handleCloseTab}
           onReorderTabs={reorderTabs}
+          sidebarVisible={sidebarVisible}
+          onExpandSidebar={() => {
+            setSidebarVisible(true);
+            localStorage.setItem(SIDEBAR_VISIBLE_KEY, "true");
+          }}
           coverImageVisible={coverImageVisible}
           coverImagePath={coverImagePath}
           assetRoot={assetRoot}
@@ -620,6 +636,7 @@ function App() {
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}
           propertiesOpen={propertiesOpen}
+          onToggleProperties={() => togglePersisted(setPropertiesOpen, PROPERTIES_OPEN_KEY)}
           onToggleCoverImage={() => setCoverImageVisible((v) => !v)}
         />
       </div>

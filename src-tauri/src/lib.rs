@@ -29,7 +29,10 @@ use git::commands::{
     git_delete_branch, git_fetch, git_pull, git_push, git_rename_branch, git_switch_branch,
     open_git_remote,
 };
-use menu::{AboutState, build_app_menu, initial_menu_labels, set_menu_language};
+use menu::{
+    AboutState, ViewToggleState, build_app_menu, initial_menu_labels, set_menu_checked,
+    set_menu_language,
+};
 use search::search_workspace;
 use state::{WechatState, WorkspaceState};
 use wechat::creds::{
@@ -60,11 +63,15 @@ pub fn run() {
         .manage(WechatState {
             token_cache: Mutex::new(None),
         })
+        .manage(ViewToggleState {
+            sidebar_visible: Mutex::new(true),
+            properties_open: Mutex::new(true),
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            let menu = build_app_menu(app, &initial_menu_labels())?;
+            let menu = build_app_menu(app, &initial_menu_labels(), true, true)?;
             app.set_menu(menu)?;
 
             // Help links are resolved in Rust; everything else is forwarded to
@@ -140,6 +147,7 @@ pub fn run() {
             pick_image_file,
             restart_app,
             set_menu_language,
+            set_menu_checked,
             get_wechat_credentials_status,
             set_wechat_credentials,
             clear_wechat_credentials,

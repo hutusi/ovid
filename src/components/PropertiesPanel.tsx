@@ -1,3 +1,4 @@
+import { PanelRightClose } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import {
@@ -38,6 +39,7 @@ interface PropertiesPanelProps {
   cdnBase?: string;
   onFieldChange?: (key: string, value: FrontmatterValue) => void;
   onToggleCoverImage?: () => void;
+  onToggle?: () => void;
   onError?: (message: string) => void;
 }
 
@@ -54,6 +56,7 @@ export function PropertiesPanel({
   cdnBase,
   onFieldChange,
   onToggleCoverImage,
+  onToggle,
   onError,
 }: PropertiesPanelProps) {
   const { t } = useTranslation();
@@ -90,6 +93,17 @@ export function PropertiesPanel({
           <span className="prop-panel-kicker">{t("properties.metadata")}</span>
           <span className="prop-panel-title">{t("properties.frontmatter")}</span>
         </div>
+        {onToggle && (
+          <button
+            type="button"
+            className="prop-collapse-btn"
+            onClick={onToggle}
+            title={t("properties.collapse")}
+            aria-label={t("properties.collapse")}
+          >
+            <PanelRightClose size={13} />
+          </button>
+        )}
       </div>
 
       <div className="properties-body">
