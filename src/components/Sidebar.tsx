@@ -706,7 +706,14 @@ export function Sidebar({
           <button
             type="button"
             className="sidebar-filter-toggle"
-            onClick={() => setFilterExpanded((v) => !v)}
+            onClick={() => {
+              if (filterExpanded) {
+                setFilterExpanded(false);
+                setFilterQuery("");
+              } else {
+                setFilterExpanded(true);
+              }
+            }}
             title={t("sidebar.toggle_filter")}
             aria-label={t("sidebar.toggle_filter")}
             aria-expanded={filterExpanded}
