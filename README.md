@@ -132,7 +132,7 @@ Ovid remembers the last workspace you had open and reopens it (with its tabs) au
 
 ### Switching workspaces
 
-Press `Cmd+Shift+O` or click the workspace name in the sidebar header to open the **Workspace Switcher**. It lists your five most recently opened workspaces. Select one to switch, or click **Open folder…** to pick a new directory.
+Press `Cmd+Shift+O` or click the workspace name at the top of the sidebar to open the **Workspace Switcher**. It lists your five most recently opened workspaces. Select one to switch, or click **Open folder…** to pick a new directory.
 
 ---
 

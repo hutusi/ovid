@@ -29,18 +29,22 @@
 /* ── Header ──────────────────────────────────── */
 .prop-header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 78%, transparent);
+  align-items: center;
+  flex-shrink: 0;
+  height: var(--topbar-height);
+  padding: 0 8px;
+  box-shadow: inset 0 -1px 0 var(--color-border);
 }
 
-.prop-header-main {
+/* Title row sits directly below the 36px title bar — holds the
+   "METADATA" kicker + "FRONTMATTER" title that previously crowded
+   the header. */
+.prop-title-row {
   display: flex;
-  min-width: 0;
   flex-direction: column;
   gap: 5px;
+  flex-shrink: 0;
+  padding: 12px 16px 10px;
 }
 
 .prop-collapse-btn {
