@@ -24,6 +24,8 @@ Prefer PascalCase for React components (`WorkspaceSwitcher.tsx`), camelCase for 
 
 Tauri/WebView constraints matter here: avoid portal-based UI libraries, prefer native HTML plus plain CSS, and attach `useFocusTrap` to each modal dialog. Use Tauri commands or plugins for file access; do not introduce Node-style filesystem APIs into the frontend.
 
+Window chrome is a single 36 px top strip across the sidebar header, editor top bar, and properties panel header, all consuming `--topbar-height`. The strip is one Tauri drag region — use `data-tauri-drag-region="deep"` (not the bare attribute, which is self-only in Tauri 2.11) and explicitly mark any HTML5-`draggable` subtree with `data-tauri-drag-region="false"` so its native dragstart isn't pre-empted. The capability `core:window:allow-start-dragging` must be granted in `src-tauri/capabilities/default.json` — it is not part of the default core window permission set. See ADR 0013 for the full decision.
+
 ## Testing Guidelines
 
 Write Bun unit tests next to the implementation using `*.test.ts`. Focus on pure helpers, frontmatter parsing, file search, and Tiptap extension behavior. Add regression tests for bug fixes. Run `bun run test` locally, or `bun run validate` for the full check. For an on-demand coverage report (TS + Rust), run `bun run coverage` — not part of `validate`. **Hook tests** use `renderHook` from `@testing-library/react` under happy-dom, opted-in per-file via `registerHappyDom` / `unregisterHappyDom` from `scripts/test-setup`; see `useEditorSession.test.ts` for the canonical pattern and ADR 0012 for the rationale.

@@ -105,6 +105,7 @@ Key principles (each has fuller treatment in CONTEXT.md / the cited ADR):
 - **One tagged-union owns every overlay** (`useOverlayStack`) — "only one overlay active at a time" is enforced by the type. See CONTEXT.md "Overlay model", [ADR 0006](docs/adr/0006-overlay-stack-tagged-union.md).
 - **Keyboard shortcuts have a single source of truth** — `src/lib/shortcuts.ts` lists every shortcut (global + editor-command-table + Tiptap defaults). The in-app help dialog renders from it; `docs/shortcuts.md` is hand-maintained to match. The conflict test in `src/lib/editor/commands.test.ts` guards the ProseMirror shift-letter normalization trap (the original `Cmd+Shift+I` bug class).
 - **Content type is derived from the bucket folder, not frontmatter**; scaffolding via `amytisScaffold.buildNewContent` (mirrors the Amytis `new-*` scripts); `type: collection` series are rendered as in-place-editable link views. See CONTEXT.md "Content types, scaffolding & collections", [ADR 0009](docs/adr/0009-amytis-native-content-scaffolding.md) / [ADR 0010](docs/adr/0010-collections-as-link-views.md).
+- **Window chrome is one continuous 36 px top strip** — sidebar header + editor top bar + properties header share `--topbar-height` and form a single Tauri drag region (`data-tauri-drag-region="deep"`). The strip carries only buttons; per-segment titles (workspace name, "METADATA"/"FRONTMATTER") sit in a dedicated row below it. See [ADR 0013](docs/adr/0013-unified-window-chrome.md).
 
 Tech choices: **Tauri 2** (not Electron — smaller, faster, no Chromium), **Tiptap v3** (ProseMirror) + **`tiptap-markdown`**, **Bun**, **Biome**. No shared code with the TUI sibling (`ovid`) — reference it for domain logic only. All file I/O goes through Tauri commands / the FS plugin — never direct Node/Bun APIs in the frontend.
 
@@ -146,6 +147,15 @@ These rules encode hard-won lessons about what works in Tauri's WebView. Violati
 - **Custom popovers** — use a conditionally rendered positioned `<div>` with `useEffect` for click-outside and Escape key handling; see `FontSettings.tsx` or `CodeBlockView.tsx` for the pattern
 - **Always attach `useFocusTrap`** — every `role="dialog"` element must use the `useFocusTrap` hook; it handles initial focus, Tab/Shift+Tab containment, and focus restoration on close
 - **Escape at the dialog level** — handle `onKeyDown` on the dialog `div`, not only on inputs; when Enter also submits, check `e.target === inputRef.current` to avoid double-firing when focus is on a button
+
+### Window chrome / drag regions
+
+- **Top strip is one 36 px region** — sidebar header, editor top bar, and properties panel header all consume `--topbar-height` from `:root` in `global.css` and use the inset bottom-border treatment (`box-shadow: inset 0 -1px 0 var(--color-border)`) for visual continuity across the seams
+- **Use `data-tauri-drag-region="deep"`** — Tauri 2.11's bare `data-tauri-drag-region` is self-only (drag fires only on a direct click on the attributed element, descendants do not inherit). Use `"deep"` so clicks anywhere in the subtree drag the window. Intrinsically clickable descendants (`<button>`, `<a>`, `<input>`, contenteditable) auto-block, so buttons inside keep working with no annotation
+- **Opt out HTML5-draggable subtrees with `data-tauri-drag-region="false"`** — Tauri's mousedown handler runs before the browser's `dragstart` and calls `preventDefault` + `stopImmediatePropagation` on matching regions, killing HTML5 drag. Any element with `draggable` inside a `"deep"` parent (today: `.tab-bar-item`) must opt out explicitly
+- **Capability requirement** — `src-tauri/capabilities/default.json` must grant `core:window:allow-start-dragging`. The default `core:window` permission set does **not** include it; without it every drag region is wired up but inert (IPC rejection is silent)
+- **Don't conditionally hide the editor top bar** — it must always render so the middle of the top edge stays draggable in every layout state. Zen mode is the exception (hidden via `.app[data-zen] .editor-top-bar { display: none }`)
+- See [ADR 0013](docs/adr/0013-unified-window-chrome.md) for the full decision and the Tauri 2.11 walker rules
 
 ### Accessibility
 
@@ -200,7 +210,7 @@ When compressing conversation history, preserve in priority order:
 ## Reference Docs
 
 - [CONTEXT.md](./CONTEXT.md) — domain vocabulary & architectural seams (the *concepts* behind the code); update it in the same PR when a concept changes
-- `docs/adr/` — architectural decision records (0001–0010)
+- `docs/adr/` — architectural decision records (0001–0013)
 - [ROADMAP.md](./ROADMAP.md) — phased plan; complete the current phase before starting the next
 - [AGENTS.md](./AGENTS.md) — sibling guidance file with overlapping conventions; keep the two in sync if either changes
 - `docs/shortcuts.md` — full keyboard shortcut reference (kept in sync with `src/lib/shortcuts.ts`)
