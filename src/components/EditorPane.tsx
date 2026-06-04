@@ -125,7 +125,7 @@ export function EditorPane({
     <>
       <div className="editor-column">
         {(tabs.length > 0 || !sidebarVisible || !propertiesOpen) && (
-          <div className="editor-top-bar">
+          <div className="editor-top-bar" data-tauri-drag-region>
             {!sidebarVisible && (
               <>
                 {isMac && <div className="editor-top-bar-mac-gutter" />}
