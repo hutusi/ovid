@@ -30,7 +30,7 @@
   display: flex;
   align-items: stretch;
   flex-shrink: 0;
-  height: 36px;
+  height: var(--topbar-height);
   background: var(--color-surface-subtle);
   box-shadow: inset 0 -1px 0 var(--color-border);
 }
@@ -40,7 +40,7 @@
    to the window's left edge. */
 .editor-top-bar-mac-gutter {
   flex-shrink: 0;
-  width: 78px;
+  width: var(--mac-traffic-light-gutter);
 }
 
 .editor-expand-btn {
