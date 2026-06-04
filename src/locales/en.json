@@ -122,6 +122,7 @@
     "filter_label": "Filter files",
     "filter_placeholder": "Filter…",
     "clear_filter": "Clear filter",
+    "toggle_filter": "Toggle filter",
     "no_workspace": "No workspace open.",
     "open_folder": "Open folder",
     "resize": "Resize sidebar",
