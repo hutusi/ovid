@@ -185,7 +185,8 @@
   outline-offset: -2px;
 }
 
-.sidebar-filter-toggle[aria-expanded="true"] {
+.sidebar-filter-toggle[aria-expanded="true"],
+.sidebar-filter-toggle[aria-pressed="true"] {
   color: var(--color-fg);
   background: var(--color-surface-active);
 }

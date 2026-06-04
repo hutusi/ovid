@@ -708,6 +708,7 @@ export function Sidebar({
             title={t("sidebar.toggle_filter")}
             aria-label={t("sidebar.toggle_filter")}
             aria-expanded={filterExpanded}
+            aria-pressed={filterExpanded}
           >
             <Search size={13} />
           </button>
