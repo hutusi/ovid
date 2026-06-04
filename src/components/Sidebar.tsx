@@ -640,14 +640,6 @@ export function Sidebar({
       style={visible ? { width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` } : undefined}
     >
       <div className="sidebar-header" data-tauri-drag-region>
-        <button
-          type="button"
-          className="sidebar-workspace-name"
-          onClick={onOpenSwitcher}
-          title={t("sidebar.switch_workspace")}
-        >
-          {workspaceName ?? t("sidebar.no_workspace_name")}
-        </button>
         <div className="sidebar-header-actions">
           <fieldset className="sidebar-mode-switcher">
             <button
@@ -690,6 +682,16 @@ export function Sidebar({
             <PanelLeftClose size={13} />
           </button>
         </div>
+      </div>
+      <div className="sidebar-workspace-name-row">
+        <button
+          type="button"
+          className="sidebar-workspace-name"
+          onClick={onOpenSwitcher}
+          title={t("sidebar.switch_workspace")}
+        >
+          {workspaceName ?? t("sidebar.no_workspace_name")}
+        </button>
       </div>
 
       {tree.length > 0 && (
