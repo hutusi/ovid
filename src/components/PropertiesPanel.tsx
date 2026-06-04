@@ -88,11 +88,7 @@ export function PropertiesPanel({
 
   return (
     <div className={`properties-panel${visible ? "" : " hidden"}`}>
-      <div className="prop-header">
-        <div className="prop-header-main">
-          <span className="prop-panel-kicker">{t("properties.metadata")}</span>
-          <span className="prop-panel-title">{t("properties.frontmatter")}</span>
-        </div>
+      <div className="prop-header" data-tauri-drag-region>
         {onToggle && (
           <button
             type="button"
@@ -104,6 +100,10 @@ export function PropertiesPanel({
             <PanelRightClose size={13} />
           </button>
         )}
+      </div>
+      <div className="prop-title-row">
+        <span className="prop-panel-kicker">{t("properties.metadata")}</span>
+        <span className="prop-panel-title">{t("properties.frontmatter")}</span>
       </div>
 
       <div className="properties-body">
