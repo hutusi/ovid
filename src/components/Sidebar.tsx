@@ -675,15 +675,6 @@ export function Sidebar({
           </fieldset>
           <button
             type="button"
-            className="sidebar-open-btn"
-            onClick={onOpenWorkspace}
-            title={t("sidebar.open_workspace")}
-            aria-label={t("sidebar.open_workspace")}
-          >
-            ⊕
-          </button>
-          <button
-            type="button"
             className="sidebar-collapse-btn"
             onClick={onToggleVisible}
             title={t("sidebar.collapse")}
