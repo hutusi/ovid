@@ -66,6 +66,7 @@ export function TabBar({
             ]
               .filter(Boolean)
               .join(" ")}
+            data-tauri-drag-region="false"
             draggable
             onDragStart={(e) => {
               setDragIndex(index);

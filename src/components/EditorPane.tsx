@@ -124,7 +124,7 @@ export function EditorPane({
   return (
     <>
       <div className="editor-column">
-        <div className="editor-top-bar" data-tauri-drag-region>
+        <div className="editor-top-bar" data-tauri-drag-region="deep">
           {!sidebarVisible && (
             <>
               {isMac && <div className="editor-top-bar-mac-gutter" />}

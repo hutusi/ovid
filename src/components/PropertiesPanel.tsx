@@ -88,7 +88,7 @@ export function PropertiesPanel({
 
   return (
     <div className={`properties-panel${visible ? "" : " hidden"}`}>
-      <div className="prop-header" data-tauri-drag-region>
+      <div className="prop-header" data-tauri-drag-region="deep">
         {onToggle && (
           <button
             type="button"

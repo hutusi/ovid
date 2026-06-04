@@ -639,7 +639,7 @@ export function Sidebar({
       className={`sidebar ${visible ? "" : "hidden"}${isResizing ? " resizing" : ""}`}
       style={visible ? { width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` } : undefined}
     >
-      <div className="sidebar-header" data-tauri-drag-region>
+      <div className="sidebar-header" data-tauri-drag-region="deep">
         <div className="sidebar-header-actions">
           <fieldset className="sidebar-mode-switcher">
             <button
