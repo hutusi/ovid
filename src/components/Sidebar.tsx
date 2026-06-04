@@ -548,6 +548,8 @@ export function Sidebar({
   const renderStartedAtRef = useRef(0);
   renderStartedAtRef.current = performance.now();
   const [filterQuery, setFilterQuery] = useState("");
+  const [filterExpanded, setFilterExpanded] = useState(false);
+  const filterInputRef = useRef<HTMLInputElement>(null);
   const { isExpanded: isNodeExpanded, toggleExpanded: handleToggleExpand } = useSidebarExpansion({
     workspaceKey,
     tree,
@@ -604,6 +606,14 @@ export function Sidebar({
       visible: visible ? 1 : 0,
     });
   }, [renderedNodes.length, filterQuery.length, visible]);
+
+  useEffect(() => {
+    if (!filterExpanded) return;
+    const id = requestAnimationFrame(() => {
+      filterInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [filterExpanded]);
 
   function handleResizeMouseDown(e: React.MouseEvent) {
     e.preventDefault();
@@ -692,13 +702,26 @@ export function Sidebar({
         >
           {workspaceName ?? t("sidebar.no_workspace_name")}
         </button>
+        {tree.length > 0 && (
+          <button
+            type="button"
+            className="sidebar-filter-toggle"
+            onClick={() => setFilterExpanded((v) => !v)}
+            title={t("sidebar.toggle_filter")}
+            aria-label={t("sidebar.toggle_filter")}
+            aria-expanded={filterExpanded}
+          >
+            <Search size={13} />
+          </button>
+        )}
       </div>
 
-      {tree.length > 0 && (
+      {tree.length > 0 && (filterExpanded || filterQuery !== "") && (
         <div className="sidebar-filter">
           <div className="sidebar-filter-inner">
             <Search size={12} className="sidebar-filter-icon" aria-hidden="true" />
             <input
+              ref={filterInputRef}
               type="text"
               className="sidebar-filter-input"
               aria-label={t("sidebar.filter_label")}
@@ -709,7 +732,16 @@ export function Sidebar({
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Escape") setFilterQuery("");
+                if (e.key === "Escape") {
+                  if (filterQuery === "") {
+                    setFilterExpanded(false);
+                  } else {
+                    setFilterQuery("");
+                  }
+                }
+              }}
+              onBlur={() => {
+                if (filterQuery === "") setFilterExpanded(false);
               }}
             />
             {filterQuery && (
@@ -717,7 +749,10 @@ export function Sidebar({
                 type="button"
                 className="sidebar-filter-clear"
                 aria-label={t("sidebar.clear_filter")}
-                onClick={() => setFilterQuery("")}
+                onClick={() => {
+                  setFilterQuery("");
+                  setFilterExpanded(false);
+                }}
               >
                 <X size={10} aria-hidden="true" />
               </button>
