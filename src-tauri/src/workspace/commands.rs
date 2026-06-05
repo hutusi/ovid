@@ -13,6 +13,7 @@ use crate::perf::log_perf;
 use crate::state::{CachedFrontmatter, WorkspaceState};
 
 use super::revision::compute_workspace_revision;
+use super::scaffold::scaffold_amytis_workspace;
 use super::tree::walk_tree;
 use super::{FileNode, WorkspaceResult, derive_workspace_meta};
 
@@ -204,6 +205,34 @@ pub(crate) fn list_workspace_tree(
         ],
     );
     Ok(tree)
+}
+
+/// Scaffold a brand-new Amytis workspace at `<parent_dir>/<name>` and open
+/// it. The freshly-created folder gets the same `build_workspace_result`
+/// treatment as `open_workspace_at_path`, so on success the workspace is
+/// already the active one (asset-protocol scope granted, state stored) and
+/// the returned `WorkspaceResult` flows through the usual frontend path.
+#[tauri::command]
+pub(crate) async fn create_amytis_workspace(
+    parent_dir: String,
+    name: String,
+    app: tauri::AppHandle,
+    state: State<'_, WorkspaceState>,
+) -> Result<WorkspaceResult, String> {
+    let started = Instant::now();
+    let parent = PathBuf::from(&parent_dir);
+    let target =
+        scaffold_amytis_workspace(&parent, &name).map_err(|err| err.user_message())?;
+    let result = build_workspace_result(&target, &state, &app)?;
+    log_perf(
+        "create_amytis_workspace",
+        started.elapsed(),
+        &[
+            ("treeRoot", result.tree_root.clone()),
+            ("nodes", result.tree.len().to_string()),
+        ],
+    );
+    Ok(result)
 }
 
 #[tauri::command]

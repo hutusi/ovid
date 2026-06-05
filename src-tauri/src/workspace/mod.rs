@@ -7,6 +7,7 @@ use crate::content_types::{Author, FeatureBucket, I18nConfig, parse_cdn_base};
 mod cache;
 pub(crate) mod commands;
 mod revision;
+pub(crate) mod scaffold;
 mod tree;
 
 pub(crate) use cache::load_search_file_cached;
