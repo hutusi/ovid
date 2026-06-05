@@ -377,12 +377,15 @@ function CreateView({ onBack, onCreate, onCloneStarter, onSuccess }: CreateViewP
     }
     const trimmedName = name.trim();
     setWorking(true);
-    const ok =
-      template === "stub"
-        ? await onCreate(parentDir, trimmedName)
-        : await onCloneStarter(parentDir, trimmedName);
-    setWorking(false);
-    if (ok) onSuccess(trimmedName);
+    try {
+      const ok =
+        template === "stub"
+          ? await onCreate(parentDir, trimmedName)
+          : await onCloneStarter(parentDir, trimmedName);
+      if (ok) onSuccess(trimmedName);
+    } finally {
+      setWorking(false);
+    }
   }
 
   return (
@@ -565,11 +568,14 @@ function CloneView({ initialUrl, onBack, onClone, onSuccess }: CloneViewProps) {
     const submittedName: string | null = trimmedFolder.length > 0 ? trimmedFolder : null;
     setProgress(null);
     setWorking(true);
-    const ok = await onClone(trimmedUrl, parentDir, submittedName);
-    setWorking(false);
-    if (ok) {
-      const displayName = submittedName ?? deriveDisplayNameFromUrl(trimmedUrl) ?? trimmedUrl;
-      onSuccess(displayName);
+    try {
+      const ok = await onClone(trimmedUrl, parentDir, submittedName);
+      if (ok) {
+        const displayName = submittedName ?? deriveDisplayNameFromUrl(trimmedUrl) ?? trimmedUrl;
+        onSuccess(displayName);
+      }
+    } finally {
+      setWorking(false);
     }
   }
 

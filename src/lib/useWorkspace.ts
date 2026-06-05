@@ -180,8 +180,8 @@ export function useWorkspace({
 
   const handleCreateAmytisWorkspace = useCallback(
     async (parentDir: string, name: string): Promise<boolean> => {
-      await flushPendingSave();
       try {
+        await flushPendingSave();
         const result = (await commands.workspace.createAmytis({
           parentDir,
           name,
@@ -203,8 +203,8 @@ export function useWorkspace({
 
   const handleCloneWorkspace = useCallback(
     async (url: string, parentDir: string, name: string | null): Promise<boolean> => {
-      await flushPendingSave();
       try {
+        await flushPendingSave();
         const result = (await commands.workspace.clone({
           url,
           parentDir,

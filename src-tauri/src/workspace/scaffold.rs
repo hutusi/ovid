@@ -85,13 +85,21 @@ pub(crate) fn scaffold_amytis_workspace(
     }
 
     fs::create_dir(&target)?;
-    fs::create_dir_all(target.join("content").join("posts"))?;
-    fs::write(
-        target.join("content").join("posts").join(".gitkeep"),
-        "",
-    )?;
-    fs::write(target.join("site.config.ts"), minimal_site_config(trimmed))?;
-    fs::write(target.join("README.md"), readme(trimmed))?;
+    // If any of the inner writes fails we'd otherwise leave a half-scaffolded
+    // directory behind, which then makes the next attempt fail with
+    // `TargetExists`. Bundle the writes in a closure so a single error path
+    // can roll back the directory before propagating the failure.
+    let write_result: Result<(), io::Error> = (|| {
+        fs::create_dir_all(target.join("content").join("posts"))?;
+        fs::write(target.join("content").join("posts").join(".gitkeep"), "")?;
+        fs::write(target.join("site.config.ts"), minimal_site_config(trimmed))?;
+        fs::write(target.join("README.md"), readme(trimmed))?;
+        Ok(())
+    })();
+    if let Err(err) = write_result {
+        let _ = fs::remove_dir_all(&target);
+        return Err(ScaffoldError::Io(err.to_string()));
+    }
 
     Ok(target)
 }
