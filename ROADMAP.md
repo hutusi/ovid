@@ -94,7 +94,7 @@ This roadmap is organized into deliberate phases — each phase must feel comple
 > Goal: the details that separate a good app from one people love.
 
 34. ✅ **Workspace persistence** — remember last opened workspace; re-open automatically on launch (with user opt-out)
-35. ✅ **Multiple workspaces** — switch between recently opened workspaces without going through the folder picker every time
+35. ✅ **Multiple workspaces** — switch between recently opened workspaces without going through the folder picker every time; scaffold a brand-new Amytis workspace or clone one from a git remote from the same dialog
 36. ✅ **Customizable fonts** — let users choose editor font (serif / sans / mono) and size; persisted preference
 37. ✅ **Spell check** — native OS spell check via Tauri webview; highlight misspellings without disrupting writing flow
 38. ✅ **Word count goal** — set a session word count target; subtle progress indicator; no gamification, just awareness
