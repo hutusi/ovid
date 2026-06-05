@@ -5,6 +5,7 @@ use ts_rs::TS;
 use crate::content_types::{Author, FeatureBucket, I18nConfig, parse_cdn_base};
 
 mod cache;
+pub(crate) mod clone;
 pub(crate) mod commands;
 mod revision;
 pub(crate) mod scaffold;

@@ -12,6 +12,7 @@ use crate::paths::to_slash;
 use crate::perf::log_perf;
 use crate::state::{CachedFrontmatter, WorkspaceState};
 
+use super::clone::{clone_blocking, resolve_target};
 use super::revision::compute_workspace_revision;
 use super::scaffold::scaffold_amytis_workspace;
 use super::tree::walk_tree;
@@ -230,6 +231,52 @@ pub(crate) async fn create_amytis_workspace(
         &[
             ("treeRoot", result.tree_root.clone()),
             ("nodes", result.tree.len().to_string()),
+        ],
+    );
+    Ok(result)
+}
+
+/// Clone a remote git repository into `<parent_dir>/<name or derived>` and
+/// open the result as a workspace. Streams `workspace_clone_progress`
+/// events line-by-line while the underlying `git clone --progress` runs.
+///
+/// Validation that does not touch the network (empty URL, missing parent,
+/// existing target) happens up front; clone failures from git itself bubble
+/// up as the trimmed stderr string.
+#[tauri::command]
+pub(crate) async fn clone_workspace(
+    url: String,
+    parent_dir: String,
+    name: Option<String>,
+    app: tauri::AppHandle,
+    state: State<'_, WorkspaceState>,
+) -> Result<WorkspaceResult, String> {
+    let started = Instant::now();
+    let parent = PathBuf::from(&parent_dir);
+    let target =
+        resolve_target(&url, &parent, name.as_deref()).map_err(|e| e.user_message())?;
+
+    // Move clone work onto the blocking thread pool so we don't block the
+    // tokio reactor for the duration of a network clone. The closure owns
+    // its clones of url/target/app so it's `'static`.
+    let url_owned = url.clone();
+    let target_owned = target.clone();
+    let app_for_clone = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        clone_blocking(&url_owned, &target_owned, &app_for_clone)
+            .map_err(|e| e.user_message())
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    let result = build_workspace_result(&target, &state, &app)?;
+    log_perf(
+        "clone_workspace",
+        started.elapsed(),
+        &[
+            ("treeRoot", result.tree_root.clone()),
+            ("nodes", result.tree.len().to_string()),
+            ("amytis", result.is_amytis_workspace.to_string()),
         ],
     );
     Ok(result)
