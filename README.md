@@ -143,7 +143,7 @@ The sidebar shows the full file tree of the current workspace, filtered to `.md`
 - **Toggle** — `Cmd+\` hides/shows the sidebar; state is remembered across sessions
 - **Resize** — drag the right border to resize between 180 px and 480 px; width is persisted across sessions
 - **Directory expand/collapse** — click a directory to toggle; folder icon changes between open/closed state
-- **Filter** — type in the filter input below the header to narrow the file list by filename or frontmatter `title` in real time; press `Esc` or click `✕` to clear
+- **Filter** — click the 🔍 icon next to the workspace name to reveal the filter input; type to narrow the file list by filename or frontmatter `title` in real time; press `Esc` once to clear, again to collapse the input (or click the 🔍 icon to close and clear in one step)
 - **Titles** — frontmatter `title` is shown instead of the filename where available
 - **Draft indicator** — files with `draft: true` are dimmed
 - **Content type icons** — files show an icon based on their frontmatter `type:` field (`post`, `flow`, `series`, `book`, `page`, `note`); a generic file icon is used when the field is absent
