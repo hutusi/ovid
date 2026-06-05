@@ -40,7 +40,8 @@ use wechat::creds::{
 };
 use wechat::publish::wechat_publish_draft;
 use workspace::commands::{
-    get_workspace_revision, list_workspace_tree, open_workspace, open_workspace_at_path,
+    clone_workspace, create_amytis_workspace, get_workspace_revision, list_workspace_tree,
+    open_workspace, open_workspace_at_path,
 };
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -115,6 +116,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_workspace,
             open_workspace_at_path,
+            create_amytis_workspace,
+            clone_workspace,
             list_workspace_tree,
             get_workspace_revision,
             read_file,

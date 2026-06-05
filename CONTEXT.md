@@ -67,6 +67,21 @@ The scanners that read these are best-effort, comment-aware, and degrade to
 empty/`None` on any parse failure, so a malformed or partial config never breaks
 workspace open.
 
+Ovid can also **create** Amytis workspaces, not only consume them. The
+Workspace Manager (`src/components/WorkspaceSwitcher.tsx`) exposes two
+seam-preserving paths in addition to "open folder":
+
+- `create_amytis_workspace` (`src-tauri/src/workspace/scaffold.rs`) writes the
+  smallest skeleton `is_amytis_workspace` recognises — `site.config.ts` +
+  `content/posts/` + `README.md` — and runs the result through the same
+  `build_workspace_result` wrapper as `open_workspace_at_path`.
+- `clone_workspace` (`src-tauri/src/workspace/clone.rs`) shells out to
+  `git clone --progress`, streams stderr line-by-line as a
+  `workspace_clone_progress` event (`CloneProgress` payload — phase, percent,
+  raw message), then runs the cloned dir through `build_workspace_result`.
+  The cloned workspace is treated like any opened workspace; if it has no
+  `site.config.ts` the standard `not_amytis_workspace` toast appears.
+
 ---
 
 ## Content types, scaffolding & collections

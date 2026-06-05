@@ -46,5 +46,14 @@ export function useRecentWorkspaces() {
     });
   }, []);
 
-  return { recentWorkspaces, pushRecentWorkspace };
+  const removeRecentWorkspace = useCallback((rootPath: string) => {
+    setRecentWorkspaces((prev) => {
+      const next = prev.filter((w) => w.rootPath !== rootPath);
+      if (next.length === prev.length) return prev;
+      saveWorkspaces(next);
+      return next;
+    });
+  }, []);
+
+  return { recentWorkspaces, pushRecentWorkspace, removeRecentWorkspace };
 }

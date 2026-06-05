@@ -12,7 +12,7 @@ Built with **Tauri 2 + React + TypeScript + Tailwind CSS v4**, using **Bun** as 
 
 Ovid combines the core workflows needed for Amytis-native writing in one desktop app:
 
-- open an Amytis workspace or a normal Markdown workspace directly from disk
+- open an Amytis workspace or a normal Markdown workspace directly from disk, scaffold a brand-new one, or clone one from a git remote
 - edit Markdown in a Typora-style rich editor without a split preview
 - manage frontmatter and content-type metadata inline
 - search files and full workspace text quickly
@@ -132,7 +132,11 @@ Ovid remembers the last workspace you had open and reopens it (with its tabs) au
 
 ### Switching workspaces
 
-Press `Cmd+Shift+O` or click the workspace name at the top of the sidebar to open the **Workspace Switcher**. It lists your five most recently opened workspaces. Select one to switch, or click **Open folder…** to pick a new directory.
+Press `Cmd+Shift+O` or click the workspace name at the top of the sidebar to open the **Workspace Manager**. The list view shows your five most recently opened workspaces — pick one to switch, hover for the per-item `⋯` menu (Reveal in file manager, Copy path, Remove from recents), or use one of the footer actions:
+
+- **Open folder…** picks an existing directory from disk.
+- **Create new…** scaffolds a brand-new Amytis workspace. Choose a parent directory and a name; pick **Minimal Amytis stub** for a small `site.config.ts` + `content/posts/` skeleton or **From Amytis starter** to clone a maintained starter repository.
+- **Clone…** clones a remote workspace from a git URL into a folder you choose. Progress streams live while `git clone` runs.
 
 ---
 

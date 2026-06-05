@@ -178,6 +178,53 @@ export function useWorkspace({
     [flushPendingSave, showToast, t, applyWorkspaceResult]
   );
 
+  const handleCreateAmytisWorkspace = useCallback(
+    async (parentDir: string, name: string): Promise<boolean> => {
+      try {
+        await flushPendingSave();
+        const result = (await commands.workspace.createAmytis({
+          parentDir,
+          name,
+        })) as WorkspaceResult;
+        applyWorkspaceResult(result);
+        return true;
+      } catch (err) {
+        console.error("Failed to create workspace:", err);
+        showToast(
+          t("errors.create_workspace_failed", {
+            message: err instanceof Error ? err.message : String(err),
+          })
+        );
+        return false;
+      }
+    },
+    [flushPendingSave, showToast, t, applyWorkspaceResult]
+  );
+
+  const handleCloneWorkspace = useCallback(
+    async (url: string, parentDir: string, name: string | null): Promise<boolean> => {
+      try {
+        await flushPendingSave();
+        const result = (await commands.workspace.clone({
+          url,
+          parentDir,
+          name,
+        })) as WorkspaceResult;
+        applyWorkspaceResult(result);
+        return true;
+      } catch (err) {
+        console.error("Failed to clone workspace:", err);
+        showToast(
+          t("errors.clone_workspace_failed", {
+            message: err instanceof Error ? err.message : String(err),
+          })
+        );
+        return false;
+      }
+    },
+    [flushPendingSave, showToast, t, applyWorkspaceResult]
+  );
+
   const handleOpenWorkspace = useCallback(async () => {
     await flushPendingSave();
     try {
@@ -423,6 +470,8 @@ export function useWorkspace({
     i18n,
     handleOpenWorkspace,
     openWorkspaceAtPath,
+    handleCreateAmytisWorkspace,
+    handleCloneWorkspace,
     handleNewFile,
     handleNewTodayFlow,
     handleRename,

@@ -107,6 +107,9 @@ export interface AppDialogsProps {
   workspaceRootPath: string | null;
   openWorkspaceAtPath: (path: string) => Promise<void>;
   handleOpenWorkspace: () => void;
+  removeRecentWorkspace: (rootPath: string) => void;
+  handleCreateAmytisWorkspace: (parentDir: string, name: string) => Promise<boolean>;
+  handleCloneWorkspace: (url: string, parentDir: string, name: string | null) => Promise<boolean>;
 
   // UpdateDialog
   flushPendingSave: () => Promise<void>;
@@ -202,6 +205,9 @@ export function AppDialogs({
   workspaceRootPath,
   openWorkspaceAtPath,
   handleOpenWorkspace,
+  removeRecentWorkspace,
+  handleCreateAmytisWorkspace,
+  handleCloneWorkspace,
   flushPendingSave,
   selectedFile,
   wechatTitle,
@@ -291,6 +297,10 @@ export function AppDialogs({
             currentRootPath={workspaceRootPath}
             onSelect={(rootPath) => void openWorkspaceAtPath(rootPath)}
             onOpenOther={handleOpenWorkspace}
+            onRemoveRecent={removeRecentWorkspace}
+            onCreate={handleCreateAmytisWorkspace}
+            onClone={handleCloneWorkspace}
+            onToast={showToast}
             onClose={() => overlay.close("workspaceSwitcher")}
           />
         </Suspense>
