@@ -1,11 +1,13 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import {
   BookOpen,
+  ChevronDown,
   FileImage,
   Files,
   FileText,
   Folder,
   FolderOpen,
+  LibraryBig,
   Link2,
   PanelLeftClose,
   Search,
@@ -690,8 +692,13 @@ export function Sidebar({
           className="sidebar-workspace-name"
           onClick={onOpenSwitcher}
           title={t("sidebar.switch_workspace")}
+          aria-haspopup="dialog"
         >
-          {workspaceName ?? t("sidebar.no_workspace_name")}
+          <LibraryBig size={13} className="sidebar-workspace-name-icon" aria-hidden="true" />
+          <span className="sidebar-workspace-name-label">
+            {workspaceName ?? t("sidebar.no_workspace_name")}
+          </span>
+          <ChevronDown size={11} className="sidebar-workspace-name-chevron" aria-hidden="true" />
         </button>
         {tree.length > 0 && (
           <button

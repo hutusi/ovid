@@ -137,14 +137,16 @@
 .sidebar-workspace-name {
   flex: 1;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   font-weight: 600;
   color: var(--color-fg-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  border: none;
+  background: transparent;
   border-radius: var(--radius-xs);
   padding: 1px 3px;
   margin-left: -3px;
@@ -153,8 +155,30 @@
   text-align: left;
 }
 
+.sidebar-workspace-name-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-workspace-name-icon,
+.sidebar-workspace-name-chevron {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+.sidebar-workspace-name-chevron {
+  opacity: 0.6;
+}
+
 .sidebar-workspace-name:hover {
   color: var(--color-fg);
+}
+
+.sidebar-workspace-name:hover .sidebar-workspace-name-chevron {
+  opacity: 0.9;
 }
 
 .sidebar-filter-toggle {
