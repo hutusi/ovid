@@ -196,3 +196,195 @@
   padding: 12px 10px;
   margin: 0;
 }
+
+/* Manager panel — wider than the original switcher to fit the create/clone
+   forms without crowding. */
+.ws-panel {
+  width: 460px;
+  max-width: calc(100vw - 48px);
+}
+
+/* View header (create / clone) — back arrow + title icon + title text. */
+.ws-view-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ws-back-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.ws-back-btn:hover,
+.ws-back-btn:focus-visible {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+  color: var(--color-fg);
+}
+
+.ws-back-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ws-view-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Form rows shared by Create + Clone views. */
+.ws-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ws-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ws-form-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
+}
+
+.ws-form-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ws-form-input {
+  width: 100%;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--color-fg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 7px 10px;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.ws-form-input:focus-visible {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.ws-form-input:disabled {
+  opacity: 0.6;
+}
+
+.ws-form-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 6px 6px 6px 10px;
+}
+
+.ws-form-picker-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-fg);
+}
+
+.ws-form-picker-path:empty,
+.ws-form-picker-path[title=""] {
+  color: var(--color-fg-muted);
+}
+
+.ws-form-picker-btn {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-family: var(--font-ui);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-fg);
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.ws-form-picker-btn:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+}
+
+.ws-form-picker-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ws-template-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ws-template-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ws-template-name {
+  color: var(--color-fg);
+  font-weight: 500;
+}
+
+.ws-template-hint {
+  color: var(--color-fg-muted);
+  font-size: 11px;
+}
+
+.ws-form-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-warning);
+}
+
+.ws-progress {
+  font-size: 11px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--color-fg-muted);
+  padding: 6px 8px;
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

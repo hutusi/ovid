@@ -118,6 +118,8 @@ function App() {
     i18n: i18nConfig,
     handleOpenWorkspace,
     openWorkspaceAtPath,
+    handleCreateAmytisWorkspace,
+    handleCloneWorkspace,
     handleNewFile,
     handleNewTodayFlow,
     handleRename,
@@ -273,7 +275,7 @@ function App() {
   const currentEditorViewState = selectedFile
     ? editorViewStateRef.current[selectedFile.path]
     : undefined;
-  const { recentWorkspaces, pushRecentWorkspace } = useRecentWorkspaces();
+  const { recentWorkspaces, pushRecentWorkspace, removeRecentWorkspace } = useRecentWorkspaces();
   const {
     gitStatusMap,
     isGitRepo,
@@ -691,6 +693,9 @@ function App() {
         workspaceRootPath={workspaceRootPath}
         openWorkspaceAtPath={openWorkspaceAtPath}
         handleOpenWorkspace={handleOpenWorkspace}
+        removeRecentWorkspace={removeRecentWorkspace}
+        handleCreateAmytisWorkspace={handleCreateAmytisWorkspace}
+        handleCloneWorkspace={handleCloneWorkspace}
         flushPendingSave={flushPendingSave}
         selectedFile={selectedFile}
         wechatTitle={wechatTitle}
