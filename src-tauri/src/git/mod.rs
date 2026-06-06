@@ -4,8 +4,10 @@ use ts_rs::TS;
 pub(crate) mod args;
 pub(crate) mod classify;
 pub(crate) mod commands;
+pub(crate) mod creds;
 pub(crate) mod parse;
 pub(crate) mod runner;
+pub(crate) mod url_auth;
 
 // ── Git integration ────────────────────────────────────────────────────────
 
