@@ -24,6 +24,10 @@ The change badge appears only when the repository has local changes. Its tooltip
 - If multiple remotes exist and no preferred target can be inferred, the UI asks you to choose one instead of guessing
 - Opening or copying a remote URL respects the specific remote you selected and does not silently fall back to another remote
 
+## HTTPS Credentials
+
+When push, pull, or fetch fails authentication against an HTTPS remote, Ovid opens a sign-in dialog instead of just showing an error toast. Enter a username and a Personal Access Token (GitHub no longer accepts passwords over HTTPS) and Ovid retries the operation. Leave **Remember credentials for this host** checked (default) and Ovid stores them per host in `<app_config_dir>/git_credentials.json` (`0o600` on Unix); subsequent operations against that host run silently. If a saved PAT stops working (revoked, rotated), use the **Forget saved credentials for {host}** link inside the dialog to clear the entry and enter a fresh one. SSH remotes and remotes already authenticated through your system credential helper (`osxkeychain`, `libsecret`, …) are unaffected — Ovid only prompts when git itself reports an auth failure. See [ADR 0014](adr/0014-git-https-credentials.md) for the design rationale.
+
 ## Current Limits
 
 - Ovid supports commit, push, pull, fetch, branch switching, and branch creation
