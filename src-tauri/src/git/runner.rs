@@ -60,21 +60,18 @@ pub(crate) fn run_git_with_credentials(
     username: &str,
     password: &str,
 ) -> Result<String, String> {
-    let credential_helper_script =
-        "!f() { echo username=$OVID_GIT_USER; echo password=$OVID_GIT_PASS; }; f";
     let mut cmd_args: Vec<&str> = vec![
         "-C",
         root,
         "-c",
         "credential.helper=",
         "-c",
-        // Concatenated at compile-time so we never have to escape a runtime value.
-        // The body is also kept simple enough that any POSIX `sh` will accept it.
+        // The body is kept simple enough that any POSIX `sh` will accept it.
+        // The credentials themselves ride in env (OVID_GIT_USER / OVID_GIT_PASS)
+        // and never enter the shell argument string, so PATs containing shell
+        // metacharacters can't break the invocation.
         "credential.helper=!f() { echo username=$OVID_GIT_USER; echo password=$OVID_GIT_PASS; }; f",
     ];
-    // Defensive: ensure the static string above is what we expect; if a later
-    // refactor changes one and not the other, this assert flags it in tests.
-    debug_assert_eq!(cmd_args[5], credential_helper_script);
     cmd_args.extend_from_slice(args);
     let mut cmd = std::process::Command::new("git");
     cmd.args(&cmd_args)
