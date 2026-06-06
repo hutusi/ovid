@@ -2616,6 +2616,7 @@ name = "ovid"
 version = "0.15.1"
 dependencies = [
  "mockito",
+ "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",
@@ -2629,6 +2630,7 @@ dependencies = [
  "tokio",
  "trash",
  "ts-rs",
+ "url",
 ]
 
 [[package]]

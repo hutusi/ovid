@@ -10,15 +10,62 @@ use super::args::{
     git_push_args, git_rename_branch_args,
 };
 use super::classify::{
-    classify_git_branch_delete_error, classify_git_pull_error, classify_git_push_error,
+    classify_git_branch_delete_error, classify_git_fetch_error, classify_git_pull_error,
+    classify_git_push_error, AUTH_REQUIRED_PREFIX,
+};
+use super::creds::{
+    forget_host_credentials, get_host_credentials, git_creds_path, save_host_credentials,
+    GitHostCredentials,
 };
 use super::parse::{
     get_current_branch_inner, get_git_remote_info_inner, parse_git_branches, parse_git_status,
     parse_git_remote_branches, validate_git_branch_delete, validate_git_branch_rename,
     validate_git_commit_selection,
 };
-use super::runner::{resolve_git_root, resolve_workspace_root, run_blocking_git, run_git};
+use super::runner::{
+    resolve_git_root, resolve_workspace_root, run_blocking_git, run_git, run_git_with_credentials,
+};
+use super::url_auth::host_for_remote_url;
 use super::{GitBranch, GitCommitChange, GitFileStatus, GitRemoteBranch, GitRemoteInfo};
+
+/// Resolve the remote URL we'll be talking to so the credential store can be
+/// keyed by host. Returns `None` (silently) when the remote has no URL
+/// configured or when the URL is SSH/local — those flow through the system
+/// SSH agent and shouldn't trigger the credentials dialog.
+fn resolved_remote_host(
+    remote: &GitRemoteInfo,
+    explicit_remote_name: Option<&str>,
+) -> Option<String> {
+    let chosen_name = explicit_remote_name
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(ToString::to_string)
+        .or_else(|| remote.remote_name.clone())
+        .or_else(|| remote.remotes.first().map(|r| r.name.clone()))?;
+    let url = remote
+        .remotes
+        .iter()
+        .find(|r| r.name == chosen_name)
+        .and_then(|r| r.url.clone())
+        .or_else(|| remote.remote_url.clone())?;
+    host_for_remote_url(&url)
+}
+
+fn effective_remote_name(remote: &GitRemoteInfo, explicit: Option<&str>) -> Option<String> {
+    explicit
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(ToString::to_string)
+        .or_else(|| remote.remote_name.clone())
+}
+
+/// Look up a stored credential for the resolved host, if any. Errors are
+/// downgraded to None so the operation proceeds with the user's normal git
+/// credential helpers (osxkeychain, SSH agent, …).
+fn stored_credentials_for(creds_path: &Path, host: Option<&str>) -> Option<GitHostCredentials> {
+    let host = host?;
+    get_host_credentials(creds_path, host).ok().flatten()
+}
 
 #[tauri::command]
 pub(crate) fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>, String> {
@@ -93,8 +140,35 @@ pub(crate) fn get_git_remote_info(state: State<'_, WorkspaceState>) -> Result<Gi
     get_git_remote_info_inner(&git_root)
 }
 
+/// Helper: run `git push` for the resolved branch, transparently using stored
+/// credentials for the remote's host if any are saved. On auth-shaped failure
+/// the error string is the structured `AUTH_REQUIRED|host|remote` marker so
+/// the frontend can open the credentials dialog and retry.
+fn push_with_optional_stored_creds(
+    creds_path: &Path,
+    git_root: &str,
+    remote_name: Option<&str>,
+) -> Result<(), String> {
+    let remote = get_git_remote_info_inner(git_root)?;
+    let branch = get_current_branch_inner(git_root)?;
+    let args = git_push_args(&remote, &branch, remote_name)?;
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let host = resolved_remote_host(&remote, remote_name);
+    let resolved_remote = effective_remote_name(&remote, remote_name);
+
+    let result = if let Some(creds) = stored_credentials_for(creds_path, host.as_deref()) {
+        run_git_with_credentials(git_root, &arg_refs, &creds.username, &creds.password)
+    } else {
+        run_git(git_root, &arg_refs)
+    };
+    result
+        .map(|_| ())
+        .map_err(|err| classify_git_push_error(&err, host.as_deref(), resolved_remote.as_deref()))
+}
+
 #[tauri::command]
 pub(crate) async fn git_commit(
+    app: tauri::AppHandle,
     message: String,
     push: bool,
     paths: Vec<String>,
@@ -106,6 +180,7 @@ pub(crate) async fn git_commit(
 
     let workspace_root = resolve_workspace_root(state.clone())?.ok_or("no workspace open")?;
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let creds_path = git_creds_path(&app)?;
     let validated_paths = paths
         .iter()
         .map(|path| validate_git_commit_selection(Path::new(&git_root), &workspace_root, path))
@@ -123,15 +198,15 @@ pub(crate) async fn git_commit(
         }
         run_git(&git_root, &commit_args)?;
         if push {
-            let push_result = (|| -> Result<(), String> {
-                let remote = get_git_remote_info_inner(&git_root)?;
-                let branch = get_current_branch_inner(&git_root)?;
-                let args = git_push_args(&remote, &branch, None)?;
-                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-                run_git(&git_root, &arg_refs).map_err(|err| classify_git_push_error(&err))?;
-                Ok(())
-            })();
-            if let Err(err) = push_result {
+            if let Err(err) = push_with_optional_stored_creds(&creds_path, &git_root, None) {
+                // Pass the AUTH_REQUIRED|host|remote marker through unwrapped so
+                // the frontend opens the credentials dialog. The commit already
+                // happened — the retry is just the push. Other failures keep
+                // the "commit created, but push failed: …" prefix so the user
+                // knows their commit is safely local.
+                if err.starts_with(AUTH_REQUIRED_PREFIX) {
+                    return Err(err);
+                }
                 return Err(format!("commit created, but push failed: {err}"));
             }
         }
@@ -142,40 +217,209 @@ pub(crate) async fn git_commit(
 
 #[tauri::command]
 pub(crate) async fn git_push(
+    app: tauri::AppHandle,
     remote_name: Option<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let creds_path = git_creds_path(&app)?;
+    run_blocking_git(move || {
+        push_with_optional_stored_creds(&creds_path, &git_root, remote_name.as_deref())
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn git_pull(
+    app: tauri::AppHandle,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let creds_path = git_creds_path(&app)?;
+    run_blocking_git(move || {
+        let remote = get_git_remote_info_inner(&git_root)?;
+        let host = resolved_remote_host(&remote, None);
+        let resolved_remote = effective_remote_name(&remote, None);
+        let args: [&str; 2] = ["pull", "--ff-only"];
+        let result = if let Some(creds) = stored_credentials_for(&creds_path, host.as_deref()) {
+            run_git_with_credentials(&git_root, &args, &creds.username, &creds.password)
+        } else {
+            run_git(&git_root, &args)
+        };
+        result.map(|_| ()).map_err(|err| {
+            classify_git_pull_error(&err, host.as_deref(), resolved_remote.as_deref())
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn git_fetch(
+    app: tauri::AppHandle,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let creds_path = git_creds_path(&app)?;
+    run_blocking_git(move || {
+        let remote = get_git_remote_info_inner(&git_root)?;
+        let host = resolved_remote_host(&remote, None);
+        let resolved_remote = effective_remote_name(&remote, None);
+        let args: [&str; 1] = ["fetch"];
+        let result = if let Some(creds) = stored_credentials_for(&creds_path, host.as_deref()) {
+            run_git_with_credentials(&git_root, &args, &creds.username, &creds.password)
+        } else {
+            run_git(&git_root, &args)
+        };
+        result.map(|_| ()).map_err(|err| {
+            classify_git_fetch_error(&err, host.as_deref(), resolved_remote.as_deref())
+        })
+    })
+    .await
+}
+
+/// Persist `(host, username, password)` to the credentials store after a
+/// successful authenticated operation. Failures to persist are surfaced —
+/// the operation itself already succeeded, but the user explicitly asked to
+/// remember; silently swallowing would mean the next push reprompts with no
+/// explanation.
+fn persist_credentials_after_success(
+    creds_path: &Path,
+    host: Option<&str>,
+    username: &str,
+    password: &str,
+) -> Result<(), String> {
+    let Some(host) = host else {
+        return Err("could not determine remote host to remember credentials for".to_string());
+    };
+    save_host_credentials(creds_path, host, username, password)
+}
+
+#[tauri::command]
+pub(crate) async fn git_push_with_credentials(
+    app: tauri::AppHandle,
+    remote_name: Option<String>,
+    username: String,
+    password: String,
+    remember: bool,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    if username.is_empty() {
+        return Err("username is required".to_string());
+    }
+    let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let creds_path = git_creds_path(&app)?;
     run_blocking_git(move || {
         let remote = get_git_remote_info_inner(&git_root)?;
         let branch = get_current_branch_inner(&git_root)?;
         let args = git_push_args(&remote, &branch, remote_name.as_deref())?;
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        run_git(&git_root, &arg_refs).map_err(|err| classify_git_push_error(&err))?;
+        let host = resolved_remote_host(&remote, remote_name.as_deref());
+        let resolved_remote = effective_remote_name(&remote, remote_name.as_deref());
+        run_git_with_credentials(&git_root, &arg_refs, &username, &password)
+            .map(|_| ())
+            .map_err(|err| {
+                classify_git_push_error(&err, host.as_deref(), resolved_remote.as_deref())
+            })?;
+        if remember {
+            persist_credentials_after_success(
+                &creds_path,
+                host.as_deref(),
+                &username,
+                &password,
+            )?;
+        }
         Ok(())
     })
     .await
 }
 
 #[tauri::command]
-pub(crate) async fn git_pull(state: State<'_, WorkspaceState>) -> Result<(), String> {
+pub(crate) async fn git_pull_with_credentials(
+    app: tauri::AppHandle,
+    username: String,
+    password: String,
+    remember: bool,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    if username.is_empty() {
+        return Err("username is required".to_string());
+    }
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let creds_path = git_creds_path(&app)?;
     run_blocking_git(move || {
-        run_git(&git_root, &["pull", "--ff-only"]).map_err(|err| classify_git_pull_error(&err))?;
+        let remote = get_git_remote_info_inner(&git_root)?;
+        let host = resolved_remote_host(&remote, None);
+        let resolved_remote = effective_remote_name(&remote, None);
+        let args: [&str; 2] = ["pull", "--ff-only"];
+        run_git_with_credentials(&git_root, &args, &username, &password)
+            .map(|_| ())
+            .map_err(|err| {
+                classify_git_pull_error(&err, host.as_deref(), resolved_remote.as_deref())
+            })?;
+        if remember {
+            persist_credentials_after_success(
+                &creds_path,
+                host.as_deref(),
+                &username,
+                &password,
+            )?;
+        }
         Ok(())
     })
     .await
 }
 
 #[tauri::command]
-pub(crate) async fn git_fetch(state: State<'_, WorkspaceState>) -> Result<(), String> {
+pub(crate) async fn git_fetch_with_credentials(
+    app: tauri::AppHandle,
+    username: String,
+    password: String,
+    remember: bool,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    if username.is_empty() {
+        return Err("username is required".to_string());
+    }
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
+    let creds_path = git_creds_path(&app)?;
     run_blocking_git(move || {
-        run_git(&git_root, &["fetch"])?;
+        let remote = get_git_remote_info_inner(&git_root)?;
+        let host = resolved_remote_host(&remote, None);
+        let resolved_remote = effective_remote_name(&remote, None);
+        let args: [&str; 1] = ["fetch"];
+        run_git_with_credentials(&git_root, &args, &username, &password)
+            .map(|_| ())
+            .map_err(|err| {
+                classify_git_fetch_error(&err, host.as_deref(), resolved_remote.as_deref())
+            })?;
+        if remember {
+            persist_credentials_after_success(
+                &creds_path,
+                host.as_deref(),
+                &username,
+                &password,
+            )?;
+        }
         Ok(())
     })
     .await
 }
+
+#[tauri::command]
+pub(crate) fn git_forget_credentials(app: tauri::AppHandle, host: String) -> Result<(), String> {
+    let creds_path = git_creds_path(&app)?;
+    forget_host_credentials(&creds_path, &host)
+}
+
+#[tauri::command]
+pub(crate) fn git_has_credentials_for_host(
+    app: tauri::AppHandle,
+    host: String,
+) -> Result<bool, String> {
+    let creds_path = git_creds_path(&app)?;
+    Ok(get_host_credentials(&creds_path, &host)?.is_some())
+}
+
 
 #[tauri::command]
 pub(crate) async fn git_switch_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {

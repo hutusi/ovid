@@ -287,6 +287,11 @@ function App() {
     handlePush,
     handlePull,
     handleFetch,
+    handlePushWithCredentials,
+    handlePullWithCredentials,
+    handleFetchWithCredentials,
+    handleForgetCredentials,
+    hasCredentialsForHost,
     handleSwitchBranch,
     handleCreateBranch,
     handleCheckoutRemoteBranch,
@@ -330,6 +335,8 @@ function App() {
     setRenameBranchDialog,
     setDeleteBranchDialog,
     setGitSyncPopoverOpen,
+    handleGitCredentialsSubmit,
+    handleForgetGitCredentials,
   } = useGitUiController({
     overlay,
     gitStatusMap,
@@ -344,6 +351,11 @@ function App() {
     handleCommit,
     handlePush,
     handlePull,
+    handlePushWithCredentials,
+    handlePullWithCredentials,
+    handleFetchWithCredentials,
+    handleForgetCredentials,
+    hasCredentialsForHost,
     handleSwitchBranch,
     handleCreateBranch,
     handleCheckoutRemoteBranch,
@@ -756,6 +768,8 @@ function App() {
         renameBranch={renameBranch}
         deleteBranchDialog={deleteBranchDialog}
         deleteBranch={deleteBranch}
+        onGitCredentialsSubmit={handleGitCredentialsSubmit}
+        onGitCredentialsForget={handleForgetGitCredentials}
         themePreference={themePreference}
         setThemePreference={setPreference}
         editorPrefs={prefs}

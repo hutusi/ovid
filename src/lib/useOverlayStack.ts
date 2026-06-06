@@ -4,6 +4,7 @@ import type {
   BranchSwitcherState,
   CommitDialogState,
   DeleteBranchDialogState,
+  GitCredentialsDialogState,
   RenameBranchDialogState,
 } from "./useGitUiController";
 
@@ -25,6 +26,7 @@ export type Overlay =
   | { kind: "newBranch" }
   | { kind: "renameBranch"; state: NonNullable<RenameBranchDialogState> }
   | { kind: "deleteBranch"; state: NonNullable<DeleteBranchDialogState> }
+  | { kind: "gitCredentials"; state: NonNullable<GitCredentialsDialogState> }
   | { kind: "gitSyncPopover" }
   | { kind: "notifications" };
 

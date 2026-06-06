@@ -262,6 +262,26 @@
       "days_ago": "{{count}} 天前"
     }
   },
+  "git_credentials_dialog": {
+    "title_push": "登录 {{host}} 以推送",
+    "title_pull": "登录 {{host}} 以拉取",
+    "title_fetch": "登录 {{host}} 以抓取",
+    "title_push_generic": "登录以推送",
+    "title_pull_generic": "登录以拉取",
+    "title_fetch_generic": "登录以抓取",
+    "subtitle_with_remote": "远程 \"{{remote}}\" 需要凭据。凭据仅会发送给该远程,不会上传他处。",
+    "subtitle_generic": "远程需要凭据。凭据仅会发送给远程,不会上传他处。",
+    "pat_hint": "GitHub 的密码字段需填入个人访问令牌 (PAT);HTTPS 不再接受普通密码。",
+    "username_label": "用户名",
+    "username_placeholder": "如 your-github-handle",
+    "password_label": "密码或令牌",
+    "password_placeholder": "ghp_… 或仓库密码",
+    "remember_label": "记住此主机的凭据",
+    "forget_link": "忘记已保存的 {{host}} 凭据",
+    "error_auth_failed": "登录失败。请检查用户名与密码或令牌后重试。",
+    "cancel": "取消",
+    "submit": "登录"
+  },
   "git_sync_popover": {
     "title": "Git 同步状态",
     "close_label": "关闭同步状态",

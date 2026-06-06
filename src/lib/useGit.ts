@@ -218,6 +218,56 @@ export function useGit(workspaceRoot: string | null) {
     }
   }
 
+  // Credentialed retry variants — invoked from the credentials dialog after
+  // an AUTH_REQUIRED failure on push/pull/fetch. Each one calls the matching
+  // *_with_credentials Tauri command and refreshes git state afterwards.
+
+  async function handlePushWithCredentials(args: {
+    remoteName?: string;
+    username: string;
+    password: string;
+    remember: boolean;
+  }): Promise<void> {
+    try {
+      await commands.git.pushWithCredentials(args);
+    } finally {
+      void refreshGitStatus();
+    }
+  }
+
+  async function handlePullWithCredentials(args: {
+    username: string;
+    password: string;
+    remember: boolean;
+  }): Promise<void> {
+    try {
+      await commands.git.pullWithCredentials(args);
+    } finally {
+      void refreshGitStatus();
+    }
+  }
+
+  async function handleFetchWithCredentials(args: {
+    username: string;
+    password: string;
+    remember: boolean;
+  }): Promise<void> {
+    try {
+      await commands.git.fetchWithCredentials(args);
+    } finally {
+      void refreshGitStatus();
+    }
+  }
+
+  async function handleForgetCredentials(host: string): Promise<void> {
+    await commands.git.forgetCredentials({ host });
+  }
+
+  async function hasCredentialsForHost(host: string): Promise<boolean> {
+    if (!host) return false;
+    return commands.git.hasCredentialsForHost({ host });
+  }
+
   return {
     gitStatusMap,
     isGitRepo,
@@ -228,6 +278,11 @@ export function useGit(workspaceRoot: string | null) {
     handlePush,
     handlePull,
     handleFetch,
+    handlePushWithCredentials,
+    handlePullWithCredentials,
+    handleFetchWithCredentials,
+    handleForgetCredentials,
+    hasCredentialsForHost,
     handleSwitchBranch,
     handleCreateBranch,
     handleCheckoutRemoteBranch,

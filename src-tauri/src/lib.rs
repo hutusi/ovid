@@ -26,8 +26,9 @@ use files::{
 use git::commands::{
     get_git_branch, get_git_branches, get_git_commit_changes, get_git_remote_branches,
     get_git_remote_info, get_git_status, git_checkout_remote_branch, git_commit, git_create_branch,
-    git_delete_branch, git_fetch, git_pull, git_push, git_rename_branch, git_switch_branch,
-    open_git_remote,
+    git_delete_branch, git_fetch, git_fetch_with_credentials, git_forget_credentials,
+    git_has_credentials_for_host, git_pull, git_pull_with_credentials, git_push,
+    git_push_with_credentials, git_rename_branch, git_switch_branch, open_git_remote,
 };
 use menu::{
     AboutState, ViewToggleState, build_app_menu, initial_menu_labels, set_menu_checked,
@@ -137,8 +138,13 @@ pub fn run() {
             get_git_remote_info,
             git_commit,
             git_push,
+            git_push_with_credentials,
             git_pull,
+            git_pull_with_credentials,
             git_fetch,
+            git_fetch_with_credentials,
+            git_forget_credentials,
+            git_has_credentials_for_host,
             git_switch_branch,
             git_create_branch,
             git_rename_branch,

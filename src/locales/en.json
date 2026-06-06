@@ -262,6 +262,26 @@
       "days_ago": "{{count}}d ago"
     }
   },
+  "git_credentials_dialog": {
+    "title_push": "Sign in to {{host}} to push",
+    "title_pull": "Sign in to {{host}} to pull",
+    "title_fetch": "Sign in to {{host}} to fetch",
+    "title_push_generic": "Sign in to push",
+    "title_pull_generic": "Sign in to pull",
+    "title_fetch_generic": "Sign in to fetch",
+    "subtitle_with_remote": "The remote \"{{remote}}\" needs credentials. They aren't sent anywhere except to the remote.",
+    "subtitle_generic": "The remote needs credentials. They aren't sent anywhere except to the remote.",
+    "pat_hint": "For GitHub, use a Personal Access Token in the password field. Standard passwords aren't accepted over HTTPS.",
+    "username_label": "Username",
+    "username_placeholder": "e.g. your-github-handle",
+    "password_label": "Password or token",
+    "password_placeholder": "ghp_… or repository password",
+    "remember_label": "Remember credentials for this host",
+    "forget_link": "Forget saved credentials for {{host}}",
+    "error_auth_failed": "Sign-in failed. Check the username and password or token and try again.",
+    "cancel": "Cancel",
+    "submit": "Sign in"
+  },
   "git_sync_popover": {
     "title": "Git sync status",
     "close_label": "Close sync status",
