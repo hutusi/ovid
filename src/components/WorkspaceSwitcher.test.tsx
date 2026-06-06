@@ -141,6 +141,61 @@ describe("WorkspaceSwitcher two-pane shell", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("moves selection through the recents on ArrowDown / ArrowUp / Home / End", () => {
+    const onSelect = mock(() => {});
+    const { container } = render(
+      <WorkspaceSwitcher
+        recentWorkspaces={[
+          { rootPath: "/a", name: "alpha", lastOpenedAt: 1 },
+          { rootPath: "/b", name: "beta", lastOpenedAt: 2 },
+          { rootPath: "/c", name: "gamma", lastOpenedAt: 3 },
+        ]}
+        currentRootPath="/a"
+        onSelect={onSelect}
+        onOpenOther={mock(() => {})}
+        onRemoveRecent={mock(() => {})}
+        onCreate={mock(() => Promise.resolve(true))}
+        onClone={mock(() => Promise.resolve(true))}
+        onToast={mock(() => {})}
+        onClose={mock(() => {})}
+      />
+    );
+
+    const rowBtns = Array.from(container.querySelectorAll<HTMLButtonElement>(".ws-item-button"));
+    expect(rowBtns).toHaveLength(3);
+
+    function selectedName(): string | undefined {
+      return container.querySelector<HTMLElement>(".ws-item--selected")?.textContent ?? undefined;
+    }
+
+    // Initial state: first row is the Tab entry point, nothing selected.
+    expect(rowBtns[0].tabIndex).toBe(0);
+    expect(rowBtns[1].tabIndex).toBe(-1);
+    expect(selectedName()).toBeUndefined();
+
+    // ArrowDown from the first row → second row is selected and focused.
+    act(() => {
+      rowBtns[0].focus();
+      rowBtns[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    });
+    expect(selectedName()).toContain("beta");
+    expect(document.activeElement).toBe(rowBtns[1]);
+
+    // End jumps to the last row.
+    act(() => {
+      rowBtns[1].dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+    });
+    expect(selectedName()).toContain("gamma");
+    expect(document.activeElement).toBe(rowBtns[2]);
+
+    // ArrowDown from the last row wraps to the first.
+    act(() => {
+      rowBtns[2].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    });
+    expect(selectedName()).toContain("alpha");
+    expect(document.activeElement).toBe(rowBtns[0]);
+  });
+
   it("renders a check icon before the current workspace's name", () => {
     const { container } = render(
       <WorkspaceSwitcher

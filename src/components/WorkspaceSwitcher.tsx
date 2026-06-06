@@ -237,11 +237,15 @@ function RecentPanel({
   onClose,
 }: RecentPanelProps) {
   const { t } = useTranslation();
-  // `selectedRecent` is the row the user has clicked once to highlight. The
-  // primary "Switch" footer button then commits the switch. A second click on
-  // an already-selected row also commits (which collapses into the native
-  // double-click affordance — mouse users can double-click for the fast path).
+  // `selectedRecent` is the row the user has clicked (or arrow-keyed) to
+  // highlight. The primary "Switch" footer button then commits the switch.
+  // A second click on an already-selected row also commits (which collapses
+  // into the native double-click affordance — mouse users can double-click
+  // for the fast path).
   const [selectedRecent, setSelectedRecent] = useState<string | null>(null);
+  // Refs to the row's primary button so the keyboard handler can move focus
+  // alongside selection (roving tabindex).
+  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const canConfirm = selectedRecent !== null && selectedRecent !== currentRootPath;
 
@@ -266,15 +270,50 @@ function RecentPanel({
     }
   }
 
+  // Keyboard listbox-style nav: ArrowUp/Down + Home/End cycle through the
+  // rows when focus is on one of the row buttons. Selection and focus move
+  // together so pressing Enter immediately afterwards confirms via the
+  // existing click-cycle (a focused selected row + click = switch).
+  function handleKey(e: React.KeyboardEvent<HTMLUListElement>) {
+    const target = e.target as HTMLElement;
+    const idx = rowRefs.current.findIndex((el) => el === target);
+    if (idx < 0) return;
+    const len = recentWorkspaces.length;
+    let nextIdx = idx;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") nextIdx = (idx + 1) % len;
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") nextIdx = (idx - 1 + len) % len;
+    else if (e.key === "Home") nextIdx = 0;
+    else if (e.key === "End") nextIdx = len - 1;
+    else return;
+    e.preventDefault();
+    setSelectedRecent(recentWorkspaces[nextIdx].rootPath);
+    rowRefs.current[nextIdx]?.focus();
+  }
+
+  // Roving tabindex: the selected row is the single Tab entry point into the
+  // list; if nothing's selected yet, the first row gets it so Tab lands on a
+  // sensible default. All other rows are tabIndex=-1 so Tab from the list
+  // moves straight to the Switch button.
+  const selectedIdx = recentWorkspaces.findIndex((w) => w.rootPath === selectedRecent);
+  const tabbableIdx = selectedIdx >= 0 ? selectedIdx : 0;
+
   return (
     <div className="ws-recent">
-      <ul className="ws-list" aria-label={t("workspace_switcher.recent_heading")}>
-        {recentWorkspaces.map((w) => (
+      <ul
+        className="ws-list"
+        aria-label={t("workspace_switcher.recent_heading")}
+        onKeyDown={handleKey}
+      >
+        {recentWorkspaces.map((w, idx) => (
           <RecentItem
             key={w.rootPath}
             workspace={w}
             isCurrent={w.rootPath === currentRootPath}
             isSelected={w.rootPath === selectedRecent}
+            tabIndex={idx === tabbableIdx ? 0 : -1}
+            rowRef={(el) => {
+              rowRefs.current[idx] = el;
+            }}
             onActivate={() => handleRowActivate(w.rootPath)}
             onRemove={() => {
               onRemoveRecent(w.rootPath);
@@ -335,6 +374,10 @@ interface RecentItemProps {
   workspace: RecentWorkspace;
   isCurrent: boolean;
   isSelected: boolean;
+  /** Tab index for the primary button (roving tabindex within the list). */
+  tabIndex: number;
+  /** Captures the button DOM node so the listbox handler can refocus it. */
+  rowRef: (el: HTMLButtonElement | null) => void;
   onActivate: () => void;
   onRemove: () => void;
   onReveal: () => void;
@@ -345,6 +388,8 @@ function RecentItem({
   workspace,
   isCurrent,
   isSelected,
+  tabIndex,
+  rowRef,
   onActivate,
   onRemove,
   onReveal,
@@ -380,10 +425,12 @@ function RecentItem({
     <li ref={containerRef} className={classes.join(" ")}>
       <div className="ws-item-header">
         <button
+          ref={rowRef}
           type="button"
           className="ws-item-button"
           onClick={onActivate}
           aria-pressed={isSelected}
+          tabIndex={tabIndex}
         >
           <span className="ws-item-marker" aria-hidden="true">
             {isCurrent && <Check size={12} />}
