@@ -5,9 +5,10 @@ import "./TitleInput.css";
 interface TitleInputProps {
   title: string;
   onChange: (value: string) => void;
+  onSubmit?: () => void;
 }
 
-export function TitleInput({ title, onChange }: TitleInputProps) {
+export function TitleInput({ title, onChange, onSubmit }: TitleInputProps) {
   const { t } = useTranslation();
   const [value, setValue] = useState(title);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -35,8 +36,9 @@ export function TitleInput({ title, onChange }: TitleInputProps) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
       e.preventDefault();
+      onSubmit?.();
     }
   }
 

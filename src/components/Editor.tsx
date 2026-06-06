@@ -596,7 +596,13 @@ export function Editor({
   return (
     <div className="editor-wrapper">
       <div ref={scrollRef} className="editor-scroll">
-        {onTitleChange !== undefined && <TitleInput title={title ?? ""} onChange={onTitleChange} />}
+        {onTitleChange !== undefined && (
+          <TitleInput
+            title={title ?? ""}
+            onChange={onTitleChange}
+            onSubmit={() => editor?.commands.focus("end")}
+          />
+        )}
         <EditorContent editor={editor} />
       </div>
       {editor && findReplaceMode !== "closed" && (
