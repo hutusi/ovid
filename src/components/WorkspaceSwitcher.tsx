@@ -1,8 +1,9 @@
 import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { ChevronLeft, FolderPlus, GitBranch, MoreHorizontal } from "lucide-react";
+import { Check, MoreHorizontal, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import logoUrl from "../../branding/ovid-logo-square.png?url";
 import type { CloneProgress } from "../lib/commands/generated/CloneProgress";
 import { listenEvent } from "../lib/commands/internal";
 import type { RecentWorkspace } from "../lib/types";
@@ -13,7 +14,9 @@ import "./WorkspaceSwitcher.css";
 /** Hard-coded starter for the "From Amytis starter" template option. */
 const AMYTIS_STARTER_URL = "https://github.com/hutusi/amytis-starter.git";
 
-type View = { kind: "list" } | { kind: "create" } | { kind: "clone"; initialUrl?: string };
+type Section = "recent" | "open" | "create" | "clone";
+
+const SECTIONS: readonly Section[] = ["recent", "open", "create", "clone"] as const;
 
 interface WorkspaceSwitcherProps {
   recentWorkspaces: RecentWorkspace[];
@@ -46,7 +49,13 @@ export function WorkspaceSwitcher({
 }: WorkspaceSwitcherProps) {
   const { t } = useTranslation();
   const dialogRef = useFocusTrap<HTMLDivElement>();
-  const [view, setView] = useState<View>({ kind: "list" });
+  const [section, setSection] = useState<Section>("recent");
+  const tabRefs = useRef<Record<Section, HTMLButtonElement | null>>({
+    recent: null,
+    open: null,
+    create: null,
+    clone: null,
+  });
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
@@ -54,6 +63,28 @@ export function WorkspaceSwitcher({
       onClose();
     }
   }
+
+  function handleTabKeyDown(e: React.KeyboardEvent) {
+    const idx = SECTIONS.indexOf(section);
+    let next = idx;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") next = (idx + 1) % SECTIONS.length;
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft")
+      next = (idx - 1 + SECTIONS.length) % SECTIONS.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = SECTIONS.length - 1;
+    else return;
+    e.preventDefault();
+    const nextSection = SECTIONS[next];
+    setSection(nextSection);
+    tabRefs.current[nextSection]?.focus();
+  }
+
+  const sectionLabels: Record<Section, string> = {
+    recent: t("workspace_switcher.section_recent"),
+    open: t("workspace_switcher.section_open"),
+    create: t("workspace_switcher.section_create"),
+    clone: t("workspace_switcher.section_clone"),
+  };
 
   return (
     <div className="modal-overlay" role="presentation">
@@ -71,88 +102,222 @@ export function WorkspaceSwitcher({
         className="modal-panel ws-panel"
         onKeyDown={handleKeyDown}
       >
-        {view.kind === "list" && (
-          <ListView
-            recentWorkspaces={recentWorkspaces}
-            currentRootPath={currentRootPath}
-            onSelect={onSelect}
-            onOpenOther={onOpenOther}
-            onRemoveRecent={onRemoveRecent}
-            onToast={onToast}
-            onClose={onClose}
-            onGoCreate={() => setView({ kind: "create" })}
-            onGoClone={() => setView({ kind: "clone" })}
+        <header className="ws-header">
+          <img
+            src={logoUrl}
+            alt={t("workspace_switcher.logo_alt")}
+            className="ws-logo"
+            width={48}
+            height={48}
           />
-        )}
-        {view.kind === "create" && (
-          <CreateView
-            onBack={() => setView({ kind: "list" })}
-            onCreate={onCreate}
-            onCloneStarter={(parentDir, name) => onClone(AMYTIS_STARTER_URL, parentDir, name)}
-            onSuccess={(name) => {
-              onToast(t("workspace_switcher.toast_created", { name }));
-              onClose();
-            }}
-          />
-        )}
-        {view.kind === "clone" && (
-          <CloneView
-            initialUrl={view.initialUrl}
-            onBack={() => setView({ kind: "list" })}
-            onClone={onClone}
-            onSuccess={(name) => {
-              onToast(t("workspace_switcher.toast_cloned", { name }));
-              onClose();
-            }}
-          />
-        )}
+          <div className="ws-title-block">
+            <h2 className="ws-title">{t("workspace_switcher.title")}</h2>
+            <p className="ws-subtitle">{t("workspace_switcher.subtitle")}</p>
+          </div>
+          <button
+            type="button"
+            className="ws-close-btn"
+            onClick={onClose}
+            aria-label={t("common.close")}
+            title={t("common.close")}
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="ws-body">
+          <div
+            className="ws-nav"
+            role="tablist"
+            aria-orientation="vertical"
+            aria-label={t("workspace_switcher.title")}
+            onKeyDown={handleTabKeyDown}
+          >
+            {SECTIONS.map((s) => {
+              const isActive = s === section;
+              const isRecent = s === "recent";
+              const tabAriaLabel =
+                isRecent && recentWorkspaces.length > 0
+                  ? `${sectionLabels[s]}, ${recentWorkspaces.length}`
+                  : undefined;
+              return (
+                <button
+                  key={s}
+                  ref={(el) => {
+                    tabRefs.current[s] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`ws-tab-${s}`}
+                  aria-selected={isActive}
+                  aria-controls="ws-panel"
+                  aria-label={tabAriaLabel}
+                  tabIndex={isActive ? 0 : -1}
+                  className={`ws-nav-tab${isActive ? " ws-nav-tab--active" : ""}`}
+                  onClick={() => setSection(s)}
+                >
+                  <span className="ws-nav-tab-label">{sectionLabels[s]}</span>
+                  {isRecent && recentWorkspaces.length > 0 && (
+                    <span className="ws-nav-count" aria-hidden="true">
+                      {recentWorkspaces.length}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            className="ws-panel-content"
+            role="tabpanel"
+            id="ws-panel"
+            aria-labelledby={`ws-tab-${section}`}
+          >
+            {section === "recent" && (
+              <RecentPanel
+                recentWorkspaces={recentWorkspaces}
+                currentRootPath={currentRootPath}
+                onSelect={onSelect}
+                onRemoveRecent={onRemoveRecent}
+                onToast={onToast}
+                onClose={onClose}
+              />
+            )}
+            {section === "open" && (
+              <OpenPanel
+                onOpenOther={() => {
+                  onOpenOther();
+                  onClose();
+                }}
+              />
+            )}
+            {section === "create" && (
+              <CreatePanel
+                onCreate={onCreate}
+                onCloneStarter={(parentDir, name) => onClone(AMYTIS_STARTER_URL, parentDir, name)}
+                onSuccess={(name) => {
+                  onToast(t("workspace_switcher.toast_created", { name }));
+                  onClose();
+                }}
+              />
+            )}
+            {section === "clone" && (
+              <ClonePanel
+                onClone={onClone}
+                onSuccess={(name) => {
+                  onToast(t("workspace_switcher.toast_cloned", { name }));
+                  onClose();
+                }}
+              />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── List view ────────────────────────────────────────────────────────────
+// ── Recent panel ─────────────────────────────────────────────────────────
 
-interface ListViewProps {
+interface RecentPanelProps {
   recentWorkspaces: RecentWorkspace[];
   currentRootPath: string | null;
   onSelect: (rootPath: string) => void;
-  onOpenOther: () => void;
   onRemoveRecent: (rootPath: string) => void;
   onToast: (message: string) => void;
   onClose: () => void;
-  onGoCreate: () => void;
-  onGoClone: () => void;
 }
 
-function ListView({
+function RecentPanel({
   recentWorkspaces,
   currentRootPath,
   onSelect,
-  onOpenOther,
   onRemoveRecent,
   onToast,
   onClose,
-  onGoCreate,
-  onGoClone,
-}: ListViewProps) {
+}: RecentPanelProps) {
   const { t } = useTranslation();
-  return (
-    <>
-      <p className="modal-title">{t("workspace_switcher.title")}</p>
+  // `selectedRecent` is the row the user has clicked (or arrow-keyed) to
+  // highlight. The primary "Switch" footer button then commits the switch.
+  // A second click on an already-selected row also commits (which collapses
+  // into the native double-click affordance — mouse users can double-click
+  // for the fast path).
+  const [selectedRecent, setSelectedRecent] = useState<string | null>(null);
+  // Refs to the row's primary button so the keyboard handler can move focus
+  // alongside selection (roving tabindex).
+  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-      <ul className="ws-list" aria-label={t("workspace_switcher.recent_heading")}>
-        {recentWorkspaces.map((w) => (
+  const canConfirm = selectedRecent !== null && selectedRecent !== currentRootPath;
+
+  function confirmSwitch(rootPath: string) {
+    if (rootPath !== currentRootPath) onSelect(rootPath);
+    onClose();
+  }
+
+  function handleRowActivate(rootPath: string) {
+    // First click on a row selects it; a second click on the same row
+    // promotes to a switch. Clicking the current workspace's row only marks
+    // it (the Switch button stays disabled), so there's no accidental
+    // re-open of the already-open workspace.
+    if (rootPath === currentRootPath) {
+      setSelectedRecent(rootPath);
+      return;
+    }
+    if (selectedRecent === rootPath) {
+      confirmSwitch(rootPath);
+    } else {
+      setSelectedRecent(rootPath);
+    }
+  }
+
+  // Keyboard listbox-style nav: ArrowUp/Down + Home/End cycle through the
+  // rows when focus is on one of the row buttons. Selection and focus move
+  // together so pressing Enter immediately afterwards confirms via the
+  // existing click-cycle (a focused selected row + click = switch).
+  function handleKey(e: React.KeyboardEvent<HTMLUListElement>) {
+    const target = e.target as HTMLElement;
+    const idx = rowRefs.current.findIndex((el) => el === target);
+    if (idx < 0) return;
+    const len = recentWorkspaces.length;
+    let nextIdx = idx;
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") nextIdx = (idx + 1) % len;
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") nextIdx = (idx - 1 + len) % len;
+    else if (e.key === "Home") nextIdx = 0;
+    else if (e.key === "End") nextIdx = len - 1;
+    else return;
+    e.preventDefault();
+    setSelectedRecent(recentWorkspaces[nextIdx].rootPath);
+    rowRefs.current[nextIdx]?.focus();
+  }
+
+  // Roving tabindex: the selected row is the single Tab entry point into the
+  // list; if nothing's selected yet, the first row gets it so Tab lands on a
+  // sensible default. All other rows are tabIndex=-1 so Tab from the list
+  // moves straight to the Switch button.
+  const selectedIdx = recentWorkspaces.findIndex((w) => w.rootPath === selectedRecent);
+  const tabbableIdx = selectedIdx >= 0 ? selectedIdx : 0;
+
+  return (
+    <div className="ws-recent">
+      <ul
+        className="ws-list"
+        aria-label={t("workspace_switcher.recent_heading")}
+        onKeyDown={handleKey}
+      >
+        {recentWorkspaces.map((w, idx) => (
           <RecentItem
             key={w.rootPath}
             workspace={w}
             isCurrent={w.rootPath === currentRootPath}
-            onSelect={() => {
-              if (w.rootPath !== currentRootPath) onSelect(w.rootPath);
-              onClose();
+            isSelected={w.rootPath === selectedRecent}
+            tabIndex={idx === tabbableIdx ? 0 : -1}
+            rowRef={(el) => {
+              rowRefs.current[idx] = el;
             }}
+            onActivate={() => handleRowActivate(w.rootPath)}
             onRemove={() => {
               onRemoveRecent(w.rootPath);
+              if (selectedRecent === w.rootPath) setSelectedRecent(null);
               onToast(t("workspace_switcher.toast_removed", { name: w.name }));
             }}
             onReveal={async () => {
@@ -185,29 +350,21 @@ function ListView({
         )}
       </ul>
 
-      <div className="modal-actions">
-        <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
-          {t("workspace_switcher.cancel")}
-        </button>
-        <div className="modal-spacer" />
-        <button type="button" className="modal-btn" onClick={onGoClone}>
-          {t("workspace_switcher.clone")}
-        </button>
-        <button type="button" className="modal-btn" onClick={onGoCreate}>
-          {t("workspace_switcher.create_new")}
-        </button>
-        <button
-          type="button"
-          className="modal-btn modal-btn-primary"
-          onClick={() => {
-            onOpenOther();
-            onClose();
-          }}
-        >
-          {t("workspace_switcher.open_folder")}
-        </button>
-      </div>
-    </>
+      {recentWorkspaces.length > 0 && (
+        <div className="ws-form-actions">
+          <button
+            type="button"
+            className="modal-btn modal-btn-primary"
+            onClick={() => {
+              if (selectedRecent !== null) confirmSwitch(selectedRecent);
+            }}
+            disabled={!canConfirm}
+          >
+            {t("workspace_switcher.switch_submit")}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -216,7 +373,12 @@ function ListView({
 interface RecentItemProps {
   workspace: RecentWorkspace;
   isCurrent: boolean;
-  onSelect: () => void;
+  isSelected: boolean;
+  /** Tab index for the primary button (roving tabindex within the list). */
+  tabIndex: number;
+  /** Captures the button DOM node so the listbox handler can refocus it. */
+  rowRef: (el: HTMLButtonElement | null) => void;
+  onActivate: () => void;
   onRemove: () => void;
   onReveal: () => void;
   onCopyPath: () => void;
@@ -225,7 +387,10 @@ interface RecentItemProps {
 function RecentItem({
   workspace,
   isCurrent,
-  onSelect,
+  isSelected,
+  tabIndex,
+  rowRef,
+  onActivate,
   onRemove,
   onReveal,
   onCopyPath,
@@ -252,12 +417,28 @@ function RecentItem({
     };
   }, [menuOpen]);
 
+  const classes = ["ws-item"];
+  if (isCurrent) classes.push("ws-item--active");
+  if (isSelected) classes.push("ws-item--selected");
+
   return (
-    <li ref={containerRef} className={`ws-item${isCurrent ? " ws-item--active" : ""}`}>
+    <li ref={containerRef} className={classes.join(" ")}>
       <div className="ws-item-header">
-        <button type="button" className="ws-item-button" onClick={onSelect}>
-          <span className="ws-item-name">{workspace.name}</span>
-          <span className="ws-item-path">{workspace.rootPath}</span>
+        <button
+          ref={rowRef}
+          type="button"
+          className="ws-item-button"
+          onClick={onActivate}
+          aria-pressed={isSelected}
+          tabIndex={tabIndex}
+        >
+          <span className="ws-item-marker" aria-hidden="true">
+            {isCurrent && <Check size={12} />}
+          </span>
+          <span className="ws-item-text">
+            <span className="ws-item-name">{workspace.name}</span>
+            <span className="ws-item-path">{workspace.rootPath}</span>
+          </span>
         </button>
         <div className="ws-item-controls">
           {isCurrent && (
@@ -321,18 +502,44 @@ function RecentItem({
   );
 }
 
-// ── Create view ──────────────────────────────────────────────────────────
+// ── Open panel ───────────────────────────────────────────────────────────
+
+interface OpenPanelProps {
+  onOpenOther: () => void;
+}
+
+function OpenPanel({ onOpenOther }: OpenPanelProps) {
+  const { t } = useTranslation();
+  const ctaRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    ctaRef.current?.focus();
+  }, []);
+  return (
+    <div className="ws-open-panel">
+      <p className="ws-open-explainer">{t("workspace_switcher.open_explainer")}</p>
+      <button
+        ref={ctaRef}
+        type="button"
+        className="modal-btn modal-btn-primary ws-open-cta"
+        onClick={onOpenOther}
+      >
+        {t("workspace_switcher.open_cta")}
+      </button>
+    </div>
+  );
+}
+
+// ── Create panel ─────────────────────────────────────────────────────────
 
 type CreateTemplate = "stub" | "starter";
 
-interface CreateViewProps {
-  onBack: () => void;
+interface CreatePanelProps {
   onCreate: (parentDir: string, name: string) => Promise<boolean>;
   onCloneStarter: (parentDir: string, name: string | null) => Promise<boolean>;
   onSuccess: (name: string) => void;
 }
 
-function CreateView({ onBack, onCreate, onCloneStarter, onSuccess }: CreateViewProps) {
+function CreatePanel({ onCreate, onCloneStarter, onSuccess }: CreatePanelProps) {
   const { t } = useTranslation();
   const [name, setName] = useState("");
   const [parentDir, setParentDir] = useState<string | null>(null);
@@ -389,115 +596,84 @@ function CreateView({ onBack, onCreate, onCloneStarter, onSuccess }: CreateViewP
   }
 
   return (
-    <>
-      <div className="ws-view-header">
-        <button
-          type="button"
-          className="ws-back-btn"
-          onClick={onBack}
-          aria-label={t("workspace_switcher.back")}
+    <div className="ws-form">
+      <label className="ws-form-row" htmlFor={nameId}>
+        <span className="ws-form-label">{t("workspace_switcher.create_name_label")}</span>
+        <input
+          ref={nameInputRef}
+          id={nameId}
+          type="text"
+          className="ws-form-input"
+          value={name}
+          placeholder={t("workspace_switcher.create_name_placeholder")}
+          onChange={(e) => setName(e.target.value)}
           disabled={working}
-        >
-          <ChevronLeft size={14} aria-hidden="true" />
-        </button>
-        <p className="modal-title ws-view-title">
-          <FolderPlus size={14} aria-hidden="true" />
-          {t("workspace_switcher.create_title")}
-        </p>
+        />
+      </label>
+
+      <div className="ws-form-row">
+        <span className="ws-form-label">{t("workspace_switcher.create_parent_label")}</span>
+        <div className="ws-form-picker">
+          <span className="ws-form-picker-path" title={parentDir ?? undefined}>
+            {parentDir ?? t("workspace_switcher.create_parent_placeholder")}
+          </span>
+          <button
+            type="button"
+            className="ws-form-picker-btn"
+            onClick={pickParent}
+            disabled={working}
+            aria-label={`${t("workspace_switcher.create_parent_label")}: ${
+              parentDir ?? t("workspace_switcher.create_pick_parent")
+            }`}
+          >
+            {t("workspace_switcher.create_pick_parent")}
+          </button>
+        </div>
       </div>
 
-      <div className="ws-form">
-        <label className="ws-form-row" htmlFor={nameId}>
-          <span className="ws-form-label">{t("workspace_switcher.create_name_label")}</span>
+      <fieldset className="ws-form-row ws-form-fieldset">
+        <legend className="ws-form-label">{t("workspace_switcher.create_template_label")}</legend>
+        <label className="ws-template-option">
           <input
-            ref={nameInputRef}
-            id={nameId}
-            type="text"
-            className="ws-form-input"
-            value={name}
-            placeholder={t("workspace_switcher.create_name_placeholder")}
-            onChange={(e) => setName(e.target.value)}
+            type="radio"
+            name="template"
+            value="stub"
+            checked={template === "stub"}
+            onChange={() => setTemplate("stub")}
             disabled={working}
           />
+          <span>
+            <span className="ws-template-name">{t("workspace_switcher.create_template_stub")}</span>
+            <span className="ws-template-hint">
+              {t("workspace_switcher.create_template_stub_hint")}
+            </span>
+          </span>
         </label>
-
-        <div className="ws-form-row">
-          <span className="ws-form-label">{t("workspace_switcher.create_parent_label")}</span>
-          <div className="ws-form-picker">
-            <span className="ws-form-picker-path" title={parentDir ?? undefined}>
-              {parentDir ?? t("workspace_switcher.create_parent_placeholder")}
+        <label className="ws-template-option">
+          <input
+            type="radio"
+            name="template"
+            value="starter"
+            checked={template === "starter"}
+            onChange={() => setTemplate("starter")}
+            disabled={working}
+          />
+          <span>
+            <span className="ws-template-name">{t("workspace_switcher.create_template_repo")}</span>
+            <span className="ws-template-hint">
+              {t("workspace_switcher.create_template_repo_hint")}
             </span>
-            <button
-              type="button"
-              className="ws-form-picker-btn"
-              onClick={pickParent}
-              disabled={working}
-              aria-label={`${t("workspace_switcher.create_parent_label")}: ${
-                parentDir ?? t("workspace_switcher.create_pick_parent")
-              }`}
-            >
-              {t("workspace_switcher.create_pick_parent")}
-            </button>
-          </div>
-        </div>
+          </span>
+        </label>
+      </fieldset>
 
-        <fieldset className="ws-form-row ws-form-fieldset">
-          <legend className="ws-form-label">{t("workspace_switcher.create_template_label")}</legend>
-          <label className="ws-template-option">
-            <input
-              type="radio"
-              name="template"
-              value="stub"
-              checked={template === "stub"}
-              onChange={() => setTemplate("stub")}
-              disabled={working}
-            />
-            <span>
-              <span className="ws-template-name">
-                {t("workspace_switcher.create_template_stub")}
-              </span>
-              <span className="ws-template-hint">
-                {t("workspace_switcher.create_template_stub_hint")}
-              </span>
-            </span>
-          </label>
-          <label className="ws-template-option">
-            <input
-              type="radio"
-              name="template"
-              value="starter"
-              checked={template === "starter"}
-              onChange={() => setTemplate("starter")}
-              disabled={working}
-            />
-            <span>
-              <span className="ws-template-name">
-                {t("workspace_switcher.create_template_repo")}
-              </span>
-              <span className="ws-template-hint">
-                {t("workspace_switcher.create_template_repo_hint")}
-              </span>
-            </span>
-          </label>
-        </fieldset>
+      {error && (
+        <p className="ws-form-error" role="alert">
+          {error}
+        </p>
+      )}
 
-        {error && (
-          <p className="ws-form-error" role="alert">
-            {error}
-          </p>
-        )}
-      </div>
-
-      <div className="modal-actions">
-        <button
-          type="button"
-          className="modal-btn modal-btn-cancel"
-          onClick={onBack}
-          disabled={working}
-        >
-          {t("workspace_switcher.back")}
-        </button>
-        <div className="modal-spacer" />
+      <div className="ws-form-actions">
         <button
           type="button"
           className="modal-btn modal-btn-primary"
@@ -507,22 +683,20 @@ function CreateView({ onBack, onCreate, onCloneStarter, onSuccess }: CreateViewP
           {working ? t("workspace_switcher.create_working") : t("workspace_switcher.create_submit")}
         </button>
       </div>
-    </>
+    </div>
   );
 }
 
-// ── Clone view ───────────────────────────────────────────────────────────
+// ── Clone panel ──────────────────────────────────────────────────────────
 
-interface CloneViewProps {
-  initialUrl?: string;
-  onBack: () => void;
+interface ClonePanelProps {
   onClone: (url: string, parentDir: string, name: string | null) => Promise<boolean>;
   onSuccess: (name: string) => void;
 }
 
-function CloneView({ initialUrl, onBack, onClone, onSuccess }: CloneViewProps) {
+function ClonePanel({ onClone, onSuccess }: ClonePanelProps) {
   const { t } = useTranslation();
-  const [url, setUrl] = useState(initialUrl ?? "");
+  const [url, setUrl] = useState("");
   const [parentDir, setParentDir] = useState<string | null>(null);
   const [folderName, setFolderName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -580,97 +754,70 @@ function CloneView({ initialUrl, onBack, onClone, onSuccess }: CloneViewProps) {
   }
 
   return (
-    <>
-      <div className="ws-view-header">
-        <button
-          type="button"
-          className="ws-back-btn"
-          onClick={onBack}
-          aria-label={t("workspace_switcher.back")}
+    <div className="ws-form">
+      <label className="ws-form-row" htmlFor={urlId}>
+        <span className="ws-form-label">{t("workspace_switcher.clone_url_label")}</span>
+        <input
+          ref={urlInputRef}
+          id={urlId}
+          type="text"
+          className="ws-form-input"
+          value={url}
+          placeholder={t("workspace_switcher.clone_url_placeholder")}
+          onChange={(e) => setUrl(e.target.value)}
           disabled={working}
-        >
-          <ChevronLeft size={14} aria-hidden="true" />
-        </button>
-        <p className="modal-title ws-view-title">
-          <GitBranch size={14} aria-hidden="true" />
-          {t("workspace_switcher.clone_title")}
-        </p>
-      </div>
+          spellCheck={false}
+        />
+      </label>
 
-      <div className="ws-form">
-        <label className="ws-form-row" htmlFor={urlId}>
-          <span className="ws-form-label">{t("workspace_switcher.clone_url_label")}</span>
-          <input
-            ref={urlInputRef}
-            id={urlId}
-            type="text"
-            className="ws-form-input"
-            value={url}
-            placeholder={t("workspace_switcher.clone_url_placeholder")}
-            onChange={(e) => setUrl(e.target.value)}
+      <div className="ws-form-row">
+        <span className="ws-form-label">{t("workspace_switcher.create_parent_label")}</span>
+        <div className="ws-form-picker">
+          <span className="ws-form-picker-path" title={parentDir ?? undefined}>
+            {parentDir ?? t("workspace_switcher.create_parent_placeholder")}
+          </span>
+          <button
+            type="button"
+            className="ws-form-picker-btn"
+            onClick={pickParent}
             disabled={working}
-            spellCheck={false}
-          />
-        </label>
-
-        <div className="ws-form-row">
-          <span className="ws-form-label">{t("workspace_switcher.create_parent_label")}</span>
-          <div className="ws-form-picker">
-            <span className="ws-form-picker-path" title={parentDir ?? undefined}>
-              {parentDir ?? t("workspace_switcher.create_parent_placeholder")}
-            </span>
-            <button
-              type="button"
-              className="ws-form-picker-btn"
-              onClick={pickParent}
-              disabled={working}
-              aria-label={`${t("workspace_switcher.create_parent_label")}: ${
-                parentDir ?? t("workspace_switcher.create_pick_parent")
-              }`}
-            >
-              {t("workspace_switcher.create_pick_parent")}
-            </button>
-          </div>
+            aria-label={`${t("workspace_switcher.create_parent_label")}: ${
+              parentDir ?? t("workspace_switcher.create_pick_parent")
+            }`}
+          >
+            {t("workspace_switcher.create_pick_parent")}
+          </button>
         </div>
-
-        <label className="ws-form-row" htmlFor={folderId}>
-          <span className="ws-form-label">{t("workspace_switcher.clone_folder_label")}</span>
-          <input
-            id={folderId}
-            type="text"
-            className="ws-form-input"
-            value={folderName}
-            placeholder={t("workspace_switcher.clone_folder_placeholder")}
-            onChange={(e) => setFolderName(e.target.value)}
-            disabled={working}
-            spellCheck={false}
-          />
-        </label>
-
-        {working && (
-          <div className="ws-progress" role="status" aria-live="polite">
-            {progress
-              ? `${progress.phase ?? ""}${progress.phase ? ": " : ""}${progress.message}`
-              : t("workspace_switcher.progress_starting")}
-          </div>
-        )}
-        {error && (
-          <p className="ws-form-error" role="alert">
-            {error}
-          </p>
-        )}
       </div>
 
-      <div className="modal-actions">
-        <button
-          type="button"
-          className="modal-btn modal-btn-cancel"
-          onClick={onBack}
+      <label className="ws-form-row" htmlFor={folderId}>
+        <span className="ws-form-label">{t("workspace_switcher.clone_folder_label")}</span>
+        <input
+          id={folderId}
+          type="text"
+          className="ws-form-input"
+          value={folderName}
+          placeholder={t("workspace_switcher.clone_folder_placeholder")}
+          onChange={(e) => setFolderName(e.target.value)}
           disabled={working}
-        >
-          {t("workspace_switcher.back")}
-        </button>
-        <div className="modal-spacer" />
+          spellCheck={false}
+        />
+      </label>
+
+      {working && (
+        <div className="ws-progress" role="status" aria-live="polite">
+          {progress
+            ? `${progress.phase ?? ""}${progress.phase ? ": " : ""}${progress.message}`
+            : t("workspace_switcher.progress_starting")}
+        </div>
+      )}
+      {error && (
+        <p className="ws-form-error" role="alert">
+          {error}
+        </p>
+      )}
+
+      <div className="ws-form-actions">
         <button
           type="button"
           className="modal-btn modal-btn-primary"
@@ -680,7 +827,7 @@ function CloneView({ initialUrl, onBack, onClone, onSuccess }: CloneViewProps) {
           {working ? t("workspace_switcher.clone_working") : t("workspace_switcher.clone_submit")}
         </button>
       </div>
-    </>
+    </div>
   );
 }
 

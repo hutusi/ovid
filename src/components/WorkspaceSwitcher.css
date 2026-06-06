@@ -2,9 +2,9 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 240px;
-  overflow-y: auto;
   margin: 0 -4px;
+  padding: 0;
+  list-style: none;
 }
 
 .ws-list--group {
@@ -44,14 +44,35 @@
 .ws-item-button {
   width: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: flex-start;
-  gap: 2px;
+  gap: 8px;
   padding: 0;
   background: transparent;
   border: none;
   text-align: left;
   cursor: pointer;
+}
+
+/* Fixed-width marker so non-current rows align with the current one. The
+   check glyph itself is 12px but the slot is 14 so it sits with a touch of
+   breathing room. */
+.ws-item-marker {
+  flex-shrink: 0;
+  width: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 2px;
+  color: var(--color-accent);
+}
+
+.ws-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .ws-item-header {
@@ -87,6 +108,14 @@
 
 .ws-item--active {
   background: var(--color-surface-active);
+}
+
+/* `selected` is a *transient* state — the row the user has clicked once to
+   highlight before pressing Switch. Distinct from `--active` (which means
+   "this workspace is the one currently open"). Both can apply at once. */
+.ws-item--selected {
+  background: var(--color-surface-active);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
 .ws-item-name {
@@ -197,55 +226,179 @@
   margin: 0;
 }
 
-/* Manager panel — wider than the original switcher to fit the create/clone
-   forms without crowding. */
+/* Manager panel — two-pane shell (header on top, nav rail + right pane). */
 .ws-panel {
-  width: 460px;
+  width: 720px;
   max-width: calc(100vw - 48px);
+  height: 500px;
+  max-height: calc(100vh - 80px);
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
 }
 
-/* View header (create / clone) — back arrow + title icon + title text. */
-.ws-view-header {
+/* Header — logo + title block + close icon. */
+.ws-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 14px;
+  flex-shrink: 0;
+  padding: 18px 18px 16px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
 }
 
-.ws-back-btn {
+.ws-logo {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 22%;
+  object-fit: cover;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+
+.ws-title-block {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ws-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-fg);
+  letter-spacing: -0.005em;
+}
+
+.ws-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-fg-muted);
+}
+
+.ws-close-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
   background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
   color: var(--color-fg-muted);
   cursor: pointer;
   transition:
     background var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out);
 }
 
-.ws-back-btn:hover,
-.ws-back-btn:focus-visible {
+.ws-close-btn:hover {
   background: var(--color-surface-hover);
-  border-color: var(--color-border);
   color: var(--color-fg);
 }
 
-.ws-back-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.ws-close-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
 }
 
-.ws-view-title {
-  display: inline-flex;
+.ws-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Left nav rail — section tabs. Mirrors PreferencesDialog's .pref-nav so the
+   two dialogs feel related. */
+.ws-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+  width: 168px;
+  padding: 14px 8px;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+.ws-nav-tab {
+  width: 100%;
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  text-align: left;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--color-fg-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.ws-nav-tab:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-fg);
+}
+
+.ws-nav-tab--active {
+  background: var(--color-surface-active);
+  color: var(--color-fg);
+  font-weight: 500;
+}
+
+.ws-nav-tab-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.ws-nav-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-fg-subtle);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-surface);
+}
+
+.ws-nav-tab--active .ws-nav-count {
+  background: var(--color-surface-hover);
+  color: var(--color-fg-muted);
+}
+
+/* Right pane — scrolls vertically; each section renders its body here. */
+.ws-panel-content {
+  flex: 1;
+  min-width: 0;
+  padding: 18px 22px;
+  overflow-y: auto;
+}
+
+/* Open-folder section — explainer + single primary CTA. */
+.ws-open-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.ws-open-explainer {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-fg-muted);
+  line-height: 1.5;
+}
+
+.ws-open-cta {
+  align-self: flex-start;
 }
 
 /* Form rows shared by Create + Clone views. */
@@ -375,6 +528,23 @@
   margin: 0;
   font-size: 12px;
   color: var(--color-warning);
+}
+
+/* Submit row inside the Create / Clone / Recent sections — single primary
+   button, right-aligned. */
+.ws-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* Recent section wraps the list + the Switch footer so the button sits
+   below the list rather than the dialog footer (which would require a
+   second scroll region). */
+.ws-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .ws-progress {
