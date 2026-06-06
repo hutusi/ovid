@@ -25,14 +25,18 @@ export type Overlay =
   | { kind: "newBranch" }
   | { kind: "renameBranch"; state: NonNullable<RenameBranchDialogState> }
   | { kind: "deleteBranch"; state: NonNullable<DeleteBranchDialogState> }
-  | { kind: "gitSyncPopover" };
+  | { kind: "gitSyncPopover" }
+  | { kind: "notifications" };
 
 export type OverlayKind = Overlay["kind"];
 
-// gitSyncPopover is a transient popover anchored to the status bar, not a
-// modal dialog — it doesn't suppress keyboard shortcuts or menu actions.
-// Everything else is blocking.
-const NON_BLOCKING_KINDS: ReadonlySet<OverlayKind> = new Set<OverlayKind>(["gitSyncPopover"]);
+// gitSyncPopover and notifications are transient popovers anchored to the
+// status bar, not modal dialogs — they don't suppress keyboard shortcuts
+// or menu actions. Everything else is blocking.
+const NON_BLOCKING_KINDS: ReadonlySet<OverlayKind> = new Set<OverlayKind>([
+  "gitSyncPopover",
+  "notifications",
+]);
 
 export function isOverlayBlocking(overlay: Overlay | null): boolean {
   if (overlay === null) return false;

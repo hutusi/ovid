@@ -163,6 +163,31 @@
   stroke-width: 2;
 }
 
+/* ── Notifications bell ─────────────────────── */
+/* The button is the same chip shape as other statusbar-control buttons;
+   the dot is an absolutely-positioned overlay so the badge doesn't disturb
+   the layout when toggled on/off. */
+.statusbar-notifications-toggle {
+  position: relative;
+}
+
+.statusbar-notifications-toggle.has-unread {
+  color: var(--color-accent);
+}
+
+.statusbar-notifications-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  /* A 1px ring in the surface color so the dot reads as separate from the
+     button border on hover, matching macOS / VS Code dot conventions. */
+  box-shadow: 0 0 0 1px var(--color-surface);
+}
+
 .statusbar-lang-toggle {
   font-size: var(--text-xs);
   font-weight: 600;

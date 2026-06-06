@@ -23,7 +23,7 @@ import type {
 } from "../lib/useGitUiController";
 import type { OverlayStack } from "../lib/useOverlayStack";
 import type { ThemePreference } from "../lib/useTheme";
-import type { Toast } from "../lib/useToast";
+import type { NotificationEntry, Toast } from "../lib/useToast";
 
 // i18n key for the New dialog heading, per layer-aware content kind.
 const NEW_FILE_TITLE_KEY: Record<NewContentKind, string> = {
@@ -68,6 +68,9 @@ const DeleteBranchDialog = lazy(async () => ({
 const GitSyncPopover = lazy(async () => ({
   default: (await import("./GitSyncPopover")).GitSyncPopover,
 }));
+const NotificationsDialog = lazy(async () => ({
+  default: (await import("./NotificationsDialog")).NotificationsDialog,
+}));
 const PerfPanel = lazy(async () => ({
   default: (await import("./PerfPanel")).PerfPanel,
 }));
@@ -95,6 +98,10 @@ export interface AppDialogsProps {
 
   // Toasts
   toasts: Toast[];
+
+  // NotificationsDialog (history of previously-shown toasts)
+  notifications: NotificationEntry[];
+  clearNotifications: () => void;
 
   // GitSyncPopover
   gitSyncPopoverOpen: boolean;
@@ -197,6 +204,8 @@ export interface AppDialogsProps {
 export function AppDialogs({
   overlay,
   toasts,
+  notifications,
+  clearNotifications,
   gitSyncPopoverOpen,
   gitSyncPopover,
   setGitSyncPopoverOpen,
@@ -289,6 +298,15 @@ export function AppDialogs({
             </div>
           ))}
         </div>
+      )}
+      {overlay.is("notifications") && (
+        <Suspense fallback={null}>
+          <NotificationsDialog
+            notifications={notifications}
+            onClear={clearNotifications}
+            onClose={() => overlay.close("notifications")}
+          />
+        </Suspense>
       )}
       {overlay.is("workspaceSwitcher") && (
         <Suspense fallback={null}>

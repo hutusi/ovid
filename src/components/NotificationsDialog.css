@@ -1,0 +1,83 @@
+/* ── Notifications Dialog ─────────────────────── */
+/* Width + list styling on top of the shared Modal.css primitives. */
+
+.notifications-panel {
+  width: 380px;
+  max-width: calc(100vw - 48px);
+}
+
+.notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notifications-close {
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-fg-subtle);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.notifications-close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-fg);
+}
+
+.notifications-empty {
+  text-align: center;
+  padding: 12px 0 4px;
+}
+
+.notifications-list {
+  list-style: none;
+  margin: 0;
+  /* Single padding declaration: 8px inset around the scroll region (the
+     ul reset's `padding: 0` would otherwise duplicate this property). */
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  /* Subtle inset frame so the scrollable region reads as a contained
+     list rather than blending into the panel padding. */
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.notifications-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: var(--color-surface-subtle);
+}
+
+.notifications-message {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-fg);
+  /* Allow long lines to wrap rather than be truncated — toast bodies often
+     carry the technical detail the user came here to read carefully. */
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.notifications-time {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--color-fg-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.notifications-actions {
+  padding-top: 4px;
+}

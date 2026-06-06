@@ -244,6 +244,24 @@
     "cancel": "取消",
     "create": "创建"
   },
+  "notifications": {
+    "title": "最近通知",
+    "button_label": "最近通知",
+    "button_label_with_unread": "最近通知(未读 {{count}} 条)",
+    "button_title": "最近通知({{count}})",
+    "button_title_empty": "暂无最近通知",
+    "close": "关闭",
+    "close_label": "关闭通知",
+    "clear": "全部清除",
+    "empty": "暂无最近通知。",
+    "relative": {
+      "just_now": "刚刚",
+      "seconds_ago": "{{count}} 秒前",
+      "minutes_ago": "{{count}} 分钟前",
+      "hours_ago": "{{count}} 小时前",
+      "days_ago": "{{count}} 天前"
+    }
+  },
   "git_sync_popover": {
     "title": "Git 同步状态",
     "close_label": "关闭同步状态",
