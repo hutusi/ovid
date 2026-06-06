@@ -304,7 +304,21 @@ export function useGitUiController({
       // for the host — that's the "wrong PAT, let me reset" path. We
       // probe the store via a small query command rather than waiting for
       // the second failure to flag it.
-      const hasStoredCredentials = parsed.host ? await hasCredentialsForHost(parsed.host) : false;
+      //
+      // A probe failure (e.g. a malformed credentials file) must not abort
+      // the recovery path — letting the rejection bubble out of this
+      // function would propagate up through runGitAction's catch arm and
+      // leave the user with neither the dialog nor an error toast. Fall
+      // back to "no stored credentials" so the dialog still opens; the
+      // forget link just won't appear.
+      let hasStoredCredentials = false;
+      if (parsed.host) {
+        try {
+          hasStoredCredentials = await hasCredentialsForHost(parsed.host);
+        } catch {
+          hasStoredCredentials = false;
+        }
+      }
       overlay.open({
         kind: "gitCredentials",
         state: {

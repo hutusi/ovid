@@ -635,6 +635,35 @@ describe("useGitUiController — sync popover + commit flow", () => {
     }
   });
 
+  it("runGitAction still opens the credentials dialog when hasCredentialsForHost rejects", async () => {
+    const spies = makeSpies();
+    spies.handlePush = mock(() => Promise.reject(new Error("AUTH_REQUIRED|github.com|origin")));
+    // Simulate a malformed credentials file or other probe failure. The
+    // rejection must not abort the recovery path — the dialog should
+    // still open, just with the forget link hidden.
+    spies.hasCredentialsForHost = mock((_: string) =>
+      Promise.reject(new Error("git credentials file is malformed"))
+    );
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "https://github.com/foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "https://github.com/foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: ">",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+
+    expect(result.current.overlay.active?.kind).toBe("gitCredentials");
+    if (result.current.overlay.active?.kind === "gitCredentials") {
+      expect(result.current.overlay.active.state.hasStoredCredentials).toBe(false);
+    }
+    expect(spies.showToast).not.toHaveBeenCalled();
+  });
+
   it("runGitAction falls back to a toast for non-AUTH_REQUIRED errors", async () => {
     const spies = makeSpies();
     spies.handlePush = mock(() => Promise.reject(new Error("network unreachable")));

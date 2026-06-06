@@ -100,7 +100,15 @@ pub(crate) fn forget_host_credentials(path: &Path, host: &str) -> Result<(), Str
         return Ok(());
     }
     if map.is_empty() {
-        let _ = std::fs::remove_file(path);
+        // Surface remove failures: returning Ok would let the UI claim the
+        // credential was forgotten while the file (and the entry inside it)
+        // is still on disk, so the next push would silently reuse the
+        // supposedly-revoked PAT.
+        if let Err(err) = std::fs::remove_file(path) {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                return Err(err.to_string());
+            }
+        }
     } else {
         let content = serde_json::to_string_pretty(&map).map_err(|e| e.to_string())?;
         write_creds_atomic(path, &content)?;
