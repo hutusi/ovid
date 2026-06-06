@@ -221,16 +221,15 @@ export function Editor({
             new InputRule({
               // Match completed [text](url) at the cursor
               find: /\[([^[\]]+)\]\(([^()]+)\)$/,
-              handler: ({ range, match, chain }) => {
+              handler: ({ range, match, commands }) => {
                 const [, text, href] = match;
-                chain()
-                  .deleteRange(range)
-                  .insertContentAt(range.from, {
+                commands.insertContentAt(range, [
+                  {
                     type: "text",
                     text,
                     marks: [{ type: "link", attrs: { href, rel: "noopener noreferrer" } }],
-                  })
-                  .run();
+                  },
+                ]);
               },
             }),
           ];
