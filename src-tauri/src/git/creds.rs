@@ -1,7 +1,3 @@
-// Items here are wired up by `git::commands` in the next commit on this branch;
-// the module-level allow keeps the staging commit warning-clean.
-#![allow(dead_code)]
-
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 

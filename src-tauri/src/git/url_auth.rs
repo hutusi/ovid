@@ -1,7 +1,3 @@
-// Items here are wired up by `git::commands` in the next commit on this branch;
-// the module-level allow keeps the staging commit warning-clean.
-#![allow(dead_code)]
-
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use url::Url;
 
@@ -55,6 +51,12 @@ pub(crate) fn host_for_remote_url(remote_url: &str) -> Option<String> {
 ///
 /// Returns `Err` for non-HTTP(S) URLs — SSH remotes don't use HTTP Basic auth,
 /// so the caller should not attempt the credential retry for them.
+///
+/// Currently retained for tests and a possible future clone-time integration
+/// path. The live push/pull/fetch path uses an inline `credential.helper` in
+/// `runner::run_git_with_credentials` instead, which preserves tracking-ref
+/// side-effects that URL substitution would lose.
+#[allow(dead_code)]
 pub(crate) fn inject_credentials(
     remote_url: &str,
     username: &str,
