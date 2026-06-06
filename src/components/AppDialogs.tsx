@@ -24,6 +24,7 @@ import type {
 import type { OverlayStack } from "../lib/useOverlayStack";
 import type { ThemePreference } from "../lib/useTheme";
 import type { Toast } from "../lib/useToast";
+import type { GitCredentialsOperation } from "./GitCredentialsDialog";
 
 // i18n key for the New dialog heading, per layer-aware content kind.
 const NEW_FILE_TITLE_KEY: Record<NewContentKind, string> = {
@@ -64,6 +65,9 @@ const RenameBranchDialog = lazy(async () => ({
 }));
 const DeleteBranchDialog = lazy(async () => ({
   default: (await import("./DeleteBranchDialog")).DeleteBranchDialog,
+}));
+const GitCredentialsDialog = lazy(async () => ({
+  default: (await import("./GitCredentialsDialog")).GitCredentialsDialog,
 }));
 const GitSyncPopover = lazy(async () => ({
   default: (await import("./GitSyncPopover")).GitSyncPopover,
@@ -180,6 +184,19 @@ export interface AppDialogsProps {
   deleteBranchDialog: DeleteBranchDialogState;
   deleteBranch: (branch: string) => Promise<void>;
 
+  // GitCredentialsDialog — wired to the AUTH_REQUIRED retry path in
+  // useGitUiController. onSubmit calls the matching *_with_credentials
+  // command for the operation; onForget removes the stored credential
+  // for the host so the next push reprompts fresh.
+  onGitCredentialsSubmit: (args: {
+    operation: GitCredentialsOperation;
+    remoteName: string;
+    username: string;
+    password: string;
+    remember: boolean;
+  }) => Promise<void>;
+  onGitCredentialsForget: (host: string) => Promise<void>;
+
   // PreferencesDialog
   themePreference: ThemePreference;
   setThemePreference: (p: ThemePreference) => void;
@@ -252,6 +269,8 @@ export function AppDialogs({
   renameBranch,
   deleteBranchDialog,
   deleteBranch,
+  onGitCredentialsSubmit,
+  onGitCredentialsForget,
   themePreference,
   setThemePreference,
   editorPrefs,
@@ -497,6 +516,35 @@ export function AppDialogs({
             branch={deleteBranchDialog.branch}
             onConfirm={() => void deleteBranch(deleteBranchDialog.branch)}
             onCancel={() => setDeleteBranchDialog(null)}
+          />
+        </Suspense>
+      )}
+      {overlay.active?.kind === "gitCredentials" && (
+        <Suspense fallback={null}>
+          <GitCredentialsDialog
+            host={overlay.active.state.host}
+            remoteName={overlay.active.state.remoteName}
+            operation={overlay.active.state.operation}
+            hasStoredCredentials={overlay.active.state.hasStoredCredentials}
+            authErrored={overlay.active.state.authErrored}
+            initialUsername={overlay.active.state.initialUsername}
+            onSubmit={({ username, password, remember }) => {
+              const active = overlay.active;
+              if (active?.kind !== "gitCredentials") return;
+              void onGitCredentialsSubmit({
+                operation: active.state.operation,
+                remoteName: active.state.remoteName,
+                username,
+                password,
+                remember,
+              });
+            }}
+            onForget={() => {
+              const active = overlay.active;
+              if (active?.kind !== "gitCredentials") return;
+              void onGitCredentialsForget(active.state.host);
+            }}
+            onCancel={() => overlay.close("gitCredentials")}
           />
         </Suspense>
       )}

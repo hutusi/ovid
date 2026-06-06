@@ -30,6 +30,19 @@ export type BranchSwitcherState = {
 export type RenameBranchDialogState = { branch: string } | null;
 export type DeleteBranchDialogState = { branch: string } | null;
 
+// State for the credentials dialog opened on AUTH_REQUIRED. `host` keys the
+// stored credential, `remoteName` is what the user sees in the subtitle.
+// `operation` drives the title copy and the retry-on-submit command. The
+// remaining flags survive across retries within the same dialog session.
+export type GitCredentialsDialogState = {
+  host: string;
+  remoteName: string;
+  operation: "push" | "pull" | "fetch";
+  hasStoredCredentials: boolean;
+  authErrored: boolean;
+  initialUsername?: string;
+} | null;
+
 interface UseGitUiControllerOptions {
   overlay: OverlayStack;
   gitStatusMap: Map<string, GitStatus>;
@@ -467,6 +480,32 @@ export function useGitUiController({
     [flushPendingSave, handleCommit, showToast, t, setCommitDialog]
   );
 
+  // Stub handlers for the credentials dialog — the dialog isn't opened by
+  // any path yet (overlay variant exists, AppDialogs renders it). The next
+  // commit wires the AUTH_REQUIRED catch arms to open it and implements
+  // real submit/forget that call the *_with_credentials and forget
+  // commands. Keeping the handlers here (rather than in App.tsx) means
+  // the wiring change is localized to one file.
+  const handleGitCredentialsSubmit = useCallback(
+    async (_args: {
+      operation: "push" | "pull" | "fetch";
+      remoteName: string;
+      username: string;
+      password: string;
+      remember: boolean;
+    }) => {
+      overlay.close("gitCredentials");
+    },
+    [overlay]
+  );
+
+  const handleForgetGitCredentials = useCallback(
+    async (_host: string) => {
+      overlay.close("gitCredentials");
+    },
+    [overlay]
+  );
+
   return {
     commitDialog,
     branchSwitcher,
@@ -498,5 +537,7 @@ export function useGitUiController({
     setRenameBranchDialog,
     setDeleteBranchDialog,
     setGitSyncPopoverOpen,
+    handleGitCredentialsSubmit,
+    handleForgetGitCredentials,
   };
 }
