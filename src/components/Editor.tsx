@@ -1,4 +1,5 @@
-import { InputRule } from "@tiptap/core";
+import { InputRule, markInputRule } from "@tiptap/core";
+import Bold from "@tiptap/extension-bold";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Link from "@tiptap/extension-link";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -174,10 +175,27 @@ export function Editor({
 
   const editor = useEditor({
     extensions: [
-      // `link` is disabled here because we register a customised Link below
-      // (input rule + `openOnClick: false`). StarterKit v3 includes Link by
-      // default, so without this the editor logs a duplicate-extension warning.
-      StarterKit.configure({ codeBlock: false, link: false }),
+      // `link` and `bold` are disabled here because we register customised
+      // versions below: Link gets a `[text](url)` input rule and
+      // `openOnClick: false`; Bold gets a CJK-friendly `**word**` rule (the
+      // StarterKit regex requires whitespace before `**`, which breaks mid
+      // Chinese/Japanese/Korean prose). StarterKit v3 includes both by
+      // default — keep these flags so it doesn't warn about duplicates.
+      StarterKit.configure({ codeBlock: false, link: false, bold: false }),
+      Bold.extend({
+        addInputRules() {
+          return [
+            markInputRule({
+              find: /(\*\*(?!\s+\*\*)([^*]+)\*\*(?!\s+\*\*))$/,
+              type: this.type,
+            }),
+            markInputRule({
+              find: /(__(?!\s+__)([^_]+)__(?!\s+__))$/,
+              type: this.type,
+            }),
+          ];
+        },
+      }),
       CodeBlockLowlight.extend({
         addNodeView() {
           return ReactNodeViewRenderer(CodeBlockView);

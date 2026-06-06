@@ -158,7 +158,8 @@
 
 /* Bold & Italic */
 .ProseMirror strong {
-  font-weight: 700;
+  font-weight: 800;
+  color: var(--color-fg);
 }
 
 .ProseMirror em {
