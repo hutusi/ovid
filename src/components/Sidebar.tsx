@@ -13,7 +13,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
@@ -83,7 +83,7 @@ interface FileItemProps {
   node: FileNode;
   depth: number;
   isExpanded: (node: FileNode, depth: number) => boolean;
-  onToggleExpand: (path: string, depth: number) => void;
+  onToggleExpand: (path: string, depth: number, opts?: { isBucket?: boolean }) => void;
   selectedPath: string | null;
   gitStatusMap: Map<string, GitStatus>;
   forceExpand?: boolean;
@@ -326,7 +326,7 @@ function FileItem({
                 className="sidebar-dir-toggle"
                 aria-expanded={expanded}
                 aria-label={t("sidebar.toggle_section", { name: dirLabel })}
-                onClick={() => onToggleExpand(node.path, depth)}
+                onClick={() => onToggleExpand(node.path, depth, { isBucket: isBucketFolder })}
               >
                 {dirIconNode}
               </button>
@@ -339,10 +339,11 @@ function FileItem({
                   // and the auto-expand-ancestors effect doesn't re-open it.
                   const action = resolveEntryLabelClick({ entrySelected, expanded });
                   if (action === "collapse") {
-                    onToggleExpand(node.path, depth);
+                    onToggleExpand(node.path, depth, { isBucket: isBucketFolder });
                     return;
                   }
-                  if (action === "expand-and-select") onToggleExpand(node.path, depth);
+                  if (action === "expand-and-select")
+                    onToggleExpand(node.path, depth, { isBucket: isBucketFolder });
                   onSelect(indexEntry);
                 }}
               >
@@ -355,7 +356,7 @@ function FileItem({
               type="button"
               className={`sidebar-dir${node.disabledForSite ? " disabled-for-site" : ""}`}
               aria-expanded={expanded}
-              onClick={() => onToggleExpand(node.path, depth)}
+              onClick={() => onToggleExpand(node.path, depth, { isBucket: isBucketFolder })}
             >
               {dirIconNode}
               {dirLabel}
@@ -552,10 +553,22 @@ export function Sidebar({
   const [filterQuery, setFilterQuery] = useState("");
   const [filterExpanded, setFilterExpanded] = useState(false);
   const filterInputRef = useRef<HTMLInputElement>(null);
+  // A top-level Content-mode bucket (`notes/`, `books/`, …) — these rows are
+  // collapsed by default so a workspace dominated by one bucket doesn't push
+  // the others off-screen. Files mode and nested folders aren't buckets.
+  const isBucketRow = useCallback(
+    (node: FileNode, depth: number): boolean =>
+      depth === 0 &&
+      node.isDirectory &&
+      !filesMode &&
+      !!getBucketContentType(node.name, postsBasePath),
+    [filesMode, postsBasePath]
+  );
   const { isExpanded: isNodeExpanded, toggleExpanded: handleToggleExpand } = useSidebarExpansion({
     workspaceKey,
     tree,
     selectedPath,
+    isBucket: isBucketRow,
   });
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
