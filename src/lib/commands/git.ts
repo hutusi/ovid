@@ -107,6 +107,8 @@ export const git = {
     invokeCmd<void>("git_fetch_with_credentials", args),
   forgetCredentials: (args: GitForgetCredentialsArgs) =>
     invokeCmd<void>("git_forget_credentials", args),
+  hasCredentialsForHost: (args: GitForgetCredentialsArgs) =>
+    invokeCmd<boolean>("git_has_credentials_for_host", args),
   switchBranch: (args: GitSwitchBranchArgs) => invokeCmd<void>("git_switch_branch", args),
   createBranch: (args: GitCreateBranchArgs) => invokeCmd<void>("git_create_branch", args),
   renameBranch: (args: GitRenameBranchArgs) => invokeCmd<void>("git_rename_branch", args),

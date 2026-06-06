@@ -1,5 +1,6 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { parseAuthRequired } from "./commands/git";
 import {
   getGitChangeSummary,
   getGitSyncLabel,
@@ -14,6 +15,8 @@ import type {
   GitStatus,
 } from "./types";
 import type { OverlayStack } from "./useOverlayStack";
+
+type GitAction = "push" | "pull" | "fetch";
 
 export type CommitDialogState = {
   message: string;
@@ -57,6 +60,24 @@ interface UseGitUiControllerOptions {
   handleCommit: (message: string, paths: string[], push: boolean) => Promise<void>;
   handlePush: (remoteName?: string) => Promise<void>;
   handlePull: () => Promise<void>;
+  handlePushWithCredentials: (args: {
+    remoteName?: string;
+    username: string;
+    password: string;
+    remember: boolean;
+  }) => Promise<void>;
+  handlePullWithCredentials: (args: {
+    username: string;
+    password: string;
+    remember: boolean;
+  }) => Promise<void>;
+  handleFetchWithCredentials: (args: {
+    username: string;
+    password: string;
+    remember: boolean;
+  }) => Promise<void>;
+  handleForgetCredentials: (host: string) => Promise<void>;
+  hasCredentialsForHost: (host: string) => Promise<boolean>;
   handleSwitchBranch: (branch: string) => Promise<void>;
   handleCreateBranch: (branch: string) => Promise<void>;
   handleCheckoutRemoteBranch: (remoteRef: string) => Promise<void>;
@@ -137,6 +158,11 @@ export function useGitUiController({
   handleCommit,
   handlePush,
   handlePull,
+  handlePushWithCredentials,
+  handlePullWithCredentials,
+  handleFetchWithCredentials,
+  handleForgetCredentials,
+  hasCredentialsForHost,
   handleSwitchBranch,
   handleCreateBranch,
   handleCheckoutRemoteBranch,
@@ -249,18 +275,65 @@ export function useGitUiController({
     [getBranch, getCommitChanges, showToast, t, setCommitDialog]
   );
 
+  // Pending context for a runGitAction call that hit AUTH_REQUIRED — used
+  // by the credentials dialog submit handler to replay the success toast
+  // and remoteName once the user supplies credentials. A ref (rather than
+  // state) because nothing renders off of it.
+  const pendingAuthRetryRef = useRef<{
+    action: GitAction;
+    successMessage: string;
+    remoteName: string;
+  } | null>(null);
+
+  const openGitCredentialsDialog = useCallback(
+    async (
+      action: GitAction,
+      successMessage: string,
+      message: string,
+      initialUsername?: string,
+      authErrored: boolean = false
+    ): Promise<boolean> => {
+      const parsed = parseAuthRequired(message);
+      if (!parsed) return false;
+      pendingAuthRetryRef.current = {
+        action,
+        successMessage,
+        remoteName: parsed.remoteName,
+      };
+      // The forget link is shown only when a credential is already stored
+      // for the host — that's the "wrong PAT, let me reset" path. We
+      // probe the store via a small query command rather than waiting for
+      // the second failure to flag it.
+      const hasStoredCredentials = parsed.host ? await hasCredentialsForHost(parsed.host) : false;
+      overlay.open({
+        kind: "gitCredentials",
+        state: {
+          host: parsed.host,
+          remoteName: parsed.remoteName,
+          operation: action,
+          hasStoredCredentials,
+          authErrored,
+          initialUsername,
+        },
+      });
+      return true;
+    },
+    [hasCredentialsForHost, overlay]
+  );
+
   const runGitAction = useCallback(
-    async (action: "push" | "pull" | "fetch", run: () => Promise<void>, successMessage: string) => {
+    async (action: GitAction, run: () => Promise<void>, successMessage: string) => {
       try {
         await flushPendingSave();
         await run();
         showToast(successMessage);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        if (await openGitCredentialsDialog(action, successMessage, message)) return;
         showToast(formatGitActionError(action, message, t));
       }
     },
-    [flushPendingSave, showToast, t]
+    [flushPendingSave, openGitCredentialsDialog, showToast, t]
   );
 
   const openBranchSwitcher = useCallback(async () => {
@@ -480,30 +553,97 @@ export function useGitUiController({
     [flushPendingSave, handleCommit, showToast, t, setCommitDialog]
   );
 
-  // Stub handlers for the credentials dialog — the dialog isn't opened by
-  // any path yet (overlay variant exists, AppDialogs renders it). The next
-  // commit wires the AUTH_REQUIRED catch arms to open it and implements
-  // real submit/forget that call the *_with_credentials and forget
-  // commands. Keeping the handlers here (rather than in App.tsx) means
-  // the wiring change is localized to one file.
+  // Submit handler for the credentials dialog. Dispatches to the matching
+  // *WithCredentials command for the operation. On success: close the
+  // dialog and replay the original success toast (carried over via
+  // pendingAuthRetryRef). On another AUTH_REQUIRED (wrong PAT): keep the
+  // dialog open and flip authErrored so the inline error renders. On
+  // unrelated errors: close the dialog and fall through to the usual
+  // error toast formatting.
   const handleGitCredentialsSubmit = useCallback(
-    async (_args: {
-      operation: "push" | "pull" | "fetch";
+    async (args: {
+      operation: GitAction;
       remoteName: string;
       username: string;
       password: string;
       remember: boolean;
     }) => {
-      overlay.close("gitCredentials");
+      const pending = pendingAuthRetryRef.current;
+      try {
+        if (args.operation === "push") {
+          await handlePushWithCredentials({
+            remoteName: args.remoteName || undefined,
+            username: args.username,
+            password: args.password,
+            remember: args.remember,
+          });
+        } else if (args.operation === "pull") {
+          await handlePullWithCredentials({
+            username: args.username,
+            password: args.password,
+            remember: args.remember,
+          });
+        } else {
+          await handleFetchWithCredentials({
+            username: args.username,
+            password: args.password,
+            remember: args.remember,
+          });
+        }
+        overlay.close("gitCredentials");
+        pendingAuthRetryRef.current = null;
+        showToast(pending?.successMessage ?? t(`toast.git_${args.operation}ed`));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const reopened = await openGitCredentialsDialog(
+          args.operation,
+          pending?.successMessage ?? t(`toast.git_${args.operation}ed`),
+          message,
+          args.username,
+          true
+        );
+        if (reopened) return;
+        overlay.close("gitCredentials");
+        pendingAuthRetryRef.current = null;
+        showToast(formatGitActionError(args.operation, message, t));
+      }
     },
-    [overlay]
+    [
+      handlePushWithCredentials,
+      handlePullWithCredentials,
+      handleFetchWithCredentials,
+      openGitCredentialsDialog,
+      overlay,
+      showToast,
+      t,
+    ]
   );
 
+  // Forget handler — wired to the "Forget saved credentials for {host}" link
+  // shown inside the dialog when a credential is already stored. Removes
+  // the entry, then refreshes the dialog state so the link disappears and
+  // the user can type fresh credentials. We don't close the dialog: the
+  // user still wants to authenticate.
   const handleForgetGitCredentials = useCallback(
-    async (_host: string) => {
-      overlay.close("gitCredentials");
+    async (host: string) => {
+      try {
+        await handleForgetCredentials(host);
+        const active = overlay.active;
+        if (active?.kind === "gitCredentials") {
+          overlay.open({
+            kind: "gitCredentials",
+            state: {
+              ...active.state,
+              hasStoredCredentials: false,
+            },
+          });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        showToast(message);
+      }
     },
-    [overlay]
+    [handleForgetCredentials, overlay, showToast]
   );
 
   return {

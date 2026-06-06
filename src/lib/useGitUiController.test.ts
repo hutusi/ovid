@@ -142,6 +142,11 @@ interface ControllerSpies {
   handleCommit: ReturnType<typeof mock>;
   handlePush: ReturnType<typeof mock>;
   handlePull: ReturnType<typeof mock>;
+  handlePushWithCredentials: ReturnType<typeof mock>;
+  handlePullWithCredentials: ReturnType<typeof mock>;
+  handleFetchWithCredentials: ReturnType<typeof mock>;
+  handleForgetCredentials: ReturnType<typeof mock>;
+  hasCredentialsForHost: ReturnType<typeof mock>;
   handleSwitchBranch: ReturnType<typeof mock>;
   handleCreateBranch: ReturnType<typeof mock>;
   handleCheckoutRemoteBranch: ReturnType<typeof mock>;
@@ -163,6 +168,11 @@ function makeSpies(): ControllerSpies {
     handleCommit: mock(() => Promise.resolve()),
     handlePush: mock(() => Promise.resolve()),
     handlePull: mock(() => Promise.resolve()),
+    handlePushWithCredentials: mock(() => Promise.resolve()),
+    handlePullWithCredentials: mock(() => Promise.resolve()),
+    handleFetchWithCredentials: mock(() => Promise.resolve()),
+    handleForgetCredentials: mock(() => Promise.resolve()),
+    hasCredentialsForHost: mock((_: string) => Promise.resolve(false)),
     handleSwitchBranch: mock(() => Promise.resolve()),
     handleCreateBranch: mock(() => Promise.resolve()),
     handleCheckoutRemoteBranch: mock(() => Promise.resolve()),
@@ -527,6 +537,193 @@ describe("useGitUiController — sync popover + commit flow", () => {
     });
 
     expect(spies.showToast).toHaveBeenCalledWith("No remote URL configured");
+  });
+
+  it("runGitAction opens the credentials dialog when push rejects with AUTH_REQUIRED", async () => {
+    const spies = makeSpies();
+    spies.handlePush = mock(() => Promise.reject(new Error("AUTH_REQUIRED|github.com|origin")));
+    spies.hasCredentialsForHost = mock((_: string) => Promise.resolve(false));
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "https://github.com/foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "https://github.com/foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: ">",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+
+    // Dialog open, no error toast on this branch — the prompt itself is the
+    // surfacing mechanism.
+    expect(result.current.overlay.active?.kind).toBe("gitCredentials");
+    expect(spies.hasCredentialsForHost).toHaveBeenCalledWith("github.com");
+    expect(spies.showToast).not.toHaveBeenCalled();
+    if (result.current.overlay.active?.kind === "gitCredentials") {
+      expect(result.current.overlay.active.state.host).toBe("github.com");
+      expect(result.current.overlay.active.state.remoteName).toBe("origin");
+      expect(result.current.overlay.active.state.operation).toBe("push");
+      expect(result.current.overlay.active.state.hasStoredCredentials).toBe(false);
+      expect(result.current.overlay.active.state.authErrored).toBe(false);
+    }
+  });
+
+  it("runGitAction marks hasStoredCredentials when the host already has a saved credential", async () => {
+    const spies = makeSpies();
+    spies.handlePull = mock(() => Promise.reject(new Error("AUTH_REQUIRED|gitlab.com|origin")));
+    spies.hasCredentialsForHost = mock((_: string) => Promise.resolve(true));
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "https://gitlab.com/foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "https://gitlab.com/foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: "<",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+
+    expect(result.current.overlay.active?.kind).toBe("gitCredentials");
+    if (result.current.overlay.active?.kind === "gitCredentials") {
+      expect(result.current.overlay.active.state.hasStoredCredentials).toBe(true);
+      expect(result.current.overlay.active.state.operation).toBe("pull");
+    }
+  });
+
+  it("runGitAction falls back to a toast for non-AUTH_REQUIRED errors", async () => {
+    const spies = makeSpies();
+    spies.handlePush = mock(() => Promise.reject(new Error("network unreachable")));
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "https://github.com/foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "https://github.com/foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: ">",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+
+    expect(result.current.overlay.active).toBeNull();
+    expect(spies.showToast).toHaveBeenCalledWith("push failed: network unreachable");
+  });
+
+  it("handleGitCredentialsSubmit calls handlePushWithCredentials on push and toasts success on resolve", async () => {
+    const spies = makeSpies();
+    spies.handlePush = mock(() => Promise.reject(new Error("AUTH_REQUIRED|github.com|origin")));
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "https://github.com/foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "https://github.com/foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: ">",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    // First trigger AUTH_REQUIRED so the pending retry context is set up.
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+    expect(result.current.overlay.active?.kind).toBe("gitCredentials");
+
+    // Submit credentials.
+    await act(async () => {
+      await result.current.controller.handleGitCredentialsSubmit({
+        operation: "push",
+        remoteName: "origin",
+        username: "alice",
+        password: "ghp_token",
+        remember: true,
+      });
+    });
+
+    expect(spies.handlePushWithCredentials).toHaveBeenCalledWith({
+      remoteName: "origin",
+      username: "alice",
+      password: "ghp_token",
+      remember: true,
+    });
+    // Overlay closed and the original success toast replayed.
+    expect(result.current.overlay.active).toBeNull();
+    const toastCalls = spies.showToast.mock.calls.map((c: unknown[]) => c[0]);
+    expect(toastCalls).toContain("Pushed to remote");
+  });
+
+  it("handleGitCredentialsSubmit re-opens with authErrored when the retry hits AUTH_REQUIRED again", async () => {
+    const spies = makeSpies();
+    // First push (no creds): AUTH_REQUIRED. Second push (with creds): AUTH_REQUIRED again.
+    spies.handlePush = mock(() => Promise.reject(new Error("AUTH_REQUIRED|github.com|origin")));
+    spies.handlePushWithCredentials = mock(() =>
+      Promise.reject(new Error("AUTH_REQUIRED|github.com|origin"))
+    );
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "https://github.com/foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "https://github.com/foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: ">",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+    await act(async () => {
+      await result.current.controller.handleGitCredentialsSubmit({
+        operation: "push",
+        remoteName: "origin",
+        username: "alice",
+        password: "wrong-pat",
+        remember: false,
+      });
+    });
+
+    expect(result.current.overlay.active?.kind).toBe("gitCredentials");
+    if (result.current.overlay.active?.kind === "gitCredentials") {
+      expect(result.current.overlay.active.state.authErrored).toBe(true);
+      expect(result.current.overlay.active.state.initialUsername).toBe("alice");
+    }
+    // No success toast — the dialog is still open.
+    expect(
+      spies.showToast.mock.calls.every((call: unknown[]) => call[0] !== "Pushed to remote")
+    ).toBe(true);
+  });
+
+  it("handleForgetGitCredentials clears storage and refreshes the dialog state", async () => {
+    const spies = makeSpies();
+    spies.handlePush = mock(() => Promise.reject(new Error("AUTH_REQUIRED|github.com|origin")));
+    spies.hasCredentialsForHost = mock((_: string) => Promise.resolve(true));
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "https://github.com/foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "https://github.com/foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: ">",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    await act(async () => {
+      await result.current.controller.handleGitSyncAction();
+    });
+    if (result.current.overlay.active?.kind === "gitCredentials") {
+      expect(result.current.overlay.active.state.hasStoredCredentials).toBe(true);
+    }
+
+    await act(async () => {
+      await result.current.controller.handleForgetGitCredentials("github.com");
+    });
+
+    expect(spies.handleForgetCredentials).toHaveBeenCalledWith("github.com");
+    expect(result.current.overlay.active?.kind).toBe("gitCredentials");
+    if (result.current.overlay.active?.kind === "gitCredentials") {
+      expect(result.current.overlay.active.state.hasStoredCredentials).toBe(false);
+    }
   });
 
   it("copyRemoteUrl writes to the clipboard when a URL exists", async () => {

@@ -403,6 +403,15 @@ pub(crate) fn git_forget_credentials(app: tauri::AppHandle, host: String) -> Res
     forget_host_credentials(&creds_path, &host)
 }
 
+#[tauri::command]
+pub(crate) fn git_has_credentials_for_host(
+    app: tauri::AppHandle,
+    host: String,
+) -> Result<bool, String> {
+    let creds_path = git_creds_path(&app)?;
+    Ok(get_host_credentials(&creds_path, &host)?.is_some())
+}
+
 
 #[tauri::command]
 pub(crate) async fn git_switch_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
