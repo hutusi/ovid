@@ -11,7 +11,7 @@ use super::args::{
 };
 use super::classify::{
     classify_git_branch_delete_error, classify_git_fetch_error, classify_git_pull_error,
-    classify_git_push_error,
+    classify_git_push_error, AUTH_REQUIRED_PREFIX,
 };
 use super::creds::{
     forget_host_credentials, get_host_credentials, git_creds_path, save_host_credentials,
@@ -199,6 +199,14 @@ pub(crate) async fn git_commit(
         run_git(&git_root, &commit_args)?;
         if push {
             if let Err(err) = push_with_optional_stored_creds(&creds_path, &git_root, None) {
+                // Pass the AUTH_REQUIRED|host|remote marker through unwrapped so
+                // the frontend opens the credentials dialog. The commit already
+                // happened — the retry is just the push. Other failures keep
+                // the "commit created, but push failed: …" prefix so the user
+                // knows their commit is safely local.
+                if err.starts_with(AUTH_REQUIRED_PREFIX) {
+                    return Err(err);
+                }
                 return Err(format!("commit created, but push failed: {err}"));
             }
         }

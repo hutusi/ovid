@@ -547,10 +547,29 @@ export function useGitUiController({
         await handleCommit(message, selectedPaths, push);
         setCommitDialog(null);
       } catch (err) {
-        showToast(formatCommitError(getErrorMessage(err), t));
+        const errMessage = getErrorMessage(err);
+        // If the commit succeeded but the push leg hit AUTH_REQUIRED, the
+        // Rust side passes the marker through unwrapped. Close the commit
+        // dialog (commit is done) and open the credentials dialog so the
+        // user can retry just the push. handleGitCredentialsSubmit then
+        // dispatches to handlePushWithCredentials.
+        const opened = await openGitCredentialsDialog("push", pushSuccessMessage, errMessage);
+        if (opened) {
+          setCommitDialog(null);
+          return;
+        }
+        showToast(formatCommitError(errMessage, t));
       }
     },
-    [flushPendingSave, handleCommit, showToast, t, setCommitDialog]
+    [
+      flushPendingSave,
+      handleCommit,
+      openGitCredentialsDialog,
+      pushSuccessMessage,
+      showToast,
+      t,
+      setCommitDialog,
+    ]
   );
 
   // Submit handler for the credentials dialog. Dispatches to the matching

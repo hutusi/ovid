@@ -514,6 +514,47 @@ describe("useGitUiController — sync popover + commit flow", () => {
     expect(spies.showToast).toHaveBeenCalledWith("Commit failed: nothing to commit");
   });
 
+  it("handleCommitDialogCommit opens the credentials dialog when commit+push hits AUTH_REQUIRED", async () => {
+    const spies = makeSpies();
+    // The Rust side passes the AUTH_REQUIRED marker through unwrapped when
+    // the commit succeeded but the push leg failed authentication.
+    spies.handleCommit = mock(() => Promise.reject(new Error("AUTH_REQUIRED|github.com|origin")));
+    spies.getBranch = mock(() => Promise.resolve("main"));
+    spies.getCommitChanges = mock(() => Promise.resolve([sampleChange]));
+    const remoteInfo: GitRemoteInfo = {
+      remotes: [{ name: "origin", url: "https://github.com/foo/bar.git" }],
+      remoteName: "origin",
+      remoteUrl: "https://github.com/foo/bar.git",
+      upstream: "origin/main",
+      aheadBehind: ">",
+    };
+    const { result } = renderController({ spies, remoteInfo });
+
+    // Open the commit dialog so the close-on-auth path has something to close.
+    await act(async () => {
+      await result.current.controller.openCommitDialog("My change");
+    });
+    expect(result.current.controller.commitDialog).not.toBeNull();
+
+    await act(async () => {
+      await result.current.controller.handleCommitDialogCommit(
+        "My change",
+        [sampleChange.path],
+        true
+      );
+    });
+
+    // Commit dialog closed, credentials dialog opened, no flash-by toast.
+    expect(result.current.controller.commitDialog).toBeNull();
+    expect(result.current.overlay.active?.kind).toBe("gitCredentials");
+    if (result.current.overlay.active?.kind === "gitCredentials") {
+      expect(result.current.overlay.active.state.host).toBe("github.com");
+      expect(result.current.overlay.active.state.operation).toBe("push");
+    }
+    const toastCalls = spies.showToast.mock.calls.map((c: unknown[]) => c[0] as string);
+    expect(toastCalls.every((m) => !m.startsWith("Commit"))).toBe(true);
+  });
+
   it("openRemote toasts a formatted error when handleOpenRemote rejects", async () => {
     const spies = makeSpies();
     spies.handleOpenRemote = mock(() => Promise.reject(new Error("no remote")));
