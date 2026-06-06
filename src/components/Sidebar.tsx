@@ -2,6 +2,8 @@ import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import {
   BookOpen,
   ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
   FileImage,
   Files,
   FileText,
@@ -571,12 +573,27 @@ export function Sidebar({
       !!getBucketContentType(node.name, postsBasePath),
     [filesMode, postsBasePath]
   );
-  const { isExpanded: isNodeExpanded, toggleExpanded: handleToggleExpand } = useSidebarExpansion({
+  const {
+    isExpanded: isNodeExpanded,
+    toggleExpanded: handleToggleExpand,
+    setAllBuckets,
+  } = useSidebarExpansion({
     workspaceKey,
     tree,
     selectedPath,
     isBucket: isBucketRow,
   });
+  // Bucket nodes currently in the tree — used to power the expand-all /
+  // collapse-all action. Empty in Files mode or when the projected tree has no
+  // recognised buckets (e.g. plain non-Amytis workspaces).
+  const bucketNodes = useMemo(
+    () => tree.filter((node) => isBucketRow(node, 0)),
+    [tree, isBucketRow]
+  );
+  const anyBucketExpanded = useMemo(
+    () => bucketNodes.some((node) => isNodeExpanded(node, 0)),
+    [bucketNodes, isNodeExpanded]
+  );
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     const parsed = stored ? Number(stored) : SIDEBAR_DEFAULT;
@@ -720,6 +737,31 @@ export function Sidebar({
           </span>
           <ChevronDown size={11} className="sidebar-workspace-name-chevron" aria-hidden="true" />
         </button>
+        {bucketNodes.length >= 2 && (
+          <button
+            type="button"
+            className="sidebar-buckets-toggle"
+            onClick={() =>
+              setAllBuckets(
+                !anyBucketExpanded,
+                bucketNodes.map((node) => node.path)
+              )
+            }
+            title={
+              anyBucketExpanded
+                ? t("sidebar.collapse_all_buckets")
+                : t("sidebar.expand_all_buckets")
+            }
+            aria-label={
+              anyBucketExpanded
+                ? t("sidebar.collapse_all_buckets")
+                : t("sidebar.expand_all_buckets")
+            }
+            aria-pressed={anyBucketExpanded}
+          >
+            {anyBucketExpanded ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+          </button>
+        )}
         {tree.length > 0 && (
           <button
             type="button"

@@ -123,6 +123,8 @@
     "filter_placeholder": "Filter…",
     "clear_filter": "Clear filter",
     "toggle_filter": "Toggle filter",
+    "expand_all_buckets": "Expand all sections",
+    "collapse_all_buckets": "Collapse all sections",
     "no_workspace": "No workspace open.",
     "open_folder": "Open folder",
     "resize": "Resize sidebar",

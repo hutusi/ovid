@@ -181,7 +181,8 @@
   opacity: 0.9;
 }
 
-.sidebar-filter-toggle {
+.sidebar-filter-toggle,
+.sidebar-buckets-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -199,12 +200,14 @@
     background var(--duration-fast) var(--ease-out);
 }
 
-.sidebar-filter-toggle:hover {
+.sidebar-filter-toggle:hover,
+.sidebar-buckets-toggle:hover {
   color: var(--color-fg);
   background: var(--color-surface-hover);
 }
 
-.sidebar-filter-toggle:focus-visible {
+.sidebar-filter-toggle:focus-visible,
+.sidebar-buckets-toggle:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: -2px;
 }
