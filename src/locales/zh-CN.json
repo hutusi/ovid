@@ -294,6 +294,7 @@
     "section_clone": "从 Git 克隆",
     "open_explainer": "选择磁盘上已有的文件夹，将其作为工作区打开。",
     "open_cta": "选择文件夹…",
+    "switch_submit": "切换",
     "current": "当前",
     "no_recent": "无最近工作区。",
     "cancel": "取消",

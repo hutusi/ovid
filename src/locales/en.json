@@ -294,6 +294,7 @@
     "section_clone": "Clone from git",
     "open_explainer": "Pick an existing folder on your disk and open it as a workspace.",
     "open_cta": "Choose folder…",
+    "switch_submit": "Switch",
     "current": "current",
     "no_recent": "No recent workspaces.",
     "cancel": "Cancel",

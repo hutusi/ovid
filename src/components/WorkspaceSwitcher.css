@@ -44,14 +44,35 @@
 .ws-item-button {
   width: 100%;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: flex-start;
-  gap: 2px;
+  gap: 8px;
   padding: 0;
   background: transparent;
   border: none;
   text-align: left;
   cursor: pointer;
+}
+
+/* Fixed-width marker so non-current rows align with the current one. The
+   check glyph itself is 12px but the slot is 14 so it sits with a touch of
+   breathing room. */
+.ws-item-marker {
+  flex-shrink: 0;
+  width: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 2px;
+  color: var(--color-accent);
+}
+
+.ws-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .ws-item-header {
@@ -87,6 +108,14 @@
 
 .ws-item--active {
   background: var(--color-surface-active);
+}
+
+/* `selected` is a *transient* state — the row the user has clicked once to
+   highlight before pressing Switch. Distinct from `--active` (which means
+   "this workspace is the one currently open"). Both can apply at once. */
+.ws-item--selected {
+  background: var(--color-surface-active);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
 .ws-item-name {
@@ -501,13 +530,21 @@
   color: var(--color-warning);
 }
 
-/* Submit row inside the Create / Clone forms — single primary button,
-   right-aligned. Replaces the old .modal-actions footer those views used to
-   carry when they owned the dialog chrome themselves. */
+/* Submit row inside the Create / Clone / Recent sections — single primary
+   button, right-aligned. */
 .ws-form-actions {
   display: flex;
   justify-content: flex-end;
   margin-top: 4px;
+}
+
+/* Recent section wraps the list + the Switch footer so the button sits
+   below the list rather than the dialog footer (which would require a
+   second scroll region). */
+.ws-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .ws-progress {

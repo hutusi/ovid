@@ -85,6 +85,91 @@ describe("WorkspaceSwitcher two-pane shell", () => {
     expect(selected[0].textContent).toContain("Recent");
   });
 
+  it("requires a two-step confirm to switch: first click selects, second click commits", () => {
+    const onSelect = mock(() => {});
+    const onClose = mock(() => {});
+    const { container } = render(
+      <WorkspaceSwitcher
+        recentWorkspaces={[
+          { rootPath: "/a", name: "alpha", lastOpenedAt: 1 },
+          { rootPath: "/b", name: "beta", lastOpenedAt: 2 },
+        ]}
+        currentRootPath="/a"
+        onSelect={onSelect}
+        onOpenOther={mock(() => {})}
+        onRemoveRecent={mock(() => {})}
+        onCreate={mock(() => Promise.resolve(true))}
+        onClone={mock(() => Promise.resolve(true))}
+        onToast={mock(() => {})}
+        onClose={onClose}
+      />
+    );
+
+    const switchButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".ws-form-actions button")
+    )[0];
+    if (!switchButton) throw new Error("Switch button not found");
+    // No row selected yet → Switch is disabled.
+    expect(switchButton.disabled).toBe(true);
+
+    // Find the beta row's primary button and click it.
+    const itemButtons = container.querySelectorAll<HTMLButtonElement>(".ws-item-button");
+    const betaBtn = Array.from(itemButtons).find((b) => b.textContent?.includes("beta"));
+    if (!betaBtn) throw new Error("beta row button not found");
+
+    act(() => {
+      betaBtn.click();
+    });
+
+    // After the first click: row is marked selected, button enabled, but
+    // onSelect / onClose have NOT been called yet — that's the whole point of
+    // the confirm step.
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(switchButton.disabled).toBe(false);
+    expect(container.querySelector<HTMLElement>(".ws-item--selected")?.textContent).toContain(
+      "beta"
+    );
+
+    // Clicking the same row again promotes to a confirm (the click-cycle
+    // fast path that also catches double-clicks).
+    act(() => {
+      betaBtn.click();
+    });
+
+    expect(onSelect).toHaveBeenCalledWith("/b");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders a check icon before the current workspace's name", () => {
+    const { container } = render(
+      <WorkspaceSwitcher
+        recentWorkspaces={[
+          { rootPath: "/a", name: "alpha", lastOpenedAt: 1 },
+          { rootPath: "/b", name: "beta", lastOpenedAt: 2 },
+        ]}
+        currentRootPath="/a"
+        onSelect={mock(() => {})}
+        onOpenOther={mock(() => {})}
+        onRemoveRecent={mock(() => {})}
+        onCreate={mock(() => Promise.resolve(true))}
+        onClone={mock(() => Promise.resolve(true))}
+        onToast={mock(() => {})}
+        onClose={mock(() => {})}
+      />
+    );
+
+    const items = container.querySelectorAll<HTMLElement>(".ws-item");
+    const currentItem = Array.from(items).find((el) => el.classList.contains("ws-item--active"));
+    if (!currentItem) throw new Error("current ws-item not found");
+    // The check icon lives inside the row's marker slot for the current
+    // workspace only. Non-current rows have an empty marker.
+    expect(currentItem.querySelector(".ws-item-marker svg")).not.toBeNull();
+    const nonCurrent = Array.from(items).find((el) => !el.classList.contains("ws-item--active"));
+    if (!nonCurrent) throw new Error("non-current ws-item not found");
+    expect(nonCurrent.querySelector(".ws-item-marker svg")).toBeNull();
+  });
+
   it("shows the recent list on the default tab and switches when another tab is clicked", () => {
     const { container } = renderSwitcher();
     // Default (Recent) shows the workspace names from the props.

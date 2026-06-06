@@ -1,6 +1,6 @@
 import { open as openFolderDialog } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { MoreHorizontal, X } from "lucide-react";
+import { Check, MoreHorizontal, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import logoUrl from "../../branding/ovid-logo-square.png?url";
@@ -237,50 +237,95 @@ function RecentPanel({
   onClose,
 }: RecentPanelProps) {
   const { t } = useTranslation();
+  // `selectedRecent` is the row the user has clicked once to highlight. The
+  // primary "Switch" footer button then commits the switch. A second click on
+  // an already-selected row also commits (which collapses into the native
+  // double-click affordance — mouse users can double-click for the fast path).
+  const [selectedRecent, setSelectedRecent] = useState<string | null>(null);
+
+  const canConfirm = selectedRecent !== null && selectedRecent !== currentRootPath;
+
+  function confirmSwitch(rootPath: string) {
+    if (rootPath !== currentRootPath) onSelect(rootPath);
+    onClose();
+  }
+
+  function handleRowActivate(rootPath: string) {
+    // First click on a row selects it; a second click on the same row
+    // promotes to a switch. Clicking the current workspace's row only marks
+    // it (the Switch button stays disabled), so there's no accidental
+    // re-open of the already-open workspace.
+    if (rootPath === currentRootPath) {
+      setSelectedRecent(rootPath);
+      return;
+    }
+    if (selectedRecent === rootPath) {
+      confirmSwitch(rootPath);
+    } else {
+      setSelectedRecent(rootPath);
+    }
+  }
+
   return (
-    <ul className="ws-list" aria-label={t("workspace_switcher.recent_heading")}>
-      {recentWorkspaces.map((w) => (
-        <RecentItem
-          key={w.rootPath}
-          workspace={w}
-          isCurrent={w.rootPath === currentRootPath}
-          onSelect={() => {
-            if (w.rootPath !== currentRootPath) onSelect(w.rootPath);
-            onClose();
-          }}
-          onRemove={() => {
-            onRemoveRecent(w.rootPath);
-            onToast(t("workspace_switcher.toast_removed", { name: w.name }));
-          }}
-          onReveal={async () => {
-            try {
-              await revealItemInDir(w.rootPath);
-            } catch (err) {
-              onToast(
-                t("errors.reveal_failed", {
-                  message: err instanceof Error ? err.message : String(err),
-                })
-              );
-            }
-          }}
-          onCopyPath={async () => {
-            try {
-              await navigator.clipboard.writeText(w.rootPath);
-              onToast(t("workspace_switcher.toast_copied"));
-            } catch (err) {
-              onToast(
-                t("errors.copy_path_failed", {
-                  message: err instanceof Error ? err.message : String(err),
-                })
-              );
-            }
-          }}
-        />
-      ))}
-      {recentWorkspaces.length === 0 && (
-        <li className="ws-empty">{t("workspace_switcher.no_recent")}</li>
+    <div className="ws-recent">
+      <ul className="ws-list" aria-label={t("workspace_switcher.recent_heading")}>
+        {recentWorkspaces.map((w) => (
+          <RecentItem
+            key={w.rootPath}
+            workspace={w}
+            isCurrent={w.rootPath === currentRootPath}
+            isSelected={w.rootPath === selectedRecent}
+            onActivate={() => handleRowActivate(w.rootPath)}
+            onRemove={() => {
+              onRemoveRecent(w.rootPath);
+              if (selectedRecent === w.rootPath) setSelectedRecent(null);
+              onToast(t("workspace_switcher.toast_removed", { name: w.name }));
+            }}
+            onReveal={async () => {
+              try {
+                await revealItemInDir(w.rootPath);
+              } catch (err) {
+                onToast(
+                  t("errors.reveal_failed", {
+                    message: err instanceof Error ? err.message : String(err),
+                  })
+                );
+              }
+            }}
+            onCopyPath={async () => {
+              try {
+                await navigator.clipboard.writeText(w.rootPath);
+                onToast(t("workspace_switcher.toast_copied"));
+              } catch (err) {
+                onToast(
+                  t("errors.copy_path_failed", {
+                    message: err instanceof Error ? err.message : String(err),
+                  })
+                );
+              }
+            }}
+          />
+        ))}
+        {recentWorkspaces.length === 0 && (
+          <li className="ws-empty">{t("workspace_switcher.no_recent")}</li>
+        )}
+      </ul>
+
+      {recentWorkspaces.length > 0 && (
+        <div className="ws-form-actions">
+          <button
+            type="button"
+            className="modal-btn modal-btn-primary"
+            onClick={() => {
+              if (selectedRecent !== null) confirmSwitch(selectedRecent);
+            }}
+            disabled={!canConfirm}
+          >
+            {t("workspace_switcher.switch_submit")}
+          </button>
+        </div>
       )}
-    </ul>
+    </div>
   );
 }
 
@@ -289,7 +334,8 @@ function RecentPanel({
 interface RecentItemProps {
   workspace: RecentWorkspace;
   isCurrent: boolean;
-  onSelect: () => void;
+  isSelected: boolean;
+  onActivate: () => void;
   onRemove: () => void;
   onReveal: () => void;
   onCopyPath: () => void;
@@ -298,7 +344,8 @@ interface RecentItemProps {
 function RecentItem({
   workspace,
   isCurrent,
-  onSelect,
+  isSelected,
+  onActivate,
   onRemove,
   onReveal,
   onCopyPath,
@@ -325,12 +372,26 @@ function RecentItem({
     };
   }, [menuOpen]);
 
+  const classes = ["ws-item"];
+  if (isCurrent) classes.push("ws-item--active");
+  if (isSelected) classes.push("ws-item--selected");
+
   return (
-    <li ref={containerRef} className={`ws-item${isCurrent ? " ws-item--active" : ""}`}>
+    <li ref={containerRef} className={classes.join(" ")}>
       <div className="ws-item-header">
-        <button type="button" className="ws-item-button" onClick={onSelect}>
-          <span className="ws-item-name">{workspace.name}</span>
-          <span className="ws-item-path">{workspace.rootPath}</span>
+        <button
+          type="button"
+          className="ws-item-button"
+          onClick={onActivate}
+          aria-pressed={isSelected}
+        >
+          <span className="ws-item-marker" aria-hidden="true">
+            {isCurrent && <Check size={12} />}
+          </span>
+          <span className="ws-item-text">
+            <span className="ws-item-name">{workspace.name}</span>
+            <span className="ws-item-path">{workspace.rootPath}</span>
+          </span>
         </button>
         <div className="ws-item-controls">
           {isCurrent && (
