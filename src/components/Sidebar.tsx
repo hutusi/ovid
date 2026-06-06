@@ -354,12 +354,19 @@ function FileItem({
           ) : (
             <button
               type="button"
-              className={`sidebar-dir${node.disabledForSite ? " disabled-for-site" : ""}`}
+              className={`sidebar-dir${isBucketFolder ? " sidebar-bucket-row" : ""}${
+                node.disabledForSite ? " disabled-for-site" : ""
+              }`}
               aria-expanded={expanded}
               onClick={() => onToggleExpand(node.path, depth, { isBucket: isBucketFolder })}
             >
               {dirIconNode}
-              {dirLabel}
+              <span className="sidebar-bucket-label">{dirLabel}</span>
+              {isBucketFolder && (
+                <span className="sidebar-bucket-count" aria-hidden="true">
+                  {node.children?.length ?? 0}
+                </span>
+              )}
               {node.disabledForSite && (
                 <span className="sidebar-bucket-badge" title={t("sidebar.hidden_from_site")}>
                   {t("sidebar.hidden_badge")}
