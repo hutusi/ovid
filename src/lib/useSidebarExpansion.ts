@@ -14,6 +14,11 @@ interface UseSidebarExpansionOptions {
   workspaceKey: string | null | undefined;
   tree: FileNode[];
   selectedPath: string | null;
+  /** Predicate identifying a "bucket" row (a top-level Content-mode content
+   *  bucket like `notes/`, `books/`). Bucket rows are collapsed by default so
+   *  the sidebar stays scannable on workspaces with many notes. Files mode and
+   *  nested folders never pass this — they keep the old depth-based default. */
+  isBucket?: (node: FileNode, depth: number) => boolean;
 }
 
 /**
@@ -32,6 +37,7 @@ export function useSidebarExpansion({
   workspaceKey,
   tree,
   selectedPath,
+  isBucket,
 }: UseSidebarExpansionOptions) {
   const expandedStorageKey = useMemo(() => buildExpandedStorageKey(workspaceKey), [workspaceKey]);
   const expandedStorageKeyRef = useRef(expandedStorageKey);
@@ -80,17 +86,35 @@ export function useSidebarExpansion({
   }, [selectedPath, selectedAncestorKey, isLoaded]);
 
   const isExpanded = useCallback(
-    (node: FileNode, depth: number): boolean => getNodeExpanded(node.path, depth, expandedPaths),
-    [expandedPaths]
+    (node: FileNode, depth: number): boolean =>
+      getNodeExpanded(node.path, depth, expandedPaths, {
+        isBucket: isBucket?.(node, depth),
+      }),
+    [expandedPaths, isBucket]
   );
 
-  const toggleExpanded = useCallback((path: string, depth: number) => {
+  const toggleExpanded = useCallback(
+    (path: string, depth: number, opts?: { isBucket?: boolean }) => {
+      setExpandedPaths((current) => {
+        const next = { ...current };
+        next[path] = !(current[path] ?? shouldDefaultExpand(depth, opts));
+        return next;
+      });
+    },
+    []
+  );
+
+  /** Bulk-set a list of paths to `expanded`. Used by the bucket expand-all /
+   *  collapse-all action so the user can switch between focused and overview
+   *  modes with one click. */
+  const setAllBuckets = useCallback((expanded: boolean, paths: string[]) => {
+    if (paths.length === 0) return;
     setExpandedPaths((current) => {
       const next = { ...current };
-      next[path] = !(current[path] ?? shouldDefaultExpand(depth));
+      for (const path of paths) next[path] = expanded;
       return next;
     });
   }, []);
 
-  return { isExpanded, toggleExpanded };
+  return { isExpanded, toggleExpanded, setAllBuckets };
 }

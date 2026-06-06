@@ -6,7 +6,14 @@ export function buildExpandedStorageKey(workspaceKey: string | null | undefined)
   return workspaceKey ? `${SIDEBAR_EXPANDED_KEY}:${workspaceKey}` : SIDEBAR_EXPANDED_KEY;
 }
 
-export function shouldDefaultExpand(depth: number): boolean {
+/** Default expansion rule for a directory row. Top-level folders are open by
+ *  default; deeper folders are closed. The `isBucket` flag overrides this to
+ *  `false` for top-level Content-mode buckets so a workspace with many notes
+ *  doesn't push books/series/pages off-screen — the user opens the bucket
+ *  they want, and the choice persists per workspace. Files mode and nested
+ *  folders are unaffected. */
+export function shouldDefaultExpand(depth: number, opts?: { isBucket?: boolean }): boolean {
+  if (opts?.isBucket) return false;
   return depth < 1;
 }
 
@@ -71,11 +78,12 @@ export function forceExpandAncestors(
 export function getNodeExpanded(
   path: string,
   depth: number,
-  expandedPaths: Record<string, boolean>
+  expandedPaths: Record<string, boolean>,
+  opts?: { isBucket?: boolean }
 ): boolean {
   const persisted = expandedPaths[path];
   if (persisted !== undefined) return persisted;
-  return shouldDefaultExpand(depth);
+  return shouldDefaultExpand(depth, opts);
 }
 
 export type EntryLabelClickAction = "collapse" | "expand-and-select" | "select";
