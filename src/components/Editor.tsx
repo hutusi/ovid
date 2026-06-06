@@ -27,6 +27,7 @@ import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
 import { FindReplace } from "../lib/tiptap/FindReplace";
 import { Footnotes } from "../lib/tiptap/Footnotes";
 import { H1Warning } from "../lib/tiptap/H1Warning";
+import { IMEComposition } from "../lib/tiptap/IMEComposition";
 import { ImageRenderer } from "../lib/tiptap/ImageRenderer";
 import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
@@ -182,6 +183,7 @@ export function Editor({
       // Chinese/Japanese/Korean prose). StarterKit v3 includes both by
       // default — keep these flags so it doesn't warn about duplicates.
       StarterKit.configure({ codeBlock: false, link: false, bold: false }),
+      IMEComposition,
       Bold.extend({
         addInputRules() {
           return [
