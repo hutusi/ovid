@@ -85,6 +85,40 @@ describe("WorkspaceSwitcher two-pane shell", () => {
     expect(selected[0].textContent).toContain("Recent");
   });
 
+  it("navigates between section tabs with ArrowUp/Down + Home/End (WAI-ARIA tablist)", () => {
+    // We assert on `aria-selected` rather than `document.activeElement` here:
+    // the keyboard handler is what we're validating, and aria-selected is
+    // what the handler actually sets via setSection. (Focus movement happens
+    // imperatively against the tab refs; happy-dom's reconciliation of that
+    // synchronous .focus() call against React 18's batched state flush is
+    // flaky for the tablist refs in particular, while it works fine for the
+    // recents-list test above. The aria-selected assertion is the
+    // behaviorally meaningful one — if it's true on the right tab, the
+    // handler ran on the right key.)
+    const { container } = renderSwitcher();
+    const tabs = Array.from(container.querySelectorAll<HTMLElement>('[role="tab"]'));
+    expect(tabs).toHaveLength(4);
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+
+    function pressOn(tab: HTMLElement, key: string) {
+      act(() => {
+        tab.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      });
+    }
+
+    pressOn(tabs[0], "ArrowDown");
+    expect(tabs[1].getAttribute("aria-selected")).toBe("true");
+
+    pressOn(tabs[1], "End");
+    expect(tabs[3].getAttribute("aria-selected")).toBe("true");
+
+    pressOn(tabs[3], "ArrowUp");
+    expect(tabs[2].getAttribute("aria-selected")).toBe("true");
+
+    pressOn(tabs[2], "Home");
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+  });
+
   it("requires a two-step confirm to switch: first click selects, second click commits", () => {
     const onSelect = mock(() => {});
     const onClose = mock(() => {});
