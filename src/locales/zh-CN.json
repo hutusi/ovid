@@ -123,6 +123,8 @@
     "filter_placeholder": "筛选…",
     "clear_filter": "清除筛选",
     "toggle_filter": "切换筛选",
+    "expand_all_buckets": "展开全部分区",
+    "collapse_all_buckets": "折叠全部分区",
     "no_workspace": "未打开工作区。",
     "open_folder": "打开文件夹",
     "resize": "调整侧栏宽度",

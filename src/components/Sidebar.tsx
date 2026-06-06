@@ -2,6 +2,8 @@ import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import {
   BookOpen,
   ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
   FileImage,
   Files,
   FileText,
@@ -13,7 +15,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
@@ -83,7 +85,7 @@ interface FileItemProps {
   node: FileNode;
   depth: number;
   isExpanded: (node: FileNode, depth: number) => boolean;
-  onToggleExpand: (path: string, depth: number) => void;
+  onToggleExpand: (path: string, depth: number, opts?: { isBucket?: boolean }) => void;
   selectedPath: string | null;
   gitStatusMap: Map<string, GitStatus>;
   forceExpand?: boolean;
@@ -326,7 +328,7 @@ function FileItem({
                 className="sidebar-dir-toggle"
                 aria-expanded={expanded}
                 aria-label={t("sidebar.toggle_section", { name: dirLabel })}
-                onClick={() => onToggleExpand(node.path, depth)}
+                onClick={() => onToggleExpand(node.path, depth, { isBucket: isBucketFolder })}
               >
                 {dirIconNode}
               </button>
@@ -339,10 +341,11 @@ function FileItem({
                   // and the auto-expand-ancestors effect doesn't re-open it.
                   const action = resolveEntryLabelClick({ entrySelected, expanded });
                   if (action === "collapse") {
-                    onToggleExpand(node.path, depth);
+                    onToggleExpand(node.path, depth, { isBucket: isBucketFolder });
                     return;
                   }
-                  if (action === "expand-and-select") onToggleExpand(node.path, depth);
+                  if (action === "expand-and-select")
+                    onToggleExpand(node.path, depth, { isBucket: isBucketFolder });
                   onSelect(indexEntry);
                 }}
               >
@@ -353,12 +356,19 @@ function FileItem({
           ) : (
             <button
               type="button"
-              className={`sidebar-dir${node.disabledForSite ? " disabled-for-site" : ""}`}
+              className={`sidebar-dir${isBucketFolder ? " sidebar-bucket-row" : ""}${
+                node.disabledForSite ? " disabled-for-site" : ""
+              }`}
               aria-expanded={expanded}
-              onClick={() => onToggleExpand(node.path, depth)}
+              onClick={() => onToggleExpand(node.path, depth, { isBucket: isBucketFolder })}
             >
               {dirIconNode}
-              {dirLabel}
+              <span className="sidebar-bucket-label">{dirLabel}</span>
+              {isBucketFolder && (
+                <span className="sidebar-bucket-count" aria-hidden="true">
+                  {node.children?.length ?? 0}
+                </span>
+              )}
               {node.disabledForSite && (
                 <span className="sidebar-bucket-badge" title={t("sidebar.hidden_from_site")}>
                   {t("sidebar.hidden_badge")}
@@ -552,11 +562,42 @@ export function Sidebar({
   const [filterQuery, setFilterQuery] = useState("");
   const [filterExpanded, setFilterExpanded] = useState(false);
   const filterInputRef = useRef<HTMLInputElement>(null);
-  const { isExpanded: isNodeExpanded, toggleExpanded: handleToggleExpand } = useSidebarExpansion({
+  // A top-level Content-mode bucket (`notes/`, `books/`, …) — these rows are
+  // collapsed by default so a workspace dominated by one bucket doesn't push
+  // the others off-screen. Files mode and nested folders aren't buckets.
+  const isBucketRow = useCallback(
+    (node: FileNode, depth: number): boolean =>
+      depth === 0 &&
+      node.isDirectory &&
+      !filesMode &&
+      !!getBucketContentType(node.name, postsBasePath),
+    [filesMode, postsBasePath]
+  );
+  const {
+    isExpanded: isNodeExpanded,
+    toggleExpanded: handleToggleExpand,
+    setAllBuckets,
+  } = useSidebarExpansion({
     workspaceKey,
     tree,
     selectedPath,
+    isBucket: isBucketRow,
   });
+  // Bucket nodes currently in the tree — used to power the expand-all /
+  // collapse-all action. Empty in Files mode or when the projected tree has no
+  // recognised buckets (e.g. plain non-Amytis workspaces).
+  const bucketNodes = useMemo(
+    () => tree.filter((node) => isBucketRow(node, 0)),
+    [tree, isBucketRow]
+  );
+  // The header button collapses everything only when *every* bucket is open;
+  // mixed and all-closed states stay on "expand all" so a click never wipes
+  // out buckets the user has manually opened. `aria-pressed` then cleanly
+  // reads as "all sections currently expanded".
+  const allBucketsExpanded = useMemo(
+    () => bucketNodes.length > 0 && bucketNodes.every((node) => isNodeExpanded(node, 0)),
+    [bucketNodes, isNodeExpanded]
+  );
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     const parsed = stored ? Number(stored) : SIDEBAR_DEFAULT;
@@ -700,6 +741,31 @@ export function Sidebar({
           </span>
           <ChevronDown size={11} className="sidebar-workspace-name-chevron" aria-hidden="true" />
         </button>
+        {bucketNodes.length >= 2 && (
+          <button
+            type="button"
+            className="sidebar-buckets-toggle"
+            onClick={() =>
+              setAllBuckets(
+                !allBucketsExpanded,
+                bucketNodes.map((node) => node.path)
+              )
+            }
+            title={
+              allBucketsExpanded
+                ? t("sidebar.collapse_all_buckets")
+                : t("sidebar.expand_all_buckets")
+            }
+            aria-label={
+              allBucketsExpanded
+                ? t("sidebar.collapse_all_buckets")
+                : t("sidebar.expand_all_buckets")
+            }
+            aria-pressed={allBucketsExpanded}
+          >
+            {allBucketsExpanded ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+          </button>
+        )}
         {tree.length > 0 && (
           <button
             type="button"

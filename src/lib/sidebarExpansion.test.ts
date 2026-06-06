@@ -60,6 +60,10 @@ describe("shouldDefaultExpand", () => {
     expect(shouldDefaultExpand(2)).toBe(false);
     expect(shouldDefaultExpand(3)).toBe(false);
   });
+
+  it("collapses top-level Content-mode buckets by default", () => {
+    expect(shouldDefaultExpand(0, { isBucket: true })).toBe(false);
+  });
 });
 
 describe("parseExpandedPaths", () => {
@@ -147,6 +151,21 @@ describe("getNodeExpanded", () => {
   it("falls back to default depth-based expansion", () => {
     expect(getNodeExpanded("/workspace/posts", 0, {})).toBe(true);
     expect(getNodeExpanded("/workspace/posts/2024", 1, {})).toBe(false);
+  });
+
+  it("treats unset bucket rows as collapsed", () => {
+    expect(getNodeExpanded("/workspace/content/notes", 0, {}, { isBucket: true })).toBe(false);
+  });
+
+  it("respects persisted expansion even when the row is a bucket", () => {
+    expect(
+      getNodeExpanded(
+        "/workspace/content/notes",
+        0,
+        { "/workspace/content/notes": true },
+        { isBucket: true }
+      )
+    ).toBe(true);
   });
 });
 
