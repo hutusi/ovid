@@ -244,6 +244,24 @@
     "cancel": "Cancel",
     "create": "Create"
   },
+  "notifications": {
+    "title": "Recent notifications",
+    "button_label": "Recent notifications",
+    "button_label_with_unread": "Recent notifications ({{count}} unread)",
+    "button_title": "Recent notifications ({{count}})",
+    "button_title_empty": "No recent notifications",
+    "close": "Close",
+    "close_label": "Close notifications",
+    "clear": "Clear all",
+    "empty": "No recent notifications.",
+    "relative": {
+      "just_now": "just now",
+      "seconds_ago": "{{count}}s ago",
+      "minutes_ago": "{{count}}m ago",
+      "hours_ago": "{{count}}h ago",
+      "days_ago": "{{count}}d ago"
+    }
+  },
   "git_sync_popover": {
     "title": "Git sync status",
     "close_label": "Close sync status",

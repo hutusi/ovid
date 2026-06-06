@@ -71,7 +71,8 @@ function App() {
   const pendingAutoOpenPath = useRef<string | null>(null);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
 
-  const { toasts, showToast } = useToast();
+  const { toasts, showToast, notifications, unread, markNotificationsRead, clearNotifications } =
+    useToast();
   const { prefs, updatePrefs } = useEditorPreferences();
   const { goal: wordCountGoal, setGoal: setWordCountGoal } = useWordCountGoal();
 
@@ -661,6 +662,17 @@ function App() {
         gitChangeLabel={gitChangeSummary?.label}
         gitChangeTitle={gitChangeSummary?.title}
         gitSyncPopoverOpen={gitSyncPopoverOpen}
+        notificationsCount={notifications.length}
+        notificationsUnread={unread}
+        notificationsOpen={overlay.is("notifications")}
+        onOpenNotifications={() => {
+          if (overlay.is("notifications")) {
+            overlay.close("notifications");
+          } else {
+            markNotificationsRead();
+            overlay.open({ kind: "notifications" });
+          }
+        }}
         onOpenBranches={() => void openBranchSwitcher()}
         onRenamePath={
           selectedFile && !selectedFile.isDirectory
@@ -685,6 +697,8 @@ function App() {
       <AppDialogs
         overlay={overlay}
         toasts={toasts}
+        notifications={notifications}
+        clearNotifications={clearNotifications}
         gitSyncPopoverOpen={gitSyncPopoverOpen}
         gitSyncPopover={gitSyncPopover}
         setGitSyncPopoverOpen={setGitSyncPopoverOpen}

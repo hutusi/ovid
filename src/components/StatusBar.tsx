@@ -2,6 +2,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Bell,
   FilePenLine,
   GitBranch,
   Keyboard,
@@ -54,10 +55,14 @@ interface StatusBarProps {
   gitChangeLabel?: string | null;
   gitChangeTitle?: string;
   gitSyncPopoverOpen?: boolean;
+  notificationsCount: number;
+  notificationsUnread: number;
+  notificationsOpen?: boolean;
   onOpenBranches: () => void;
   onRenamePath?: () => void;
   onOpenCommit: () => void;
   onOpenGitSync: () => void;
+  onOpenNotifications: () => void;
   onToggleTheme: () => void;
   onToggleZen: () => void;
   onToggleTypewriter: () => void;
@@ -87,10 +92,14 @@ export function StatusBar({
   gitChangeLabel,
   gitChangeTitle,
   gitSyncPopoverOpen = false,
+  notificationsCount,
+  notificationsUnread,
+  notificationsOpen = false,
   onOpenBranches,
   onRenamePath,
   onOpenCommit,
   onOpenGitSync,
+  onOpenNotifications,
   onToggleTheme,
   onToggleZen,
   onToggleTypewriter,
@@ -252,6 +261,28 @@ export function StatusBar({
           aria-label={t("status_bar.language")}
         >
           {i18n.language === "zh-CN" ? "中" : "EN"}
+        </button>
+        <button
+          type="button"
+          className={`statusbar-control statusbar-notifications-toggle${notificationsUnread > 0 ? " has-unread" : ""}`}
+          onClick={onOpenNotifications}
+          title={
+            notificationsCount === 0
+              ? t("notifications.button_title_empty")
+              : t("notifications.button_title", { count: notificationsCount })
+          }
+          aria-label={
+            notificationsUnread > 0
+              ? t("notifications.button_label_with_unread", { count: notificationsUnread })
+              : t("notifications.button_label")
+          }
+          aria-haspopup="dialog"
+          aria-expanded={notificationsOpen}
+        >
+          <Bell className="statusbar-mode-icon" aria-hidden="true" />
+          {notificationsUnread > 0 && (
+            <span className="statusbar-notifications-dot" aria-hidden="true" />
+          )}
         </button>
         <button
           type="button"
