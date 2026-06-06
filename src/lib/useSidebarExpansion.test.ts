@@ -96,6 +96,30 @@ describe("useSidebarExpansion — bucket-aware defaults", () => {
     expect(result.current.isExpanded(books, 0)).toBe(false);
   });
 
+  it("supports the mixed-state contract the Sidebar's toggle relies on", () => {
+    // The header expand-all/collapse-all toggle in Sidebar.tsx derives its
+    // state by asking "are *every* bucket expanded?" — anything less (including
+    // a mixed state where one bucket is open and others are closed) must read
+    // as "not all expanded" so the toggle still offers to expand the rest
+    // instead of collapsing the ones the user has just opened.
+    const notes = makeDir("/ws/content/notes");
+    const books = makeDir("/ws/content/books");
+    const { result } = renderHook(() =>
+      useSidebarExpansion({
+        workspaceKey: "/ws",
+        tree: [notes, books],
+        selectedPath: null,
+        isBucket: (_node, depth) => depth === 0,
+      })
+    );
+
+    act(() => {
+      result.current.setAllBuckets(true, [notes.path]);
+    });
+
+    expect([notes, books].every((n) => result.current.isExpanded(n, 0))).toBe(false);
+  });
+
   it("persists bucket expansion under the per-workspace storage key", () => {
     const notes = makeDir("/ws/content/notes");
     const { result } = renderHook(() =>

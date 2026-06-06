@@ -590,8 +590,12 @@ export function Sidebar({
     () => tree.filter((node) => isBucketRow(node, 0)),
     [tree, isBucketRow]
   );
-  const anyBucketExpanded = useMemo(
-    () => bucketNodes.some((node) => isNodeExpanded(node, 0)),
+  // The header button collapses everything only when *every* bucket is open;
+  // mixed and all-closed states stay on "expand all" so a click never wipes
+  // out buckets the user has manually opened. `aria-pressed` then cleanly
+  // reads as "all sections currently expanded".
+  const allBucketsExpanded = useMemo(
+    () => bucketNodes.length > 0 && bucketNodes.every((node) => isNodeExpanded(node, 0)),
     [bucketNodes, isNodeExpanded]
   );
   const [sidebarWidth, setSidebarWidth] = useState(() => {
@@ -743,23 +747,23 @@ export function Sidebar({
             className="sidebar-buckets-toggle"
             onClick={() =>
               setAllBuckets(
-                !anyBucketExpanded,
+                !allBucketsExpanded,
                 bucketNodes.map((node) => node.path)
               )
             }
             title={
-              anyBucketExpanded
+              allBucketsExpanded
                 ? t("sidebar.collapse_all_buckets")
                 : t("sidebar.expand_all_buckets")
             }
             aria-label={
-              anyBucketExpanded
+              allBucketsExpanded
                 ? t("sidebar.collapse_all_buckets")
                 : t("sidebar.expand_all_buckets")
             }
-            aria-pressed={anyBucketExpanded}
+            aria-pressed={allBucketsExpanded}
           >
-            {anyBucketExpanded ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+            {allBucketsExpanded ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
           </button>
         )}
         {tree.length > 0 && (
