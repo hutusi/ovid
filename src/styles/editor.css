@@ -678,3 +678,40 @@
     top: -1.05em;
   }
 }
+
+/* ── Wiki links ──────────────────────────────────────────────────────────── */
+.wiki-link-wrapper {
+  display: inline;
+}
+
+.ProseMirror .wiki-link {
+  color: var(--color-wiki-link);
+  text-decoration: underline;
+  text-decoration-color: var(--color-wiki-link);
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+  outline: none;
+}
+
+.ProseMirror .wiki-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.ProseMirror .wiki-link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.ProseMirror .wiki-link-unresolved {
+  color: var(--color-wiki-link-unresolved);
+  text-decoration-color: var(--color-wiki-link-unresolved);
+  text-decoration-style: dashed;
+  font-style: italic;
+}
+
+.ProseMirror .wiki-link-selected {
+  background: var(--color-accent-subtle);
+  border-radius: 2px;
+}

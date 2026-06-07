@@ -5,6 +5,7 @@ import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
 import { isMac } from "../lib/platform";
 import type { FileNode, RecentFile, SaveStatus } from "../lib/types";
+import type { ResolvedWikiTarget } from "../lib/wikiLink";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FileViewer, isReadOnlyContent } from "./FileViewer";
@@ -61,6 +62,10 @@ export interface EditorPaneProps {
   onEditorViewStateChange: (state: EditorViewState) => void;
   registerPendingFlush: (flush: (() => void) | null) => void;
 
+  // Wiki links
+  resolveWikiTarget: (target: string) => ResolvedWikiTarget;
+  onOpenWikiTarget: (target: string, displayText: string | null) => void;
+
   // Empty state
   recentFiles: RecentFile[];
   onOpenWorkspace: () => void;
@@ -102,6 +107,8 @@ export function EditorPane({
   currentEditorViewState,
   onEditorViewStateChange,
   registerPendingFlush,
+  resolveWikiTarget,
+  onOpenWikiTarget,
   recentFiles,
   onOpenWorkspace,
   onOpenRecent,
@@ -198,6 +205,8 @@ export function EditorPane({
                 filePath={selectedFile.path}
                 assetRoot={assetRoot}
                 cdnBase={cdnBase}
+                resolveWikiTarget={resolveWikiTarget}
+                onOpenWikiTarget={onOpenWikiTarget}
                 typewriterMode={typewriterMode}
                 spellCheck={spellCheck}
                 showH1Warning={editorTitle.trim() !== ""}

@@ -725,6 +725,11 @@
     "series_body": "欢迎来到《{{title}}》系列。",
     "book_body": "欢迎来到《{{title}}》。"
   },
+  "wikiLink": {
+    "resolvedAria": "链接到 {{target}}",
+    "unresolvedAria": "未解析的 wiki 链接 {{target}}（点击将新建笔记）",
+    "createNoteFailed": "为 [[{{target}}]] 创建笔记失败：{{message}}"
+  },
   "toast": {
     "copied_remote_url": "已复制远端 URL",
     "git_pulled": "已拉取最新更改",

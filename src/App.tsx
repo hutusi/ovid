@@ -6,6 +6,7 @@ import { EditorPane } from "./components/EditorPane";
 import { getFileViewKind } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import { buildNewContent } from "./lib/amytisScaffold";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
 import { commands } from "./lib/commands";
@@ -36,6 +37,13 @@ import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspaceRevisionPoll } from "./lib/useWorkspaceRevisionPoll";
 import { useWorkspaceSession } from "./lib/useWorkspaceSession";
 import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtml";
+import {
+  buildNoteResolverIndex,
+  EMPTY_NOTE_RESOLVER_INDEX,
+  type NoteResolverIndex,
+  type ResolvedWikiTarget,
+  resolveWikiTarget,
+} from "./lib/wikiLink";
 import "./styles/global.css";
 import "./App.css";
 
@@ -240,6 +248,85 @@ function App() {
       void openByPath(path);
     },
     [openByPath, setFileViewerNode]
+  );
+
+  // Wiki-link resolution index — refreshed asynchronously whenever the
+  // workspace's notes-bucket file list changes. Held in a ref so the stable
+  // `resolveWikiTargetCallback` always sees the latest snapshot without
+  // forcing every wiki link node-view to re-render on each prop change.
+  const [noteResolverIndex, setNoteResolverIndex] =
+    useState<NoteResolverIndex>(EMPTY_NOTE_RESOLVER_INDEX);
+  const noteResolverGenRef = useRef(0);
+  const noteResolverIndexRef = useRef(noteResolverIndex);
+  useEffect(() => {
+    noteResolverIndexRef.current = noteResolverIndex;
+  }, [noteResolverIndex]);
+  useEffect(() => {
+    const gen = ++noteResolverGenRef.current;
+    void (async () => {
+      const index = await buildNoteResolverIndex(flatFiles, (path) =>
+        commands.files.read({ path })
+      );
+      if (gen === noteResolverGenRef.current) {
+        setNoteResolverIndex(index);
+      }
+    })();
+  }, [flatFiles]);
+
+  const resolveWikiTargetCallback = useCallback(
+    (target: string): ResolvedWikiTarget => resolveWikiTarget(target, noteResolverIndexRef.current),
+    []
+  );
+
+  const onOpenWikiTarget = useCallback(
+    async (target: string) => {
+      if (!workspaceRoot) return;
+      const resolved = resolveWikiTarget(target, noteResolverIndexRef.current);
+      if (resolved.exists) {
+        setFileViewerNode(null);
+        void openByPath(`${workspaceRoot}/${resolved.relativePath}`);
+        return;
+      }
+      try {
+        const date = new Date().toISOString().slice(0, 10);
+        const { dirsToCreate, filePath, content } = buildNewContent(
+          {
+            kind: "note",
+            title: target,
+            date,
+            contentRoot: workspaceRoot,
+            basePath: postsBasePath || "posts",
+            dirPath: workspaceRoot,
+            // Honour the user's "auto create hello-world.md" expectation —
+            // we always materialize wiki-link targets as plain `.md` notes,
+            // regardless of the workspace's MDX preference.
+            format: "md",
+          },
+          t
+        );
+        for (const dir of dirsToCreate) {
+          await commands.files.ensureDir({ path: dir });
+        }
+        try {
+          await commands.files.create({ path: filePath, content });
+        } catch (err) {
+          // Race with another writer (or a same-tick second click) — fall
+          // through to opening the existing file.
+          if (!String(err).includes("already exists")) throw err;
+        }
+        await refreshTree();
+        setFileViewerNode(null);
+        void openByPath(filePath);
+      } catch (err) {
+        showToast(
+          t("wikiLink.createNoteFailed", {
+            target,
+            message: err instanceof Error ? err.message : String(err),
+          })
+        );
+      }
+    },
+    [workspaceRoot, postsBasePath, refreshTree, openByPath, setFileViewerNode, showToast, t]
   );
 
   function handleSidebarSelect(node: FileNode) {
@@ -647,6 +734,8 @@ function App() {
           currentEditorViewState={currentEditorViewState}
           onEditorViewStateChange={handleEditorViewStateChange}
           registerPendingFlush={registerEditorFlush}
+          resolveWikiTarget={resolveWikiTargetCallback}
+          onOpenWikiTarget={onOpenWikiTarget}
           recentFiles={recentFiles}
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}

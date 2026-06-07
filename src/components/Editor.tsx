@@ -37,6 +37,8 @@ import {
 } from "../lib/tiptap/markdownInputRules";
 import { TextFolding } from "../lib/tiptap/TextFolding";
 import { getTaskListTypingNormalization, normalizeTaskLists } from "../lib/tiptap/taskLists";
+import { WikiLink } from "../lib/tiptap/WikiLink";
+import type { ResolvedWikiTarget } from "../lib/wikiLink";
 import { BubbleMenu } from "./BubbleMenu";
 import { CodeBlockView } from "./CodeBlockView";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -56,6 +58,10 @@ interface EditorProps {
   filePath?: string;
   assetRoot?: string;
   cdnBase?: string;
+  /** Wiki-link resolution (`[[Target]]` → `notes/foo.md`). Stable across renders. */
+  resolveWikiTarget?: (target: string) => ResolvedWikiTarget;
+  /** Called when the user clicks/Enter on a wiki link. Stable across renders. */
+  onOpenWikiTarget?: (target: string, displayText: string | null) => void;
   typewriterMode?: boolean;
   spellCheck?: boolean;
   showH1Warning?: boolean;
@@ -76,6 +82,8 @@ export function Editor({
   filePath,
   assetRoot,
   cdnBase,
+  resolveWikiTarget,
+  onOpenWikiTarget,
   typewriterMode = false,
   spellCheck = true,
   initialSelection,
@@ -102,6 +110,18 @@ export function Editor({
   useEffect(() => {
     typewriterRef.current = typewriterMode;
   }, [typewriterMode]);
+
+  // Stable indirection so resolver/onOpen updates don't force a useEditor
+  // re-instantiation — the extension options are baked in once but read
+  // through the ref every time the node-view renders.
+  const resolveWikiTargetRef = useRef(resolveWikiTarget);
+  const onOpenWikiTargetRef = useRef(onOpenWikiTarget);
+  useEffect(() => {
+    resolveWikiTargetRef.current = resolveWikiTarget;
+  }, [resolveWikiTarget]);
+  useEffect(() => {
+    onOpenWikiTargetRef.current = onOpenWikiTarget;
+  }, [onOpenWikiTarget]);
 
   const [linkDialog, setLinkDialog] = useState<{ href: string } | null>(null);
   const [findReplaceMode, setFindReplaceMode] = useState<FindReplaceMode>("closed");
@@ -234,6 +254,11 @@ export function Editor({
       }).configure({
         openOnClick: false,
         HTMLAttributes: { rel: "noopener noreferrer" },
+      }),
+      WikiLink.configure({
+        resolve: (target) =>
+          resolveWikiTargetRef.current?.(target) ?? { relativePath: "", exists: false },
+        onOpen: (target, displayText) => onOpenWikiTargetRef.current?.(target, displayText),
       }),
       ImageRenderer.configure({ filePath, assetRoot, cdnBase }),
       Table.configure({ resizable: true }),
