@@ -124,6 +124,15 @@ export function WikiSuggestionPopover({
       .slice(0, MAX_RESULTS);
   }, [positioned, flatFiles, resolverIndex]);
 
+  // Derive the effective highlight from `selectedIndex`, clamped against
+  // the current suggestions length. The result list can shrink without the
+  // query changing (a note got renamed, the resolver index rebuilt) — in
+  // that case the unclamped index would dereference `undefined` in
+  // `insertSelected`. Clamping every render keeps the highlight valid
+  // without an extra state-setting effect.
+  const activeIndex =
+    suggestions.length === 0 ? 0 : Math.min(selectedIndex, suggestions.length - 1);
+
   // Capture-phase keyboard handler so arrow/Enter/Esc don't reach ProseMirror.
   useEffect(() => {
     if (!positioned) return;
@@ -132,21 +141,31 @@ export function WikiSuggestionPopover({
       // properties panel or any input shouldn't drive the popover.
       const active = document.activeElement;
       if (!active || !editor.view.dom.contains(active)) return;
+      // When there are no suggestions to surface (popover renders null at
+      // the bottom), let every navigation key bubble through so the user
+      // can still move the cursor normally. Esc remains useful — it
+      // dismisses the latent suggestion state for this `[[…` start.
+      if (suggestions.length === 0) {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          dismissedAtRef.current = positioned.state.from;
+          setPositioned(null);
+        }
+        return;
+      }
       if (event.key === "ArrowDown") {
         event.preventDefault();
         event.stopPropagation();
-        setSelectedIndex((i) => (suggestions.length === 0 ? 0 : (i + 1) % suggestions.length));
+        setSelectedIndex((i) => (i + 1) % suggestions.length);
       } else if (event.key === "ArrowUp") {
         event.preventDefault();
         event.stopPropagation();
-        setSelectedIndex((i) =>
-          suggestions.length === 0 ? 0 : (i - 1 + suggestions.length) % suggestions.length
-        );
+        setSelectedIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
       } else if (event.key === "Enter" || event.key === "Tab") {
-        if (suggestions.length === 0) return;
         event.preventDefault();
         event.stopPropagation();
-        insertSelected(editor, positioned.state, suggestions[selectedIndex], resolverIndex);
+        insertSelected(editor, positioned.state, suggestions[activeIndex], resolverIndex);
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -156,14 +175,14 @@ export function WikiSuggestionPopover({
     };
     document.addEventListener("keydown", handler, true);
     return () => document.removeEventListener("keydown", handler, true);
-  }, [positioned, suggestions, selectedIndex, editor, resolverIndex]);
+  }, [positioned, suggestions, activeIndex, editor, resolverIndex]);
 
   // Scroll the highlighted row into view inside the popover.
   useLayoutEffect(() => {
     if (!listRef.current) return;
     const items = listRef.current.querySelectorAll<HTMLButtonElement>("[data-suggestion-item]");
-    items[selectedIndex]?.scrollIntoView({ block: "nearest" });
-  }, [selectedIndex]);
+    items[activeIndex]?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
 
   if (!positioned || suggestions.length === 0) return null;
 
@@ -185,8 +204,8 @@ export function WikiSuggestionPopover({
             type="button"
             data-suggestion-item
             role="option"
-            aria-selected={i === selectedIndex}
-            className={`wiki-suggestion-item${i === selectedIndex ? " is-selected" : ""}`}
+            aria-selected={i === activeIndex}
+            className={`wiki-suggestion-item${i === activeIndex ? " is-selected" : ""}`}
             onMouseEnter={() => setSelectedIndex(i)}
             onMouseDown={(e) => {
               // Mousedown (not click) so we beat the editor's blur — clicking

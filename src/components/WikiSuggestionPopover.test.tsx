@@ -247,4 +247,105 @@ describe("WikiSuggestionPopover", () => {
     expect(targets[0]).toBe("hi");
     teardown();
   });
+
+  it("lets ArrowUp/ArrowDown bubble when there are no matches", () => {
+    // When the user types `[[xyz` with nothing matching, the popover renders
+    // null. The capture-phase handler must not steal navigation keys —
+    // otherwise normal cursor movement is silently blocked.
+    const { editor, teardown } = setup();
+    typeRaw(editor, "[[xyz-nothing-matches");
+    const down = new KeyboardEvent("keydown", {
+      key: "ArrowDown",
+      bubbles: true,
+      cancelable: true,
+    });
+    act(() => {
+      document.dispatchEvent(down);
+    });
+    expect(down.defaultPrevented).toBe(false);
+    teardown();
+  });
+
+  it("Esc still dismisses even when there are no matches", () => {
+    // Esc is the user's only escape hatch from the latent `[[…` state, so
+    // it should still be intercepted regardless of suggestion count.
+    const { editor, teardown } = setup();
+    typeRaw(editor, "[[xyz-nothing-matches");
+    const esc = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    act(() => {
+      document.dispatchEvent(esc);
+    });
+    expect(esc.defaultPrevented).toBe(true);
+    teardown();
+  });
+
+  it("Enter doesn't crash when the highlighted suggestion no longer exists", () => {
+    // Walk through highlight=2 with a 3-note list, then re-render with a
+    // 2-note list (e.g. a note was renamed and dropped out). The next Enter
+    // should insert the last available suggestion, not pass `undefined` to
+    // `insertSelected`.
+    const threeNotes = [
+      makeFlat("notes/hello-a.md", "Hello A"),
+      makeFlat("notes/hello-b.md", "Hello B"),
+      makeFlat("notes/hello-c.md", "Hello C"),
+    ];
+    const threeIndex: NoteResolverIndex = {
+      byPath: new Map([
+        ["notes/hello-a.md", { title: "Hello A" }],
+        ["notes/hello-b.md", { title: "Hello B" }],
+        ["notes/hello-c.md", { title: "Hello C" }],
+      ]),
+      byTitle: new Map([
+        ["hello a", "notes/hello-a.md"],
+        ["hello b", "notes/hello-b.md"],
+        ["hello c", "notes/hello-c.md"],
+      ]),
+      byAlias: new Map(),
+    };
+    const editor = makeEditor();
+    const result = render(
+      <WikiSuggestionPopover editor={editor} flatFiles={threeNotes} resolverIndex={threeIndex} />
+    );
+    typeRaw(editor, "[[Hello");
+    // Move highlight down twice — to the last (index 2) entry.
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+    });
+    // Now re-render with a shorter list — `selectedIndex` is now 2, but
+    // suggestions.length === 2. Clamping should kick in.
+    const twoNotes = threeNotes.slice(0, 2);
+    const twoIndex: NoteResolverIndex = {
+      byPath: new Map([
+        ["notes/hello-a.md", { title: "Hello A" }],
+        ["notes/hello-b.md", { title: "Hello B" }],
+      ]),
+      byTitle: new Map([
+        ["hello a", "notes/hello-a.md"],
+        ["hello b", "notes/hello-b.md"],
+      ]),
+      byAlias: new Map(),
+    };
+    act(() => {
+      result.rerender(
+        <WikiSuggestionPopover editor={editor} flatFiles={twoNotes} resolverIndex={twoIndex} />
+      );
+    });
+    // Hit Enter — should NOT crash and should insert the clamped target.
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    const targets: string[] = [];
+    editor.state.doc.descendants((node) => {
+      if (node.type.name === "wikiLink") targets.push(node.attrs.target as string);
+      return true;
+    });
+    // With suggestions ["Hello A", "Hello B"] and the clamped index 1,
+    // the inserted target is "Hello B".
+    expect(targets).toEqual(["Hello B"]);
+    act(() => {
+      result.unmount();
+      editor.destroy();
+    });
+  });
 });
