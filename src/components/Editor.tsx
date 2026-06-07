@@ -26,10 +26,15 @@ import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
 import { FindReplace } from "../lib/tiptap/FindReplace";
 import { Footnotes } from "../lib/tiptap/Footnotes";
 import { H1Warning } from "../lib/tiptap/H1Warning";
+import { IMEComposition } from "../lib/tiptap/IMEComposition";
 import { ImageRenderer } from "../lib/tiptap/ImageRenderer";
 import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
 import { ListBackspace } from "../lib/tiptap/ListBackspace";
+import {
+  BoldWithMarkdownShortcut,
+  ItalicWithMarkdownShortcut,
+} from "../lib/tiptap/markdownInputRules";
 import { TextFolding } from "../lib/tiptap/TextFolding";
 import { getTaskListTypingNormalization, normalizeTaskLists } from "../lib/tiptap/taskLists";
 import { BubbleMenu } from "./BubbleMenu";
@@ -174,10 +179,22 @@ export function Editor({
 
   const editor = useEditor({
     extensions: [
-      // `link` is disabled here because we register a customised Link below
-      // (input rule + `openOnClick: false`). StarterKit v3 includes Link by
-      // default, so without this the editor logs a duplicate-extension warning.
-      StarterKit.configure({ codeBlock: false, link: false }),
+      // `link`, `bold`, and `italic` are disabled here because we register
+      // customised versions below: Link gets a `[text](url)` input rule and
+      // `openOnClick: false`; Bold/Italic get CJK-friendly regexes that fire
+      // mid Chinese/Japanese/Korean prose (StarterKit requires whitespace
+      // before `**`/`*`). StarterKit v3 includes all three by default —
+      // keep these flags so it doesn't warn about duplicates. Extracted
+      // versions live in `src/lib/tiptap/markdownInputRules.ts`.
+      StarterKit.configure({
+        codeBlock: false,
+        link: false,
+        bold: false,
+        italic: false,
+      }),
+      IMEComposition,
+      BoldWithMarkdownShortcut,
+      ItalicWithMarkdownShortcut,
       CodeBlockLowlight.extend({
         addNodeView() {
           return ReactNodeViewRenderer(CodeBlockView);
@@ -201,16 +218,15 @@ export function Editor({
             new InputRule({
               // Match completed [text](url) at the cursor
               find: /\[([^[\]]+)\]\(([^()]+)\)$/,
-              handler: ({ range, match, chain }) => {
+              handler: ({ range, match, commands }) => {
                 const [, text, href] = match;
-                chain()
-                  .deleteRange(range)
-                  .insertContentAt(range.from, {
+                commands.insertContentAt(range, [
+                  {
                     type: "text",
                     text,
                     marks: [{ type: "link", attrs: { href, rel: "noopener noreferrer" } }],
-                  })
-                  .run();
+                  },
+                ]);
               },
             }),
           ];
@@ -596,7 +612,13 @@ export function Editor({
   return (
     <div className="editor-wrapper">
       <div ref={scrollRef} className="editor-scroll">
-        {onTitleChange !== undefined && <TitleInput title={title ?? ""} onChange={onTitleChange} />}
+        {onTitleChange !== undefined && (
+          <TitleInput
+            title={title ?? ""}
+            onChange={onTitleChange}
+            onSubmit={() => editor?.commands.focus("end")}
+          />
+        )}
         <EditorContent editor={editor} />
       </div>
       {editor && findReplaceMode !== "closed" && (
