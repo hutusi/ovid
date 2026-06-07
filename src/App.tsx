@@ -36,6 +36,14 @@ import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspaceRevisionPoll } from "./lib/useWorkspaceRevisionPoll";
 import { useWorkspaceSession } from "./lib/useWorkspaceSession";
 import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtml";
+import {
+  buildNoteResolverIndex,
+  createWikiNote,
+  EMPTY_NOTE_RESOLVER_INDEX,
+  type NoteResolverIndex,
+  type ResolvedWikiTarget,
+  resolveWikiTarget,
+} from "./lib/wikiLink";
 import "./styles/global.css";
 import "./App.css";
 
@@ -240,6 +248,67 @@ function App() {
       void openByPath(path);
     },
     [openByPath, setFileViewerNode]
+  );
+
+  // Wiki-link resolution index — refreshed asynchronously whenever the
+  // workspace's notes-bucket file list changes. Held in a ref so the stable
+  // `resolveWikiTargetCallback` always sees the latest snapshot without
+  // forcing every wiki link node-view to re-render on each prop change.
+  const [noteResolverIndex, setNoteResolverIndex] =
+    useState<NoteResolverIndex>(EMPTY_NOTE_RESOLVER_INDEX);
+  const noteResolverGenRef = useRef(0);
+  const noteResolverIndexRef = useRef(noteResolverIndex);
+  useEffect(() => {
+    noteResolverIndexRef.current = noteResolverIndex;
+  }, [noteResolverIndex]);
+  useEffect(() => {
+    const gen = ++noteResolverGenRef.current;
+    void (async () => {
+      const index = await buildNoteResolverIndex(flatFiles, (path) =>
+        commands.files.read({ path })
+      );
+      if (gen === noteResolverGenRef.current) {
+        setNoteResolverIndex(index);
+      }
+    })();
+  }, [flatFiles]);
+
+  const resolveWikiTargetCallback = useCallback(
+    (target: string): ResolvedWikiTarget => resolveWikiTarget(target, noteResolverIndexRef.current),
+    []
+  );
+
+  const onOpenWikiTarget = useCallback(
+    async (target: string) => {
+      if (!workspaceRoot) return;
+      const resolved = resolveWikiTarget(target, noteResolverIndexRef.current);
+      if (resolved.exists) {
+        setFileViewerNode(null);
+        void openByPath(`${workspaceRoot}/${resolved.relativePath}`);
+        return;
+      }
+      try {
+        const { filePath } = await createWikiNote(target, {
+          workspaceRoot,
+          postsBasePath,
+          today: new Date().toISOString().slice(0, 10),
+          ensureDir: (path) => commands.files.ensureDir({ path }),
+          createFile: (path, content) => commands.files.create({ path, content }),
+          t,
+        });
+        await refreshTree();
+        setFileViewerNode(null);
+        void openByPath(filePath);
+      } catch (err) {
+        showToast(
+          t("wikiLink.createNoteFailed", {
+            target,
+            message: err instanceof Error ? err.message : String(err),
+          })
+        );
+      }
+    },
+    [workspaceRoot, postsBasePath, refreshTree, openByPath, setFileViewerNode, showToast, t]
   );
 
   function handleSidebarSelect(node: FileNode) {
@@ -647,6 +716,16 @@ function App() {
           currentEditorViewState={currentEditorViewState}
           onEditorViewStateChange={handleEditorViewStateChange}
           registerPendingFlush={registerEditorFlush}
+          resolveWikiTarget={resolveWikiTargetCallback}
+          onOpenWikiTarget={onOpenWikiTarget}
+          flatFiles={flatFiles}
+          noteResolverIndex={noteResolverIndex}
+          currentRelativePath={
+            selectedFile && workspaceRoot && selectedFile.path.startsWith(`${workspaceRoot}/`)
+              ? selectedFile.path.slice(workspaceRoot.length + 1)
+              : null
+          }
+          onOpenSource={openFileByPath}
           recentFiles={recentFiles}
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}

@@ -27,6 +27,10 @@
   --color-accent: #6366f1;
   --color-accent-subtle: rgba(99, 102, 241, 0.12);
 
+  /* Wiki links */
+  --color-wiki-link: #6366f1;
+  --color-wiki-link-unresolved: #a1a1aa;
+
   /* Status */
   --color-warning: #f59e0b;
   --color-warning-subtle: rgba(245, 158, 11, 0.12);
@@ -67,6 +71,9 @@
 
   --color-accent: #7c7fff;
   --color-accent-subtle: rgba(124, 127, 255, 0.15);
+
+  --color-wiki-link: #a5b4fc;
+  --color-wiki-link-unresolved: #636366;
 
   --color-warning: #fbbf24;
   --color-warning-subtle: rgba(251, 191, 36, 0.15);

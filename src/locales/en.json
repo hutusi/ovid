@@ -725,6 +725,18 @@
     "series_body": "Welcome to the {{title}} series.",
     "book_body": "Welcome to {{title}}."
   },
+  "wikiLink": {
+    "resolvedAria": "Wiki link to {{target}}",
+    "unresolvedAria": "Unresolved wiki link to {{target}} (creates a new note)",
+    "createNoteFailed": "Failed to create note for [[{{target}}]]: {{message}}",
+    "suggestionsAria": "Wiki link suggestions"
+  },
+  "backlinks": {
+    "title": "Linked references",
+    "title_with_count": "Linked references ({{count}})",
+    "loading": "Looking for references…",
+    "openLine": "Open {{path}} at line {{line}}"
+  },
   "toast": {
     "copied_remote_url": "Copied remote URL",
     "git_pulled": "Pulled latest changes",

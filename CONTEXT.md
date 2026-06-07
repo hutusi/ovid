@@ -126,6 +126,39 @@ their member posts inside the folder.
 
 ---
 
+## Wiki links
+
+`[[Target]]` (and `[[Target|Display]]`) is an inline atom Tiptap node — the
+`WikiLink` extension in `src/lib/tiptap/WikiLink.ts`. The on-disk text round-trips
+through tiptap-markdown's `addStorage.markdown` seam: a markdown-it inline rule
+turns `[[…]]` into a `<a data-wiki-target=…>` HTML token on load, and the
+node-storage serializer writes it back verbatim on save.
+
+**Resolution is notes-only and uses frontmatter alone.** `resolveWikiTarget` in
+`src/lib/wikiLink.ts` reads a `NoteResolverIndex` built once per workspace tree
+refresh: it walks every file in `notes/`, parses frontmatter, and indexes
+`title:` and `aliases:` (the alias field is what the note scaffold already
+generates). Lookup is alias-first, then title, case-insensitive; no filename
+slug fallback. Unresolved targets get a fallback path of `notes/<slug>.md` but
+the file isn't created until the user navigates to the link — clicking
+(or pressing Enter on) an unresolved wiki link calls `buildNewContent("note", …,
+{ format: "md" })` to materialize it, then opens it via the standard
+`openByPath`.
+
+**Backlinks** live in `src/lib/backlinks.ts` — a pure async scanner that, given
+the `flatFiles` list, the same `NoteResolverIndex`, and an injected `readFile`,
+returns every file with a `[[…]]` reference resolving to the target. Frontmatter
+is stripped first (so a `title: "[[Foo]]"` value can't masquerade as a
+reference) and self-references are excluded. `BacklinksPanel.tsx` renders the
+results as a "Linked references" section inside the editor scroll container,
+invisible when the file has no inbound references.
+
+See [ADR 0016](docs/adr/0016-bidirectional-wiki-links.md) for the design
+rationale (node vs. decoration, lazy creation, notes-only scope, deferred
+follow-ups).
+
+---
+
 ## File lifecycle vocabulary
 
 Five layers, each owning one piece of the "user opens a file and edits it"

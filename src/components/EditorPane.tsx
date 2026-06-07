@@ -1,10 +1,12 @@
 import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
 import { lazy, Suspense, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import type { FlatFile } from "../lib/fileSearch";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
 import { isMac } from "../lib/platform";
 import type { FileNode, RecentFile, SaveStatus } from "../lib/types";
+import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { FileViewer, isReadOnlyContent } from "./FileViewer";
@@ -61,6 +63,17 @@ export interface EditorPaneProps {
   onEditorViewStateChange: (state: EditorViewState) => void;
   registerPendingFlush: (flush: (() => void) | null) => void;
 
+  // Wiki links
+  resolveWikiTarget: (target: string) => ResolvedWikiTarget;
+  onOpenWikiTarget: (target: string, displayText: string | null) => void;
+
+  // Backlinks panel — same flatFiles/resolverIndex the editor uses, plus the
+  // workspace-relative path of the current file (null when nothing is open).
+  flatFiles: FlatFile[];
+  noteResolverIndex: NoteResolverIndex;
+  currentRelativePath: string | null;
+  onOpenSource: (sourcePath: string) => void;
+
   // Empty state
   recentFiles: RecentFile[];
   onOpenWorkspace: () => void;
@@ -102,6 +115,12 @@ export function EditorPane({
   currentEditorViewState,
   onEditorViewStateChange,
   registerPendingFlush,
+  resolveWikiTarget,
+  onOpenWikiTarget,
+  flatFiles,
+  noteResolverIndex,
+  currentRelativePath,
+  onOpenSource,
   recentFiles,
   onOpenWorkspace,
   onOpenRecent,
@@ -198,6 +217,14 @@ export function EditorPane({
                 filePath={selectedFile.path}
                 assetRoot={assetRoot}
                 cdnBase={cdnBase}
+                resolveWikiTarget={resolveWikiTarget}
+                onOpenWikiTarget={onOpenWikiTarget}
+                backlinks={{
+                  currentRelativePath,
+                  flatFiles,
+                  resolverIndex: noteResolverIndex,
+                  onOpenSource,
+                }}
                 typewriterMode={typewriterMode}
                 spellCheck={spellCheck}
                 showH1Warning={editorTitle.trim() !== ""}

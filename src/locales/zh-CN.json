@@ -725,6 +725,18 @@
     "series_body": "欢迎来到《{{title}}》系列。",
     "book_body": "欢迎来到《{{title}}》。"
   },
+  "wikiLink": {
+    "resolvedAria": "链接到 {{target}}",
+    "unresolvedAria": "未解析的 wiki 链接 {{target}}（点击将新建笔记）",
+    "createNoteFailed": "为 [[{{target}}]] 创建笔记失败：{{message}}",
+    "suggestionsAria": "Wiki 链接建议"
+  },
+  "backlinks": {
+    "title": "反向链接",
+    "title_with_count": "反向链接（{{count}}）",
+    "loading": "正在查找引用……",
+    "openLine": "打开 {{path}} 第 {{line}} 行"
+  },
   "toast": {
     "copied_remote_url": "已复制远端 URL",
     "git_pulled": "已拉取最新更改",

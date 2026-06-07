@@ -678,3 +678,177 @@
     top: -1.05em;
   }
 }
+
+/* ── Wiki links ──────────────────────────────────────────────────────────── */
+.wiki-link-wrapper {
+  display: inline;
+}
+
+.ProseMirror .wiki-link {
+  color: var(--color-wiki-link);
+  text-decoration: underline;
+  text-decoration-color: var(--color-wiki-link);
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+  outline: none;
+}
+
+.ProseMirror .wiki-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.ProseMirror .wiki-link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.ProseMirror .wiki-link-unresolved {
+  color: var(--color-wiki-link-unresolved);
+  text-decoration-color: var(--color-wiki-link-unresolved);
+  text-decoration-style: dashed;
+  font-style: italic;
+}
+
+.ProseMirror .wiki-link-selected {
+  background: var(--color-accent-subtle);
+  border-radius: 2px;
+}
+
+/* ── `[[` suggestion popover ─────────────────────────────────────────────── */
+.wiki-suggestion-popover {
+  z-index: 1000;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  min-width: 220px;
+  max-width: 360px;
+  max-height: 280px;
+  overflow-y: auto;
+  font-family: var(--font-ui);
+}
+
+.wiki-suggestion-list {
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wiki-suggestion-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-fg);
+  background: transparent;
+  border: none;
+  text-align: left;
+  font: inherit;
+}
+
+.wiki-suggestion-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.wiki-suggestion-item.is-selected {
+  background: var(--color-accent-subtle);
+}
+
+.wiki-suggestion-title {
+  font-size: var(--text-base);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wiki-suggestion-path {
+  font-size: var(--text-xs);
+  color: var(--color-fg-subtle);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Backlinks (Linked references) panel ─────────────────────────────────── */
+.backlinks-panel {
+  max-width: 680px;
+  margin: 3rem auto 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--color-border);
+  font-family: var(--font-ui);
+}
+
+.backlinks-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.75rem;
+}
+
+.backlinks-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.backlinks-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "title path"
+    "snippet snippet";
+  row-gap: 0.25rem;
+  column-gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-fg);
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+
+.backlinks-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.backlinks-item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.backlinks-item-title {
+  grid-area: title;
+  font-weight: 600;
+}
+
+.backlinks-item-path {
+  grid-area: path;
+  color: var(--color-fg-subtle);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+}
+
+.backlinks-item-snippet {
+  grid-area: snippet;
+  color: var(--color-fg-muted);
+  font-family: var(--font-editor);
+  font-size: var(--text-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
