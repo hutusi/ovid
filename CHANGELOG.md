@@ -7,6 +7,123 @@ release cadence and Conventional Commit history.
 
 ## Unreleased
 
+## 0.16.0 - 2026-06-08
+
+### Added
+- **Wiki links and backlinks**: `[[Target]]` and `[[Target|Display]]` are now a
+  first-class inline Tiptap node (atom, selectable) that round-trips through
+  Markdown. Resolution is alias-first then title (case-insensitive, notes-only)
+  via a frontmatter-built `NoteResolverIndex` — no filename-slug fallback.
+  Unresolved targets only materialise `notes/<slug>.md` on first navigation, so
+  the workspace never accumulates orphan files from stray typing. Typing `[[`
+  opens a suggestion popover with keyboard-navigable note autocomplete. A
+  "Linked references" panel at the bottom of the editor scroll surfaces inbound
+  links via a backlinks scanner. See ADR 0016.
+- **Workspace Manager**: a dedicated two-pane manager (logo + section tabs)
+  replaces the old single-purpose recents dropdown. The manager handles
+  list / create / clone as a state machine; switching is two-step with a check
+  icon on the current row to avoid accidental swaps; arrow keys navigate the
+  recents list. The "Create" path scaffolds a minimal Amytis workspace; the
+  "Clone" path clones a remote Amytis workspace from a Git URL.
+- **Git HTTPS credentials**: push / pull / fetch now detect `AUTH_REQUIRED` and
+  prompt for credentials via a dedicated dialog (with overlay variant) instead
+  of failing silently. Credentials are stored per host with HTTPS URL injection
+  at command time; the retry flow uses an authenticated command shell. The
+  host-probe path was hardened against malformed remotes, and forget-credential
+  failures now surface via toast. See ADR 0014.
+- **Notifications history**: recent toasts persist and are reachable from a
+  status-bar popover, so transient errors aren't lost the moment they fade.
+- **Unified window chrome**: the sidebar header, editor top bar, and properties
+  panel header now share a single 36 px top strip with continuous styling and a
+  deep Tauri drag region. Tabs live inside the title bar with an Obsidian-style
+  active-tab lift; macOS gets traffic-light tuning; Windows and Linux get
+  custom window controls. See ADR 0013.
+- **Sidebar refinements**: content-mode buckets are now collapsible (default
+  collapsed), styled as section headers, with an expand-all / collapse-all
+  toggle. The filter input collapses behind a Search-icon toggle. Workspace
+  name button gains an icon + chevron affordance.
+- **Workspace scaffolding and cloning**: a `Workspace › Scaffold New` command
+  creates a minimal Amytis workspace on disk; a `Workspace › Clone Remote`
+  command clones an Amytis workspace from a Git URL — both with localized
+  prompts and validation.
+- **CJK-friendly italic and strikethrough**: typed `*word*` / `_word_` and
+  `~~word~~` now fire after CJK characters or mid-paragraph, matching the
+  earlier bold fix. The italic rule uses negative lookbehind/lookahead so it
+  doesn't prematurely fire on the `**word*` intermediate state of a bold
+  typing sequence. See ADR 0015.
+- **Typed image syntax**: typing `![alt](src)` now inserts an inline image
+  node — previously it only worked via paste or file-load. The custom Link
+  input rule was tightened with `(?<!!)` so it no longer cannibalises the
+  `[alt](src)` slice of image markdown.
+- **Properties panel collapse**: a collapse button in the properties panel
+  header; the open/closed state persists across sessions via `localStorage`.
+- **Title-to-body focus**: pressing `Enter` in the title input now focuses the
+  editor body instead of inserting a newline.
+
+### Changed
+- **Toggle-sidebar shortcut moved** from `Cmd+\` to `Cmd+Shift+L` to match the
+  new "Left Sidebar" naming and free up `Cmd+\` for future use.
+- **View menu toggles renamed** to "Left Sidebar" / "Right Sidebar" with
+  checkmarks reflecting current state, so the menu now reads as state rather
+  than as bare verbs.
+- **Editor and tab surface polish**: bold weight strengthened; the title
+  border-bottom is dropped in favour of whitespace separation; inline code,
+  blockquote, and footnote sizing are softened; tab strip gains a 1px bottom
+  line with a subtle separator between inactive tabs and an active-tab outline
+  that merges with the strip baseline.
+- **IME composition is now guarded** during typing so structural markdown
+  rules (`# `, `- `, `> `, …) don't fire mid-composition — see ADR 0015.
+
+### Fixed
+- **Image syntax no longer becomes a link with a stray `!`** (#114): the Link
+  input rule was matching `[alt](src)` inside `![alt](src)` because it had no
+  lookbehind for `!`, leaving the user with a broken-feeling editor.
+- **Wiki-link suggestion popover regressions**: highlight no longer escapes
+  its bounds when the result set shrinks; arrow keys correctly bubble when the
+  popover is empty; listener and target leaks were plugged.
+- **Backlink snippets are now readable**: backslash-escapes are stripped from
+  both the matched query and the surrounding context, and `[[…]]` references
+  render as their display label rather than as raw wiki syntax.
+- **Sidebar bulk toggle uses `every` not `some`** for mixed-state safety —
+  clicking expand-all when *any* bucket is already open no longer collapses
+  the rest.
+- **Tauri drag regions are alive again**: the top strip switched to deep mode
+  (Tauri 2.11's bare attribute is self-only), the editor top bar always
+  renders so the middle of the top edge stays draggable, and the
+  `core:window:allow-start-dragging` capability is now granted (without it,
+  every drag region was silently inert).
+- **Workspace-manager hardening**: error paths surfaced by PR review are now
+  handled rather than swallowed; the `?url` asset import resolves under the
+  test tsconfig.
+- **Git command resilience**: dropped a spurious `debug_assert` in
+  `run_git_with_credentials`; AUTH_REQUIRED now opens the credentials dialog
+  on commit-and-push (not just on push); forget-credential failures surface
+  via toast instead of failing silently.
+- **Properties panel state persists**: `propertiesOpen` is now persisted to
+  `localStorage` so the panel reopens to its last state on launch.
+
+### Internal
+- **ADRs 0013–0016**: unified window chrome (0013), Git HTTPS credentials
+  (0014), IME composition guard for markdown input rules (0015), bi-directional
+  wiki links (0016). Each is paired with CONTEXT.md / ROADMAP / shortcuts.md
+  updates so the contributor docs stay aligned with the shipped seams.
+- **Markdown input rules extracted** into `src/lib/tiptap/markdownInputRules.ts`
+  as their own module, with diagnostic tests for the bold-vs-italic
+  non-conflict and the CJK regression cases.
+- **Design-token scales**: added shadow / radius / motion / backdrop scales
+  and applied them across components — theme-aware modal backdrop, focus
+  halos, unified focus rings, quiet transitions where their absence was
+  jarring, and tokenization of two surface seams missed by an earlier sweep.
+- **Test scaffolding**: smoke coverage for `WikiLinkView`,
+  `WikiSuggestionPopover`, and the extracted `createWikiNote` helper; test
+  helpers tightened with the previously-missing `destroy()` calls;
+  `useRecentWorkspaces` exposes `removeRecentWorkspace` for test
+  composability.
+- **Minor refactors**: bucket-aware sidebar expansion defaults, a one-module
+  `toggleable-visibility` helpers extract, narrowing `SetMenuCheckedArgs.id`
+  to the checkable item ids, and dropping the now-unused `⊕` open-workspace
+  button from the chrome strip.
+
 ## 0.15.1 - 2026-06-01
 
 ### Fixed
