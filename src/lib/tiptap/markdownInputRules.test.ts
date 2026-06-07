@@ -59,8 +59,9 @@ function makeEditor() {
 function hasMark(editor: Editor, text: string, markName: string): boolean {
   let found = false;
   editor.state.doc.descendants((node) => {
-    if (node.isText && node.text === text) {
-      found = node.marks.some((m) => m.type.name === markName);
+    if (found) return false; // short-circuit traversal once we've answered
+    if (node.isText && node.text === text && node.marks.some((m) => m.type.name === markName)) {
+      found = true;
     }
   });
   return found;
@@ -173,6 +174,7 @@ describe("italic input rule diagnostics", () => {
 function linkHref(editor: Editor, text: string): string | null {
   let href: string | null = null;
   editor.state.doc.descendants((node) => {
+    if (href !== null) return false; // first match wins, stop traversal
     if (node.isText && node.text === text) {
       const linkMark = node.marks.find((m) => m.type.name === "link");
       if (linkMark) href = (linkMark.attrs.href as string) ?? null;
@@ -206,5 +208,6 @@ describe("link input rule diagnostics", () => {
     expect(linkHref(editor, "docs")).toBe("https://example.com");
     const allText = editor.state.doc.textBetween(0, editor.state.doc.content.size);
     expect(allText.startsWith("see ")).toBe(true);
+    editor.destroy();
   });
 });
