@@ -101,12 +101,13 @@ display text only affects rendering — resolution always uses the
 - Without it, users can't naturally inline a note reference with a
   contextual surface label (e.g. `see [[Hello World|the intro]]`).
 
-### 5. Backlinks render as a collapsible section inside the editor scroll
+### 5. Backlinks render inline at the bottom of the editor scroll
 
 `BacklinksPanel.tsx` is placed inside the existing `editor-scroll`
-container so it scrolls with the document — discoverable without a
-separate panel toggle, but invisible when there are zero references so the
-editor stays uncluttered.
+container so it scrolls with the document, and renders nothing when
+there are zero references so the editor stays uncluttered. There is no
+manual collapse toggle — visibility is purely a function of "does this
+file have inbound links?", matching Obsidian's default behavior.
 
 The scanner (`findBacklinks` in `src/lib/backlinks.ts`) is a pure async
 function: given `flatFiles`, an injected `readFile`, and the same

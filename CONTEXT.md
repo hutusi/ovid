@@ -150,8 +150,8 @@ the `flatFiles` list, the same `NoteResolverIndex`, and an injected `readFile`,
 returns every file with a `[[…]]` reference resolving to the target. Frontmatter
 is stripped first (so a `title: "[[Foo]]"` value can't masquerade as a
 reference) and self-references are excluded. `BacklinksPanel.tsx` renders the
-results as a collapsible "Linked references" section inside the editor scroll
-container — invisible when empty.
+results as a "Linked references" section inside the editor scroll container,
+invisible when the file has no inbound references.
 
 See [ADR 0016](docs/adr/0016-bidirectional-wiki-links.md) for the design
 rationale (node vs. decoration, lazy creation, notes-only scope, deferred
