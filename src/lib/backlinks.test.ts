@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { findBacklinks } from "./backlinks";
+import { findBacklinks, formatBacklinkSnippet } from "./backlinks";
 import type { FlatFile } from "./fileSearch";
 import type { FileNode } from "./types";
 import { EMPTY_NOTE_RESOLVER_INDEX, type NoteResolverIndex } from "./wikiLink";
@@ -46,7 +46,9 @@ describe("findBacklinks", () => {
       sourcePath: "/flows/a.md",
       sourceRelativePath: "flows/a.md",
       lineNumber: 3,
-      snippet: "A [[Hello World]] reference here.",
+      // `[[Hello World]]` is rendered as just `Hello World` in the snippet
+      // so the backlinks panel doesn't display raw markdown brackets.
+      snippet: "A Hello World reference here.",
     });
   });
 
@@ -128,5 +130,31 @@ describe("findBacklinks", () => {
       resolverIndex: makeIndex({ titles: { Hello: "notes/hello.md" } }),
     });
     expect(result.map((b) => b.sourceRelativePath)).toEqual(["flows/ok.md"]);
+  });
+});
+
+describe("formatBacklinkSnippet", () => {
+  it("strips `[[Target]]` to its target text", () => {
+    expect(formatBacklinkSnippet("See [[Hello World]] for context.")).toBe(
+      "See Hello World for context."
+    );
+  });
+
+  it("uses the display half of `[[Target|Display]]`", () => {
+    expect(formatBacklinkSnippet("See [[Hello World|the intro]] for context.")).toBe(
+      "See the intro for context."
+    );
+  });
+
+  it("rewrites multiple wiki links on the same line", () => {
+    expect(formatBacklinkSnippet("Link to [[Foo]] and also [[Bar|baz]].")).toBe(
+      "Link to Foo and also baz."
+    );
+  });
+
+  it("leaves text without wiki links unchanged", () => {
+    expect(formatBacklinkSnippet("Just plain prose with **bold** and `code`.")).toBe(
+      "Just plain prose with **bold** and `code`."
+    );
   });
 });

@@ -23,11 +23,24 @@ export interface Backlink {
   sourceTitle: string;
   /** 1-based line number where the link appears. */
   lineNumber: number;
-  /** Trimmed line content for visual context. */
+  /** Trimmed line content for visual context, with `[[…]]` rendered as their
+   *  display label (e.g. `[[Foo]]` → `Foo`, `[[Foo|bar]]` → `bar`) so the
+   *  snippet reads as prose rather than raw markdown. */
   snippet: string;
 }
 
 const WIKI_LINK_RE = /\[\[([^[\]\n]+)\]\]/g;
+
+/** Render `[[Target]]` / `[[Target|Display]]` patterns in a snippet line as
+ *  their human-readable label, so the backlinks panel doesn't show raw
+ *  bracket syntax. Other markdown (bold, italics, code spans) is left as-is
+ *  — the snippet is a single-line preview, not a fully rendered view. */
+export function formatBacklinkSnippet(line: string): string {
+  return line.replace(WIKI_LINK_RE, (_match, inner: string) => {
+    const { target, displayText } = parseWikiLink(inner);
+    return displayText ?? target;
+  });
+}
 
 export interface FindBacklinksContext {
   flatFiles: FlatFile[];
@@ -77,7 +90,7 @@ export async function findBacklinks(
           sourceRelativePath: file.relativePath,
           sourceTitle: file.displayName,
           lineNumber: i + 1,
-          snippet: line.trim(),
+          snippet: formatBacklinkSnippet(line.trim()),
         });
       }
     }
