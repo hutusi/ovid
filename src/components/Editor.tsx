@@ -47,6 +47,7 @@ import { FindReplaceBar } from "./FindReplaceBar";
 import { LinkDialog } from "./LinkDialog";
 import { TableControls } from "./TableControls";
 import { TitleInput } from "./TitleInput";
+import { WikiSuggestionPopover } from "./WikiSuggestionPopover";
 import "katex/dist/katex.min.css";
 import "../styles/editor.css";
 
@@ -676,6 +677,9 @@ export function Editor({
         />
       )}
       {editor && <TableControls editor={editor} />}
+      {editor && backlinks && (
+        <WikiSuggestionPopover editor={editor} flatFiles={backlinks.flatFiles} />
+      )}
       {editor && (
         <BubbleMenu
           editor={editor}

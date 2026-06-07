@@ -716,6 +716,66 @@
   border-radius: 2px;
 }
 
+/* ── `[[` suggestion popover ─────────────────────────────────────────────── */
+.wiki-suggestion-popover {
+  z-index: 1000;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  min-width: 220px;
+  max-width: 360px;
+  max-height: 280px;
+  overflow-y: auto;
+  font-family: var(--font-ui);
+}
+
+.wiki-suggestion-list {
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wiki-suggestion-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--color-fg);
+  background: transparent;
+  border: none;
+  text-align: left;
+  font: inherit;
+}
+
+.wiki-suggestion-item:hover {
+  background: var(--color-surface-hover);
+}
+
+.wiki-suggestion-item.is-selected {
+  background: var(--color-accent-subtle);
+}
+
+.wiki-suggestion-title {
+  font-size: var(--text-base);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wiki-suggestion-path {
+  font-size: var(--text-xs);
+  color: var(--color-fg-subtle);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── Backlinks (Linked references) panel ─────────────────────────────────── */
 .backlinks-panel {
   max-width: 680px;

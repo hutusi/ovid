@@ -19,6 +19,8 @@
 // `src/components/WikiLinkView.tsx` for the node-view that consumes both.
 
 import { Node, nodeInputRule } from "@tiptap/core";
+import type { EditorState } from "@tiptap/pm/state";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import type MarkdownIt from "markdown-it";
 import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
@@ -73,6 +75,62 @@ function wikiLinkInlineRule(state: StateInline, silent: boolean): boolean {
   }
   state.pos = closeStart + 2;
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Suggestion plugin: tracks an in-progress `[[query` typed pattern at the
+// caret so the popover (rendered from React) can show note autocomplete.
+//
+// The state is *derived* from doc text each transaction — there's no event
+// channel from typing to popover beyond the regular PM transaction. The
+// popover subscribes via `editor.on("transaction")` and reads the state
+// through `wikiLinkSuggestionKey.getState`.
+// ---------------------------------------------------------------------------
+
+export interface WikiLinkSuggestionState {
+  active: boolean;
+  /** Position of the first `[` in `[[…` (where insertion should replace). */
+  from: number;
+  /** Current cursor position (end of the query text). */
+  to: number;
+  /** Text typed after `[[` and before the cursor. May be empty. */
+  query: string;
+}
+
+const INACTIVE: WikiLinkSuggestionState = { active: false, from: 0, to: 0, query: "" };
+
+// Restricted to the active line, with no newlines in the query: a user who
+// hits Enter mid-suggestion is conclusively done with the popover.
+const SUGGESTION_RE = /\[\[([^[\]\n]*)$/;
+
+export function computeWikiLinkSuggestionState(state: EditorState): WikiLinkSuggestionState {
+  const { from, to } = state.selection;
+  // Multi-character selections never trigger the popover — the user is
+  // clearly not in the middle of typing a fresh `[[…`.
+  if (from !== to) return INACTIVE;
+  const $pos = state.doc.resolve(from);
+  if (!$pos.parent.isTextblock) return INACTIVE;
+  // Limit lookback to the parent textblock so a `[[` two paragraphs above
+  // doesn't keep triggering the popover.
+  const parentStart = $pos.start();
+  const textBefore = state.doc.textBetween(parentStart, from, "\n", "\0");
+  const match = SUGGESTION_RE.exec(textBefore);
+  if (!match) return INACTIVE;
+  const query = match[1];
+  const fromPos = from - query.length - 2;
+  return { active: true, from: fromPos, to: from, query };
+}
+
+export const wikiLinkSuggestionKey = new PluginKey<WikiLinkSuggestionState>("wikiLinkSuggestion");
+
+function wikiLinkSuggestionPlugin(): Plugin<WikiLinkSuggestionState> {
+  return new Plugin<WikiLinkSuggestionState>({
+    key: wikiLinkSuggestionKey,
+    state: {
+      init: (_config, state) => computeWikiLinkSuggestionState(state),
+      apply: (_tr, _prev, _oldState, newState) => computeWikiLinkSuggestionState(newState),
+    },
+  });
 }
 
 export function registerWikiLinkMarkdownItRule(md: MarkdownIt): void {
@@ -179,5 +237,9 @@ export const WikiLink = Node.create<WikiLinkOptions>({
 
   addNodeView() {
     return ReactNodeViewRenderer(WikiLinkView);
+  },
+
+  addProseMirrorPlugins() {
+    return [wikiLinkSuggestionPlugin()];
   },
 });

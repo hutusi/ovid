@@ -5,7 +5,7 @@ import markdownit from "markdown-it";
 import { Markdown } from "tiptap-markdown";
 import { registerHappyDom, unregisterHappyDom } from "../../../scripts/test-setup";
 import { IMEComposition } from "./IMEComposition";
-import { registerWikiLinkMarkdownItRule, WikiLink } from "./WikiLink";
+import { registerWikiLinkMarkdownItRule, WikiLink, wikiLinkSuggestionKey } from "./WikiLink";
 
 beforeAll(registerHappyDom);
 afterAll(unregisterHappyDom);
@@ -215,5 +215,72 @@ describe("registerWikiLinkMarkdownItRule", () => {
     registerWikiLinkMarkdownItRule(md);
     const html = md.render("Then [[]] nothing.");
     expect(html).not.toContain("data-wiki-target");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Suggestion plugin (computeWikiLinkSuggestionState)
+// ---------------------------------------------------------------------------
+
+function suggestionStateAt(editor: Editor) {
+  return wikiLinkSuggestionKey.getState(editor.state);
+}
+
+// Insert text via PM transaction (no markdown parsing, no input rules) and
+// place the cursor at the end so we can read the suggestion state at the
+// caret position.
+function typeText(editor: Editor, text: string) {
+  editor.commands.focus("end");
+  const tr = editor.state.tr.insertText(text, editor.state.selection.from);
+  editor.view.dispatch(tr);
+}
+
+describe("WikiLink suggestion state", () => {
+  it("is inactive in an empty document", () => {
+    const editor = makeEditor();
+    expect(suggestionStateAt(editor)).toMatchObject({ active: false, query: "" });
+    editor.destroy();
+  });
+
+  it("activates after `[[` with an empty query", () => {
+    const editor = makeEditor();
+    typeText(editor, "[[");
+    expect(suggestionStateAt(editor)).toMatchObject({ active: true, query: "" });
+    editor.destroy();
+  });
+
+  it("captures the query characters typed after `[[`", () => {
+    const editor = makeEditor();
+    typeText(editor, "intro [[Hel");
+    const state = suggestionStateAt(editor);
+    expect(state).toMatchObject({ active: true, query: "Hel" });
+    // `from` should mark the position of the first `[` so insertion can
+    // replace `[[Hel` with a wikiLink node.
+    expect(state?.to).toBe(editor.state.selection.from);
+    expect((state?.to ?? 0) - (state?.from ?? 0)).toBe("[[Hel".length);
+    editor.destroy();
+  });
+
+  it("deactivates once the user types `]]` (input rule consumes the brackets)", () => {
+    const editor = makeEditor();
+    // Note: typing `]]` via setContent triggers the markdown-it rule on load.
+    editor.commands.setContent("Some [[Hello]] reference.\n");
+    expect(suggestionStateAt(editor)).toMatchObject({ active: false });
+    editor.destroy();
+  });
+
+  it("stays inactive across an unrelated `[[` two lines above", () => {
+    const editor = makeEditor();
+    editor.commands.setContent("First line has [[Foo]].\n\nSecond line.\n");
+    // Caret is at the end of "Second line."; the popover should NOT trigger.
+    expect(suggestionStateAt(editor)).toMatchObject({ active: false });
+    editor.destroy();
+  });
+
+  it("captures CJK characters in the query", () => {
+    const editor = makeEditor();
+    typeText(editor, "前文 [[你好");
+    expect(suggestionStateAt(editor)).toMatchObject({ active: true, query: "你好" });
+    editor.destroy();
   });
 });

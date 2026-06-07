@@ -141,11 +141,32 @@ limitation, not an oversight.
   navigation immediately moves focus to the new note; the originating
   file refreshes on its own once revisited.
 
+## Suggestion popover
+
+When the user types `[[` (and any subsequent characters before `]]`), a
+floating popover appears below the caret listing the top 8 notes ranked by
+the same `score()`/`compareFiles()` engine Cmd+P uses. ↑/↓ navigate,
+Enter/Tab inserts, Esc dismisses (and won't re-open for the same `[[…`
+until the user moves or starts a new one). Mousedown on a row inserts
+without first blurring the editor.
+
+Implementation:
+- A second ProseMirror plugin (`wikiLinkSuggestionPlugin` in
+  `src/lib/tiptap/WikiLink.ts`) derives `{ active, from, to, query }` from
+  the doc text each transaction. The state is pure-function (extracted as
+  `computeWikiLinkSuggestionState` for direct unit testing).
+- `WikiSuggestionPopover.tsx` subscribes via `editor.on("transaction")` and
+  renders the list. Keyboard handling uses a `document.keydown`
+  capture-phase listener so arrow keys / Enter / Esc are intercepted
+  before ProseMirror's bubble-phase handlers can act on them.
+- Insertion goes through `editor.commands.insertContentAt` with a
+  `wikiLink` JSON node + trailing space, replacing `[[query` in one
+  transaction. We use the note's `displayName` (frontmatter `title:` if
+  set, else the filename stem) as the `target` so the resolver's
+  `byTitle` lookup round-trips on the next reference.
+
 ## Deferred (intentional follow-up work)
 
-- **`[[`-triggered suggestion popover** — listing existing notes ranked
-  by `score()`/`compareFiles()` (the same engine Cmd+P uses) is a UX
-  enhancement that doesn't change the on-disk format. Tracked separately.
 - **Heading anchors `[[Target#heading]]` and block IDs `^id`** — neither
   is in Amytis' content model today.
 - **Image embeds `![[image.png]]`** — handled by regular markdown
@@ -161,8 +182,11 @@ limitation, not an oversight.
   fallback, the empty/unmatched cases, and frontmatter-index construction.
 - `src/lib/tiptap/WikiLink.test.ts` covers the input rule (typed `[[…]]`
   produces a `wikiLink` node, including the piped form and CJK targets),
-  the markdown round-trip (load → node → markdown is stable), and the
-  markdown-it rule registration (HTML escaping + idempotency).
+  the markdown round-trip (load → node → markdown is stable), the
+  markdown-it rule registration (HTML escaping + idempotency), and the
+  suggestion plugin state (activates on `[[`, captures query characters
+  including CJK, deactivates once `]]` closes the bracket, and ignores
+  `[[` in unrelated upstream paragraphs).
 - `src/lib/backlinks.test.ts` covers self-reference exclusion, alias
   resolution, multi-match-per-line collapse, frontmatter stripping, and
   unreadable-file handling.
