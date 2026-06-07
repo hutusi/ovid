@@ -34,9 +34,17 @@ const WIKI_LINK_RE = /\[\[([^[\]\n]+)\]\]/g;
 /** Render `[[Target]]` / `[[Target|Display]]` patterns in a snippet line as
  *  their human-readable label, so the backlinks panel doesn't show raw
  *  bracket syntax. Other markdown (bold, italics, code spans) is left as-is
- *  — the snippet is a single-line preview, not a fully rendered view. */
+ *  — the snippet is a single-line preview, not a fully rendered view.
+ *
+ *  Two normalisation passes:
+ *    1. Drop backslash-escapes of `[` / `]`. Files saved by older Ovid
+ *       versions (before the WikiLink node existed) or by other markdown
+ *       tools use the standard text-escape `\[\[Foo\]\]` for literal
+ *       brackets; without unescaping, those leak as visible backslashes
+ *       into the snippet.
+ *    2. Rewrite the (now-unescaped) wiki-link patterns to their label. */
 export function formatBacklinkSnippet(line: string): string {
-  return line.replace(WIKI_LINK_RE, (_match, inner: string) => {
+  return line.replace(/\\([[\]])/g, "$1").replace(WIKI_LINK_RE, (_match, inner: string) => {
     const { target, displayText } = parseWikiLink(inner);
     return displayText ?? target;
   });
@@ -68,10 +76,16 @@ export async function findBacklinks(
     // Strip frontmatter so a `title:` value that happens to contain `[[…]]`
     // syntax (rare but legal YAML) doesn't masquerade as an editor reference.
     const { body } = parseFrontmatter(raw);
-    if (!body.includes("[[")) continue;
+    // Match `[[` directly OR after backslash-escapes (old format) — a file
+    // saved by Obsidian or an older Ovid that escaped its literal brackets
+    // would otherwise look unlinked even though the references are real.
+    if (!body.includes("[[") && !body.includes("\\[")) continue;
     const lines = body.split("\n");
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+      // Normalise backslash-escaped brackets up-front so the regex sees
+      // `[[Foo]]` whether the file stores it escaped or not, and so the
+      // snippet picks up the same normalisation for free.
+      const line = lines[i].replace(/\\([[\]])/g, "$1");
       WIKI_LINK_RE.lastIndex = 0;
       let matched = false;
       let m: RegExpExecArray | null;

@@ -131,6 +131,21 @@ describe("findBacklinks", () => {
     });
     expect(result.map((b) => b.sourceRelativePath)).toEqual(["flows/ok.md"]);
   });
+
+  it("matches backslash-escaped wiki links so old-format files still surface", async () => {
+    // A file saved by Obsidian or an older Ovid uses `\[\[Foo\]\]` for what
+    // the new editor stores as `[[Foo]]`. The scanner should still match it
+    // — otherwise the user's existing notebook looks unlinked.
+    const flatFiles = [makeFlat("flows/old.md", "/old")];
+    const result = await findBacklinks("notes/hello.md", {
+      flatFiles,
+      readFile: async () => "Stored as escaped: \\[\\[Hello\\]\\] in this line.",
+      resolverIndex: makeIndex({ titles: { Hello: "notes/hello.md" } }),
+    });
+    expect(result).toHaveLength(1);
+    // …and the snippet renders the same as new-format would.
+    expect(result[0].snippet).toBe("Stored as escaped: Hello in this line.");
+  });
 });
 
 describe("formatBacklinkSnippet", () => {
@@ -155,6 +170,30 @@ describe("formatBacklinkSnippet", () => {
   it("leaves text without wiki links unchanged", () => {
     expect(formatBacklinkSnippet("Just plain prose with **bold** and `code`.")).toBe(
       "Just plain prose with **bold** and `code`."
+    );
+  });
+
+  it("unescapes `\\[\\[…\\]\\]` from older saves and renders the label", () => {
+    // Files saved before the WikiLink node existed go through the default
+    // markdown text-escape, which produces `\[\[hello world\]\]` for literal
+    // brackets. Make those render the same as new-format `[[hello world]]`.
+    expect(formatBacklinkSnippet("See \\[\\[hello world\\]\\] for context.")).toBe(
+      "See hello world for context."
+    );
+  });
+
+  it("handles mixed old- and new-format wiki links on the same line", () => {
+    expect(formatBacklinkSnippet("Read [[Target Note]] and \\[\\[Old Link\\]\\] too.")).toBe(
+      "Read Target Note and Old Link too."
+    );
+  });
+
+  it("unescapes lone bracket pairs without collapsing them as wiki links", () => {
+    // `\[Bar\]` is a literal single-bracket pair, not a wiki link. We
+    // unescape the brackets so the snippet doesn't show backslashes, but
+    // we don't strip the brackets themselves.
+    expect(formatBacklinkSnippet("Footnote-style \\[Bar\\] reference.")).toBe(
+      "Footnote-style [Bar] reference."
     );
   });
 });
