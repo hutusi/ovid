@@ -1,6 +1,8 @@
-import { slugify } from "./amytisScaffold";
+import { buildNewContent, slugify } from "./amytisScaffold";
 import type { FlatFile } from "./fileSearch";
 import { parseYamlFrontmatter } from "./frontmatter";
+
+type Translate = (key: string, vars?: Record<string, unknown>) => string;
 
 // Wiki-link resolution is intentionally scoped to notes (the `notes/` bucket).
 // Matching is by frontmatter `title:` or `aliases:` only — never by filename
@@ -71,6 +73,61 @@ export function resolveWikiTarget(target: string, index: NoteResolverIndex): Res
     if (titleHit) return { relativePath: titleHit, exists: true };
   }
   return { relativePath: `notes/${slugify(target)}.md`, exists: false };
+}
+
+// ---------------------------------------------------------------------------
+// Materialize-on-first-click
+// ---------------------------------------------------------------------------
+
+export interface CreateWikiNoteContext {
+  /** Absolute path of the workspace's content root. */
+  workspaceRoot: string;
+  /** Today's date as YYYY-MM-DD. Injected so the helper stays deterministic
+   *  and Date-free for tests. */
+  today: string;
+  /** Posts bucket override from site.config; unused for notes but threaded
+   *  through to keep `buildNewContent`'s signature satisfied. */
+  postsBasePath?: string;
+  ensureDir: (path: string) => Promise<void>;
+  createFile: (path: string, content: string) => Promise<void>;
+  t: Translate;
+}
+
+/** Materialize a wiki-link target as a fresh `notes/<slug>.md` file via the
+ *  existing Amytis note scaffold. Re-throws all errors except "already
+ *  exists" — racing the same target twice (or a same-tick double click)
+ *  resolves to the existing file rather than failing.
+ *
+ *  Returns the new (or pre-existing) file's absolute path so the caller can
+ *  refresh the workspace tree and open it. */
+export async function createWikiNote(
+  target: string,
+  ctx: CreateWikiNoteContext
+): Promise<{ filePath: string }> {
+  const { dirsToCreate, filePath, content } = buildNewContent(
+    {
+      kind: "note",
+      title: target,
+      date: ctx.today,
+      contentRoot: ctx.workspaceRoot,
+      basePath: ctx.postsBasePath || "posts",
+      dirPath: ctx.workspaceRoot,
+      // Honour the user's "auto create hello-world.md" expectation —
+      // wiki-link-created notes are always plain `.md` regardless of the
+      // workspace's MDX preference.
+      format: "md",
+    },
+    ctx.t
+  );
+  for (const dir of dirsToCreate) {
+    await ctx.ensureDir(dir);
+  }
+  try {
+    await ctx.createFile(filePath, content);
+  } catch (err) {
+    if (!String(err).includes("already exists")) throw err;
+  }
+  return { filePath };
 }
 
 /** Build a resolver index from notes-bucket flat files by reading their

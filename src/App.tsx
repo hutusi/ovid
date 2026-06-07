@@ -6,7 +6,6 @@ import { EditorPane } from "./components/EditorPane";
 import { getFileViewKind } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
-import { buildNewContent } from "./lib/amytisScaffold";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
 import { commands } from "./lib/commands";
@@ -39,6 +38,7 @@ import { useWorkspaceSession } from "./lib/useWorkspaceSession";
 import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtml";
 import {
   buildNoteResolverIndex,
+  createWikiNote,
   EMPTY_NOTE_RESOLVER_INDEX,
   type NoteResolverIndex,
   type ResolvedWikiTarget,
@@ -288,32 +288,14 @@ function App() {
         return;
       }
       try {
-        const date = new Date().toISOString().slice(0, 10);
-        const { dirsToCreate, filePath, content } = buildNewContent(
-          {
-            kind: "note",
-            title: target,
-            date,
-            contentRoot: workspaceRoot,
-            basePath: postsBasePath || "posts",
-            dirPath: workspaceRoot,
-            // Honour the user's "auto create hello-world.md" expectation —
-            // we always materialize wiki-link targets as plain `.md` notes,
-            // regardless of the workspace's MDX preference.
-            format: "md",
-          },
-          t
-        );
-        for (const dir of dirsToCreate) {
-          await commands.files.ensureDir({ path: dir });
-        }
-        try {
-          await commands.files.create({ path: filePath, content });
-        } catch (err) {
-          // Race with another writer (or a same-tick second click) — fall
-          // through to opening the existing file.
-          if (!String(err).includes("already exists")) throw err;
-        }
+        const { filePath } = await createWikiNote(target, {
+          workspaceRoot,
+          postsBasePath,
+          today: new Date().toISOString().slice(0, 10),
+          ensureDir: (path) => commands.files.ensureDir({ path }),
+          createFile: (path, content) => commands.files.create({ path, content }),
+          t,
+        });
         await refreshTree();
         setFileViewerNode(null);
         void openByPath(filePath);

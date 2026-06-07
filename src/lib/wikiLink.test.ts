@@ -3,6 +3,7 @@ import type { FlatFile } from "./fileSearch";
 import type { FileNode } from "./types";
 import {
   buildNoteResolverIndex,
+  createWikiNote,
   EMPTY_NOTE_RESOLVER_INDEX,
   filterNotes,
   isNoteFlatFile,
@@ -10,6 +11,9 @@ import {
   parseWikiLink,
   resolveWikiTarget,
 } from "./wikiLink";
+
+const noopT = (key: string, vars?: Record<string, unknown>) =>
+  vars ? `${key}:${JSON.stringify(vars)}` : key;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -211,5 +215,84 @@ describe("buildNoteResolverIndex", () => {
     expect(index.byPath.get("notes/bare.md")).toEqual({});
     expect(index.byTitle.size).toBe(0);
     expect(index.byAlias.size).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createWikiNote
+// ---------------------------------------------------------------------------
+
+interface RecordedCall {
+  kind: "ensureDir" | "createFile";
+  path: string;
+  content?: string;
+}
+
+function makeSpyCtx(opts: { failCreate?: Error } = {}) {
+  const calls: RecordedCall[] = [];
+  return {
+    calls,
+    ctx: {
+      workspaceRoot: "/ws/content",
+      today: "2026-06-07",
+      postsBasePath: "posts",
+      ensureDir: async (path: string) => {
+        calls.push({ kind: "ensureDir", path });
+      },
+      createFile: async (path: string, content: string) => {
+        calls.push({ kind: "createFile", path, content });
+        if (opts.failCreate) throw opts.failCreate;
+      },
+      t: noopT,
+    },
+  };
+}
+
+describe("createWikiNote", () => {
+  it("creates `notes/<slug>.md` for a fresh target", async () => {
+    const { calls, ctx } = makeSpyCtx();
+    const result = await createWikiNote("Hello World", ctx);
+    expect(result.filePath).toBe("/ws/content/notes/hello-world.md");
+    const create = calls.find((c) => c.kind === "createFile");
+    expect(create?.path).toBe("/ws/content/notes/hello-world.md");
+    // The seed frontmatter carries the user-typed title verbatim, so the
+    // resolver's `byTitle` index hits on the next `[[Hello World]]`.
+    expect(create?.content).toContain('title: "Hello World"');
+    // `aliases:` is part of the Amytis note template, so the new file is
+    // immediately usable as a cross-naming target.
+    expect(create?.content).toContain("aliases: []");
+  });
+
+  it("ensures parent directories before creating the file", async () => {
+    const { calls, ctx } = makeSpyCtx();
+    await createWikiNote("Foo Bar", ctx);
+    const ensureIndex = calls.findIndex((c) => c.kind === "ensureDir");
+    const createIndex = calls.findIndex((c) => c.kind === "createFile");
+    expect(ensureIndex).toBeGreaterThanOrEqual(0);
+    expect(createIndex).toBeGreaterThan(ensureIndex);
+    expect(calls[ensureIndex].path).toBe("/ws/content/notes");
+  });
+
+  it("slugifies CJK targets without ASCII-mangling", async () => {
+    const { ctx } = makeSpyCtx();
+    const result = await createWikiNote("你好 世界", ctx);
+    expect(result.filePath).toBe("/ws/content/notes/你好-世界.md");
+  });
+
+  it("swallows `already exists` so a double-click resolves idempotently", async () => {
+    const { ctx } = makeSpyCtx({ failCreate: new Error("path already exists") });
+    const result = await createWikiNote("Hello", ctx);
+    expect(result.filePath).toBe("/ws/content/notes/hello.md");
+  });
+
+  it("re-throws non-collision errors so the App can toast them", async () => {
+    const { ctx } = makeSpyCtx({ failCreate: new Error("permission denied") });
+    await expect(createWikiNote("Hello", ctx)).rejects.toThrow("permission denied");
+  });
+
+  it("falls back to `notes/untitled.md` for an empty target", async () => {
+    const { ctx } = makeSpyCtx();
+    const result = await createWikiNote("", ctx);
+    expect(result.filePath).toBe("/ws/content/notes/untitled.md");
   });
 });
