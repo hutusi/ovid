@@ -8,7 +8,11 @@ import { Markdown } from "tiptap-markdown";
 import { registerHappyDom, unregisterHappyDom } from "../../../scripts/test-setup";
 import { IMEComposition } from "./IMEComposition";
 import { InlineEditMode } from "./InlineEditMode";
-import { BoldWithMarkdownShortcut, ItalicWithMarkdownShortcut } from "./markdownInputRules";
+import {
+  BoldWithMarkdownShortcut,
+  ItalicWithMarkdownShortcut,
+  StrikeWithMarkdownShortcut,
+} from "./markdownInputRules";
 
 beforeAll(registerHappyDom);
 afterAll(unregisterHappyDom);
@@ -24,10 +28,12 @@ function makeEditor() {
         link: false,
         bold: false,
         italic: false,
+        strike: false,
       }),
       IMEComposition,
       BoldWithMarkdownShortcut,
       ItalicWithMarkdownShortcut,
+      StrikeWithMarkdownShortcut,
       Markdown.configure({ transformPastedText: true, transformCopiedText: true }),
       Placeholder.configure({ placeholder: "Start writing…" }),
       Typography,
@@ -182,6 +188,35 @@ function linkHref(editor: Editor, text: string): string | null {
   });
   return href;
 }
+
+describe("strike input rule diagnostics", () => {
+  it("schema contains strike mark", () => {
+    const editor = makeEditor();
+    expect(editor.schema.marks.strike).toBeDefined();
+    editor.destroy();
+  });
+
+  it("fires for ~~word~~ at start of paragraph", () => {
+    const editor = makeEditor();
+    typeAndTriggerRule(editor, "~~word~", "~");
+    expect(hasMark(editor, "word", "strike")).toBe(true);
+    editor.destroy();
+  });
+
+  it("fires for ~~word~~ after CJK text (the CJK regression)", () => {
+    const editor = makeEditor();
+    typeAndTriggerRule(editor, "删除~~word~", "~");
+    expect(hasMark(editor, "word", "strike")).toBe(true);
+    editor.destroy();
+  });
+
+  it("does not fire on ~~ ~~ (whitespace-only payload)", () => {
+    const editor = makeEditor();
+    typeAndTriggerRule(editor, "~~ ~", "~");
+    expect(hasMark(editor, " ", "strike")).toBe(false);
+    editor.destroy();
+  });
+});
 
 describe("link input rule diagnostics", () => {
   it("schema contains link mark", () => {

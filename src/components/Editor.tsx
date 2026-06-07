@@ -35,6 +35,7 @@ import { ListBackspace } from "../lib/tiptap/ListBackspace";
 import {
   BoldWithMarkdownShortcut,
   ItalicWithMarkdownShortcut,
+  StrikeWithMarkdownShortcut,
 } from "../lib/tiptap/markdownInputRules";
 import { TextFolding } from "../lib/tiptap/TextFolding";
 import { getTaskListTypingNormalization, normalizeTaskLists } from "../lib/tiptap/taskLists";
@@ -211,22 +212,25 @@ export function Editor({
 
   const editor = useEditor({
     extensions: [
-      // `link`, `bold`, and `italic` are disabled here because we register
-      // customised versions below: Link gets a `[text](url)` input rule and
-      // `openOnClick: false`; Bold/Italic get CJK-friendly regexes that fire
-      // mid Chinese/Japanese/Korean prose (StarterKit requires whitespace
-      // before `**`/`*`). StarterKit v3 includes all three by default —
-      // keep these flags so it doesn't warn about duplicates. Extracted
-      // versions live in `src/lib/tiptap/markdownInputRules.ts`.
+      // `link`, `bold`, `italic`, and `strike` are disabled here because we
+      // register customised versions below: Link gets a `[text](url)` input
+      // rule and `openOnClick: false`; Bold/Italic/Strike get CJK-friendly
+      // regexes that fire mid Chinese/Japanese/Korean prose (StarterKit
+      // requires whitespace before `**`/`*`/`~~`). StarterKit v3 includes
+      // all four by default — keep these flags so it doesn't warn about
+      // duplicates. Extracted versions live in
+      // `src/lib/tiptap/markdownInputRules.ts`.
       StarterKit.configure({
         codeBlock: false,
         link: false,
         bold: false,
         italic: false,
+        strike: false,
       }),
       IMEComposition,
       BoldWithMarkdownShortcut,
       ItalicWithMarkdownShortcut,
+      StrikeWithMarkdownShortcut,
       CodeBlockLowlight.extend({
         addNodeView() {
           return ReactNodeViewRenderer(CodeBlockView);
@@ -248,8 +252,11 @@ export function Editor({
         addInputRules() {
           return [
             new InputRule({
-              // Match completed [text](url) at the cursor
-              find: /\[([^[\]]+)\]\(([^()]+)\)$/,
+              // Match completed [text](url) at the cursor. The `(?<!!)`
+              // lookbehind skips image syntax (`![alt](src)`) so ImageRenderer's
+              // own input rule can handle it without the Link rule racing in
+              // and turning the bracketed slice into a link with a stray `!`.
+              find: /(?<!!)\[([^[\]]+)\]\(([^()]+)\)$/,
               handler: ({ range, match, commands }) => {
                 const [, text, href] = match;
                 commands.insertContentAt(range, [

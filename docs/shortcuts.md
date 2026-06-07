@@ -90,6 +90,7 @@ These are not keyboard chords — they are character sequences the editor recogn
 | `[ ] ` inside a bullet | Convert that bullet into a task list item |
 | `> ` | Blockquote (at start of line) |
 | `[text](url)` | Link with the given visible text and href |
+| `![alt](src)` | Inline image — `src` is taken verbatim (local path or URL); resolution at render time goes through `resolveImageSrc` |
 | `[[Target]]` | Wiki link to the note titled / aliased "Target" — click opens it, or creates `notes/<slug>.md` if it doesn't exist yet ([ADR 0016](adr/0016-bidirectional-wiki-links.md)) |
 | `[[Target\|Display]]` | Wiki link to "Target" but rendered with the surface text "Display" |
 | `---` | Horizontal rule |
@@ -97,7 +98,7 @@ These are not keyboard chords — they are character sequences the editor recogn
 
 ### CJK behavior
 
-Bold and italic input rules in Ovid drop the upstream Tiptap "whitespace before `**`/`*`" prefix so the shortcut also fires after Chinese/Japanese/Korean characters — e.g. `测试**word**` produces `测试`**word**, not literal asterisks. Italic uses negative lookbehind/lookahead (`(?<!\*)\*(?!\*)…`) to avoid prematurely italicizing the intermediate `**word*` state while you're typing bold. See `src/components/Editor.tsx` and `src/lib/tiptap/markdownInputRules.test.ts` for the exact rules.
+Bold, italic, strikethrough, and image input rules in Ovid drop the upstream Tiptap "whitespace before `**`/`*`/`~~`/`![`" prefix so the shortcut also fires after Chinese/Japanese/Korean characters — e.g. `测试**word**` produces `测试`**word**, not literal asterisks; `你好![cat](src)` inserts an inline image instead of stranding the markdown as text. Italic uses negative lookbehind/lookahead (`(?<!\*)\*(?!\*)…`) to avoid prematurely italicizing the intermediate `**word*` state while you're typing bold, and the link rule carries `(?<!!)` so it doesn't cannibalise the `[alt](src)` slice of image syntax. See `src/components/Editor.tsx`, `src/lib/tiptap/markdownInputRules.test.ts`, and `src/lib/tiptap/ImageRenderer.test.ts` for the exact rules.
 
 Structural rules (`# `, `- `, `> `, etc.) are *suppressed* on `compositionend` to avoid a CJK IME bug — see [ADR 0015](adr/0015-ime-composition-guard.md) for the rationale.
 
