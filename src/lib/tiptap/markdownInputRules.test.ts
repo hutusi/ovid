@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { Editor, markInputRule } from "@tiptap/core";
+import { Editor, InputRule, markInputRule } from "@tiptap/core";
 import Bold from "@tiptap/extension-bold";
 import Italic from "@tiptap/extension-italic";
 import Link from "@tiptap/extension-link";
@@ -58,7 +58,25 @@ function makeEditor() {
       Markdown.configure({ transformPastedText: true, transformCopiedText: true }),
       Placeholder.configure({ placeholder: "Start writing…" }),
       Typography,
-      Link.configure({ openOnClick: false }),
+      Link.extend({
+        addInputRules() {
+          return [
+            new InputRule({
+              find: /\[([^[\]]+)\]\(([^()]+)\)$/,
+              handler: ({ range, match, commands }) => {
+                const [, text, href] = match;
+                commands.insertContentAt(range, [
+                  {
+                    type: "text",
+                    text,
+                    marks: [{ type: "link", attrs: { href, rel: "noopener noreferrer" } }],
+                  },
+                ]);
+              },
+            }),
+          ];
+        },
+      }).configure({ openOnClick: false }),
       InlineEditMode,
     ],
     content: "<p></p>",
@@ -175,5 +193,44 @@ describe("italic input rule diagnostics", () => {
     expect(hasMark(editor, "word", "bold")).toBe(true);
     expect(hasMark(editor, "word", "italic")).toBe(false);
     editor.destroy();
+  });
+});
+
+function linkHref(editor: Editor, text: string): string | null {
+  let href: string | null = null;
+  editor.state.doc.descendants((node) => {
+    if (node.isText && node.text === text) {
+      const linkMark = node.marks.find((m) => m.type.name === "link");
+      if (linkMark) href = (linkMark.attrs.href as string) ?? null;
+    }
+  });
+  return href;
+}
+
+describe("link input rule diagnostics", () => {
+  it("schema contains link mark", () => {
+    const editor = makeEditor();
+    expect(editor.schema.marks.link).toBeDefined();
+    editor.destroy();
+  });
+
+  it("fires for [text](url) — text becomes a link, syntax chars removed", () => {
+    const editor = makeEditor();
+    typeAndTriggerRule(editor, "[Tiptap](https://tiptap.dev", ")");
+    expect(linkHref(editor, "Tiptap")).toBe("https://tiptap.dev");
+    // Square brackets and parens must not survive — the rule replaces the
+    // matched range with a single linked text node.
+    const allText = editor.state.doc.textBetween(0, editor.state.doc.content.size);
+    expect(allText).not.toContain("[");
+    expect(allText).not.toContain("(");
+    editor.destroy();
+  });
+
+  it("preserves surrounding text", () => {
+    const editor = makeEditor();
+    typeAndTriggerRule(editor, "see [docs](https://example.com", ")");
+    expect(linkHref(editor, "docs")).toBe("https://example.com");
+    const allText = editor.state.doc.textBetween(0, editor.state.doc.content.size);
+    expect(allText.startsWith("see ")).toBe(true);
   });
 });
