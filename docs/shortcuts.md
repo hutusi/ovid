@@ -90,6 +90,8 @@ These are not keyboard chords — they are character sequences the editor recogn
 | `[ ] ` inside a bullet | Convert that bullet into a task list item |
 | `> ` | Blockquote (at start of line) |
 | `[text](url)` | Link with the given visible text and href |
+| `[[Target]]` | Wiki link to the note titled / aliased "Target" — click opens it, or creates `notes/<slug>.md` if it doesn't exist yet ([ADR 0016](adr/0016-bidirectional-wiki-links.md)) |
+| `[[Target\|Display]]` | Wiki link to "Target" but rendered with the surface text "Display" |
 | `---` | Horizontal rule |
 | ` ``` ` | Code block |
 
