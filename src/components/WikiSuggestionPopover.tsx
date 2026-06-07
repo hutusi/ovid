@@ -16,7 +16,7 @@
 import type { Editor } from "@tiptap/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { compareFiles, type FlatFile } from "../lib/fileSearch";
+import { compareFiles, type FlatFile, score } from "../lib/fileSearch";
 import { type WikiLinkSuggestionState, wikiLinkSuggestionKey } from "../lib/tiptap/WikiLink";
 import { filterNotes } from "../lib/wikiLink";
 
@@ -99,8 +99,10 @@ export function WikiSuggestionPopover({ editor, flatFiles }: WikiSuggestionPopov
         .sort((a, b) => a.displayName.localeCompare(b.displayName))
         .slice(0, MAX_RESULTS);
     }
+    // Mirror Cmd+P: filter out files with no match for the query so the
+    // popover doesn't dilute the suggestions with unrelated notes.
     return notes
-      .slice()
+      .filter((f) => score(f, q) > 0)
       .sort((a, b) => compareFiles(a, b, q))
       .slice(0, MAX_RESULTS);
   }, [positioned, flatFiles]);
