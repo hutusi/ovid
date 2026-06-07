@@ -248,8 +248,11 @@ export function Editor({
         addInputRules() {
           return [
             new InputRule({
-              // Match completed [text](url) at the cursor
-              find: /\[([^[\]]+)\]\(([^()]+)\)$/,
+              // Match completed [text](url) at the cursor. The `(?<!!)`
+              // lookbehind skips image syntax (`![alt](src)`) so ImageRenderer's
+              // own input rule can handle it without the Link rule racing in
+              // and turning the bracketed slice into a link with a stray `!`.
+              find: /(?<!!)\[([^[\]]+)\]\(([^()]+)\)$/,
               handler: ({ range, match, commands }) => {
                 const [, text, href] = match;
                 commands.insertContentAt(range, [

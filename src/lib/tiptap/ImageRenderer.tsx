@@ -1,3 +1,4 @@
+import { InputRule } from "@tiptap/core";
 import Image from "@tiptap/extension-image";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { NodeViewProps } from "@tiptap/react";
@@ -139,5 +140,24 @@ export const ImageRenderer = Image.extend<ImageRendererOptions>({
   },
   addNodeView() {
     return ReactNodeViewRenderer(ImageNodeView);
+  },
+  addInputRules() {
+    // Tiptap's stock Image input rule requires `(?:^|\s)` before `![`, which
+    // never fires after CJK characters or mid-paragraph English. Drop that
+    // prefix — same playbook as Bold/Italic in markdownInputRules.ts. The
+    // matching Link rule in Editor.tsx carries `(?<!!)` so the two never race.
+    // We avoid `nodeInputRule` here because it uses `lastIndexOf(match[1])`
+    // to anchor the replace range — and "image" appears in both alt and src
+    // of `![image](image-url)`, so the wrong slice would be replaced.
+    const imageType = this.type;
+    return [
+      new InputRule({
+        find: /!\[([^[\]]*)\]\(([^()]+)\)$/,
+        handler: ({ range, match, state }) => {
+          const [, alt, src] = match;
+          state.tr.replaceWith(range.from, range.to, imageType.create({ src, alt }));
+        },
+      }),
+    ];
   },
 });
