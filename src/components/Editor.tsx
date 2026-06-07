@@ -19,6 +19,7 @@ import { Markdown } from "tiptap-markdown";
 import { commands } from "../lib/commands";
 import type { FindReplaceMode } from "../lib/editor/commands";
 import { useEditorCommands } from "../lib/editor/useEditorCommands";
+import type { FlatFile } from "../lib/fileSearch";
 import { mimeTypeToImageExtension, resolveImageExtension } from "../lib/imageUtils";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
@@ -38,7 +39,8 @@ import {
 import { TextFolding } from "../lib/tiptap/TextFolding";
 import { getTaskListTypingNormalization, normalizeTaskLists } from "../lib/tiptap/taskLists";
 import { WikiLink } from "../lib/tiptap/WikiLink";
-import type { ResolvedWikiTarget } from "../lib/wikiLink";
+import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
+import { BacklinksPanel } from "./BacklinksPanel";
 import { BubbleMenu } from "./BubbleMenu";
 import { CodeBlockView } from "./CodeBlockView";
 import { FindReplaceBar } from "./FindReplaceBar";
@@ -62,6 +64,14 @@ interface EditorProps {
   resolveWikiTarget?: (target: string) => ResolvedWikiTarget;
   /** Called when the user clicks/Enter on a wiki link. Stable across renders. */
   onOpenWikiTarget?: (target: string, displayText: string | null) => void;
+  /** Inputs for the "Linked references" backlinks panel at the bottom of the
+   *  editor scroll area. Pass `undefined` (or omit) to disable the panel. */
+  backlinks?: {
+    currentRelativePath: string | null;
+    flatFiles: FlatFile[];
+    resolverIndex: NoteResolverIndex;
+    onOpenSource: (sourcePath: string) => void;
+  };
   typewriterMode?: boolean;
   spellCheck?: boolean;
   showH1Warning?: boolean;
@@ -84,6 +94,7 @@ export function Editor({
   cdnBase,
   resolveWikiTarget,
   onOpenWikiTarget,
+  backlinks,
   typewriterMode = false,
   spellCheck = true,
   initialSelection,
@@ -645,6 +656,14 @@ export function Editor({
           />
         )}
         <EditorContent editor={editor} />
+        {backlinks && (
+          <BacklinksPanel
+            currentRelativePath={backlinks.currentRelativePath}
+            flatFiles={backlinks.flatFiles}
+            resolverIndex={backlinks.resolverIndex}
+            onOpenSource={backlinks.onOpenSource}
+          />
+        )}
       </div>
       {editor && findReplaceMode !== "closed" && (
         <FindReplaceBar

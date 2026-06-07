@@ -736,6 +736,14 @@ function App() {
           registerPendingFlush={registerEditorFlush}
           resolveWikiTarget={resolveWikiTargetCallback}
           onOpenWikiTarget={onOpenWikiTarget}
+          flatFiles={flatFiles}
+          noteResolverIndex={noteResolverIndex}
+          currentRelativePath={
+            selectedFile && workspaceRoot && selectedFile.path.startsWith(`${workspaceRoot}/`)
+              ? selectedFile.path.slice(workspaceRoot.length + 1)
+              : null
+          }
+          onOpenSource={openFileByPath}
           recentFiles={recentFiles}
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}
