@@ -1,7 +1,5 @@
-import { InputRule, markInputRule } from "@tiptap/core";
-import Bold from "@tiptap/extension-bold";
+import { InputRule } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
-import Italic from "@tiptap/extension-italic";
 import Link from "@tiptap/extension-link";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Mathematics } from "@tiptap/extension-mathematics";
@@ -33,6 +31,10 @@ import { ImageRenderer } from "../lib/tiptap/ImageRenderer";
 import { InlineEditMode } from "../lib/tiptap/InlineEditMode";
 import { LinkPreview } from "../lib/tiptap/LinkPreview";
 import { ListBackspace } from "../lib/tiptap/ListBackspace";
+import {
+  BoldWithMarkdownShortcut,
+  ItalicWithMarkdownShortcut,
+} from "../lib/tiptap/markdownInputRules";
 import { TextFolding } from "../lib/tiptap/TextFolding";
 import { getTaskListTypingNormalization, normalizeTaskLists } from "../lib/tiptap/taskLists";
 import { BubbleMenu } from "./BubbleMenu";
@@ -179,10 +181,11 @@ export function Editor({
     extensions: [
       // `link`, `bold`, and `italic` are disabled here because we register
       // customised versions below: Link gets a `[text](url)` input rule and
-      // `openOnClick: false`; Bold and Italic get CJK-friendly regexes (the
-      // StarterKit versions require whitespace before `**`/`*`, which breaks
-      // mid Chinese/Japanese/Korean prose). StarterKit v3 includes all three
-      // by default — keep these flags so it doesn't warn about duplicates.
+      // `openOnClick: false`; Bold/Italic get CJK-friendly regexes that fire
+      // mid Chinese/Japanese/Korean prose (StarterKit requires whitespace
+      // before `**`/`*`). StarterKit v3 includes all three by default —
+      // keep these flags so it doesn't warn about duplicates. Extracted
+      // versions live in `src/lib/tiptap/markdownInputRules.ts`.
       StarterKit.configure({
         codeBlock: false,
         link: false,
@@ -190,38 +193,8 @@ export function Editor({
         italic: false,
       }),
       IMEComposition,
-      Bold.extend({
-        addInputRules() {
-          return [
-            markInputRule({
-              find: /(\*\*(?!\s+\*\*)([^*]+)\*\*(?!\s+\*\*))$/,
-              type: this.type,
-            }),
-            markInputRule({
-              find: /(__(?!\s+__)([^_]+)__(?!\s+__))$/,
-              type: this.type,
-            }),
-          ];
-        },
-      }),
-      Italic.extend({
-        addInputRules() {
-          // Single `*` / `_`, NOT adjacent to another of the same char — the
-          // negative lookbehind/lookahead ensures we never fire inside an
-          // incomplete bold (e.g. `**word*` mid-typing). Capture is the
-          // inner text; markInputRule reads `match[match.length - 1]`.
-          return [
-            markInputRule({
-              find: /(?<!\*)\*(?!\*)([^*\s][^*]*?)\*(?!\*)$/,
-              type: this.type,
-            }),
-            markInputRule({
-              find: /(?<!_)_(?!_)([^_\s][^_]*?)_(?!_)$/,
-              type: this.type,
-            }),
-          ];
-        },
-      }),
+      BoldWithMarkdownShortcut,
+      ItalicWithMarkdownShortcut,
       CodeBlockLowlight.extend({
         addNodeView() {
           return ReactNodeViewRenderer(CodeBlockView);

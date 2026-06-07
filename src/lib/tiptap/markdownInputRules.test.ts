@@ -1,7 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { Editor, InputRule, markInputRule } from "@tiptap/core";
-import Bold from "@tiptap/extension-bold";
-import Italic from "@tiptap/extension-italic";
+import { Editor, InputRule } from "@tiptap/core";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Typography from "@tiptap/extension-typography";
@@ -10,6 +8,7 @@ import { Markdown } from "tiptap-markdown";
 import { registerHappyDom, unregisterHappyDom } from "../../../scripts/test-setup";
 import { IMEComposition } from "./IMEComposition";
 import { InlineEditMode } from "./InlineEditMode";
+import { BoldWithMarkdownShortcut, ItalicWithMarkdownShortcut } from "./markdownInputRules";
 
 beforeAll(registerHappyDom);
 afterAll(unregisterHappyDom);
@@ -27,34 +26,8 @@ function makeEditor() {
         italic: false,
       }),
       IMEComposition,
-      Bold.extend({
-        addInputRules() {
-          return [
-            markInputRule({
-              find: /(\*\*(?!\s+\*\*)([^*]+)\*\*(?!\s+\*\*))$/,
-              type: this.type,
-            }),
-            markInputRule({
-              find: /(__(?!\s+__)([^_]+)__(?!\s+__))$/,
-              type: this.type,
-            }),
-          ];
-        },
-      }),
-      Italic.extend({
-        addInputRules() {
-          return [
-            markInputRule({
-              find: /(?<!\*)\*(?!\*)([^*\s][^*]*?)\*(?!\*)$/,
-              type: this.type,
-            }),
-            markInputRule({
-              find: /(?<!_)_(?!_)([^_\s][^_]*?)_(?!_)$/,
-              type: this.type,
-            }),
-          ];
-        },
-      }),
+      BoldWithMarkdownShortcut,
+      ItalicWithMarkdownShortcut,
       Markdown.configure({ transformPastedText: true, transformCopiedText: true }),
       Placeholder.configure({ placeholder: "Start writing…" }),
       Typography,
@@ -105,20 +78,21 @@ function typeAndTriggerRule(editor: Editor, prefix: string, lastChar: string) {
   editor.view.dispatch(tr);
 
   // 2. Simulate the final keystroke by invoking handleTextInput on every
-  //    plugin (PM's normal dispatch path during typing).
+  //    plugin (PM's normal dispatch path during typing). `someProp` returns
+  //    the first truthy result — for inputRulesPlugin that's `true` iff a
+  //    rule matched and dispatched. The 5th `deflt` arg is required by the
+  //    PM type signature but Tiptap's inputRulesPlugin never invokes it.
   const from = editor.state.selection.from;
-  const deflt = () => editor.state.tr.insertText(lastChar, from, from);
-  editor.view.someProp("handleTextInput", (handler) =>
-    handler(editor.view, from, from, lastChar, deflt)
+  const noopDeflt = () => editor.state.tr;
+  const handled = editor.view.someProp("handleTextInput", (handler) =>
+    handler(editor.view, from, from, lastChar, noopDeflt)
   );
 
   // 3. If no input rule consumed the keystroke, insert it ourselves so the
-  //    document still reflects what the user typed (useful for negative cases).
-  if (
-    editor.state.doc.textBetween(0, editor.state.doc.content.size).indexOf(prefix + lastChar) === -1
-  ) {
-    // Rule consumed and transformed the text — that's the success case.
-    return;
+  //    document accurately reflects what the user typed (matters for the
+  //    "rule must NOT fire" negative-path tests).
+  if (!handled) {
+    editor.view.dispatch(editor.state.tr.insertText(lastChar, from, from));
   }
 }
 
