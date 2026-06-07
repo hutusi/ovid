@@ -18,11 +18,17 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { compareFiles, type FlatFile, score } from "../lib/fileSearch";
 import { type WikiLinkSuggestionState, wikiLinkSuggestionKey } from "../lib/tiptap/WikiLink";
-import { filterNotes } from "../lib/wikiLink";
+import { filterNotes, type NoteResolverIndex } from "../lib/wikiLink";
 
 interface WikiSuggestionPopoverProps {
   editor: Editor;
   flatFiles: FlatFile[];
+  /** Same index the editor's WikiLink uses for resolution. Reading it here
+   *  lets us pick a target the resolver will actually round-trip back to
+   *  this file — see `resolverTargetForNote`. Notes that have neither a
+   *  frontmatter `title:` nor an `aliases:` entry are filtered out of the
+   *  suggestion list because there's no safe target to write. */
+  resolverIndex: NoteResolverIndex;
 }
 
 const MAX_RESULTS = 8;
@@ -33,7 +39,11 @@ interface PositionedSuggestion {
   anchor: { top: number; bottom: number; left: number };
 }
 
-export function WikiSuggestionPopover({ editor, flatFiles }: WikiSuggestionPopoverProps) {
+export function WikiSuggestionPopover({
+  editor,
+  flatFiles,
+  resolverIndex,
+}: WikiSuggestionPopoverProps) {
   const { t } = useTranslation();
   const [positioned, setPositioned] = useState<PositionedSuggestion | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -64,13 +74,15 @@ export function WikiSuggestionPopover({ editor, flatFiles }: WikiSuggestionPopov
         anchor: { top: coords.top, bottom: coords.bottom, left: coords.left },
       });
     };
+    const handleBlur = () => setPositioned(null);
     updateState();
     editor.on("transaction", updateState);
     editor.on("focus", updateState);
-    editor.on("blur", () => setPositioned(null));
+    editor.on("blur", handleBlur);
     return () => {
       editor.off("transaction", updateState);
       editor.off("focus", updateState);
+      editor.off("blur", handleBlur);
     };
   }, [editor]);
 
@@ -86,10 +98,15 @@ export function WikiSuggestionPopover({ editor, flatFiles }: WikiSuggestionPopov
     if (selectedIndex !== 0) setSelectedIndex(0);
   }
 
-  // Build the ranked suggestion list.
+  // Build the ranked suggestion list. We exclude notes the resolver can't
+  // round-trip — selecting one of those would write a `[[stem]]` target
+  // that the alias/title-only resolver wouldn't find, and clicking it
+  // later would materialize a duplicate file rather than reopening this
+  // one. Notes need either a frontmatter `title:` or at least one alias
+  // to qualify for the popover.
   const suggestions = useMemo(() => {
     if (!positioned) return [];
-    const notes = filterNotes(flatFiles);
+    const notes = filterNotes(flatFiles).filter((f) => hasResolverHandle(f, resolverIndex));
     const q = positioned.state.query;
     if (!q) {
       // Empty query: surface the first N notes alphabetically. Recent-file
@@ -105,7 +122,7 @@ export function WikiSuggestionPopover({ editor, flatFiles }: WikiSuggestionPopov
       .filter((f) => score(f, q) > 0)
       .sort((a, b) => compareFiles(a, b, q))
       .slice(0, MAX_RESULTS);
-  }, [positioned, flatFiles]);
+  }, [positioned, flatFiles, resolverIndex]);
 
   // Capture-phase keyboard handler so arrow/Enter/Esc don't reach ProseMirror.
   useEffect(() => {
@@ -129,7 +146,7 @@ export function WikiSuggestionPopover({ editor, flatFiles }: WikiSuggestionPopov
         if (suggestions.length === 0) return;
         event.preventDefault();
         event.stopPropagation();
-        insertSelected(editor, positioned.state, suggestions[selectedIndex]);
+        insertSelected(editor, positioned.state, suggestions[selectedIndex], resolverIndex);
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
@@ -139,7 +156,7 @@ export function WikiSuggestionPopover({ editor, flatFiles }: WikiSuggestionPopov
     };
     document.addEventListener("keydown", handler, true);
     return () => document.removeEventListener("keydown", handler, true);
-  }, [positioned, suggestions, selectedIndex, editor]);
+  }, [positioned, suggestions, selectedIndex, editor, resolverIndex]);
 
   // Scroll the highlighted row into view inside the popover.
   useLayoutEffect(() => {
@@ -176,7 +193,7 @@ export function WikiSuggestionPopover({ editor, flatFiles }: WikiSuggestionPopov
               // a popover button otherwise blurs the editor first and the
               // suggestion state goes inactive before insert runs.
               e.preventDefault();
-              insertSelected(editor, positioned.state, file);
+              insertSelected(editor, positioned.state, file, resolverIndex);
             }}
           >
             <span className="wiki-suggestion-title">{file.displayName}</span>
@@ -188,11 +205,14 @@ export function WikiSuggestionPopover({ editor, flatFiles }: WikiSuggestionPopov
   );
 }
 
-function insertSelected(editor: Editor, state: WikiLinkSuggestionState, selected: FlatFile): void {
-  // Use the note's frontmatter title (via `displayName`) as the target so the
-  // resolver round-trips correctly via `byTitle`. Falls back to the filename
-  // stem if no title is set.
-  const target = selected.displayName;
+function insertSelected(
+  editor: Editor,
+  state: WikiLinkSuggestionState,
+  selected: FlatFile,
+  resolverIndex: NoteResolverIndex
+): void {
+  const target = resolverTargetForNote(selected, resolverIndex);
+  if (!target) return;
   editor
     .chain()
     .focus()
@@ -201,4 +221,22 @@ function insertSelected(editor: Editor, state: WikiLinkSuggestionState, selected
       { type: "text", text: " " },
     ])
     .run();
+}
+
+/** True iff `file` has a frontmatter handle the resolver can round-trip
+ *  (`title:` or at least one `aliases:` entry). Notes without either are
+ *  hidden from the popover so we never insert a `[[stem]]` target that the
+ *  alias/title-only resolver can't find later. */
+function hasResolverHandle(file: FlatFile, index: NoteResolverIndex): boolean {
+  return resolverTargetForNote(file, index) !== null;
+}
+
+/** Pick the wiki-link target for an inserted suggestion. Matches the
+ *  resolver's lookup order: first alias, then title. Returns null when the
+ *  note has neither — callers should not insert in that case. */
+function resolverTargetForNote(file: FlatFile, index: NoteResolverIndex): string | null {
+  const entry = index.byPath.get(file.relativePath);
+  if (entry?.aliases && entry.aliases.length > 0) return entry.aliases[0];
+  if (entry?.title) return entry.title;
+  return null;
 }

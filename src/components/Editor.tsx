@@ -678,7 +678,11 @@ export function Editor({
       )}
       {editor && <TableControls editor={editor} />}
       {editor && backlinks && (
-        <WikiSuggestionPopover editor={editor} flatFiles={backlinks.flatFiles} />
+        <WikiSuggestionPopover
+          editor={editor}
+          flatFiles={backlinks.flatFiles}
+          resolverIndex={backlinks.resolverIndex}
+        />
       )}
       {editor && (
         <BubbleMenu

@@ -8,11 +8,14 @@ import type { FlatFile } from "../lib/fileSearch";
 import { IMEComposition } from "../lib/tiptap/IMEComposition";
 import { WikiLink } from "../lib/tiptap/WikiLink";
 import type { FileNode } from "../lib/types";
+import type { NoteResolverIndex } from "../lib/wikiLink";
 
 // We intentionally do NOT call `afterEach(cleanup)` from @testing-library —
 // it trips a "node is not a child" error when other component tests in the
 // process-wide suite have manipulated document.body in between. Each test
-// destroys its editor explicitly; React/the GC reclaim the mounted roots.
+// owns its teardown via `setup()` below, which calls the `render` result's
+// `unmount()` alongside `editor.destroy()` so the popover's capture-phase
+// `document.keydown` listener doesn't leak across tests.
 
 beforeAll(registerHappyDom);
 afterAll(unregisterHappyDom);
@@ -31,10 +34,10 @@ import { WikiSuggestionPopover } from "./WikiSuggestionPopover";
 // Test helpers
 // ---------------------------------------------------------------------------
 
-function makeFlat(relativePath: string, displayName?: string): FlatFile {
+function makeFlat(relativePath: string, title?: string): FlatFile {
   const name = relativePath.split("/").pop() || relativePath;
-  const node: FileNode = { name, path: `/ws/${relativePath}`, isDirectory: false };
-  return { node, displayName: displayName ?? name.replace(/\.mdx?$/, ""), relativePath };
+  const node: FileNode = { name, path: `/ws/${relativePath}`, isDirectory: false, title };
+  return { node, displayName: title ?? name.replace(/\.mdx?$/, ""), relativePath };
 }
 
 function makeEditor(): Editor {
@@ -65,10 +68,6 @@ function typeRaw(editor: Editor, text: string) {
   });
 }
 
-function destroyEditor(editor: Editor) {
-  act(() => editor.destroy());
-}
-
 const SAMPLE_NOTES: FlatFile[] = [
   makeFlat("notes/hello-world.md", "Hello World"),
   makeFlat("notes/hello-there.md", "Hello There"),
@@ -76,25 +75,73 @@ const SAMPLE_NOTES: FlatFile[] = [
   makeFlat("flows/2026/01/02.md", "Flow"),
 ];
 
+/** Build a resolver index that mirrors what `buildNoteResolverIndex` would
+ *  produce for `SAMPLE_NOTES` — every notes-bucket entry has a `title`,
+ *  no aliases. Notes without a resolver handle are excluded from the popover
+ *  by `hasResolverHandle`, so tests need each suggestion to be indexable. */
+function makeResolverIndex(extras: Partial<NoteResolverIndex> = {}): NoteResolverIndex {
+  return {
+    byPath: new Map([
+      ["notes/hello-world.md", { title: "Hello World" }],
+      ["notes/hello-there.md", { title: "Hello There" }],
+      ["notes/other.md", { title: "Other" }],
+    ]),
+    byTitle: new Map([
+      ["hello world", "notes/hello-world.md"],
+      ["hello there", "notes/hello-there.md"],
+      ["other", "notes/other.md"],
+    ]),
+    byAlias: new Map(),
+    ...extras,
+  };
+}
+
+interface PopoverHarness {
+  editor: Editor;
+  container: HTMLElement;
+  teardown: () => void;
+}
+
+/** Mount the popover against a fresh editor and return a single `teardown`
+ *  closure that unmounts the React tree AND destroys the editor. Calling
+ *  both is necessary: `editor.destroy()` doesn't unmount the React tree,
+ *  so without `unmount()` the popover's capture-phase `document.keydown`
+ *  listener would survive past the test and break ordering for later
+ *  cases. */
+function setup(
+  args: { flatFiles?: FlatFile[]; resolverIndex?: NoteResolverIndex } = {}
+): PopoverHarness {
+  const editor = makeEditor();
+  const flatFiles = args.flatFiles ?? SAMPLE_NOTES;
+  const resolverIndex = args.resolverIndex ?? makeResolverIndex();
+  const result = render(
+    <WikiSuggestionPopover editor={editor} flatFiles={flatFiles} resolverIndex={resolverIndex} />
+  );
+  return {
+    editor,
+    container: result.container,
+    teardown: () => {
+      act(() => {
+        result.unmount();
+        editor.destroy();
+      });
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe("WikiSuggestionPopover", () => {
   it("renders nothing when there is no in-progress `[[…`", () => {
-    const editor = makeEditor();
-    const { container } = render(
-      <WikiSuggestionPopover editor={editor} flatFiles={SAMPLE_NOTES} />
-    );
+    const { container, teardown } = setup();
     expect(container.querySelector(".wiki-suggestion-popover")).toBeNull();
-    destroyEditor(editor);
+    teardown();
   });
 
   it("renders ranked note suggestions when `[[query` is at the caret", () => {
-    const editor = makeEditor();
-    const { container } = render(
-      <WikiSuggestionPopover editor={editor} flatFiles={SAMPLE_NOTES} />
-    );
+    const { editor, container, teardown } = setup();
     typeRaw(editor, "[[Hello");
     const popover = container.querySelector(".wiki-suggestion-popover");
     expect(popover).not.toBeNull();
@@ -104,29 +151,44 @@ describe("WikiSuggestionPopover", () => {
       (el) => el.textContent
     );
     expect(titles).toEqual(["Hello There", "Hello World"]);
-    destroyEditor(editor);
+    teardown();
   });
 
   it("only lists files in the `notes/` bucket", () => {
-    const editor = makeEditor();
-    const { container } = render(
-      <WikiSuggestionPopover editor={editor} flatFiles={SAMPLE_NOTES} />
-    );
+    const { editor, container, teardown } = setup();
     typeRaw(editor, "[[");
     const titles = Array.from(container.querySelectorAll(".wiki-suggestion-title")).map(
       (el) => el.textContent
     );
-    // Flow is rejected by `filterNotes`; the three notes remain.
+    // Flow is rejected by `filterNotes`; the three resolvable notes remain.
     expect(titles).not.toContain("Flow");
     expect(titles.length).toBe(3);
-    destroyEditor(editor);
+    teardown();
+  });
+
+  it("hides notes that have no frontmatter `title:` or alias", () => {
+    // A note without a resolver handle (no title, no aliases) would write a
+    // `[[stem]]` target the resolver can never round-trip. Filter those out.
+    const flatFiles = [makeFlat("notes/titled.md", "Titled Note"), makeFlat("notes/no-title.md")];
+    const resolverIndex: NoteResolverIndex = {
+      byPath: new Map([
+        ["notes/titled.md", { title: "Titled Note" }],
+        ["notes/no-title.md", {}],
+      ]),
+      byTitle: new Map([["titled note", "notes/titled.md"]]),
+      byAlias: new Map(),
+    };
+    const { editor, container, teardown } = setup({ flatFiles, resolverIndex });
+    typeRaw(editor, "[[");
+    const titles = Array.from(container.querySelectorAll(".wiki-suggestion-title")).map(
+      (el) => el.textContent
+    );
+    expect(titles).toEqual(["Titled Note"]);
+    teardown();
   });
 
   it("dismisses on Escape and stays dismissed for the same `[[…`", () => {
-    const editor = makeEditor();
-    const { container } = render(
-      <WikiSuggestionPopover editor={editor} flatFiles={SAMPLE_NOTES} />
-    );
+    const { editor, container, teardown } = setup();
     typeRaw(editor, "[[Hello");
     expect(container.querySelector(".wiki-suggestion-popover")).not.toBeNull();
     act(() => {
@@ -137,18 +199,18 @@ describe("WikiSuggestionPopover", () => {
     // should NOT re-open for the same `[[…` until the user navigates away.
     typeRaw(editor, "o");
     expect(container.querySelector(".wiki-suggestion-popover")).toBeNull();
-    destroyEditor(editor);
+    teardown();
   });
 
-  it("Enter inserts a wikiLink node replacing `[[query`", () => {
-    const editor = makeEditor();
-    render(<WikiSuggestionPopover editor={editor} flatFiles={SAMPLE_NOTES} />);
+  it("Enter inserts a wikiLink node using the resolver-friendly target", () => {
+    const { editor, teardown } = setup();
     typeRaw(editor, "[[Hello");
     act(() => {
       document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
     // The first ranked match (alphabetical tiebreak when both have equal
-    // prefix-match scores) is `Hello There`.
+    // prefix-match scores) is `Hello There`. The inserted target should be
+    // the note's frontmatter title — same key the resolver's `byTitle` uses.
     const targets: string[] = [];
     editor.state.doc.descendants((node) => {
       if (node.type.name === "wikiLink") targets.push(node.attrs.target as string);
@@ -157,6 +219,32 @@ describe("WikiSuggestionPopover", () => {
     expect(targets[0]).toBe("Hello There");
     // The literal `[[Hello` text should no longer be in the doc.
     expect(editor.state.doc.textContent).not.toContain("[[Hello");
-    destroyEditor(editor);
+    teardown();
+  });
+
+  it("prefers the first alias over the title when both are present", () => {
+    const flatFiles = [makeFlat("notes/hello.md", "Hello World")];
+    const resolverIndex: NoteResolverIndex = {
+      byPath: new Map([["notes/hello.md", { title: "Hello World", aliases: ["hi", "yo"] }]]),
+      byTitle: new Map([["hello world", "notes/hello.md"]]),
+      byAlias: new Map([
+        ["hi", "notes/hello.md"],
+        ["yo", "notes/hello.md"],
+      ]),
+    };
+    const { editor, teardown } = setup({ flatFiles, resolverIndex });
+    typeRaw(editor, "[[Hello");
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    const targets: string[] = [];
+    editor.state.doc.descendants((node) => {
+      if (node.type.name === "wikiLink") targets.push(node.attrs.target as string);
+      return true;
+    });
+    // Resolver lookup order is alias → title, so the inserted target picks
+    // the first alias to match.
+    expect(targets[0]).toBe("hi");
+    teardown();
   });
 });
