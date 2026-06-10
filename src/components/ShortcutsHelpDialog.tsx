@@ -6,8 +6,7 @@ import {
   type ShortcutKeys,
   shortcutsByCategory,
 } from "../lib/shortcuts";
-import { useFocusTrap } from "../lib/useFocusTrap";
-import "./Modal.css";
+import { Modal } from "./Modal";
 import "./ShortcutsHelpDialog.css";
 
 interface ShortcutsHelpDialogProps {
@@ -52,7 +51,6 @@ function isMacPlatform(): boolean {
 
 export function ShortcutsHelpDialog({ onClose }: ShortcutsHelpDialogProps) {
   const { t } = useTranslation();
-  const dialogRef = useFocusTrap<HTMLDivElement>();
   const isMac = isMacPlatform();
   const grouped = shortcutsByCategory();
 
@@ -88,49 +86,31 @@ export function ShortcutsHelpDialog({ onClose }: ShortcutsHelpDialogProps) {
   }
 
   return (
-    <div className="modal-overlay" role="presentation">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label={t("common.close")}
-        onClick={onClose}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("shortcuts_help.title")}
-        className="modal-panel shortcuts-panel"
-      >
-        <p className="modal-title">{t("shortcuts_help.title")}</p>
-        <p className="shortcuts-subtitle">{t("shortcuts_help.subtitle")}</p>
+    <Modal ariaLabel={t("shortcuts_help.title")} onClose={onClose} panelClassName="shortcuts-panel">
+      <p className="modal-title">{t("shortcuts_help.title")}</p>
+      <p className="shortcuts-subtitle">{t("shortcuts_help.subtitle")}</p>
 
-        <div className="shortcuts-groups">
-          {CATEGORY_ORDER.map((category) => {
-            const entries = grouped[category];
-            if (entries.length === 0) return null;
-            return (
-              <section
-                key={category}
-                className="shortcuts-group"
-                aria-labelledby={`sc-${category}`}
-              >
-                <h3 id={`sc-${category}`} className="shortcuts-group-title">
-                  {t(`shortcuts.category.${category}`)}
-                </h3>
-                <div className="shortcuts-group-rows">{entries.map(renderRow)}</div>
-              </section>
-            );
-          })}
-        </div>
-
-        <div className="modal-actions">
-          <div className="modal-spacer" />
-          <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
-            {t("common.close")}
-          </button>
-        </div>
+      <div className="shortcuts-groups">
+        {CATEGORY_ORDER.map((category) => {
+          const entries = grouped[category];
+          if (entries.length === 0) return null;
+          return (
+            <section key={category} className="shortcuts-group" aria-labelledby={`sc-${category}`}>
+              <h3 id={`sc-${category}`} className="shortcuts-group-title">
+                {t(`shortcuts.category.${category}`)}
+              </h3>
+              <div className="shortcuts-group-rows">{entries.map(renderRow)}</div>
+            </section>
+          );
+        })}
       </div>
-    </div>
+
+      <div className="modal-actions">
+        <div className="modal-spacer" />
+        <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
+          {t("common.close")}
+        </button>
+      </div>
+    </Modal>
   );
 }

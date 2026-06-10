@@ -3,9 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { compareFiles, type FlatFile, score } from "../lib/fileSearch";
 import type { FileNode, RecentFile } from "../lib/types";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { Modal } from "./Modal";
 import { Input } from "./ui/input";
-import "./Modal.css";
 import "./FileSwitcher.css";
 
 interface FileSwitcherProps {
@@ -46,7 +45,6 @@ export function FileSwitcher({ files, recentFiles, onSelect, onClose }: FileSwit
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useFocusTrap<HTMLDivElement>();
 
   useEffect(() => {
     inputRef.current?.select();
@@ -94,12 +92,7 @@ export function FileSwitcher({ files, recentFiles, onSelect, onClose }: FileSwit
     onSelect(active.node);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      onClose();
-      return;
-    }
+  function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       handleMove(1);
@@ -136,60 +129,52 @@ export function FileSwitcher({ files, recentFiles, onSelect, onClose }: FileSwit
     );
   }
   return (
-    <div className="modal-overlay modal-overlay--top" role="presentation">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label={t("file_switcher.close")}
-        onClick={onClose}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("file_switcher.title")}
-        className="fs-panel"
-        onKeyDown={handleKeyDown}
-      >
-        <div className="fs-search-row">
-          <Search className="fs-search-icon" />
-          <Input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("file_switcher.search_placeholder")}
-            className="fs-search-input"
-            aria-label={t("file_switcher.search_label")}
-          />
-        </div>
-        <div className="fs-list" role="listbox" aria-label={t("file_switcher.matching")}>
-          {visibleItems.length === 0 ? (
-            <div className="fs-empty">{t("file_switcher.no_match")}</div>
-          ) : query.trim() === "" ? (
-            <>
-              {recentResults.length > 0 && (
-                <>
-                  <div className="fs-group-heading">{t("file_switcher.recent")}</div>
-                  {recentResults.map((file, index) => renderItem(file, index))}
-                </>
-              )}
-              {recentResults.length > 0 && otherResults.length > 0 && (
-                <div className="fs-separator" aria-hidden="true" />
-              )}
-              {otherResults.length > 0 && (
-                <>
-                  {recentResults.length > 0 && (
-                    <div className="fs-group-heading">{t("file_switcher.all_files")}</div>
-                  )}
-                  {otherResults.map((file, index) => renderItem(file, otherResultsOffset + index))}
-                </>
-              )}
-            </>
-          ) : (
-            otherResults.map((file, index) => renderItem(file, index))
-          )}
-        </div>
+    <Modal
+      ariaLabel={t("file_switcher.title")}
+      onClose={onClose}
+      bare
+      panelClassName="fs-panel"
+      placement="top"
+      onKeyDown={handleKeyDown}
+    >
+      <div className="fs-search-row">
+        <Search className="fs-search-icon" />
+        <Input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={t("file_switcher.search_placeholder")}
+          className="fs-search-input"
+          aria-label={t("file_switcher.search_label")}
+        />
       </div>
-    </div>
+      <div className="fs-list" role="listbox" aria-label={t("file_switcher.matching")}>
+        {visibleItems.length === 0 ? (
+          <div className="fs-empty">{t("file_switcher.no_match")}</div>
+        ) : query.trim() === "" ? (
+          <>
+            {recentResults.length > 0 && (
+              <>
+                <div className="fs-group-heading">{t("file_switcher.recent")}</div>
+                {recentResults.map((file, index) => renderItem(file, index))}
+              </>
+            )}
+            {recentResults.length > 0 && otherResults.length > 0 && (
+              <div className="fs-separator" aria-hidden="true" />
+            )}
+            {otherResults.length > 0 && (
+              <>
+                {recentResults.length > 0 && (
+                  <div className="fs-group-heading">{t("file_switcher.all_files")}</div>
+                )}
+                {otherResults.map((file, index) => renderItem(file, otherResultsOffset + index))}
+              </>
+            )}
+          </>
+        ) : (
+          otherResults.map((file, index) => renderItem(file, index))
+        )}
+      </div>
+    </Modal>
   );
 }

@@ -7,8 +7,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "../lib/commands";
-import { useFocusTrap } from "../lib/useFocusTrap";
-import "./Modal.css";
+import { Modal } from "./Modal";
 import "./UpdateDialog.css";
 
 interface UpdateDialogProps {
@@ -56,7 +55,6 @@ function formatBytes(bytes: number) {
 
 export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
   const { t, i18n } = useTranslation();
-  const dialogRef = useFocusTrap<HTMLDivElement>();
   const updateRef = useRef<PendingUpdate | null>(null);
   const mountedRef = useRef(true);
   const [state, setState] = useState<UpdateState>({ kind: "checking", currentVersion: null });
@@ -188,11 +186,11 @@ export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
     void runCheck(state.currentVersion);
   }
 
-  function handleKeyDown(event: React.KeyboardEvent) {
-    if (event.key === "Escape" && state.kind !== "installing") {
-      event.stopPropagation();
-      onClose();
-    }
+  // Closing is blocked while an install is in flight — both Escape and the
+  // backdrop route through this guard.
+  function handleClose() {
+    if (state.kind === "installing") return;
+    onClose();
   }
 
   const progressText =
@@ -203,111 +201,94 @@ export function UpdateDialog({ onBeforeRestart, onClose }: UpdateDialogProps) {
       : null;
 
   return (
-    <div className="modal-overlay" role="presentation">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label={t("common.close")}
-        disabled={state.kind === "installing"}
-        onClick={() => {
-          if (state.kind === "installing") return;
-          onClose();
-        }}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("update_dialog.title")}
-        className="modal-panel update-dialog"
-        onKeyDown={handleKeyDown}
-      >
-        <p className="modal-title">{t("update_dialog.title")}</p>
+    <Modal
+      ariaLabel={t("update_dialog.title")}
+      onClose={handleClose}
+      panelClassName="update-dialog"
+    >
+      <p className="modal-title">{t("update_dialog.title")}</p>
 
-        {state.currentVersion && (
+      {state.currentVersion && (
+        <div className="modal-branch-row">
+          <span className="modal-branch-label">{t("update_dialog.current_version")}</span>
+          <code className="modal-badge">{state.currentVersion}</code>
+        </div>
+      )}
+
+      {state.kind === "checking" && <p className="modal-copy">{t("update_dialog.checking")}</p>}
+
+      {state.kind === "upToDate" && <p className="modal-copy">{t("update_dialog.up_to_date")}</p>}
+
+      {state.kind === "available" && (
+        <>
           <div className="modal-branch-row">
-            <span className="modal-branch-label">{t("update_dialog.current_version")}</span>
-            <code className="modal-badge">{state.currentVersion}</code>
+            <span className="modal-branch-label">{t("update_dialog.latest_version")}</span>
+            <code className="modal-badge">{state.version}</code>
           </div>
-        )}
+          {state.date && (
+            <p className="modal-copy">
+              {t("update_dialog.published", { date: formatDate(state.date, i18n.language) })}
+            </p>
+          )}
+          <p className="modal-copy">{t("update_dialog.update_available")}</p>
+          {state.notes && <pre className="update-dialog-notes">{state.notes}</pre>}
+        </>
+      )}
 
-        {state.kind === "checking" && <p className="modal-copy">{t("update_dialog.checking")}</p>}
+      {state.kind === "installing" && (
+        <>
+          <div className="modal-branch-row">
+            <span className="modal-branch-label">{t("update_dialog.installing")}</span>
+            <code className="modal-badge">{state.version}</code>
+          </div>
+          <p className="modal-copy">{t("update_dialog.downloading")}</p>
+          {progressText && <p className="update-dialog-progress">{progressText}</p>}
+        </>
+      )}
 
-        {state.kind === "upToDate" && <p className="modal-copy">{t("update_dialog.up_to_date")}</p>}
+      {state.kind === "installed" && (
+        <>
+          <div className="modal-branch-row">
+            <span className="modal-branch-label">{t("update_dialog.ready")}</span>
+            <code className="modal-badge">{state.version}</code>
+          </div>
+          <p className="modal-copy">{t("update_dialog.restart_message")}</p>
+        </>
+      )}
 
+      {state.kind === "error" && <p className="update-dialog-error">{state.message}</p>}
+
+      <div className="modal-actions">
+        <div className="modal-spacer" />
+        <button
+          type="button"
+          className="modal-btn modal-btn-cancel"
+          onClick={onClose}
+          disabled={state.kind === "installing"}
+        >
+          {state.kind === "upToDate" ? t("update_dialog.close") : t("update_dialog.cancel")}
+        </button>
         {state.kind === "available" && (
-          <>
-            <div className="modal-branch-row">
-              <span className="modal-branch-label">{t("update_dialog.latest_version")}</span>
-              <code className="modal-badge">{state.version}</code>
-            </div>
-            {state.date && (
-              <p className="modal-copy">
-                {t("update_dialog.published", { date: formatDate(state.date, i18n.language) })}
-              </p>
-            )}
-            <p className="modal-copy">{t("update_dialog.update_available")}</p>
-            {state.notes && <pre className="update-dialog-notes">{state.notes}</pre>}
-          </>
+          <button type="button" className="modal-btn modal-btn-primary" onClick={handleInstall}>
+            {t("update_dialog.install")}
+          </button>
         )}
-
-        {state.kind === "installing" && (
-          <>
-            <div className="modal-branch-row">
-              <span className="modal-branch-label">{t("update_dialog.installing")}</span>
-              <code className="modal-badge">{state.version}</code>
-            </div>
-            <p className="modal-copy">{t("update_dialog.downloading")}</p>
-            {progressText && <p className="update-dialog-progress">{progressText}</p>}
-          </>
+        {state.kind === "error" && (
+          <button type="button" className="modal-btn modal-btn-primary" onClick={handleRetry}>
+            {t("update_dialog.retry")}
+          </button>
         )}
-
         {state.kind === "installed" && (
-          <>
-            <div className="modal-branch-row">
-              <span className="modal-branch-label">{t("update_dialog.ready")}</span>
-              <code className="modal-badge">{state.version}</code>
-            </div>
-            <p className="modal-copy">{t("update_dialog.restart_message")}</p>
-          </>
-        )}
-
-        {state.kind === "error" && <p className="update-dialog-error">{state.message}</p>}
-
-        <div className="modal-actions">
-          <div className="modal-spacer" />
           <button
             type="button"
-            className="modal-btn modal-btn-cancel"
-            onClick={onClose}
-            disabled={state.kind === "installing"}
+            className="modal-btn modal-btn-primary"
+            onClick={() => void handleRestart()}
+            disabled={state.restartPending}
           >
-            {state.kind === "upToDate" ? t("update_dialog.close") : t("update_dialog.cancel")}
+            {state.restartPending ? t("update_dialog.restarting") : t("update_dialog.restart_now")}
           </button>
-          {state.kind === "available" && (
-            <button type="button" className="modal-btn modal-btn-primary" onClick={handleInstall}>
-              {t("update_dialog.install")}
-            </button>
-          )}
-          {state.kind === "error" && (
-            <button type="button" className="modal-btn modal-btn-primary" onClick={handleRetry}>
-              {t("update_dialog.retry")}
-            </button>
-          )}
-          {state.kind === "installed" && (
-            <button
-              type="button"
-              className="modal-btn modal-btn-primary"
-              onClick={() => void handleRestart()}
-              disabled={state.restartPending}
-            >
-              {state.restartPending
-                ? t("update_dialog.restarting")
-                : t("update_dialog.restart_now")}
-            </button>
-          )}
-        </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

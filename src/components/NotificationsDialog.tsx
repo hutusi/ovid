@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { useFocusTrap } from "../lib/useFocusTrap";
 import type { NotificationEntry } from "../lib/useToast";
-import "./Modal.css";
+import { Modal } from "./Modal";
 import "./NotificationsDialog.css";
 
 interface NotificationsDialogProps {
@@ -32,75 +31,56 @@ function formatRelative(
 
 export function NotificationsDialog({ notifications, onClear, onClose }: NotificationsDialogProps) {
   const { t } = useTranslation();
-  const dialogRef = useFocusTrap<HTMLDivElement>();
   const now = Date.now();
   // Reverse so newest is on top; the underlying buffer is appended-to so
   // it's stored oldest-first.
   const ordered = [...notifications].reverse();
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "Escape") {
-      event.stopPropagation();
-      onClose();
-    }
-  }
-
   return (
-    <div className="modal-overlay" role="presentation">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label={t("common.close")}
-        onClick={onClose}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("notifications.title")}
-        className="modal-panel notifications-panel"
-        onKeyDown={handleKeyDown}
-      >
-        <div className="notifications-header">
-          <p className="modal-title">{t("notifications.title")}</p>
-          <button
-            type="button"
-            className="notifications-close"
-            onClick={onClose}
-            aria-label={t("notifications.close_label")}
-          >
-            ×
-          </button>
-        </div>
-        {ordered.length === 0 ? (
-          <p className="modal-copy notifications-empty">{t("notifications.empty")}</p>
-        ) : (
-          <ul className="notifications-list">
-            {ordered.map((entry) => (
-              <li key={entry.id} className="notifications-item">
-                <span className="notifications-message">{entry.message}</span>
-                <span className="notifications-time" title={new Date(entry.at).toLocaleString()}>
-                  {formatRelative(entry.at, now, t)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="modal-actions notifications-actions">
-          <button
-            type="button"
-            className="modal-btn modal-btn-cancel"
-            onClick={onClear}
-            disabled={ordered.length === 0}
-          >
-            {t("notifications.clear")}
-          </button>
-          <div className="modal-spacer" />
-          <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
-            {t("notifications.close")}
-          </button>
-        </div>
+    <Modal
+      ariaLabel={t("notifications.title")}
+      onClose={onClose}
+      panelClassName="notifications-panel"
+    >
+      <div className="notifications-header">
+        <p className="modal-title">{t("notifications.title")}</p>
+        <button
+          type="button"
+          className="notifications-close"
+          onClick={onClose}
+          aria-label={t("notifications.close_label")}
+        >
+          ×
+        </button>
       </div>
-    </div>
+      {ordered.length === 0 ? (
+        <p className="modal-copy notifications-empty">{t("notifications.empty")}</p>
+      ) : (
+        <ul className="notifications-list">
+          {ordered.map((entry) => (
+            <li key={entry.id} className="notifications-item">
+              <span className="notifications-message">{entry.message}</span>
+              <span className="notifications-time" title={new Date(entry.at).toLocaleString()}>
+                {formatRelative(entry.at, now, t)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="modal-actions notifications-actions">
+        <button
+          type="button"
+          className="modal-btn modal-btn-cancel"
+          onClick={onClear}
+          disabled={ordered.length === 0}
+        >
+          {t("notifications.clear")}
+        </button>
+        <div className="modal-spacer" />
+        <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
+          {t("notifications.close")}
+        </button>
+      </div>
+    </Modal>
   );
 }
