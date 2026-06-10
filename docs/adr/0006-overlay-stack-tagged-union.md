@@ -96,9 +96,10 @@ overlay and renders by switching on `overlay.active?.kind` /
   reads, and six setter shims that existed only to bridge call sites
   to the overlay during the migration.
 - `useGitUiController`'s `setCommitDialog`/`setBranchSwitcher`/etc.
-  setters are now thin overlay-open/close adapters returned for
-  back-compat. They become deletable when their last call site moves
-  to `overlay.open` / `overlay.close` directly.
+  setters were kept as thin overlay-open/close adapters for back-compat
+  during the migration, to be deleted once their last call site moved
+  to `overlay.open` / `overlay.close` directly. (That has since
+  happened — see the Amendment below.)
 
 **Negative / accepted:**
 - Adding a new overlay kind requires four edits: the `Overlay` union,

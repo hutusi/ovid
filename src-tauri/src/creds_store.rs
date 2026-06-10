@@ -1,9 +1,20 @@
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+
+/// Serializes every read-modify-write across all stores in this process.
+/// `set`/`remove` re-read the whole map before writing it back; two
+/// concurrent Tauri commands hitting the same file (e.g. the two sequential
+/// sets in `set_wechat_credentials` racing a clear) could otherwise both
+/// start from the same snapshot and the last writer would drop the other's
+/// key. One process-wide lock is enough — contention is a few writes per
+/// user action, and reads stay lock-free (the atomic rename means a reader
+/// always sees a complete file).
+static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 // One credentials store for every domain that persists secrets as a JSON
 // key→value file in the app config dir (git per-host HTTPS credentials,
@@ -52,6 +63,7 @@ impl<V: Serialize + DeserializeOwned> CredsStore<V> {
     }
 
     pub(crate) fn set(&self, key: &str, value: V) -> Result<(), String> {
+        let _guard = WRITE_LOCK.lock().map_err(|e| e.to_string())?;
         let mut map = self.read_map()?;
         map.insert(key.to_string(), value);
         if let Some(parent) = self.path.parent() {
@@ -64,6 +76,7 @@ impl<V: Serialize + DeserializeOwned> CredsStore<V> {
     /// Remove one entry; deletes the file when it was the last one. No-op
     /// when the file or the key is missing.
     pub(crate) fn remove(&self, key: &str) -> Result<(), String> {
+        let _guard = WRITE_LOCK.lock().map_err(|e| e.to_string())?;
         if !self.path.exists() {
             return Ok(());
         }

@@ -115,9 +115,9 @@ pub(crate) fn parse_default_author(config_path: &Path) -> Option<String> {
         if !in_authors {
             // Detect `authors:` key — may appear inline (e.g. `posts: { authors: { ... } }`)
             if let Some(pos) = trimmed.find("authors:") {
-                // Reject if `authors` is part of a longer identifier (e.g. `defaultAuthors:`)
-                let is_word_boundary =
-                    pos == 0 || !trimmed.as_bytes()[pos - 1].is_ascii_alphanumeric();
+                // Reject if `authors` is part of a longer identifier
+                // (e.g. `defaultAuthors:` or `legacy_authors:`)
+                let is_word_boundary = pos == 0 || !is_ident_byte(trimmed.as_bytes()[pos - 1]);
                 if is_word_boundary {
                     in_authors = true;
                     authors_depth = brace_depth;
@@ -139,11 +139,17 @@ pub(crate) fn parse_default_author(config_path: &Path) -> Option<String> {
     None
 }
 
+/// `_` counts as an identifier character in TS, so `default_authors:` must
+/// not match a bare `authors:` / `default:` token.
+fn is_ident_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
 /// Extract the first author name from a line containing `default: ["Author", ...]`.
 fn parse_authors_default(trimmed: &str) -> Option<String> {
     let pos = trimmed.find("default:")?;
     // Reject if `default` is part of a longer identifier
-    if pos > 0 && trimmed.as_bytes()[pos - 1].is_ascii_alphanumeric() {
+    if pos > 0 && is_ident_byte(trimmed.as_bytes()[pos - 1]) {
         return None;
     }
     let rest = trimmed[pos + "default:".len()..].trim();
@@ -300,6 +306,18 @@ mod tests {
         let path = write_config(
             &dir,
             "// default: [\"Fake\"]\nexport const siteConfig = {\n  posts: {\n    authors: {\n      default: [\"Real Author\"],\n    },\n  },\n};\n",
+        );
+        assert_eq!(parse_default_author(&path), Some("Real Author".to_string()));
+    }
+
+    #[test]
+    fn parse_default_author_ignores_snake_case_lookalike_keys() {
+        // `_` is an identifier character in TS — `legacy_authors:` and
+        // `our_default:` must not be read as `authors:` / `default:`.
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  legacy_authors: {\n    our_default: [\"Fake\"],\n  },\n  posts: {\n    authors: {\n      default: [\"Real Author\"],\n    },\n  },\n};\n",
         );
         assert_eq!(parse_default_author(&path), Some("Real Author".to_string()));
     }

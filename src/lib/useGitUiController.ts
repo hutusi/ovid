@@ -334,8 +334,11 @@ export function useGitUiController({
     }
   }, [loadBranchSwitcherData, showToast, t, overlay]);
 
-  const refreshBranchSwitcher = useCallback(async () => {
-    if (!branchSwitcher) return;
+  // Reload branch data and (re)open the switcher. Used after rename/delete:
+  // those dialogs *replaced* the switcher overlay (one overlay at a time), so
+  // a refresh guarded on "switcher currently open" would always no-op — the
+  // user launched from the switcher and should land back in it, refreshed.
+  const reopenBranchSwitcher = useCallback(async () => {
     try {
       const nextState = await loadBranchSwitcherData();
       if (nextState) overlay.open({ kind: "branchSwitcher", state: nextState });
@@ -343,7 +346,7 @@ export function useGitUiController({
     } catch {
       showToast(t("errors.git_refresh_branches_failed"));
     }
-  }, [branchSwitcher, loadBranchSwitcherData, showToast, t, overlay]);
+  }, [loadBranchSwitcherData, showToast, t, overlay]);
 
   const copyRemoteUrl = useCallback(
     async (remoteName?: string) => {
@@ -464,14 +467,14 @@ export function useGitUiController({
         await flushPendingSave();
         await handleRenameBranch(oldBranch, newBranch);
         overlay.close("renameBranch");
-        await refreshBranchSwitcher();
+        await reopenBranchSwitcher();
         showToast(t("toast.git_renamed", { from: oldBranch, to: newBranch }));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         showToast(t("errors.git_rename_branch_failed", { message }));
       }
     },
-    [flushPendingSave, handleRenameBranch, refreshBranchSwitcher, showToast, t, overlay]
+    [flushPendingSave, handleRenameBranch, reopenBranchSwitcher, showToast, t, overlay]
   );
 
   const deleteBranch = useCallback(
@@ -480,14 +483,14 @@ export function useGitUiController({
         await flushPendingSave();
         await handleDeleteBranch(branch);
         overlay.close("deleteBranch");
-        await refreshBranchSwitcher();
+        await reopenBranchSwitcher();
         showToast(t("toast.git_deleted", { branch }));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         showToast(t("errors.git_delete_branch_failed", { message }));
       }
     },
-    [flushPendingSave, handleDeleteBranch, refreshBranchSwitcher, showToast, t, overlay]
+    [flushPendingSave, handleDeleteBranch, reopenBranchSwitcher, showToast, t, overlay]
   );
 
   const handleGitSyncAction = useCallback(async () => {
@@ -655,7 +658,7 @@ export function useGitUiController({
     runGitAction,
     openBranchSwitcher,
     closeBranchSwitcher,
-    refreshBranchSwitcher,
+    reopenBranchSwitcher,
     switchBranch,
     createBranch,
     checkoutRemoteBranch,

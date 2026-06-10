@@ -292,16 +292,17 @@ describe("useGitUiController — dialogs + branch actions", () => {
     expect(result.current.controller.branchSwitcher).toBeNull();
   });
 
-  it("refreshBranchSwitcher is a no-op when the dialog isn't open", async () => {
+  it("reopenBranchSwitcher loads fresh data and opens the switcher", async () => {
     const spies = makeSpies();
     spies.getBranches = mock(() => Promise.resolve([sampleBranch]));
     const { result } = renderController({ spies });
 
     await act(async () => {
-      await result.current.controller.refreshBranchSwitcher();
+      await result.current.controller.reopenBranchSwitcher();
     });
 
-    expect(spies.getBranches).not.toHaveBeenCalled();
+    expect(spies.getBranches).toHaveBeenCalledTimes(1);
+    expect(result.current.controller.branchSwitcher).not.toBeNull();
   });
 
   it("switchBranch flushes, switches, reloads, closes dialog, toasts", async () => {
@@ -338,14 +339,16 @@ describe("useGitUiController — dialogs + branch actions", () => {
     expect(spies.showToast).toHaveBeenCalledWith("Created and switched to feature/new");
   });
 
-  it("renameBranch refreshes the branch switcher after the rename", async () => {
+  it("renameBranch reopens a refreshed switcher even though its dialog replaced it", async () => {
     const spies = makeSpies();
     spies.getBranches = mock(() => Promise.resolve([sampleBranch]));
     const { result } = renderController({ spies });
 
-    // Open the switcher so refreshBranchSwitcher actually fires.
+    // Real flow: the switcher is open, then the rename dialog REPLACES it
+    // (one overlay at a time) before renameBranch runs.
     await act(async () => {
       await result.current.controller.openBranchSwitcher();
+      result.current.overlay.open({ kind: "renameBranch", state: { branch: "old" } });
     });
     spies.getBranches.mockClear();
 
@@ -356,15 +359,17 @@ describe("useGitUiController — dialogs + branch actions", () => {
     expect(spies.handleRenameBranch).toHaveBeenCalledWith("old", "new");
     expect(spies.showToast).toHaveBeenCalledWith("Renamed old to new");
     expect(spies.getBranches).toHaveBeenCalledTimes(1);
+    expect(result.current.controller.branchSwitcher).not.toBeNull();
   });
 
-  it("deleteBranch deletes, closes its dialog, refreshes the switcher", async () => {
+  it("deleteBranch deletes, then reopens a refreshed switcher", async () => {
     const spies = makeSpies();
     spies.getBranches = mock(() => Promise.resolve([sampleBranch]));
     const { result } = renderController({ spies });
 
     await act(async () => {
       await result.current.controller.openBranchSwitcher();
+      result.current.overlay.open({ kind: "deleteBranch", state: { branch: "feature/x" } });
     });
     spies.getBranches.mockClear();
 
@@ -375,6 +380,7 @@ describe("useGitUiController — dialogs + branch actions", () => {
     expect(spies.handleDeleteBranch).toHaveBeenCalledWith("feature/x");
     expect(spies.showToast).toHaveBeenCalledWith("Deleted feature/x");
     expect(spies.getBranches).toHaveBeenCalledTimes(1);
+    expect(result.current.controller.branchSwitcher).not.toBeNull();
   });
 
   it("checkoutRemoteBranch trims the remote prefix and reloads the workspace", async () => {
