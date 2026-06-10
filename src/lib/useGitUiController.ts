@@ -144,6 +144,10 @@ export async function loadBranchSwitcherState({
   return { branches, remoteBranches, remoteInfo: remote };
 }
 
+/** The full controller surface — dialog groups take this as one object
+ * instead of two dozen individual props. */
+export type GitUiController = ReturnType<typeof useGitUiController>;
+
 export function useGitUiController({
   overlay,
   gitStatusMap,

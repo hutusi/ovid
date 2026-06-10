@@ -303,8 +303,16 @@ instead of storing a separate `isOpen` boolean.
 
 **Consumers.**
 
-- `AppDialogs` renders by switching on `overlay.active?.kind` or
-  `overlay.is(kind)`.
+- `AppDialogs` composes per-domain dialog groups
+  (`src/components/dialogs/` — `GitDialogs`, `WorkspaceDialogs`,
+  `FileDialogs`, `WechatDialogs`) plus the app-level dialogs it renders
+  itself. Each group switches on `overlay.active?.kind` / `overlay.is(kind)`
+  and derives its dialog payloads from the overlay state; App passes each
+  group one object of domain actions (e.g. the whole `useGitUiController`
+  return as `gitUi`) instead of flattened props. `WechatDialogs` derives
+  the publish payload (title/digest/body/cover) from the current file via
+  `computeWechatPublishData` (`src/lib/useWechatPublishData.ts`), gated on
+  the overlay being open.
 - `useKeyboardShortcuts` and `useMenuActions` both take `overlay` and use
   `overlay.isBlocking` for the "should this shortcut fire?" guard. The
   duplicated 11-flag conjunction they each used to do is gone.
