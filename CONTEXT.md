@@ -63,7 +63,9 @@ contributes:
 - **`i18n`** — `locales` + `defaultLocale`, used to group `<slug>.<locale>`
   translation variants under their base file in the sidebar.
 
-The scanners that read these are best-effort, comment-aware, and degrade to
+The scanners that read these are best-effort, comment-aware (one shared
+comment-skipping, brace-counting line scanner —
+`src-tauri/src/content_types/scanner.rs` — feeds every parser), and degrade to
 empty/`None` on any parse failure, so a malformed or partial config never breaks
 workspace open.
 
