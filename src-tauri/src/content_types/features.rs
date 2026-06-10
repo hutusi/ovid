@@ -20,7 +20,7 @@ pub(crate) fn parse_features(config_path: &Path) -> Vec<FeatureBucket> {
     let mut in_name = false;
 
     for line in scan_code_lines(&content) {
-        let trimmed = line.trimmed;
+        let trimmed = line.trimmed.as_str();
         let opens = line.opens;
         let closes = line.closes;
 
@@ -187,6 +187,22 @@ mod tests {
     #[test]
     fn parse_features_returns_empty_when_file_missing() {
         assert!(parse_features(Path::new("/nonexistent/site.config.ts")).is_empty());
+    }
+
+    #[test]
+    fn parse_features_tolerates_trailing_comments_with_braces() {
+        // A brace inside a trailing comment must not desync the depth
+        // tracking that delimits buckets.
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  features: { // buckets: { posts }\n    posts: {\n      enabled: true, // always on {\n      name: { en: \"Articles\" },\n    },\n    series: {\n      enabled: false,\n      name: { en: \"Series\" },\n    },\n  },\n};\n",
+        );
+        let buckets = parse_features(&path);
+        let ids: Vec<&str> = buckets.iter().map(|b| b.id.as_str()).collect();
+        assert_eq!(ids, vec!["posts", "series"]);
+        assert!(buckets[0].enabled);
+        assert!(!buckets[1].enabled);
     }
 
     #[test]

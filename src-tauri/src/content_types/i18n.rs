@@ -125,4 +125,30 @@ mod tests {
         let cfg = parse_i18n(Path::new("/nonexistent/site.config.ts"));
         assert!(cfg.locales.is_empty());
     }
+
+    #[test]
+    fn parse_i18n_rejects_an_unclosed_block() {
+        // A truncated/malformed file must degrade to "not found", not feed
+        // a partial capture (which could span unrelated config) downstream.
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: {\n    defaultLocale: 'en',\n    locales: ['en', 'zh'],\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert!(cfg.locales.is_empty());
+        assert!(cfg.default_locale.is_none());
+    }
+
+    #[test]
+    fn parse_i18n_tolerates_trailing_comments_with_braces() {
+        let dir = TempDir::new().unwrap();
+        let path = write_config(
+            &dir,
+            "export const siteConfig = {\n  i18n: { // shape: { locales }\n    defaultLocale: 'en',\n    locales: ['en', 'zh'],\n  },\n};\n",
+        );
+        let cfg = parse_i18n(&path);
+        assert_eq!(cfg.locales, vec!["en".to_string(), "zh".to_string()]);
+        assert_eq!(cfg.default_locale.as_deref(), Some("en"));
+    }
 }

@@ -22,7 +22,7 @@ pub(crate) fn parse_authors(config_path: &Path) -> Vec<Author> {
     let mut pending_desc: Option<String> = None;
 
     for line in scan_code_lines(&content) {
-        let trimmed = line.trimmed;
+        let trimmed = line.trimmed.as_str();
         let opens = line.opens;
         let closes = line.closes;
         let after = depth + opens - closes;
@@ -103,7 +103,7 @@ pub(crate) fn parse_default_author(config_path: &Path) -> Option<String> {
     let mut authors_depth: i32 = 0;
 
     for line in scan_code_lines(&content) {
-        let trimmed = line.trimmed;
+        let trimmed = line.trimmed.as_str();
         let opens = line.opens;
         let closes = line.closes;
 

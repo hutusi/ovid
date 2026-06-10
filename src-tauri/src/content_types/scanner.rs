@@ -5,40 +5,103 @@
 // tokenizing lives here and the per-parser files keep only their genuinely
 // different state machines.
 
-/// One line of code surviving comment filtering, with its brace counts.
-pub(super) struct CodeLine<'a> {
-    pub(super) trimmed: &'a str,
+/// One line of code surviving comment stripping, with its brace counts.
+/// `trimmed` is owned because inline comments are removed from the text.
+pub(super) struct CodeLine {
+    pub(super) trimmed: String,
     pub(super) opens: i32,
     pub(super) closes: i32,
 }
 
-/// Iterate the code lines of a TS config: skips `//` lines, `*` JSDoc
-/// continuations, and `/* … */` block comments (single- or multi-line).
-pub(super) fn scan_code_lines(content: &str) -> impl Iterator<Item = CodeLine<'_>> {
+/// One raw line after string-aware comment stripping.
+struct StrippedLine {
+    code: String,
+    opens: i32,
+    closes: i32,
+}
+
+/// Remove `//` and `/* … */` comment spans from one line and count the
+/// braces that remain *outside string literals*. String-aware on both
+/// counts: a `//` inside a quoted URL (`cdnBase: 'https://…'`) is content,
+/// not a comment, and a `{` inside a quoted value must not desync the
+/// depth tracking. `in_block` carries multi-line `/* … */` state across
+/// lines. Backslash escapes inside strings are honoured so an escaped
+/// quote doesn't end the string early.
+fn strip_comments(raw: &str, in_block: &mut bool) -> StrippedLine {
+    let mut code = String::new();
+    let mut opens = 0;
+    let mut closes = 0;
+    let mut in_str: Option<char> = None;
+    let mut chars = raw.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if *in_block {
+            if ch == '*' && chars.peek() == Some(&'/') {
+                chars.next();
+                *in_block = false;
+            }
+            continue;
+        }
+        if let Some(quote) = in_str {
+            code.push(ch);
+            if ch == '\\' {
+                if let Some(escaped) = chars.next() {
+                    code.push(escaped);
+                }
+            } else if ch == quote {
+                in_str = None;
+            }
+            continue;
+        }
+        match ch {
+            '\'' | '"' | '`' => {
+                in_str = Some(ch);
+                code.push(ch);
+            }
+            '/' => match chars.peek() {
+                // Line comment — the rest of the line is dead.
+                Some('/') => break,
+                Some('*') => {
+                    chars.next();
+                    *in_block = true;
+                }
+                _ => code.push(ch),
+            },
+            '{' => {
+                opens += 1;
+                code.push(ch);
+            }
+            '}' => {
+                closes += 1;
+                code.push(ch);
+            }
+            _ => code.push(ch),
+        }
+    }
+    StrippedLine { code, opens, closes }
+}
+
+/// Iterate the code lines of a TS config: strips `//` and `/* … */`
+/// comments (inline or whole-line, single- or multi-line) and bare `*`
+/// JSDoc continuations, yielding the surviving code with braces counted
+/// outside string literals.
+pub(super) fn scan_code_lines(content: &str) -> impl Iterator<Item = CodeLine> + '_ {
     let mut in_block_comment = false;
     content.lines().filter_map(move |raw| {
-        let trimmed = raw.trim();
-        if in_block_comment {
-            if trimmed.contains("*/") {
-                in_block_comment = false;
-            }
+        let stripped = strip_comments(raw, &mut in_block_comment);
+        let trimmed = stripped.code.trim();
+        if trimmed.is_empty() {
             return None;
         }
-        if trimmed.starts_with("/*") {
-            if !trimmed.contains("*/") {
-                in_block_comment = true;
-            }
+        // A bare `*` continuation line from a JSDoc block whose opener the
+        // file never had (defensive — kept from the original parsers).
+        if trimmed.starts_with('*') {
             return None;
         }
-        if trimmed.starts_with("//") || trimmed.starts_with('*') {
-            return None;
-        }
-        let opens = raw.chars().filter(|&c| c == '{').count() as i32;
-        let closes = raw.chars().filter(|&c| c == '}').count() as i32;
         Some(CodeLine {
-            trimmed,
-            opens,
-            closes,
+            trimmed: trimmed.to_string(),
+            opens: stripped.opens,
+            closes: stripped.closes,
         })
     })
 }
@@ -163,7 +226,7 @@ pub(super) fn capture_object_block(content: &str, key: &str) -> Option<String> {
     let mut started = false;
 
     for line in scan_code_lines(content) {
-        let trimmed = line.trimmed;
+        let trimmed = line.trimmed.as_str();
         if !started {
             let Some(after) = value_after_key(trimmed, key) else {
                 continue;
@@ -200,7 +263,10 @@ pub(super) fn capture_object_block(content: &str, key: &str) -> Option<String> {
             }
         }
     }
-    if started { Some(buf) } else { None }
+    // The block never closed (truncated/malformed file). A partial capture
+    // can span unrelated config and feed wrong values to the caller —
+    // degrade to "not found" instead.
+    None
 }
 
 #[cfg(test)]
@@ -238,6 +304,57 @@ mod tests {
         let lines: Vec<_> = scan_code_lines("a: { b: { } }\n}\n").collect();
         assert_eq!((lines[0].opens, lines[0].closes), (2, 2));
         assert_eq!((lines[1].opens, lines[1].closes), (0, 1));
+    }
+
+    #[test]
+    fn scan_ignores_braces_in_trailing_line_comments() {
+        let lines: Vec<_> = scan_code_lines("posts: { // legacy shape: { name }\n").collect();
+        assert_eq!(lines[0].trimmed, "posts: {");
+        assert_eq!((lines[0].opens, lines[0].closes), (1, 0));
+    }
+
+    #[test]
+    fn scan_strips_inline_block_comments_and_their_braces() {
+        let lines: Vec<_> = scan_code_lines("a: { /* not a { brace */ b: 1 }\n").collect();
+        assert_eq!((lines[0].opens, lines[0].closes), (1, 1));
+        assert!(!lines[0].trimmed.contains("not a"));
+        assert!(lines[0].trimmed.contains("b: 1"));
+    }
+
+    #[test]
+    fn scan_keeps_double_slash_inside_strings() {
+        // The `//` in a URL is content, not a comment — the regression that
+        // would break every cdnBase value.
+        let lines: Vec<_> =
+            scan_code_lines("cdnBase: 'https://cdn.example.com', // mirror: {eu}\n").collect();
+        assert!(lines[0].trimmed.contains("https://cdn.example.com"));
+        assert!(!lines[0].trimmed.contains("mirror"));
+        assert_eq!((lines[0].opens, lines[0].closes), (0, 0));
+    }
+
+    #[test]
+    fn scan_ignores_braces_inside_string_literals() {
+        let lines: Vec<_> = scan_code_lines("title: \"curly { not } counted\",\n").collect();
+        assert_eq!((lines[0].opens, lines[0].closes), (0, 0));
+        assert!(lines[0].trimmed.contains("curly { not } counted"));
+    }
+
+    #[test]
+    fn scan_honours_escaped_quotes_inside_strings() {
+        let lines: Vec<_> = scan_code_lines(r#"bio: "He said \"hi\" {",
+"#)
+        .collect();
+        // The escaped quote must not end the string early — the `{` is
+        // still string content and stays uncounted.
+        assert_eq!((lines[0].opens, lines[0].closes), (0, 0));
+    }
+
+    #[test]
+    fn scan_handles_block_comment_opened_mid_line() {
+        let src = "code1 /* start\nstill hidden { }\nend */ code2\n";
+        let lines: Vec<_> = scan_code_lines(src).collect();
+        let texts: Vec<&str> = lines.iter().map(|l| l.trimmed.as_str()).collect();
+        assert_eq!(texts, vec!["code1", "code2"]);
     }
 
     // ── extract_quoted_string ────────────────────────────────────────────────

@@ -9,7 +9,7 @@ use super::scanner::{extract_quoted_string, scan_code_lines, strip_quote_pair};
 pub(crate) fn parse_cdn_base(config_path: &Path) -> Option<String> {
     let content = std::fs::read_to_string(config_path).ok()?;
     for line in scan_code_lines(&content) {
-        let trimmed = line.trimmed;
+        let trimmed = line.trimmed.as_str();
         for key in &["cdnBase", "cdnBaseUrl", "cdnUrl"] {
             // Match: cdnBase, "cdnBase", or 'cdnBase'
             let after_key = trimmed
@@ -38,7 +38,7 @@ pub(crate) fn parse_cdn_base(config_path: &Path) -> Option<String> {
 pub(crate) fn parse_posts_base_path(config_path: &Path) -> Option<String> {
     let content = std::fs::read_to_string(config_path).ok()?;
     for line in scan_code_lines(&content) {
-        let trimmed = line.trimmed;
+        let trimmed = line.trimmed.as_str();
         let after_key = trimmed
             .strip_prefix("basePath")
             .or_else(|| strip_quote_pair(trimmed, "basePath", '"'))
