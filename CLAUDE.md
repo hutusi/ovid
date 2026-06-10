@@ -96,7 +96,7 @@ Directory map:
 - **`src/lib/editor/`** — declarative table of every editor-routed command (keyboard + native menu), dispatched by `useEditorCommands`. Adding a command is one row + an optional `src-tauri/src/menu.rs` entry. See [ADR 0008](docs/adr/0008-editor-command-table.md).
 - **`src/lib/tiptap/`** — custom Tiptap/ProseMirror extensions (find & replace, folding, footnotes, image renderer, task lists, …).
 - **`src/styles/`** — `global.css` (Tailwind `@theme` block — the single source of truth for design tokens + `[data-theme="dark"]` overrides) and `editor.css` (prose typography).
-- **`src-tauri/`** — Rust backend, split by domain (`workspace/`, `files.rs`, `search.rs`, `content_types.rs`, `git/`, `assets.rs`, `wechat/`, `menu.rs`, …). `lib.rs` is a thin coordinator that declares modules and registers commands. Path arguments for file operations are validated against the open workspace root.
+- **`src-tauri/`** — Rust backend, split by domain (`workspace/`, `files.rs`, `search.rs`, `content_types.rs`, `git/`, `assets.rs`, `wechat/`, `menu.rs`, `creds_store.rs` — the shared secrets file store behind `git/creds.rs` and `wechat/creds.rs`, …). `lib.rs` is a thin coordinator that declares modules and registers commands. Path arguments for file operations are validated against the open workspace root.
 
 Key principles (each has fuller treatment in CONTEXT.md / the cited ADR):
 
