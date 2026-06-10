@@ -133,3 +133,11 @@ flows still use `commands.assets.saveFromBytes` directly in
 - `src/lib/menuLabels.ts` `MENU_KEYS` — the localized labels that go
   with the menu payloads. A future test could cross-reference these
   with the command table for end-to-end menu coverage.
+
+## Amendment (2026-06)
+
+[ADR 0018](0018-global-action-dispatch-table.md) extends this pattern to
+the *global* (non-editor) actions: `src/lib/appActions.ts` is the table,
+`useKeyboardShortcuts` / `useMenuActions` are the adapters, and the
+menu-payload cross-check suggested above now exists in
+`appActions.test.ts` for the global vocabulary.

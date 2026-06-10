@@ -313,9 +313,12 @@ instead of storing a separate `isOpen` boolean.
   the publish payload (title/digest/body/cover) from the current file via
   `computeWechatPublishData` (`src/lib/useWechatPublishData.ts`), gated on
   the overlay being open.
-- `useKeyboardShortcuts` and `useMenuActions` both take `overlay` and use
-  `overlay.isBlocking` for the "should this shortcut fire?" guard. The
-  duplicated 11-flag conjunction they each used to do is gone.
+- `useKeyboardShortcuts` and `useMenuActions` are thin adapters over the
+  **global action dispatch table** (`src/lib/appActions.ts`, ADR 0018):
+  one declarative row per action with its guards (`allowWhenBlocking`,
+  `allowInInput`, `when`); the `overlay.isBlocking` check lives once in
+  `dispatchAppAction`. Action ids equal the native menu payload ids;
+  keyboard keys stay in `shortcuts.ts` and join the table by id.
 
 **Preferences.** The `preferences` overlay renders `PreferencesDialog` — a
 tabbed (General / Appearance / Editor / Language / Content) view that is a thin

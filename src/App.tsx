@@ -6,6 +6,7 @@ import { EditorPane } from "./components/EditorPane";
 import { getFileViewKind } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import type { AppActionCtx } from "./lib/appActions";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
 import { commands } from "./lib/commands";
@@ -474,22 +475,73 @@ function App() {
     }
   }, [wordCount, baselineCaptured]);
 
-  useKeyboardShortcuts({
-    overlay,
-    zenMode,
-    workspaceRoot,
-    tree,
-    isGitRepo,
-    defaultCommitMessage,
-    flushPendingSave,
-    closeActiveTabOrFile,
-    handleOpenWorkspace,
-    handleNewTodayFlow,
-    openCommitDialog,
-    setSidebarVisible,
-    setPropertiesOpen,
-    setZenMode,
-  });
+  // One context object feeds both input adapters of the global action
+  // table (ADR 0018): keyboard shortcuts and native menu events dispatch
+  // the same appActions rows.
+  const appActionCtx = useMemo<AppActionCtx>(
+    () => ({
+      overlay,
+      zenMode,
+      workspaceRoot,
+      tree,
+      isGitRepo,
+      selectedFile,
+      prefs,
+      pushSuccessMessage,
+      defaultCommitMessage,
+      pendingMarkdownRef,
+      fileContent,
+      showToast,
+      t,
+      setSidebarVisible,
+      setPropertiesOpen,
+      setZenMode,
+      setTypewriterMode,
+      flushPendingSave,
+      closeActiveTabOrFile,
+      handleOpenWorkspace,
+      handleNewTodayFlow,
+      openCommitDialog,
+      openBranchSwitcher,
+      runGitAction,
+      handlePush,
+      openRemote,
+      copyRemoteUrl,
+      handlePull,
+      handleFetch,
+      updatePrefs,
+    }),
+    [
+      overlay,
+      zenMode,
+      workspaceRoot,
+      tree,
+      isGitRepo,
+      selectedFile,
+      prefs,
+      pushSuccessMessage,
+      defaultCommitMessage,
+      pendingMarkdownRef,
+      fileContent,
+      showToast,
+      t,
+      flushPendingSave,
+      closeActiveTabOrFile,
+      handleOpenWorkspace,
+      handleNewTodayFlow,
+      openCommitDialog,
+      openBranchSwitcher,
+      runGitAction,
+      handlePush,
+      openRemote,
+      copyRemoteUrl,
+      handlePull,
+      handleFetch,
+      updatePrefs,
+    ]
+  );
+
+  useKeyboardShortcuts(appActionCtx);
 
   useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus });
 
@@ -509,37 +561,7 @@ function App() {
 
   useGitFocusFetch({ workspaceRoot, isGitRepo, handleFetch });
 
-  useMenuActions({
-    overlay,
-    workspaceRoot,
-    tree,
-    isGitRepo,
-    selectedFile,
-    prefs,
-    pushSuccessMessage,
-    defaultCommitMessage,
-    pendingMarkdownRef,
-    fileContent,
-    showToast,
-    t,
-    setSidebarVisible,
-    setPropertiesOpen,
-    setZenMode,
-    setTypewriterMode,
-    flushPendingSave,
-    closeActiveTabOrFile,
-    handleOpenWorkspace,
-    handleNewTodayFlow,
-    openCommitDialog,
-    openBranchSwitcher,
-    runGitAction,
-    handlePush,
-    openRemote,
-    copyRemoteUrl,
-    handlePull,
-    handleFetch,
-    updatePrefs,
-  });
+  useMenuActions(appActionCtx);
 
   const coverImagePath =
     parsedFrontmatter.coverImage != null && parsedFrontmatter.coverImage !== ""
