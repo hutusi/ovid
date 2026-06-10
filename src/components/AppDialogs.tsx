@@ -15,12 +15,6 @@ import type { CollectionItem, FileNode, RecentFile, RecentWorkspace } from "../l
 import type { AppPreferences } from "../lib/useAppPreferences";
 import type { ContentPreferences } from "../lib/useContentPreferences";
 import type { EditorPreferences } from "../lib/useEditorPreferences";
-import type {
-  BranchSwitcherState,
-  CommitDialogState,
-  DeleteBranchDialogState,
-  RenameBranchDialogState,
-} from "../lib/useGitUiController";
 import type { OverlayStack } from "../lib/useOverlayStack";
 import type { ThemePreference } from "../lib/useTheme";
 import type { NotificationEntry, Toast } from "../lib/useToast";
@@ -107,10 +101,9 @@ export interface AppDialogsProps {
   notifications: NotificationEntry[];
   clearNotifications: () => void;
 
-  // GitSyncPopover
-  gitSyncPopoverOpen: boolean;
+  // GitSyncPopover — visibility comes from the overlay stack; this is the
+  // computed popover payload (ahead/behind labels, action kind).
   gitSyncPopover: GitSyncPopoverState | null;
-  setGitSyncPopoverOpen: (open: boolean) => void;
   handleGitSyncAction: () => Promise<void>;
 
   // WorkspaceSwitcher
@@ -156,39 +149,31 @@ export interface AppDialogsProps {
   recentFiles: RecentFile[];
   openFileByPath: (path: string) => void;
 
-  // CommitDialog
-  commitDialog: CommitDialogState;
-  setCommitDialog: (state: null) => void;
+  // CommitDialog — payload (message/branch/changes) lives in the overlay
+  // state; only the commit action crosses this seam.
   handleCommitDialogCommit: (
     message: string,
     selectedPaths: string[],
     push: boolean
   ) => Promise<void>;
 
-  // BranchSwitcher
-  branchSwitcher: BranchSwitcherState;
+  // BranchSwitcher — branch lists live in the overlay state.
   currentBranch: string;
   switchBranch: (branch: string) => Promise<void>;
   checkoutRemoteBranch: (remoteRef: string) => Promise<void>;
   closeBranchSwitcher: () => void;
-  setNewBranchDialogOpen: (open: boolean) => void;
-  setRenameBranchDialog: (state: RenameBranchDialogState) => void;
-  setDeleteBranchDialog: (state: DeleteBranchDialogState) => void;
   runGitAction: (type: "push" | "pull" | "fetch", fn: () => Promise<void>, msg: string) => void;
   handlePush: (remoteName?: string) => Promise<void>;
   openRemote: (remoteName?: string) => void;
   copyRemoteUrl: (remoteName?: string) => void;
 
   // NewBranchDialog
-  newBranchDialogOpen: boolean;
   createBranch: (branch: string) => Promise<void>;
 
   // RenameBranchDialog
-  renameBranchDialog: RenameBranchDialogState;
   renameBranch: (oldBranch: string, newBranch: string) => Promise<void>;
 
   // DeleteBranchDialog
-  deleteBranchDialog: DeleteBranchDialogState;
   deleteBranch: (branch: string) => Promise<void>;
 
   // GitCredentialsDialog — wired to the AUTH_REQUIRED retry path in
@@ -223,9 +208,7 @@ export function AppDialogs({
   toasts,
   notifications,
   clearNotifications,
-  gitSyncPopoverOpen,
   gitSyncPopover,
-  setGitSyncPopoverOpen,
   handleGitSyncAction,
   recentWorkspaces,
   workspaceRootPath,
@@ -257,26 +240,17 @@ export function AppDialogs({
   flatFiles,
   recentFiles,
   openFileByPath,
-  commitDialog,
-  setCommitDialog,
   handleCommitDialogCommit,
-  branchSwitcher,
   currentBranch,
   switchBranch,
   checkoutRemoteBranch,
   closeBranchSwitcher,
-  setNewBranchDialogOpen,
-  setRenameBranchDialog,
-  setDeleteBranchDialog,
   runGitAction,
   handlePush,
   openRemote,
   copyRemoteUrl,
-  newBranchDialogOpen,
   createBranch,
-  renameBranchDialog,
   renameBranch,
-  deleteBranchDialog,
   deleteBranch,
   onGitCredentialsSubmit,
   onGitCredentialsForget,
@@ -297,14 +271,20 @@ export function AppDialogs({
   // four modal? === "..." checks below stay readable.
   const modal = overlay.active?.kind === "modal" ? overlay.active.state : null;
   const closeModal = () => overlay.close("modal");
+  // Git dialog payloads live in the overlay state — derive them here
+  // instead of threading them through App as props.
+  const commitDialog = overlay.active?.kind === "commit" ? overlay.active.state : null;
+  const branchSwitcher = overlay.active?.kind === "branchSwitcher" ? overlay.active.state : null;
+  const renameBranchDialog = overlay.active?.kind === "renameBranch" ? overlay.active.state : null;
+  const deleteBranchDialog = overlay.active?.kind === "deleteBranch" ? overlay.active.state : null;
 
   return (
     <>
-      {gitSyncPopoverOpen && gitSyncPopover && (
+      {overlay.is("gitSyncPopover") && gitSyncPopover && (
         <Suspense fallback={null}>
           <GitSyncPopover
             state={gitSyncPopover}
-            onClose={() => setGitSyncPopoverOpen(false)}
+            onClose={() => overlay.close("gitSyncPopover")}
             onAction={gitSyncPopover.actionLabel ? () => void handleGitSyncAction() : undefined}
           />
         </Suspense>
@@ -479,7 +459,7 @@ export function AppDialogs({
             onCommit={(message, selectedPaths, push) =>
               void handleCommitDialogCommit(message, selectedPaths, push)
             }
-            onCancel={() => setCommitDialog(null)}
+            onCancel={() => overlay.close("commit")}
           />
         </Suspense>
       )}
@@ -491,12 +471,9 @@ export function AppDialogs({
             remoteInfo={branchSwitcher.remoteInfo}
             onSelect={(branch) => void switchBranch(branch)}
             onSelectRemoteBranch={(remoteRef) => void checkoutRemoteBranch(remoteRef)}
-            onCreateBranch={() => {
-              closeBranchSwitcher();
-              setNewBranchDialogOpen(true);
-            }}
-            onRenameBranch={(branch) => setRenameBranchDialog({ branch })}
-            onDeleteBranch={(branch) => setDeleteBranchDialog({ branch })}
+            onCreateBranch={() => overlay.open({ kind: "newBranch" })}
+            onRenameBranch={(branch) => overlay.open({ kind: "renameBranch", state: { branch } })}
+            onDeleteBranch={(branch) => overlay.open({ kind: "deleteBranch", state: { branch } })}
             onPushAndTrack={(remoteName) =>
               void runGitAction(
                 "push",
@@ -510,12 +487,12 @@ export function AppDialogs({
           />
         </Suspense>
       )}
-      {newBranchDialogOpen && (
+      {overlay.is("newBranch") && (
         <Suspense fallback={null}>
           <NewBranchDialog
             currentBranch={currentBranch}
             onConfirm={(branch) => void createBranch(branch)}
-            onCancel={() => setNewBranchDialogOpen(false)}
+            onCancel={() => overlay.close("newBranch")}
           />
         </Suspense>
       )}
@@ -524,7 +501,7 @@ export function AppDialogs({
           <RenameBranchDialog
             branch={renameBranchDialog.branch}
             onConfirm={(branch) => void renameBranch(renameBranchDialog.branch, branch)}
-            onCancel={() => setRenameBranchDialog(null)}
+            onCancel={() => overlay.close("renameBranch")}
           />
         </Suspense>
       )}
@@ -533,7 +510,7 @@ export function AppDialogs({
           <DeleteBranchDialog
             branch={deleteBranchDialog.branch}
             onConfirm={() => void deleteBranch(deleteBranchDialog.branch)}
-            onCancel={() => setDeleteBranchDialog(null)}
+            onCancel={() => overlay.close("deleteBranch")}
           />
         </Suspense>
       )}

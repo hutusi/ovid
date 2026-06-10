@@ -190,48 +190,14 @@ export function useGitUiController({
     overlay.active?.kind === "deleteBranch" ? overlay.active.state : null;
   const gitSyncPopoverOpen = overlay.is("gitSyncPopover");
 
-  const setCommitDialog = useCallback(
-    (state: CommitDialogState) => {
-      if (state === null) overlay.close("commit");
-      else overlay.open({ kind: "commit", state });
-    },
-    [overlay]
-  );
-  const setBranchSwitcher = useCallback(
-    (state: BranchSwitcherState) => {
-      if (state === null) overlay.close("branchSwitcher");
-      else overlay.open({ kind: "branchSwitcher", state });
-    },
-    [overlay]
-  );
-  const setNewBranchDialogOpen = useCallback(
-    (open: boolean) => {
-      if (open) overlay.open({ kind: "newBranch" });
-      else overlay.close("newBranch");
-    },
-    [overlay]
-  );
-  const setRenameBranchDialog = useCallback(
-    (state: RenameBranchDialogState) => {
-      if (state === null) overlay.close("renameBranch");
-      else overlay.open({ kind: "renameBranch", state });
-    },
-    [overlay]
-  );
-  const setDeleteBranchDialog = useCallback(
-    (state: DeleteBranchDialogState) => {
-      if (state === null) overlay.close("deleteBranch");
-      else overlay.open({ kind: "deleteBranch", state });
-    },
-    [overlay]
-  );
-  const setGitSyncPopoverOpen = useCallback(
-    (open: boolean) => {
-      if (open) overlay.open({ kind: "gitSyncPopover" });
-      else overlay.close("gitSyncPopover");
-    },
-    [overlay]
-  );
+  const toggleGitSyncPopover = useCallback(() => {
+    if (overlay.is("gitSyncPopover")) overlay.close("gitSyncPopover");
+    else overlay.open({ kind: "gitSyncPopover" });
+  }, [overlay]);
+
+  const closeGitSyncPopover = useCallback(() => {
+    overlay.close("gitSyncPopover");
+  }, [overlay]);
 
   const { t } = useTranslation();
 
@@ -267,12 +233,12 @@ export function useGitUiController({
           showToast(t("errors.git_no_changes"));
           return;
         }
-        setCommitDialog({ message, branch, changes });
+        overlay.open({ kind: "commit", state: { message, branch, changes } });
       } catch {
         showToast(t("errors.git_load_changes_failed"));
       }
     },
-    [getBranch, getCommitChanges, showToast, t, setCommitDialog]
+    [getBranch, getCommitChanges, showToast, t, overlay]
   );
 
   // Pending context for a runGitAction call that hit AUTH_REQUIRED — used
@@ -352,27 +318,28 @@ export function useGitUiController({
 
   const openBranchSwitcher = useCallback(async () => {
     try {
-      setGitSyncPopoverOpen(false);
+      overlay.close("gitSyncPopover");
       const nextState = await loadBranchSwitcherData();
       if (!nextState) {
         showToast(t("errors.git_no_local_branches"));
         return;
       }
-      setBranchSwitcher(nextState);
+      overlay.open({ kind: "branchSwitcher", state: nextState });
     } catch {
       showToast(t("errors.git_load_branches_failed"));
     }
-  }, [loadBranchSwitcherData, showToast, t, setBranchSwitcher, setGitSyncPopoverOpen]);
+  }, [loadBranchSwitcherData, showToast, t, overlay]);
 
   const refreshBranchSwitcher = useCallback(async () => {
     if (!branchSwitcher) return;
     try {
       const nextState = await loadBranchSwitcherData();
-      setBranchSwitcher(nextState);
+      if (nextState) overlay.open({ kind: "branchSwitcher", state: nextState });
+      else overlay.close("branchSwitcher");
     } catch {
       showToast(t("errors.git_refresh_branches_failed"));
     }
-  }, [branchSwitcher, loadBranchSwitcherData, showToast, t, setBranchSwitcher]);
+  }, [branchSwitcher, loadBranchSwitcherData, showToast, t, overlay]);
 
   const copyRemoteUrl = useCallback(
     async (remoteName?: string) => {
@@ -417,7 +384,7 @@ export function useGitUiController({
         await flushPendingSave();
         await handleSwitchBranch(branch);
         closeBranchSwitcher();
-        setNewBranchDialogOpen(false);
+        overlay.close("newBranch");
         await reloadWorkspaceAfterGitChange();
         showToast(t("toast.git_switched_to", { branch }));
       } catch (err) {
@@ -432,7 +399,7 @@ export function useGitUiController({
       reloadWorkspaceAfterGitChange,
       showToast,
       t,
-      setNewBranchDialogOpen,
+      overlay,
     ]
   );
 
@@ -441,7 +408,7 @@ export function useGitUiController({
       try {
         await flushPendingSave();
         await handleCreateBranch(branch);
-        setNewBranchDialogOpen(false);
+        overlay.close("newBranch");
         closeBranchSwitcher();
         await reloadWorkspaceAfterGitChange();
         showToast(t("toast.git_created_and_switched_to", { branch }));
@@ -457,7 +424,7 @@ export function useGitUiController({
       reloadWorkspaceAfterGitChange,
       showToast,
       t,
-      setNewBranchDialogOpen,
+      overlay,
     ]
   );
 
@@ -468,7 +435,7 @@ export function useGitUiController({
         await flushPendingSave();
         await handleCheckoutRemoteBranch(remoteRef);
         closeBranchSwitcher();
-        setNewBranchDialogOpen(false);
+        overlay.close("newBranch");
         await reloadWorkspaceAfterGitChange();
         showToast(t("toast.git_checked_out", { ref: branchName || remoteRef }));
       } catch (err) {
@@ -483,7 +450,7 @@ export function useGitUiController({
       reloadWorkspaceAfterGitChange,
       showToast,
       t,
-      setNewBranchDialogOpen,
+      overlay,
     ]
   );
 
@@ -492,7 +459,7 @@ export function useGitUiController({
       try {
         await flushPendingSave();
         await handleRenameBranch(oldBranch, newBranch);
-        setRenameBranchDialog(null);
+        overlay.close("renameBranch");
         await refreshBranchSwitcher();
         showToast(t("toast.git_renamed", { from: oldBranch, to: newBranch }));
       } catch (err) {
@@ -500,14 +467,7 @@ export function useGitUiController({
         showToast(t("errors.git_rename_branch_failed", { message }));
       }
     },
-    [
-      flushPendingSave,
-      handleRenameBranch,
-      refreshBranchSwitcher,
-      showToast,
-      t,
-      setRenameBranchDialog,
-    ]
+    [flushPendingSave, handleRenameBranch, refreshBranchSwitcher, showToast, t, overlay]
   );
 
   const deleteBranch = useCallback(
@@ -515,7 +475,7 @@ export function useGitUiController({
       try {
         await flushPendingSave();
         await handleDeleteBranch(branch);
-        setDeleteBranchDialog(null);
+        overlay.close("deleteBranch");
         await refreshBranchSwitcher();
         showToast(t("toast.git_deleted", { branch }));
       } catch (err) {
@@ -523,19 +483,12 @@ export function useGitUiController({
         showToast(t("errors.git_delete_branch_failed", { message }));
       }
     },
-    [
-      flushPendingSave,
-      handleDeleteBranch,
-      refreshBranchSwitcher,
-      showToast,
-      t,
-      setDeleteBranchDialog,
-    ]
+    [flushPendingSave, handleDeleteBranch, refreshBranchSwitcher, showToast, t, overlay]
   );
 
   const handleGitSyncAction = useCallback(async () => {
     if (!gitSyncPopover?.actionKind) return;
-    setGitSyncPopoverOpen(false);
+    overlay.close("gitSyncPopover");
     if (gitSyncPopover.actionKind === "pull") {
       await runGitAction("pull", () => handlePull(), t("toast.git_pulled"));
       return;
@@ -548,7 +501,7 @@ export function useGitUiController({
           : handlePush(),
       getPushSuccessMessage(remoteInfo, t)
     );
-  }, [gitSyncPopover, handlePull, handlePush, remoteInfo, runGitAction, t, setGitSyncPopoverOpen]);
+  }, [gitSyncPopover, handlePull, handlePush, remoteInfo, runGitAction, t, overlay]);
 
   const defaultCommitMessage = useMemo(() => {
     return buildDefaultCommitMessage(parsedTitle, selectedFileName);
@@ -559,7 +512,7 @@ export function useGitUiController({
       try {
         await flushPendingSave();
         await handleCommit(message, selectedPaths, push);
-        setCommitDialog(null);
+        overlay.close("commit");
       } catch (err) {
         const errMessage = getErrorMessage(err);
         // If the commit succeeded but the push leg hit AUTH_REQUIRED, the
@@ -569,7 +522,9 @@ export function useGitUiController({
         // dispatches to handlePushWithCredentials.
         const opened = await openGitCredentialsDialog("push", pushSuccessMessage, errMessage);
         if (opened) {
-          setCommitDialog(null);
+          // Opening the credentials overlay already replaced the commit
+          // dialog (one overlay at a time) — this close documents intent.
+          overlay.close("commit");
           return;
         }
         showToast(formatCommitError(errMessage, t));
@@ -582,7 +537,7 @@ export function useGitUiController({
       pushSuccessMessage,
       showToast,
       t,
-      setCommitDialog,
+      overlay,
     ]
   );
 
@@ -692,7 +647,6 @@ export function useGitUiController({
     pushSuccessMessage,
     defaultCommitMessage,
     openCommitDialog,
-    setCommitDialog,
     handleCommitDialogCommit,
     runGitAction,
     openBranchSwitcher,
@@ -706,10 +660,8 @@ export function useGitUiController({
     openRemote,
     copyRemoteUrl,
     handleGitSyncAction,
-    setNewBranchDialogOpen,
-    setRenameBranchDialog,
-    setDeleteBranchDialog,
-    setGitSyncPopoverOpen,
+    toggleGitSyncPopover,
+    closeGitSyncPopover,
     handleGitCredentialsSubmit,
     handleForgetGitCredentials,
   };

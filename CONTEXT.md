@@ -288,10 +288,13 @@ The `Overlay` kinds:
 | `newBranch` | — | yes |
 | `renameBranch` | `useGitUiController` | yes |
 | `deleteBranch` | `useGitUiController` | yes |
+| `gitCredentials` | `useGitUiController` | yes |
 | `gitSyncPopover` | — | **no** (transient, status-bar anchored) |
+| `notifications` | — | **no** (transient, status-bar anchored) |
 
-`isBlocking` returns true for everything except `gitSyncPopover`. Adding a new
-kind defaults to blocking unless explicitly added to `NON_BLOCKING_KINDS`.
+`isBlocking` returns true for everything except `gitSyncPopover` and
+`notifications`. Adding a new kind defaults to blocking unless explicitly
+added to `NON_BLOCKING_KINDS`.
 
 **Separation of visibility from payload.** The overlay stack owns visibility.
 Hooks like `useGitUiController` still own the *data* a dialog needs (commit

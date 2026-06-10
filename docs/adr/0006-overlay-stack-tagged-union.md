@@ -120,3 +120,14 @@ overlay and renders by switching on `overlay.active?.kind` /
 - `src/lib/useOverlayStack.ts` — the hook + `isOverlayBlocking` pure fn.
 - `src/lib/useOverlayStack.test.ts` — covers blocking semantics.
 - `CONTEXT.md` "Overlay model" section — the in-CODEBASE summary.
+
+## Amendment (2026-06)
+
+The back-compat setter shims (`setCommitDialog`, `setBranchSwitcher`,
+`setNewBranchDialogOpen`, `setRenameBranchDialog`, `setDeleteBranchDialog`,
+`setGitSyncPopoverOpen`) have been removed. Every call site now uses
+`overlay.open` / `overlay.close` directly; `AppDialogs` derives the git
+dialog payloads from `overlay.active` itself instead of receiving them as
+props. The status-bar sync-popover toggle is exposed as an intent-named
+`toggleGitSyncPopover` on `useGitUiController` rather than a boolean setter.
+The migration this ADR described is complete.

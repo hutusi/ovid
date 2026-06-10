@@ -375,19 +375,12 @@ function App() {
   } = useGit(workspaceRoot);
   isGitRepoRef.current = isGitRepo;
   const {
-    commitDialog,
-    branchSwitcher,
-    newBranchDialogOpen,
-    renameBranchDialog,
-    deleteBranchDialog,
-    gitSyncPopoverOpen,
     gitChangeSummary,
     gitSyncLabel,
     gitSyncPopover,
     pushSuccessMessage,
     defaultCommitMessage,
     openCommitDialog,
-    setCommitDialog,
     handleCommitDialogCommit,
     runGitAction,
     openBranchSwitcher,
@@ -400,10 +393,7 @@ function App() {
     openRemote,
     copyRemoteUrl,
     handleGitSyncAction,
-    setNewBranchDialogOpen,
-    setRenameBranchDialog,
-    setDeleteBranchDialog,
-    setGitSyncPopoverOpen,
+    toggleGitSyncPopover,
     handleGitCredentialsSubmit,
     handleForgetGitCredentials,
   } = useGitUiController({
@@ -545,7 +535,6 @@ function App() {
     setPropertiesOpen,
     setZenMode,
     setTypewriterMode,
-    setNewBranchDialogOpen,
     flushPendingSave,
     closeActiveTabOrFile,
     handleOpenWorkspace,
@@ -752,7 +741,7 @@ function App() {
         gitSyncTitle={gitSyncPopover?.description}
         gitChangeLabel={gitChangeSummary?.label}
         gitChangeTitle={gitChangeSummary?.title}
-        gitSyncPopoverOpen={gitSyncPopoverOpen}
+        gitSyncPopoverOpen={overlay.is("gitSyncPopover")}
         notificationsCount={notifications.length}
         notificationsUnread={unread}
         notificationsOpen={overlay.is("notifications")}
@@ -775,7 +764,7 @@ function App() {
             : undefined
         }
         onOpenCommit={() => void openCommitDialog("Update")}
-        onOpenGitSync={() => setGitSyncPopoverOpen(!gitSyncPopoverOpen)}
+        onOpenGitSync={toggleGitSyncPopover}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
         onToggleZen={() => setZenMode((v) => !v)}
         onToggleTypewriter={() => setTypewriterMode((v) => !v)}
@@ -790,9 +779,7 @@ function App() {
         toasts={toasts}
         notifications={notifications}
         clearNotifications={clearNotifications}
-        gitSyncPopoverOpen={gitSyncPopoverOpen}
         gitSyncPopover={gitSyncPopover}
-        setGitSyncPopoverOpen={setGitSyncPopoverOpen}
         handleGitSyncAction={handleGitSyncAction}
         recentWorkspaces={recentWorkspaces}
         workspaceRootPath={workspaceRootPath}
@@ -826,26 +813,17 @@ function App() {
         flatFiles={flatFiles}
         recentFiles={recentFiles}
         openFileByPath={openFileByPath}
-        commitDialog={commitDialog}
-        setCommitDialog={setCommitDialog}
         handleCommitDialogCommit={handleCommitDialogCommit}
-        branchSwitcher={branchSwitcher}
         currentBranch={currentBranch}
         switchBranch={switchBranch}
         checkoutRemoteBranch={checkoutRemoteBranch}
         closeBranchSwitcher={closeBranchSwitcher}
-        setNewBranchDialogOpen={setNewBranchDialogOpen}
-        setRenameBranchDialog={setRenameBranchDialog}
-        setDeleteBranchDialog={setDeleteBranchDialog}
         runGitAction={runGitAction}
         handlePush={handlePush}
         openRemote={openRemote}
         copyRemoteUrl={copyRemoteUrl}
-        newBranchDialogOpen={newBranchDialogOpen}
         createBranch={createBranch}
-        renameBranchDialog={renameBranchDialog}
         renameBranch={renameBranch}
-        deleteBranchDialog={deleteBranchDialog}
         deleteBranch={deleteBranch}
         onGitCredentialsSubmit={handleGitCredentialsSubmit}
         onGitCredentialsForget={handleForgetGitCredentials}

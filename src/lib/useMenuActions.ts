@@ -43,7 +43,6 @@ interface UseMenuActionsOptions {
   setPropertiesOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setZenMode: React.Dispatch<React.SetStateAction<boolean>>;
   setTypewriterMode: React.Dispatch<React.SetStateAction<boolean>>;
-  setNewBranchDialogOpen: (open: boolean) => void;
 
   // Action handlers
   flushPendingSave: () => void;
@@ -79,7 +78,6 @@ export function useMenuActions({
   setPropertiesOpen,
   setZenMode,
   setTypewriterMode,
-  setNewBranchDialogOpen,
   flushPendingSave,
   closeActiveTabOrFile,
   handleOpenWorkspace,
@@ -195,7 +193,7 @@ export function useMenuActions({
           break;
         case "git-new-branch":
           if (!blocked && isGitRepo) {
-            setNewBranchDialogOpen(true);
+            overlay.open({ kind: "newBranch" });
           }
           break;
         case "git-push":
@@ -250,7 +248,6 @@ export function useMenuActions({
     handlePull,
     handleFetch,
     defaultCommitMessage,
-    setNewBranchDialogOpen,
     flushPendingSave,
     closeActiveTabOrFile,
     handleOpenWorkspace,
