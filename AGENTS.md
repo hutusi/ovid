@@ -22,7 +22,7 @@ Use TypeScript with 2-space indentation, double quotes, semicolons, trailing com
 
 Prefer PascalCase for React components (`WorkspaceSwitcher.tsx`), camelCase for hooks/utilities (`useTheme.ts`), and colocated `*.css` files for component styling. Keep design tokens in `src/styles/global.css`; do not introduce ad hoc color or typography values.
 
-Tauri/WebView constraints matter here: avoid portal-based UI libraries, prefer native HTML plus plain CSS, and attach `useFocusTrap` to each modal dialog. Use Tauri commands or plugins for file access; do not introduce Node-style filesystem APIs into the frontend.
+Tauri/WebView constraints matter here: avoid portal-based UI libraries and prefer native HTML plus plain CSS. Dialogs render through the shared `<Modal>` primitive (`src/components/Modal.tsx`, ADR 0017), which owns the focus trap, dialog ARIA, and Escape handling. Use Tauri commands or plugins for file access; do not introduce Node-style filesystem APIs into the frontend.
 
 Window chrome is a single 36 px top strip across the sidebar header, editor top bar, and properties panel header, all consuming `--topbar-height`. The strip is one Tauri drag region — use `data-tauri-drag-region="deep"` (not the bare attribute, which is self-only in Tauri 2.11) and explicitly mark any HTML5-`draggable` subtree with `data-tauri-drag-region="false"` so its native dragstart isn't pre-empted. The capability `core:window:allow-start-dragging` must be granted in `src-tauri/capabilities/default.json` — it is not part of the default core window permission set. See ADR 0013 for the full decision.
 

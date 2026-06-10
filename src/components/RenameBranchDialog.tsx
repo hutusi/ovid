@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
-import { useFocusTrap } from "../lib/useFocusTrap";
-import "./Modal.css";
+import { Modal, ModalActions } from "./Modal";
 
 interface RenameBranchDialogProps {
   branch: string;
@@ -14,7 +13,6 @@ export function RenameBranchDialog({ branch, onConfirm, onCancel }: RenameBranch
   const { t } = useTranslation();
   const [branchName, setBranchName] = useState(branch);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useFocusTrap<HTMLDivElement>();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -22,10 +20,7 @@ export function RenameBranchDialog({ branch, onConfirm, onCancel }: RenameBranch
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      onCancel();
-    } else if (
+    if (
       e.key === "Enter" &&
       e.target === inputRef.current &&
       branchName.trim() &&
@@ -37,54 +32,36 @@ export function RenameBranchDialog({ branch, onConfirm, onCancel }: RenameBranch
   }
 
   return (
-    <div className="modal-overlay" role="presentation">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label={t("common.close")}
-        onClick={onCancel}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("rename_branch_dialog.title")}
-        className="modal-panel"
-        style={{ width: 380, maxWidth: "calc(100vw - 48px)" }}
-        onKeyDown={handleKeyDown}
-      >
-        <p className="modal-title">{t("rename_branch_dialog.title")}</p>
+    <Modal
+      ariaLabel={t("rename_branch_dialog.title")}
+      onClose={onCancel}
+      width={380}
+      onKeyDown={handleKeyDown}
+    >
+      <p className="modal-title">{t("rename_branch_dialog.title")}</p>
 
-        <div className="modal-branch-row">
-          <span className="modal-branch-label">{t("rename_branch_dialog.current")}</span>
-          <code className="modal-badge">{branch}</code>
-        </div>
-
-        <input
-          ref={inputRef}
-          className="modal-input"
-          aria-label={t("rename_branch_dialog.name_label")}
-          value={branchName}
-          placeholder={t("rename_branch_dialog.name_placeholder")}
-          {...PLAIN_TEXT_INPUT_PROPS}
-          onChange={(e) => setBranchName(e.target.value)}
-        />
-
-        <div className="modal-actions">
-          <div className="modal-spacer" />
-          <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel}>
-            {t("rename_branch_dialog.cancel")}
-          </button>
-          <button
-            type="button"
-            className="modal-btn modal-btn-primary"
-            disabled={!branchName.trim() || branchName.trim() === branch}
-            onClick={() => onConfirm(branchName.trim())}
-          >
-            {t("rename_branch_dialog.rename")}
-          </button>
-        </div>
+      <div className="modal-branch-row">
+        <span className="modal-branch-label">{t("rename_branch_dialog.current")}</span>
+        <code className="modal-badge">{branch}</code>
       </div>
-    </div>
+
+      <input
+        ref={inputRef}
+        className="modal-input"
+        aria-label={t("rename_branch_dialog.name_label")}
+        value={branchName}
+        placeholder={t("rename_branch_dialog.name_placeholder")}
+        {...PLAIN_TEXT_INPUT_PROPS}
+        onChange={(e) => setBranchName(e.target.value)}
+      />
+
+      <ModalActions
+        cancelLabel={t("rename_branch_dialog.cancel")}
+        confirmLabel={t("rename_branch_dialog.rename")}
+        onCancel={onCancel}
+        onConfirm={() => onConfirm(branchName.trim())}
+        confirmDisabled={!branchName.trim() || branchName.trim() === branch}
+      />
+    </Modal>
   );
 }

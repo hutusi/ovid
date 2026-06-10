@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
-import { useFocusTrap } from "../lib/useFocusTrap";
+import { Modal, ModalActions } from "./Modal";
 import "./GitCredentialsDialog.css";
-import "./Modal.css";
 
 export type GitCredentialsOperation = "push" | "pull" | "fetch";
 
@@ -43,7 +42,6 @@ export function GitCredentialsDialog({
   const [remember, setRemember] = useState(initialRemember);
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useFocusTrap<HTMLDivElement>();
 
   useEffect(() => {
     if (initialUsername) passwordRef.current?.focus();
@@ -60,11 +58,6 @@ export function GitCredentialsDialog({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      onCancel();
-      return;
-    }
     if (e.key === "Enter" && canSubmit()) {
       // Avoid double-firing when focus is on the Submit button (its onClick
       // already handles activation). Mirror RenameBranchDialog's check.
@@ -81,96 +74,75 @@ export function GitCredentialsDialog({
     : t(`git_credentials_dialog.title_${operation}_generic`);
 
   return (
-    <div className="modal-overlay" role="presentation">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label={t("common.close")}
-        onClick={onCancel}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={dialogTitle}
-        className="modal-panel gitcred-panel"
-        onKeyDown={handleKeyDown}
-      >
-        <p className="modal-title">{dialogTitle}</p>
+    <Modal
+      ariaLabel={dialogTitle}
+      onClose={onCancel}
+      panelClassName="gitcred-panel"
+      onKeyDown={handleKeyDown}
+    >
+      <p className="modal-title">{dialogTitle}</p>
 
-        <p className="modal-copy">
-          {remoteName
-            ? t("git_credentials_dialog.subtitle_with_remote", { remote: remoteName })
-            : t("git_credentials_dialog.subtitle_generic")}
+      <p className="modal-copy">
+        {remoteName
+          ? t("git_credentials_dialog.subtitle_with_remote", { remote: remoteName })
+          : t("git_credentials_dialog.subtitle_generic")}
+      </p>
+
+      <p className="modal-copy gitcred-hint">{t("git_credentials_dialog.pat_hint")}</p>
+
+      {authErrored && (
+        <p className="modal-copy modal-copy-warning" role="alert">
+          {t("git_credentials_dialog.error_auth_failed")}
         </p>
+      )}
 
-        <p className="modal-copy gitcred-hint">{t("git_credentials_dialog.pat_hint")}</p>
+      <label className="gitcred-field">
+        <span className="gitcred-label">{t("git_credentials_dialog.username_label")}</span>
+        <input
+          ref={usernameRef}
+          className="modal-input"
+          aria-label={t("git_credentials_dialog.username_label")}
+          value={username}
+          placeholder={t("git_credentials_dialog.username_placeholder")}
+          autoComplete="username"
+          {...PLAIN_TEXT_INPUT_PROPS}
+          onChange={(e) => setUsername(e.target.value)}
+        />
+      </label>
 
-        {authErrored && (
-          <p className="modal-copy modal-copy-warning" role="alert">
-            {t("git_credentials_dialog.error_auth_failed")}
-          </p>
-        )}
+      <label className="gitcred-field">
+        <span className="gitcred-label">{t("git_credentials_dialog.password_label")}</span>
+        <input
+          ref={passwordRef}
+          type="password"
+          className="modal-input"
+          aria-label={t("git_credentials_dialog.password_label")}
+          value={password}
+          placeholder={t("git_credentials_dialog.password_placeholder")}
+          autoComplete="current-password"
+          spellCheck={false}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </label>
 
-        <label className="gitcred-field">
-          <span className="gitcred-label">{t("git_credentials_dialog.username_label")}</span>
-          <input
-            ref={usernameRef}
-            className="modal-input"
-            aria-label={t("git_credentials_dialog.username_label")}
-            value={username}
-            placeholder={t("git_credentials_dialog.username_placeholder")}
-            autoComplete="username"
-            {...PLAIN_TEXT_INPUT_PROPS}
-            onChange={(e) => setUsername(e.target.value)}
-          />
-        </label>
+      <label className="gitcred-remember">
+        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+        <span>{t("git_credentials_dialog.remember_label")}</span>
+      </label>
 
-        <label className="gitcred-field">
-          <span className="gitcred-label">{t("git_credentials_dialog.password_label")}</span>
-          <input
-            ref={passwordRef}
-            type="password"
-            className="modal-input"
-            aria-label={t("git_credentials_dialog.password_label")}
-            value={password}
-            placeholder={t("git_credentials_dialog.password_placeholder")}
-            autoComplete="current-password"
-            spellCheck={false}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
+      {hasStoredCredentials && host && (
+        <button type="button" className="gitcred-forget" onClick={onForget}>
+          {t("git_credentials_dialog.forget_link", { host })}
+        </button>
+      )}
 
-        <label className="gitcred-remember">
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-          />
-          <span>{t("git_credentials_dialog.remember_label")}</span>
-        </label>
-
-        {hasStoredCredentials && host && (
-          <button type="button" className="gitcred-forget" onClick={onForget}>
-            {t("git_credentials_dialog.forget_link", { host })}
-          </button>
-        )}
-
-        <div className="modal-actions">
-          <div className="modal-spacer" />
-          <button type="button" className="modal-btn modal-btn-cancel" onClick={onCancel}>
-            {t("git_credentials_dialog.cancel")}
-          </button>
-          <button
-            type="button"
-            className="modal-btn modal-btn-primary"
-            disabled={!canSubmit()}
-            onClick={handleSubmit}
-          >
-            {t("git_credentials_dialog.submit")}
-          </button>
-        </div>
-      </div>
-    </div>
+      <ModalActions
+        cancelLabel={t("git_credentials_dialog.cancel")}
+        confirmLabel={t("git_credentials_dialog.submit")}
+        onCancel={onCancel}
+        onConfirm={handleSubmit}
+        confirmDisabled={!canSubmit()}
+      />
+    </Modal>
   );
 }

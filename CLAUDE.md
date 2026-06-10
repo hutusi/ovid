@@ -144,10 +144,8 @@ These rules encode hard-won lessons about what works in Tauri's WebView. Violati
 ### Dialogs and Popovers
 
 - **No portal-based components** — never use Radix UI Dialog, Popover, DropdownMenu, or any component that renders via `Portal` into `document.body`; CSS variable chains fail in Tauri's WebView outside the app's CSS tree
-- **Plain CSS modals** — all dialogs use `Modal.css` primitives (`modal-overlay`, `modal-panel`, `modal-backdrop`, `modal-btn`, etc.); see existing dialogs for the pattern
+- **Use the `<Modal>` primitive** — all dialogs render through `src/components/Modal.tsx` (+ `<ModalActions>` for the Cancel/Confirm footer), which owns the overlay/backdrop/panel structure, `useFocusTrap`, dialog ARIA, Escape (with `stopPropagation`), and backdrop-click close; see [ADR 0017](docs/adr/0017-shared-modal-primitive.md). Pass dialog-specific keys (Enter-submit, list navigation) via the `onKeyDown` prop — it runs before the Escape handler; when Enter submits, check `e.target === inputRef.current` to avoid double-firing when focus is on a button
 - **Custom popovers** — use a conditionally rendered positioned `<div>` with `useEffect` for click-outside and Escape key handling; see `FontSettings.tsx` or `CodeBlockView.tsx` for the pattern
-- **Always attach `useFocusTrap`** — every `role="dialog"` element must use the `useFocusTrap` hook; it handles initial focus, Tab/Shift+Tab containment, and focus restoration on close
-- **Escape at the dialog level** — handle `onKeyDown` on the dialog `div`, not only on inputs; when Enter also submits, check `e.target === inputRef.current` to avoid double-firing when focus is on a button
 
 ### Window chrome / drag regions
 
