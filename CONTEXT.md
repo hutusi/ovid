@@ -63,7 +63,9 @@ contributes:
 - **`i18n`** — `locales` + `defaultLocale`, used to group `<slug>.<locale>`
   translation variants under their base file in the sidebar.
 
-The scanners that read these are best-effort, comment-aware, and degrade to
+The scanners that read these are best-effort, comment-aware (one shared
+comment-skipping, brace-counting line scanner —
+`src-tauri/src/content_types/scanner.rs` — feeds every parser), and degrade to
 empty/`None` on any parse failure, so a malformed or partial config never breaks
 workspace open.
 
@@ -288,10 +290,13 @@ The `Overlay` kinds:
 | `newBranch` | — | yes |
 | `renameBranch` | `useGitUiController` | yes |
 | `deleteBranch` | `useGitUiController` | yes |
+| `gitCredentials` | `useGitUiController` | yes |
 | `gitSyncPopover` | — | **no** (transient, status-bar anchored) |
+| `notifications` | — | **no** (transient, status-bar anchored) |
 
-`isBlocking` returns true for everything except `gitSyncPopover`. Adding a new
-kind defaults to blocking unless explicitly added to `NON_BLOCKING_KINDS`.
+`isBlocking` returns true for everything except `gitSyncPopover` and
+`notifications`. Adding a new kind defaults to blocking unless explicitly
+added to `NON_BLOCKING_KINDS`.
 
 **Separation of visibility from payload.** The overlay stack owns visibility.
 Hooks like `useGitUiController` still own the *data* a dialog needs (commit
@@ -300,11 +305,22 @@ instead of storing a separate `isOpen` boolean.
 
 **Consumers.**
 
-- `AppDialogs` renders by switching on `overlay.active?.kind` or
-  `overlay.is(kind)`.
-- `useKeyboardShortcuts` and `useMenuActions` both take `overlay` and use
-  `overlay.isBlocking` for the "should this shortcut fire?" guard. The
-  duplicated 11-flag conjunction they each used to do is gone.
+- `AppDialogs` composes per-domain dialog groups
+  (`src/components/dialogs/` — `GitDialogs`, `WorkspaceDialogs`,
+  `FileDialogs`, `WechatDialogs`) plus the app-level dialogs it renders
+  itself. Each group switches on `overlay.active?.kind` / `overlay.is(kind)`
+  and derives its dialog payloads from the overlay state; App passes each
+  group one object of domain actions (e.g. the whole `useGitUiController`
+  return as `gitUi`) instead of flattened props. `WechatDialogs` derives
+  the publish payload (title/digest/body/cover) from the current file via
+  `computeWechatPublishData` (`src/lib/useWechatPublishData.ts`), gated on
+  the overlay being open.
+- `useKeyboardShortcuts` and `useMenuActions` are thin adapters over the
+  **global action dispatch table** (`src/lib/appActions.ts`, ADR 0018):
+  one declarative row per action with its guards (`allowWhenBlocking`,
+  `allowInInput`, `when`); the `overlay.isBlocking` check lives once in
+  `dispatchAppAction`. Action ids equal the native menu payload ids;
+  keyboard keys stay in `shortcuts.ts` and join the table by id.
 
 **Preferences.** The `preferences` overlay renders `PreferencesDialog` — a
 tabbed (General / Appearance / Editor / Language / Content) view that is a thin

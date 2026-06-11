@@ -135,3 +135,11 @@ This ADR covers **push**, **pull**, and **fetch** over HTTPS. Out of scope:
 - The plain-text-in-JSON storage choice is reversible: a future ADR
   could move to Stronghold or keychain without changing the dialog or
   retry flow, since the Rust `creds` module is a thin façade.
+
+## Amendment (2026-06)
+
+The file-store mechanics (corruption-tolerant JSON map, atomic
+tmp+chmod-0600+rename write, delete-file-when-empty) now live in the
+shared `src-tauri/src/creds_store.rs`, used by both `git/creds.rs` and
+`wechat/creds.rs` as thin adapters. A storage migration now has exactly
+one implementation to swap.

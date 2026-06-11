@@ -1,77 +1,16 @@
 import { lazy, Suspense } from "react";
-import { useTranslation } from "react-i18next";
-import type { NewContentKind } from "../lib/amytisScaffold";
-import type { CollectionCandidate } from "../lib/collection";
-import type { Author } from "../lib/commands/generated/Author";
-import type { FlatFile } from "../lib/fileSearch";
-import type { GitSyncPopoverState } from "../lib/gitUi";
 import { isPerfLoggingEnabled } from "../lib/perf";
-import {
-  getDuplicateNameSuggestion,
-  getNewFromExistingNameSuggestion,
-  getRenamePathDialogState,
-} from "../lib/postPath";
-import type { CollectionItem, FileNode, RecentFile, RecentWorkspace } from "../lib/types";
 import type { AppPreferences } from "../lib/useAppPreferences";
 import type { ContentPreferences } from "../lib/useContentPreferences";
 import type { EditorPreferences } from "../lib/useEditorPreferences";
-import type {
-  BranchSwitcherState,
-  CommitDialogState,
-  DeleteBranchDialogState,
-  RenameBranchDialogState,
-} from "../lib/useGitUiController";
 import type { OverlayStack } from "../lib/useOverlayStack";
 import type { ThemePreference } from "../lib/useTheme";
 import type { NotificationEntry, Toast } from "../lib/useToast";
-import type { GitCredentialsOperation } from "./GitCredentialsDialog";
+import { FileDialogs, type FileDialogsProps } from "./dialogs/FileDialogs";
+import { GitDialogs, type GitDialogsProps } from "./dialogs/GitDialogs";
+import { WechatDialogs, type WechatDialogsProps } from "./dialogs/WechatDialogs";
+import { WorkspaceDialogs, type WorkspaceDialogsProps } from "./dialogs/WorkspaceDialogs";
 
-// i18n key for the New dialog heading, per layer-aware content kind.
-const NEW_FILE_TITLE_KEY: Record<NewContentKind, string> = {
-  post: "menu.file_new_post",
-  seriesPost: "menu.file_new_post",
-  series: "menu.file_new_series",
-  note: "menu.file_new_note",
-  book: "menu.file_new_book",
-  chapter: "sidebar.new_chapter",
-  page: "menu.file_new_page",
-  flow: "menu.file_new_flow",
-  generic: "new_file_dialog.title_new_file",
-};
-
-const WorkspaceSwitcher = lazy(async () => ({
-  default: (await import("./WorkspaceSwitcher")).WorkspaceSwitcher,
-}));
-const FileSwitcher = lazy(async () => ({
-  default: (await import("./FileSwitcher")).FileSwitcher,
-}));
-const NewFileDialog = lazy(async () => ({
-  default: (await import("./NewFileDialog")).NewFileDialog,
-}));
-const AddToCollectionDialog = lazy(async () => ({
-  default: (await import("./AddToCollectionDialog")).AddToCollectionDialog,
-}));
-const CommitDialog = lazy(async () => ({
-  default: (await import("./CommitDialog")).CommitDialog,
-}));
-const BranchSwitcher = lazy(async () => ({
-  default: (await import("./BranchSwitcher")).BranchSwitcher,
-}));
-const NewBranchDialog = lazy(async () => ({
-  default: (await import("./NewBranchDialog")).NewBranchDialog,
-}));
-const RenameBranchDialog = lazy(async () => ({
-  default: (await import("./RenameBranchDialog")).RenameBranchDialog,
-}));
-const DeleteBranchDialog = lazy(async () => ({
-  default: (await import("./DeleteBranchDialog")).DeleteBranchDialog,
-}));
-const GitCredentialsDialog = lazy(async () => ({
-  default: (await import("./GitCredentialsDialog")).GitCredentialsDialog,
-}));
-const GitSyncPopover = lazy(async () => ({
-  default: (await import("./GitSyncPopover")).GitSyncPopover,
-}));
 const NotificationsDialog = lazy(async () => ({
   default: (await import("./NotificationsDialog")).NotificationsDialog,
 }));
@@ -81,12 +20,6 @@ const PerfPanel = lazy(async () => ({
 const UpdateDialog = lazy(async () => ({
   default: (await import("./UpdateDialog")).UpdateDialog,
 }));
-const RenamePathDialog = lazy(async () => ({
-  default: (await import("./RenamePathDialog")).RenamePathDialog,
-}));
-const WechatPublishDialog = lazy(async () => ({
-  default: (await import("./WechatPublishDialog")).WechatPublishDialog,
-}));
 const ShortcutsHelpDialog = lazy(async () => ({
   default: (await import("./ShortcutsHelpDialog")).ShortcutsHelpDialog,
 }));
@@ -94,117 +27,7 @@ const PreferencesDialog = lazy(async () => ({
   default: (await import("./PreferencesDialog")).PreferencesDialog,
 }));
 
-export interface AppDialogsProps {
-  // Overlay stack — owns modal, switcher, workspaceSwitcher, update,
-  // wechatPublish visibility. Replaces the six prop-per-dialog booleans
-  // + setters that lived here before commit 4.
-  overlay: OverlayStack;
-
-  // Toasts
-  toasts: Toast[];
-
-  // NotificationsDialog (history of previously-shown toasts)
-  notifications: NotificationEntry[];
-  clearNotifications: () => void;
-
-  // GitSyncPopover
-  gitSyncPopoverOpen: boolean;
-  gitSyncPopover: GitSyncPopoverState | null;
-  setGitSyncPopoverOpen: (open: boolean) => void;
-  handleGitSyncAction: () => Promise<void>;
-
-  // WorkspaceSwitcher
-  recentWorkspaces: RecentWorkspace[];
-  workspaceRootPath: string | null;
-  openWorkspaceAtPath: (path: string) => Promise<void>;
-  handleOpenWorkspace: () => void;
-  removeRecentWorkspace: (rootPath: string) => void;
-  handleCreateAmytisWorkspace: (parentDir: string, name: string) => Promise<boolean>;
-  handleCloneWorkspace: (url: string, parentDir: string, name: string | null) => Promise<boolean>;
-
-  // UpdateDialog
-  flushPendingSave: () => Promise<void>;
-
-  // WechatPublishDialog
-  selectedFile: FileNode | null;
-  wechatTitle: string;
-  wechatAuthor: string;
-  authors: Author[];
-  wechatDigest: string;
-  wechatHasMath: boolean;
-  wechatImageCount: number;
-  wechatMarkdown: string;
-  wechatBaseDir: string;
-  assetRoot: string | undefined;
-  wechatCoverImagePath: string | null;
-  wechatMediaId: string | null;
-  onWechatSuccess: (mediaId: string, updated: boolean) => void;
-
-  // Modal dialogs (new-file, rename, duplicate, new-from-existing)
-  handleNewFile: (dirPath: string, title: string, kind: NewContentKind) => void;
-  handleDuplicate: (node: FileNode, name: string) => void;
-  handleNewFromExisting: (node: FileNode, name: string) => void;
-  handleRename: (node: FileNode, name: string) => void;
-  collectionCandidatesFor: (
-    existing: CollectionItem[],
-    selfIndexPath: string
-  ) => CollectionCandidate[];
-  onAddCollectionItem: (indexPath: string, item: CollectionItem) => void;
-
-  // FileSwitcher
-  flatFiles: FlatFile[];
-  recentFiles: RecentFile[];
-  openFileByPath: (path: string) => void;
-
-  // CommitDialog
-  commitDialog: CommitDialogState;
-  setCommitDialog: (state: null) => void;
-  handleCommitDialogCommit: (
-    message: string,
-    selectedPaths: string[],
-    push: boolean
-  ) => Promise<void>;
-
-  // BranchSwitcher
-  branchSwitcher: BranchSwitcherState;
-  currentBranch: string;
-  switchBranch: (branch: string) => Promise<void>;
-  checkoutRemoteBranch: (remoteRef: string) => Promise<void>;
-  closeBranchSwitcher: () => void;
-  setNewBranchDialogOpen: (open: boolean) => void;
-  setRenameBranchDialog: (state: RenameBranchDialogState) => void;
-  setDeleteBranchDialog: (state: DeleteBranchDialogState) => void;
-  runGitAction: (type: "push" | "pull" | "fetch", fn: () => Promise<void>, msg: string) => void;
-  handlePush: (remoteName?: string) => Promise<void>;
-  openRemote: (remoteName?: string) => void;
-  copyRemoteUrl: (remoteName?: string) => void;
-
-  // NewBranchDialog
-  newBranchDialogOpen: boolean;
-  createBranch: (branch: string) => Promise<void>;
-
-  // RenameBranchDialog
-  renameBranchDialog: RenameBranchDialogState;
-  renameBranch: (oldBranch: string, newBranch: string) => Promise<void>;
-
-  // DeleteBranchDialog
-  deleteBranchDialog: DeleteBranchDialogState;
-  deleteBranch: (branch: string) => Promise<void>;
-
-  // GitCredentialsDialog — wired to the AUTH_REQUIRED retry path in
-  // useGitUiController. onSubmit calls the matching *_with_credentials
-  // command for the operation; onForget removes the stored credential
-  // for the host so the next push reprompts fresh.
-  onGitCredentialsSubmit: (args: {
-    operation: GitCredentialsOperation;
-    remoteName: string;
-    username: string;
-    password: string;
-    remember: boolean;
-  }) => Promise<void>;
-  onGitCredentialsForget: (host: string) => Promise<void>;
-
-  // PreferencesDialog
+export interface PreferencesDialogGroupProps {
   themePreference: ThemePreference;
   setThemePreference: (p: ThemePreference) => void;
   editorPrefs: EditorPreferences;
@@ -218,97 +41,42 @@ export interface AppDialogsProps {
   showToast: (message: string) => void;
 }
 
+export interface AppDialogsProps {
+  // Overlay stack — the single visibility seam for every dialog below.
+  overlay: OverlayStack;
+
+  toasts: Toast[];
+  notifications: NotificationEntry[];
+  clearNotifications: () => void;
+
+  // UpdateDialog
+  flushPendingSave: () => Promise<void>;
+
+  // Domain dialog groups — each group component derives its payloads from
+  // the overlay state; these objects carry only the actions/data the
+  // domain owns.
+  git: Omit<GitDialogsProps, "overlay">;
+  workspace: Omit<WorkspaceDialogsProps, "overlay">;
+  files: Omit<FileDialogsProps, "overlay">;
+  wechat: Omit<WechatDialogsProps, "overlay">;
+  preferences: PreferencesDialogGroupProps;
+}
+
 export function AppDialogs({
   overlay,
   toasts,
   notifications,
   clearNotifications,
-  gitSyncPopoverOpen,
-  gitSyncPopover,
-  setGitSyncPopoverOpen,
-  handleGitSyncAction,
-  recentWorkspaces,
-  workspaceRootPath,
-  openWorkspaceAtPath,
-  handleOpenWorkspace,
-  removeRecentWorkspace,
-  handleCreateAmytisWorkspace,
-  handleCloneWorkspace,
   flushPendingSave,
-  selectedFile,
-  wechatTitle,
-  wechatAuthor,
-  authors,
-  wechatDigest,
-  wechatHasMath,
-  wechatImageCount,
-  wechatMarkdown,
-  wechatBaseDir,
-  assetRoot,
-  wechatCoverImagePath,
-  wechatMediaId,
-  onWechatSuccess,
-  handleNewFile,
-  handleDuplicate,
-  handleNewFromExisting,
-  handleRename,
-  collectionCandidatesFor,
-  onAddCollectionItem,
-  flatFiles,
-  recentFiles,
-  openFileByPath,
-  commitDialog,
-  setCommitDialog,
-  handleCommitDialogCommit,
-  branchSwitcher,
-  currentBranch,
-  switchBranch,
-  checkoutRemoteBranch,
-  closeBranchSwitcher,
-  setNewBranchDialogOpen,
-  setRenameBranchDialog,
-  setDeleteBranchDialog,
-  runGitAction,
-  handlePush,
-  openRemote,
-  copyRemoteUrl,
-  newBranchDialogOpen,
-  createBranch,
-  renameBranchDialog,
-  renameBranch,
-  deleteBranchDialog,
-  deleteBranch,
-  onGitCredentialsSubmit,
-  onGitCredentialsForget,
-  themePreference,
-  setThemePreference,
-  editorPrefs,
-  updateEditorPrefs,
-  wordCountGoal,
-  setWordCountGoal,
-  contentPrefs,
-  updateContentPrefs,
-  appPrefs,
-  updateAppPrefs,
-  showToast,
+  git,
+  workspace,
+  files,
+  wechat,
+  preferences,
 }: AppDialogsProps) {
-  const { t } = useTranslation();
-  // Pull the modal state out of the overlay union once per render so the
-  // four modal? === "..." checks below stay readable.
-  const modal = overlay.active?.kind === "modal" ? overlay.active.state : null;
-  const closeModal = () => overlay.close("modal");
-
   return (
     <>
-      {gitSyncPopoverOpen && gitSyncPopover && (
-        <Suspense fallback={null}>
-          <GitSyncPopover
-            state={gitSyncPopover}
-            onClose={() => setGitSyncPopoverOpen(false)}
-            onAction={gitSyncPopover.actionLabel ? () => void handleGitSyncAction() : undefined}
-          />
-        </Suspense>
-      )}
+      <GitDialogs overlay={overlay} {...git} />
       {toasts.length > 0 && (
         <div className="toast-container" aria-live="polite" aria-atomic="true">
           {toasts.map((toast) => (
@@ -327,21 +95,7 @@ export function AppDialogs({
           />
         </Suspense>
       )}
-      {overlay.is("workspaceSwitcher") && (
-        <Suspense fallback={null}>
-          <WorkspaceSwitcher
-            recentWorkspaces={recentWorkspaces}
-            currentRootPath={workspaceRootPath}
-            onSelect={(rootPath) => void openWorkspaceAtPath(rootPath)}
-            onOpenOther={handleOpenWorkspace}
-            onRemoveRecent={removeRecentWorkspace}
-            onCreate={handleCreateAmytisWorkspace}
-            onClone={handleCloneWorkspace}
-            onToast={showToast}
-            onClose={() => overlay.close("workspaceSwitcher")}
-          />
-        </Suspense>
-      )}
+      <WorkspaceDialogs overlay={overlay} {...workspace} />
       {overlay.is("update") && (
         <Suspense fallback={null}>
           <UpdateDialog
@@ -358,214 +112,23 @@ export function AppDialogs({
       {overlay.is("preferences") && (
         <Suspense fallback={null}>
           <PreferencesDialog
-            themePreference={themePreference}
-            onSetThemePreference={setThemePreference}
-            editorPrefs={editorPrefs}
-            onUpdateEditorPrefs={updateEditorPrefs}
-            wordCountGoal={wordCountGoal}
-            onSetWordCountGoal={setWordCountGoal}
-            contentPrefs={contentPrefs}
-            onUpdateContentPrefs={updateContentPrefs}
-            appPrefs={appPrefs}
-            onUpdateAppPrefs={updateAppPrefs}
-            showToast={showToast}
+            themePreference={preferences.themePreference}
+            onSetThemePreference={preferences.setThemePreference}
+            editorPrefs={preferences.editorPrefs}
+            onUpdateEditorPrefs={preferences.updateEditorPrefs}
+            wordCountGoal={preferences.wordCountGoal}
+            onSetWordCountGoal={preferences.setWordCountGoal}
+            contentPrefs={preferences.contentPrefs}
+            onUpdateContentPrefs={preferences.updateContentPrefs}
+            appPrefs={preferences.appPrefs}
+            onUpdateAppPrefs={preferences.updateAppPrefs}
+            showToast={preferences.showToast}
             onClose={() => overlay.close("preferences")}
           />
         </Suspense>
       )}
-      {overlay.is("wechatPublish") && selectedFile && (
-        <Suspense fallback={null}>
-          <WechatPublishDialog
-            title={wechatTitle}
-            author={wechatAuthor}
-            authors={authors}
-            excerpt={wechatDigest}
-            hasMath={wechatHasMath}
-            imageCount={wechatImageCount}
-            markdown={wechatMarkdown}
-            baseDir={wechatBaseDir}
-            filePath={selectedFile.path}
-            assetRoot={assetRoot}
-            coverImagePath={wechatCoverImagePath}
-            existingMediaId={wechatMediaId}
-            onClose={() => overlay.close("wechatPublish")}
-            onSuccess={onWechatSuccess}
-          />
-        </Suspense>
-      )}
-      {modal?.type === "rename-path" && (
-        <Suspense fallback={null}>
-          <RenamePathDialog
-            {...getRenamePathDialogState(modal.node)}
-            onConfirm={(name) => {
-              void handleRename(modal.node, name);
-              closeModal();
-            }}
-            onCancel={closeModal}
-          />
-        </Suspense>
-      )}
-      {overlay.is("switcher") && (
-        <Suspense fallback={null}>
-          <FileSwitcher
-            files={flatFiles}
-            recentFiles={recentFiles}
-            onSelect={(node) => {
-              openFileByPath(node.path);
-              overlay.close("switcher");
-            }}
-            onClose={() => overlay.close("switcher")}
-          />
-        </Suspense>
-      )}
-      {modal?.type === "new-file" && (
-        <Suspense fallback={null}>
-          <NewFileDialog
-            title={t(NEW_FILE_TITLE_KEY[modal.kind])}
-            onConfirm={(name) => {
-              void handleNewFile(modal.dirPath, name, modal.kind);
-              closeModal();
-            }}
-            onCancel={closeModal}
-          />
-        </Suspense>
-      )}
-      {modal?.type === "duplicate-file" && (
-        <Suspense fallback={null}>
-          <NewFileDialog
-            initialFilename={getDuplicateNameSuggestion(modal.node)}
-            title={t("new_file_dialog.title_make_copy")}
-            confirmLabel={t("new_file_dialog.copy")}
-            onConfirm={(name) => {
-              void handleDuplicate(modal.node, name);
-              closeModal();
-            }}
-            onCancel={closeModal}
-          />
-        </Suspense>
-      )}
-      {modal?.type === "new-from-existing" && (
-        <Suspense fallback={null}>
-          <NewFileDialog
-            initialFilename={getNewFromExistingNameSuggestion(modal.node)}
-            title={t("new_file_dialog.title_new_from_existing")}
-            confirmLabel={t("new_file_dialog.create")}
-            onConfirm={(name) => {
-              void handleNewFromExisting(modal.node, name);
-              closeModal();
-            }}
-            onCancel={closeModal}
-          />
-        </Suspense>
-      )}
-      {modal?.type === "add-to-collection" && (
-        <Suspense fallback={null}>
-          <AddToCollectionDialog
-            candidates={collectionCandidatesFor(modal.existing, modal.indexPath)}
-            onConfirm={(item) => {
-              onAddCollectionItem(modal.indexPath, item);
-              closeModal();
-            }}
-            onCancel={closeModal}
-          />
-        </Suspense>
-      )}
-      {commitDialog && (
-        <Suspense fallback={null}>
-          <CommitDialog
-            defaultMessage={commitDialog.message}
-            branch={commitDialog.branch}
-            changes={commitDialog.changes}
-            onCommit={(message, selectedPaths, push) =>
-              void handleCommitDialogCommit(message, selectedPaths, push)
-            }
-            onCancel={() => setCommitDialog(null)}
-          />
-        </Suspense>
-      )}
-      {branchSwitcher && (
-        <Suspense fallback={null}>
-          <BranchSwitcher
-            branches={branchSwitcher.branches}
-            remoteBranches={branchSwitcher.remoteBranches}
-            remoteInfo={branchSwitcher.remoteInfo}
-            onSelect={(branch) => void switchBranch(branch)}
-            onSelectRemoteBranch={(remoteRef) => void checkoutRemoteBranch(remoteRef)}
-            onCreateBranch={() => {
-              closeBranchSwitcher();
-              setNewBranchDialogOpen(true);
-            }}
-            onRenameBranch={(branch) => setRenameBranchDialog({ branch })}
-            onDeleteBranch={(branch) => setDeleteBranchDialog({ branch })}
-            onPushAndTrack={(remoteName) =>
-              void runGitAction(
-                "push",
-                () => handlePush(remoteName),
-                t("git.push_success_upstream")
-              )
-            }
-            onOpenRemote={(remoteName) => void openRemote(remoteName)}
-            onCopyRemoteUrl={(remoteName) => void copyRemoteUrl(remoteName)}
-            onClose={closeBranchSwitcher}
-          />
-        </Suspense>
-      )}
-      {newBranchDialogOpen && (
-        <Suspense fallback={null}>
-          <NewBranchDialog
-            currentBranch={currentBranch}
-            onConfirm={(branch) => void createBranch(branch)}
-            onCancel={() => setNewBranchDialogOpen(false)}
-          />
-        </Suspense>
-      )}
-      {renameBranchDialog && (
-        <Suspense fallback={null}>
-          <RenameBranchDialog
-            branch={renameBranchDialog.branch}
-            onConfirm={(branch) => void renameBranch(renameBranchDialog.branch, branch)}
-            onCancel={() => setRenameBranchDialog(null)}
-          />
-        </Suspense>
-      )}
-      {deleteBranchDialog && (
-        <Suspense fallback={null}>
-          <DeleteBranchDialog
-            branch={deleteBranchDialog.branch}
-            onConfirm={() => void deleteBranch(deleteBranchDialog.branch)}
-            onCancel={() => setDeleteBranchDialog(null)}
-          />
-        </Suspense>
-      )}
-      {overlay.active?.kind === "gitCredentials" && (
-        <Suspense fallback={null}>
-          <GitCredentialsDialog
-            host={overlay.active.state.host}
-            remoteName={overlay.active.state.remoteName}
-            operation={overlay.active.state.operation}
-            hasStoredCredentials={overlay.active.state.hasStoredCredentials}
-            authErrored={overlay.active.state.authErrored}
-            initialUsername={overlay.active.state.initialUsername}
-            onSubmit={({ username, password, remember }) => {
-              const active = overlay.active;
-              if (active?.kind !== "gitCredentials") return;
-              void onGitCredentialsSubmit({
-                operation: active.state.operation,
-                remoteName: active.state.remoteName,
-                username,
-                password,
-                remember,
-              });
-            }}
-            onForget={() => {
-              const active = overlay.active;
-              if (active?.kind !== "gitCredentials") return;
-              void onGitCredentialsForget(active.state.host);
-            }}
-            onCancel={() => overlay.close("gitCredentials")}
-          />
-        </Suspense>
-      )}
+      <WechatDialogs overlay={overlay} {...wechat} />
+      <FileDialogs overlay={overlay} {...files} />
       {isPerfLoggingEnabled() && (
         <Suspense fallback={null}>
           <PerfPanel />

@@ -96,9 +96,10 @@ overlay and renders by switching on `overlay.active?.kind` /
   reads, and six setter shims that existed only to bridge call sites
   to the overlay during the migration.
 - `useGitUiController`'s `setCommitDialog`/`setBranchSwitcher`/etc.
-  setters are now thin overlay-open/close adapters returned for
-  back-compat. They become deletable when their last call site moves
-  to `overlay.open` / `overlay.close` directly.
+  setters were kept as thin overlay-open/close adapters for back-compat
+  during the migration, to be deleted once their last call site moved
+  to `overlay.open` / `overlay.close` directly. (That has since
+  happened — see the Amendment below.)
 
 **Negative / accepted:**
 - Adding a new overlay kind requires four edits: the `Overlay` union,
@@ -120,3 +121,14 @@ overlay and renders by switching on `overlay.active?.kind` /
 - `src/lib/useOverlayStack.ts` — the hook + `isOverlayBlocking` pure fn.
 - `src/lib/useOverlayStack.test.ts` — covers blocking semantics.
 - `CONTEXT.md` "Overlay model" section — the in-CODEBASE summary.
+
+## Amendment (2026-06)
+
+The back-compat setter shims (`setCommitDialog`, `setBranchSwitcher`,
+`setNewBranchDialogOpen`, `setRenameBranchDialog`, `setDeleteBranchDialog`,
+`setGitSyncPopoverOpen`) have been removed. Every call site now uses
+`overlay.open` / `overlay.close` directly; `AppDialogs` derives the git
+dialog payloads from `overlay.active` itself instead of receiving them as
+props. The status-bar sync-popover toggle is exposed as an intent-named
+`toggleGitSyncPopover` on `useGitUiController` rather than a boolean setter.
+The migration this ADR described is complete.

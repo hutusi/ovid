@@ -5,9 +5,8 @@ import type { Author } from "../lib/commands/generated/Author";
 import type { WechatCredStatus } from "../lib/commands/generated/WechatCredStatus";
 import { resolveImageSrc } from "../lib/imageUtils";
 import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
-import { useFocusTrap } from "../lib/useFocusTrap";
 import { markdownToWechatHtml } from "../lib/wechatHtml";
-import "./Modal.css";
+import { Modal } from "./Modal";
 
 interface Props {
   title: string;
@@ -49,7 +48,6 @@ export function WechatPublishDialog({
   onSuccess,
 }: Props) {
   const { t } = useTranslation();
-  const dialogRef = useFocusTrap<HTMLDivElement>();
   const appIdRef = useRef<HTMLInputElement>(null);
 
   const dismissedRef = useRef(false);
@@ -162,13 +160,6 @@ export function WechatPublishDialog({
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      onClose();
-    }
-  }
-
   const isUpdate = !!existingMediaId;
 
   // Resolve the byline against the site.config authors map for an avatar/bio
@@ -179,229 +170,213 @@ export function WechatPublishDialog({
     : null;
 
   return (
-    <div className="modal-overlay" role="presentation">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label={t("common.close")}
-        onClick={onClose}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("wechat.title")}
-        className="modal-panel"
-        style={{ width: 400, maxWidth: "calc(100vw - 48px)" }}
-        onKeyDown={handleKeyDown}
-      >
-        <p className="modal-title">{t("wechat.title")}</p>
+    <Modal ariaLabel={t("wechat.title")} onClose={onClose} width={400}>
+      <p className="modal-title">{t("wechat.title")}</p>
 
-        {phase === "loading" && <p className="modal-copy">{t("wechat.loading")}</p>}
+      {phase === "loading" && <p className="modal-copy">{t("wechat.loading")}</p>}
 
-        {phase === "credentials" && (
-          <>
-            <p className="modal-copy">{t("wechat.credentials_desc")}</p>
-            <input
-              ref={appIdRef}
-              className="modal-input"
-              aria-label={t("wechat.app_id_label")}
-              placeholder={t("wechat.app_id_placeholder")}
-              value={appId}
-              onChange={(e) => setAppId(e.target.value)}
-              autoComplete="off"
-              {...PLAIN_TEXT_INPUT_PROPS}
-            />
-            <input
-              type="password"
-              className="modal-input"
-              aria-label={t("wechat.app_secret_label")}
-              placeholder={t("wechat.app_secret_placeholder")}
-              value={appSecret}
-              onChange={(e) => setAppSecret(e.target.value)}
-              autoComplete="new-password"
-            />
-            {credError && <p className="modal-copy modal-copy-warning">{credError}</p>}
-            <div className="modal-actions">
-              <div className="modal-spacer" />
-              <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
-                {t("wechat.cancel")}
-              </button>
-              <button
-                type="button"
-                className="modal-btn modal-btn-primary"
-                disabled={!appId.trim() || !appSecret.trim()}
-                onClick={handleSaveCredentials}
-              >
-                {t("wechat.save_credentials")}
-              </button>
+      {phase === "credentials" && (
+        <>
+          <p className="modal-copy">{t("wechat.credentials_desc")}</p>
+          <input
+            ref={appIdRef}
+            className="modal-input"
+            aria-label={t("wechat.app_id_label")}
+            placeholder={t("wechat.app_id_placeholder")}
+            value={appId}
+            onChange={(e) => setAppId(e.target.value)}
+            autoComplete="off"
+            {...PLAIN_TEXT_INPUT_PROPS}
+          />
+          <input
+            type="password"
+            className="modal-input"
+            aria-label={t("wechat.app_secret_label")}
+            placeholder={t("wechat.app_secret_placeholder")}
+            value={appSecret}
+            onChange={(e) => setAppSecret(e.target.value)}
+            autoComplete="new-password"
+          />
+          {credError && <p className="modal-copy modal-copy-warning">{credError}</p>}
+          <div className="modal-actions">
+            <div className="modal-spacer" />
+            <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
+              {t("wechat.cancel")}
+            </button>
+            <button
+              type="button"
+              className="modal-btn modal-btn-primary"
+              disabled={!appId.trim() || !appSecret.trim()}
+              onClick={handleSaveCredentials}
+            >
+              {t("wechat.save_credentials")}
+            </button>
+          </div>
+        </>
+      )}
+
+      {phase === "ready" && (
+        <>
+          <p className="modal-copy">{t("wechat.ready_desc")}</p>
+          {credStatus?.app_id && (
+            <p className="modal-copy">
+              {t("wechat.current_account", { appId: credStatus.app_id })}
+            </p>
+          )}
+          <input
+            className="modal-input"
+            aria-label={t("wechat.title_label")}
+            placeholder={t("wechat.title_label")}
+            value={draftTitle}
+            onChange={(e) => setDraftTitle(e.target.value)}
+            autoComplete="off"
+            {...PLAIN_TEXT_INPUT_PROPS}
+          />
+          <input
+            className="modal-input"
+            aria-label={t("wechat.author_label")}
+            placeholder={t("wechat.author_label")}
+            value={draftAuthor}
+            onChange={(e) => setDraftAuthor(e.target.value)}
+            autoComplete="off"
+            {...PLAIN_TEXT_INPUT_PROPS}
+          />
+          {authorProfile && (avatarSrc || authorProfile.bio) && (
+            <div className="modal-author-card">
+              {avatarSrc && (
+                <img className="modal-author-avatar" src={avatarSrc} alt={authorProfile.name} />
+              )}
+              {authorProfile.bio && <span className="modal-author-bio">{authorProfile.bio}</span>}
             </div>
-          </>
-        )}
-
-        {phase === "ready" && (
-          <>
-            <p className="modal-copy">{t("wechat.ready_desc")}</p>
-            {credStatus?.app_id && (
-              <p className="modal-copy">
-                {t("wechat.current_account", { appId: credStatus.app_id })}
-              </p>
-            )}
+          )}
+          <div className="modal-input-with-counter">
             <input
               className="modal-input"
-              aria-label={t("wechat.title_label")}
-              placeholder={t("wechat.title_label")}
-              value={draftTitle}
-              onChange={(e) => setDraftTitle(e.target.value)}
+              aria-label={t("wechat.digest_label")}
+              placeholder={t("wechat.digest_placeholder")}
+              value={draftDigest}
+              maxLength={54}
+              onChange={(e) => setDraftDigest(e.target.value)}
               autoComplete="off"
               {...PLAIN_TEXT_INPUT_PROPS}
             />
-            <input
-              className="modal-input"
-              aria-label={t("wechat.author_label")}
-              placeholder={t("wechat.author_label")}
-              value={draftAuthor}
-              onChange={(e) => setDraftAuthor(e.target.value)}
-              autoComplete="off"
-              {...PLAIN_TEXT_INPUT_PROPS}
-            />
-            {authorProfile && (avatarSrc || authorProfile.bio) && (
-              <div className="modal-author-card">
-                {avatarSrc && (
-                  <img className="modal-author-avatar" src={avatarSrc} alt={authorProfile.name} />
-                )}
-                {authorProfile.bio && <span className="modal-author-bio">{authorProfile.bio}</span>}
-              </div>
-            )}
-            <div className="modal-input-with-counter">
-              <input
-                className="modal-input"
-                aria-label={t("wechat.digest_label")}
-                placeholder={t("wechat.digest_placeholder")}
-                value={draftDigest}
-                maxLength={54}
-                onChange={(e) => setDraftDigest(e.target.value)}
-                autoComplete="off"
-                {...PLAIN_TEXT_INPUT_PROPS}
-              />
-              <div className="modal-input-counter">
-                <span className={draftDigest.length >= 50 ? "modal-input-counter--warn" : ""}>
-                  {draftDigest.length}/54
-                </span>
-              </div>
+            <div className="modal-input-counter">
+              <span className={draftDigest.length >= 50 ? "modal-input-counter--warn" : ""}>
+                {draftDigest.length}/54
+              </span>
             </div>
+          </div>
+          <input
+            className="modal-input"
+            aria-label={t("wechat.content_source_url_label")}
+            placeholder={t("wechat.content_source_url_placeholder")}
+            value={contentSourceUrl}
+            onChange={(e) => setContentSourceUrl(e.target.value)}
+            autoComplete="off"
+            type="url"
+          />
+          <label className="modal-checkbox-label">
             <input
-              className="modal-input"
-              aria-label={t("wechat.content_source_url_label")}
-              placeholder={t("wechat.content_source_url_placeholder")}
-              value={contentSourceUrl}
-              onChange={(e) => setContentSourceUrl(e.target.value)}
-              autoComplete="off"
-              type="url"
+              type="checkbox"
+              checked={needOpenComment}
+              onChange={(e) => setNeedOpenComment(e.target.checked)}
             />
+            {t("wechat.open_comment_label")}
+          </label>
+          <div>
             <label className="modal-checkbox-label">
               <input
                 type="checkbox"
-                checked={needOpenComment}
-                onChange={(e) => setNeedOpenComment(e.target.checked)}
+                checked={canReward}
+                onChange={(e) => setCanReward(e.target.checked)}
               />
-              {t("wechat.open_comment_label")}
+              {t("wechat.can_reward_label")}
             </label>
-            <div>
-              <label className="modal-checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={canReward}
-                  onChange={(e) => setCanReward(e.target.checked)}
-                />
-                {t("wechat.can_reward_label")}
-              </label>
-              <p className="modal-copy" style={{ paddingLeft: 20, marginTop: 3 }}>
-                {t("wechat.can_reward_hint")}
-              </p>
-            </div>
-            {imageCount > 0 && (
-              <p className="modal-copy">{t("wechat.local_images", { count: imageCount })}</p>
-            )}
-            {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
-            {!coverImagePath && (
-              <p className="modal-copy modal-copy-warning">{t("wechat.no_cover_warning")}</p>
-            )}
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="modal-btn modal-btn-cancel"
-                onClick={handleClearCredentials}
-              >
-                {t("wechat.change_account")}
-              </button>
-              <div className="modal-spacer" />
-              <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
-                {t("wechat.cancel")}
-              </button>
-              <button
-                type="button"
-                className="modal-btn modal-btn-primary"
-                disabled={!draftTitle.trim()}
-                onClick={handlePublish}
-              >
-                {isUpdate ? t("wechat.update_draft") : t("wechat.publish_draft")}
-              </button>
-            </div>
-          </>
-        )}
+            <p className="modal-copy" style={{ paddingLeft: 20, marginTop: 3 }}>
+              {t("wechat.can_reward_hint")}
+            </p>
+          </div>
+          {imageCount > 0 && (
+            <p className="modal-copy">{t("wechat.local_images", { count: imageCount })}</p>
+          )}
+          {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
+          {!coverImagePath && (
+            <p className="modal-copy modal-copy-warning">{t("wechat.no_cover_warning")}</p>
+          )}
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="modal-btn modal-btn-cancel"
+              onClick={handleClearCredentials}
+            >
+              {t("wechat.change_account")}
+            </button>
+            <div className="modal-spacer" />
+            <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
+              {t("wechat.cancel")}
+            </button>
+            <button
+              type="button"
+              className="modal-btn modal-btn-primary"
+              disabled={!draftTitle.trim()}
+              onClick={handlePublish}
+            >
+              {isUpdate ? t("wechat.update_draft") : t("wechat.publish_draft")}
+            </button>
+          </div>
+        </>
+      )}
 
-        {phase === "publishing" && (
+      {phase === "publishing" && (
+        <p className="modal-copy">
+          {uploadProgress
+            ? t("wechat.uploading_image", {
+                current: uploadProgress.current,
+                total: uploadProgress.total,
+              })
+            : isUpdate
+              ? t("wechat.updating")
+              : t("wechat.publishing")}
+        </p>
+      )}
+
+      {phase === "success" && (
+        <>
           <p className="modal-copy">
-            {uploadProgress
-              ? t("wechat.uploading_image", {
-                  current: uploadProgress.current,
-                  total: uploadProgress.total,
-                })
-              : isUpdate
-                ? t("wechat.updating")
-                : t("wechat.publishing")}
+            {resultUpdated ? t("wechat.success_updated_title") : t("wechat.success_title")}
           </p>
-        )}
+          <p className="modal-copy">{t("wechat.success_media_id", { mediaId: resultMediaId })}</p>
+          {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
+          <p className="modal-copy">{t("wechat.success_note")}</p>
+          <div className="modal-actions">
+            <div className="modal-spacer" />
+            <button type="button" className="modal-btn modal-btn-primary" onClick={onClose}>
+              {t("wechat.done")}
+            </button>
+          </div>
+        </>
+      )}
 
-        {phase === "success" && (
-          <>
-            <p className="modal-copy">
-              {resultUpdated ? t("wechat.success_updated_title") : t("wechat.success_title")}
-            </p>
-            <p className="modal-copy">{t("wechat.success_media_id", { mediaId: resultMediaId })}</p>
-            {hasMath && <p className="modal-copy modal-copy-warning">{t("wechat.math_warning")}</p>}
-            <p className="modal-copy">{t("wechat.success_note")}</p>
-            <div className="modal-actions">
-              <div className="modal-spacer" />
-              <button type="button" className="modal-btn modal-btn-primary" onClick={onClose}>
-                {t("wechat.done")}
-              </button>
-            </div>
-          </>
-        )}
-
-        {phase === "error" && (
-          <>
-            <p className="modal-copy modal-copy-warning">
-              {t("wechat.error_prefix", { error: errorMsg })}
-            </p>
-            <div className="modal-actions">
-              <div className="modal-spacer" />
-              <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
-                {t("wechat.close")}
-              </button>
-              <button
-                type="button"
-                className="modal-btn modal-btn-primary"
-                onClick={() => setPhase("ready")}
-              >
-                {t("wechat.retry")}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+      {phase === "error" && (
+        <>
+          <p className="modal-copy modal-copy-warning">
+            {t("wechat.error_prefix", { error: errorMsg })}
+          </p>
+          <div className="modal-actions">
+            <div className="modal-spacer" />
+            <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
+              {t("wechat.close")}
+            </button>
+            <button
+              type="button"
+              className="modal-btn modal-btn-primary"
+              onClick={() => setPhase("ready")}
+            >
+              {t("wechat.retry")}
+            </button>
+          </div>
+        </>
+      )}
+    </Modal>
   );
 }

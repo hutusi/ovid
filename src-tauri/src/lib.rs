@@ -7,6 +7,7 @@ use tauri_plugin_opener::OpenerExt;
 mod app;
 mod assets;
 mod content_types;
+mod creds_store;
 mod files;
 mod git;
 mod menu;

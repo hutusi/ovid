@@ -8,29 +8,86 @@ pub(crate) fn is_markdown_path(path: &Path) -> bool {
     )
 }
 
-/// Canonicalize `requested` and verify it is inside `workspace_root`.
-pub(crate) fn validate_path(workspace_root: &Path, requested: &str) -> Result<PathBuf, String> {
+/// How `ensure_within` resolves a candidate that may not be on disk yet.
+pub(crate) enum ExistenceMode {
+    /// The candidate must exist; it is canonicalized (defeating symlinks).
+    MustExist,
+    /// The candidate may be missing — canonicalize when it exists,
+    /// otherwise resolve `.`/`..` lexically.
+    MayBeMissing,
+    /// The candidate and trailing directories may be missing — containment
+    /// is checked on the canonicalized nearest existing ancestor (so a
+    /// symlinked ancestor can't escape), and the lexically-normalized
+    /// candidate is returned.
+    AncestorMayBeMissing,
+}
+
+/// THE workspace-containment check: resolve `candidate` per `mode` and
+/// verify it stays inside `root`. Every path-validation entry point
+/// (file ops, git commit selections) funnels through here so the security
+/// invariant has one implementation. `candidate_label` prefixes
+/// resolution errors ("invalid path", "commit path", …).
+pub(crate) fn ensure_within(
+    root: &Path,
+    candidate: &Path,
+    mode: ExistenceMode,
+    candidate_label: &str,
+) -> Result<PathBuf, String> {
     let canonical_root =
-        std::fs::canonicalize(workspace_root).map_err(|e| format!("workspace root: {e}"))?;
-    let canonical_path =
-        std::fs::canonicalize(requested).map_err(|e| format!("invalid path: {e}"))?;
-    if !canonical_path.starts_with(&canonical_root) {
+        std::fs::canonicalize(root).map_err(|e| format!("workspace root: {e}"))?;
+    let resolved = match mode {
+        ExistenceMode::MustExist => {
+            std::fs::canonicalize(candidate).map_err(|e| format!("{candidate_label}: {e}"))?
+        }
+        ExistenceMode::MayBeMissing => {
+            if candidate.exists() {
+                std::fs::canonicalize(candidate).map_err(|e| format!("{candidate_label}: {e}"))?
+            } else {
+                normalize_path(candidate)
+            }
+        }
+        ExistenceMode::AncestorMayBeMissing => {
+            let normalized = normalize_path(candidate);
+            let mut existing_ancestor = normalized.as_path();
+            while !existing_ancestor.exists() {
+                existing_ancestor = existing_ancestor
+                    .parent()
+                    .ok_or("path has no parent directory")?;
+            }
+            let canonical_ancestor = std::fs::canonicalize(existing_ancestor)
+                .map_err(|e| format!("{candidate_label}: {e}"))?;
+            if !canonical_ancestor.starts_with(&canonical_root) {
+                return Err("path is outside the opened workspace".to_string());
+            }
+            return Ok(normalized);
+        }
+    };
+    if !resolved.starts_with(&canonical_root) {
         return Err("path is outside the opened workspace".to_string());
     }
-    Ok(canonical_path)
+    Ok(resolved)
+}
+
+/// Canonicalize `requested` and verify it is inside `workspace_root`.
+pub(crate) fn validate_path(workspace_root: &Path, requested: &str) -> Result<PathBuf, String> {
+    ensure_within(
+        workspace_root,
+        Path::new(requested),
+        ExistenceMode::MustExist,
+        "invalid path",
+    )
 }
 
 /// Validate that a prospective new path's parent exists inside the workspace root.
 pub(crate) fn validate_new_path(workspace_root: &Path, requested: &str) -> Result<PathBuf, String> {
-    let canonical_root =
-        std::fs::canonicalize(workspace_root).map_err(|e| format!("workspace root: {e}"))?;
     let new_path = PathBuf::from(requested);
     let parent = new_path.parent().ok_or("path has no parent directory")?;
-    let canonical_parent =
-        std::fs::canonicalize(parent).map_err(|e| format!("invalid parent path: {e}"))?;
-    if !canonical_parent.starts_with(&canonical_root) {
-        return Err("path is outside the opened workspace".to_string());
-    }
+    ensure_within(
+        workspace_root,
+        parent,
+        ExistenceMode::MustExist,
+        "invalid parent path",
+    )?;
     Ok(new_path)
 }
 
@@ -84,28 +141,20 @@ pub(crate) fn normalize_path(path: &Path) -> PathBuf {
 
 /// Validate that a prospective directory path is absolute and rooted inside the
 /// workspace, even when some trailing directories do not exist yet.
-pub(crate) fn validate_new_dir_path(workspace_root: &Path, requested: &str) -> Result<PathBuf, String> {
-    let canonical_root =
-        std::fs::canonicalize(workspace_root).map_err(|e| format!("workspace root: {e}"))?;
+pub(crate) fn validate_new_dir_path(
+    workspace_root: &Path,
+    requested: &str,
+) -> Result<PathBuf, String> {
     let new_path = normalize_path(Path::new(requested));
     if !new_path.is_absolute() {
         return Err("path must be absolute".to_string());
     }
-
-    let mut existing_ancestor = new_path.as_path();
-    while !existing_ancestor.exists() {
-        existing_ancestor = existing_ancestor
-            .parent()
-            .ok_or("path has no parent directory")?;
-    }
-
-    let canonical_ancestor = std::fs::canonicalize(existing_ancestor)
-        .map_err(|e| format!("invalid parent path: {e}"))?;
-    if !canonical_ancestor.starts_with(&canonical_root) {
-        return Err("path is outside the opened workspace".to_string());
-    }
-
-    Ok(new_path)
+    ensure_within(
+        workspace_root,
+        &new_path,
+        ExistenceMode::AncestorMayBeMissing,
+        "invalid parent path",
+    )
 }
 
 #[cfg(test)]
@@ -173,6 +222,92 @@ mod tests {
 
         assert_eq!(
             validate_new_dir_path(dir.path(), &target.to_string_lossy()),
+            Err("path is outside the opened workspace".to_string())
+        );
+    }
+
+    // ── ensure_within ────────────────────────────────────────────────────────
+
+    #[test]
+    fn ensure_within_must_exist_accepts_inside_and_rejects_outside() {
+        let dir = TempDir::new().unwrap();
+        let inside = dir.path().join("note.md");
+        fs::write(&inside, "x").unwrap();
+        assert!(ensure_within(dir.path(), &inside, ExistenceMode::MustExist, "invalid path").is_ok());
+
+        let other = TempDir::new().unwrap();
+        let outside = other.path().join("escape.md");
+        fs::write(&outside, "x").unwrap();
+        assert_eq!(
+            ensure_within(dir.path(), &outside, ExistenceMode::MustExist, "invalid path"),
+            Err("path is outside the opened workspace".to_string())
+        );
+    }
+
+    #[test]
+    fn ensure_within_must_exist_rejects_missing_candidate_with_label() {
+        let dir = TempDir::new().unwrap();
+        let missing = dir.path().join("missing.md");
+        let err =
+            ensure_within(dir.path(), &missing, ExistenceMode::MustExist, "invalid path").unwrap_err();
+        assert!(err.starts_with("invalid path:"), "{err}");
+    }
+
+    #[test]
+    fn ensure_within_may_be_missing_normalizes_lexically() {
+        let dir = TempDir::new().unwrap();
+        // Callers of MayBeMissing construct candidates by joining onto an
+        // already-canonical root (see validate_git_commit_path) — mirror
+        // that here so the lexical normalize compares canonical-to-canonical
+        // (macOS tempdirs live behind the /var → /private/var symlink).
+        let root = fs::canonicalize(dir.path()).unwrap();
+        let inside_missing = root.join("sub").join("..").join("new.md");
+        assert!(
+            ensure_within(&root, &inside_missing, ExistenceMode::MayBeMissing, "invalid path")
+                .is_ok()
+        );
+
+        let escape = root.join("..").join("outside.md");
+        assert_eq!(
+            ensure_within(&root, &escape, ExistenceMode::MayBeMissing, "invalid path"),
+            Err("path is outside the opened workspace".to_string())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ensure_within_rejects_symlink_escape() {
+        // Canonicalization is the security property: a symlink inside the
+        // workspace pointing outside must not pass containment.
+        let workspace = TempDir::new().unwrap();
+        let elsewhere = TempDir::new().unwrap();
+        let secret = elsewhere.path().join("secret.md");
+        fs::write(&secret, "top secret").unwrap();
+        let link = workspace.path().join("innocent.md");
+        std::os::unix::fs::symlink(&secret, &link).unwrap();
+
+        assert_eq!(
+            ensure_within(workspace.path(), &link, ExistenceMode::MustExist, "invalid path"),
+            Err("path is outside the opened workspace".to_string())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ensure_within_ancestor_mode_rejects_symlinked_ancestor_escape() {
+        let workspace = TempDir::new().unwrap();
+        let elsewhere = TempDir::new().unwrap();
+        let linked_dir = workspace.path().join("subdir");
+        std::os::unix::fs::symlink(elsewhere.path(), &linked_dir).unwrap();
+        let target = linked_dir.join("deep").join("new-folder");
+
+        assert_eq!(
+            ensure_within(
+                workspace.path(),
+                &target,
+                ExistenceMode::AncestorMayBeMissing,
+                "invalid parent path"
+            ),
             Err("path is outside the opened workspace".to_string())
         );
     }

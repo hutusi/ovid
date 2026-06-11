@@ -18,9 +18,14 @@ import { useTranslation } from "react-i18next";
 import { Markdown } from "tiptap-markdown";
 import { commands } from "../lib/commands";
 import type { FindReplaceMode } from "../lib/editor/commands";
+import {
+  createImageDropHandler,
+  createImagePasteHandler,
+  IMAGE_MIME,
+} from "../lib/editor/imagePaste";
 import { useEditorCommands } from "../lib/editor/useEditorCommands";
+import { useMarkdownSync } from "../lib/editor/useMarkdownSync";
 import type { FlatFile } from "../lib/fileSearch";
-import { mimeTypeToImageExtension, resolveImageExtension } from "../lib/imageUtils";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
@@ -53,9 +58,6 @@ import "katex/dist/katex.min.css";
 import "../styles/editor.css";
 
 const lowlight = createLowlight(common);
-
-const IMAGE_MIME = /^image\/(png|jpe?g|gif|webp|avif|svg\+xml)$/;
-const MARKDOWN_SERIALIZE_DELAY_MS = 150;
 
 interface EditorProps {
   content?: string;
@@ -115,8 +117,6 @@ export function Editor({
   const scrollRef = useRef<HTMLDivElement>(null);
   const typewriterRef = useRef(typewriterMode);
   const updateStartedAtRef = useRef(0);
-  const pendingSerializeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestEditorRef = useRef<ReturnType<typeof useEditor>>(null);
   const pendingRestoreTimersRef = useRef<number[]>([]);
   const pendingRestoreFramesRef = useRef<number[]>([]);
   const lastAppliedContentRef = useRef(content);
@@ -139,32 +139,8 @@ export function Editor({
   const [linkDialog, setLinkDialog] = useState<{ href: string } | null>(null);
   const [findReplaceMode, setFindReplaceMode] = useState<FindReplaceMode>("closed");
 
-  const serializeMarkdown = useCallback(
-    (editorInstance: NonNullable<ReturnType<typeof useEditor>>) =>
-      measureSync(
-        "editor.markdownSerialize",
-        // biome-ignore lint/suspicious/noExplicitAny: tiptap-markdown storage has no public type
-        () => (editorInstance.storage as any).markdown.getMarkdown() as string,
-        {
-          docSize: editorInstance.state.doc.content.size,
-        }
-      ),
-    []
-  );
-
-  const flushPendingSerialization = useCallback(
-    (editorInstance = latestEditorRef.current) => {
-      const pendingTimer = pendingSerializeTimerRef.current;
-      const hasPendingSerialization = pendingTimer !== null;
-      if (hasPendingSerialization) {
-        clearTimeout(pendingTimer);
-        pendingSerializeTimerRef.current = null;
-      }
-      if (!hasPendingSerialization || !editorInstance || !onChange) return;
-      onChange(serializeMarkdown(editorInstance));
-    },
-    [onChange, serializeMarkdown]
-  );
+  const { serializeMarkdown, setCurrentEditor, cancelPendingSerialize, scheduleSerialize } =
+    useMarkdownSync({ onChange, registerPendingFlush });
 
   const emitViewState = useCallback(
     (selection: number, scrollTop = scrollRef.current?.scrollTop ?? 0) => {
@@ -175,10 +151,7 @@ export function Editor({
 
   const formatMarkdownSpacing = useCallback(
     (editorInstance: NonNullable<ReturnType<typeof useEditor>>) => {
-      if (pendingSerializeTimerRef.current) {
-        clearTimeout(pendingSerializeTimerRef.current);
-        pendingSerializeTimerRef.current = null;
-      }
+      cancelPendingSerialize();
 
       const currentMarkdown = serializeMarkdown(editorInstance);
       const formattedMarkdown = normalizeMarkdownSpacing(currentMarkdown);
@@ -200,7 +173,7 @@ export function Editor({
       onChange?.(formattedMarkdown);
       emitViewState(nextSelection.from);
     },
-    [emitViewState, onChange, onDirty, serializeMarkdown]
+    [cancelPendingSerialize, emitViewState, onChange, onDirty, serializeMarkdown]
   );
 
   const clearPendingRestore = useCallback(() => {
@@ -315,47 +288,14 @@ export function Editor({
         return false;
       },
       handlePaste(view, event) {
-        const imageFiles = Array.from(event.clipboardData?.files ?? []).filter((f) =>
-          IMAGE_MIME.test(f.type)
-        );
-        if (imageFiles.length > 0) {
-          event.preventDefault();
-          // Capture insertion point now — editor.state.selection will be stale
-          // by the time the async saves complete.
-          const pasteFrom = view.state.selection.from;
-          Promise.allSettled(
-            imageFiles.map((file) => {
-              const ext = mimeTypeToImageExtension(file.type);
-              return file.arrayBuffer().then((buf) => {
-                const bytes = Array.from(new Uint8Array(buf));
-                return commands.assets
-                  .saveFromBytes({
-                    bytes,
-                    extension: ext,
-                    activeFilePath: filePath,
-                  })
-                  .then((relPath) => ({ name: file.name || "pasted-image", relPath }));
-              });
-            })
-          ).then((results) => {
-            const saved = results.flatMap((r) => {
-              if (r.status === "fulfilled") return [r.value];
-              const reason = r.reason instanceof Error ? r.reason.message : String(r.reason);
-              onError?.(t("editor.paste_image_error", { reason }));
-              return [];
-            });
-            if (saved.length === 0) return;
-            view.focus();
-            const tr = view.state.tr;
-            const insertFrom = Math.min(pasteFrom, view.state.doc.content.size);
-            let offset = 0;
-            for (const { name, relPath } of saved) {
-              const node = view.state.schema.nodes.image.create({ src: relPath, alt: name });
-              tr.insert(insertFrom + offset, node);
-              offset += node.nodeSize;
-            }
-            view.dispatch(tr);
-          });
+        if (
+          createImagePasteHandler({
+            filePath,
+            onError,
+            t,
+            saveFromBytes: commands.assets.saveFromBytes,
+          })(view, event)
+        ) {
           return true;
         }
         const text = (event.clipboardData?.getData("text/plain") ?? "").trim();
@@ -384,59 +324,17 @@ export function Editor({
         },
       },
       handleDrop(view, event) {
-        // dragDropEnabled is false in tauri.conf.json, so File.path is not
-        // populated by Tauri. Read bytes from the File object directly and
-        // use save_asset_from_bytes — consistent with clipboard paste.
-        const imageFiles = Array.from(event.dataTransfer?.files ?? []).filter((f) =>
-          IMAGE_MIME.test(f.type)
-        );
-        if (imageFiles.length === 0) return false;
-        event.preventDefault();
-        const dropX = event.clientX;
-        const dropY = event.clientY;
-        Promise.allSettled(
-          imageFiles.map((file) => {
-            const ext = resolveImageExtension(file);
-            return file.arrayBuffer().then((buf) => {
-              const bytes = Array.from(new Uint8Array(buf));
-              return commands.assets
-                .saveFromBytes({
-                  bytes,
-                  extension: ext,
-                  activeFilePath: filePath,
-                })
-                .then((relPath) => ({
-                  name: file.name.replace(/\.[^.]+$/, ""),
-                  relPath,
-                }));
-            });
-          })
-        ).then((results) => {
-          const saved = results.flatMap((r) => {
-            if (r.status === "fulfilled") return [r.value];
-            const reason = r.reason instanceof Error ? r.reason.message : String(r.reason);
-            onError?.(t("editor.drop_image_error", { reason }));
-            return [];
-          });
-          if (saved.length === 0) return;
-          const dropPos = view.posAtCoords({ left: dropX, top: dropY })?.pos;
-          if (dropPos === undefined) return;
-          view.focus();
-          const tr = view.state.tr;
-          let offset = 0;
-          for (const { name, relPath } of saved) {
-            const node = view.state.schema.nodes.image.create({ src: relPath, alt: name });
-            tr.insert(dropPos + offset, node);
-            offset += node.nodeSize;
-          }
-          view.dispatch(tr);
-        });
-        return true;
+        return createImageDropHandler({
+          filePath,
+          onError,
+          t,
+          saveFromBytes: commands.assets.saveFromBytes,
+        })(view, event);
       },
     },
     onUpdate({ editor }) {
       clearPendingRestore();
-      latestEditorRef.current = editor;
+      setCurrentEditor(editor);
       updateStartedAtRef.current = performance.now();
       const isUserEdit = editor.isFocused;
       const { selection } = editor.state;
@@ -470,12 +368,8 @@ export function Editor({
       if (isUserEdit) {
         onDirty?.();
       }
-      if (isUserEdit && onChange) {
-        if (pendingSerializeTimerRef.current) clearTimeout(pendingSerializeTimerRef.current);
-        pendingSerializeTimerRef.current = setTimeout(() => {
-          pendingSerializeTimerRef.current = null;
-          onChange(serializeMarkdown(editor));
-        }, MARKDOWN_SERIALIZE_DELAY_MS);
+      if (isUserEdit) {
+        scheduleSerialize(editor);
       }
 
       if (onWordCount) {
@@ -528,8 +422,8 @@ export function Editor({
   });
 
   useEffect(() => {
-    latestEditorRef.current = editor;
-  }, [editor]);
+    setCurrentEditor(editor);
+  }, [editor, setCurrentEditor]);
 
   useEffect(() => {
     if (!editor || content === lastAppliedContentRef.current) return;
@@ -582,18 +476,6 @@ export function Editor({
       clearPendingRestore();
     };
   }, [clearPendingRestore, editor, initialScrollTop, initialSelection]);
-
-  useEffect(() => {
-    if (!registerPendingFlush) return;
-    registerPendingFlush(() => flushPendingSerialization());
-    return () => registerPendingFlush(null);
-  }, [flushPendingSerialization, registerPendingFlush]);
-
-  useEffect(() => {
-    return () => {
-      flushPendingSerialization();
-    };
-  }, [flushPendingSerialization]);
 
   // Update spellcheck live — set directly on the DOM to avoid replacing editorProps
   useEffect(() => {

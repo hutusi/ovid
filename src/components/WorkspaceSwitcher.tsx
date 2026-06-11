@@ -7,8 +7,7 @@ import logoUrl from "../../branding/ovid-logo-square.png?url";
 import type { CloneProgress } from "../lib/commands/generated/CloneProgress";
 import { listenEvent } from "../lib/commands/internal";
 import type { RecentWorkspace } from "../lib/types";
-import { useFocusTrap } from "../lib/useFocusTrap";
-import "./Modal.css";
+import { Modal } from "./Modal";
 import "./WorkspaceSwitcher.css";
 
 /** Hard-coded starter for the "From Amytis starter" template option. */
@@ -48,7 +47,6 @@ export function WorkspaceSwitcher({
   onClose,
 }: WorkspaceSwitcherProps) {
   const { t } = useTranslation();
-  const dialogRef = useFocusTrap<HTMLDivElement>();
   const [section, setSection] = useState<Section>("recent");
   const tabRefs = useRef<Record<Section, HTMLButtonElement | null>>({
     recent: null,
@@ -56,13 +54,6 @@ export function WorkspaceSwitcher({
     create: null,
     clone: null,
   });
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
-      e.stopPropagation();
-      onClose();
-    }
-  }
 
   function handleTabKeyDown(e: React.KeyboardEvent) {
     const idx = SECTIONS.indexOf(section);
@@ -87,133 +78,118 @@ export function WorkspaceSwitcher({
   };
 
   return (
-    <div className="modal-overlay" role="presentation">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label={t("common.close")}
-        onClick={onClose}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("workspace_switcher.title")}
-        className="modal-panel ws-panel"
-        onKeyDown={handleKeyDown}
-      >
-        <header className="ws-header">
-          <img
-            src={logoUrl}
-            alt={t("workspace_switcher.logo_alt")}
-            className="ws-logo"
-            width={48}
-            height={48}
-          />
-          <div className="ws-title-block">
-            <h2 className="ws-title">{t("workspace_switcher.title")}</h2>
-            <p className="ws-subtitle">{t("workspace_switcher.subtitle")}</p>
-          </div>
-          <button
-            type="button"
-            className="ws-close-btn"
-            onClick={onClose}
-            aria-label={t("common.close")}
-            title={t("common.close")}
-          >
-            <X size={16} aria-hidden="true" />
-          </button>
-        </header>
+    <Modal ariaLabel={t("workspace_switcher.title")} onClose={onClose} panelClassName="ws-panel">
+      <header className="ws-header">
+        <img
+          src={logoUrl}
+          alt={t("workspace_switcher.logo_alt")}
+          className="ws-logo"
+          width={48}
+          height={48}
+        />
+        <div className="ws-title-block">
+          <h2 className="ws-title">{t("workspace_switcher.title")}</h2>
+          <p className="ws-subtitle">{t("workspace_switcher.subtitle")}</p>
+        </div>
+        <button
+          type="button"
+          className="ws-close-btn"
+          onClick={onClose}
+          aria-label={t("common.close")}
+          title={t("common.close")}
+        >
+          <X size={16} aria-hidden="true" />
+        </button>
+      </header>
 
-        <div className="ws-body">
-          <div
-            className="ws-nav"
-            role="tablist"
-            aria-orientation="vertical"
-            aria-label={t("workspace_switcher.title")}
-            onKeyDown={handleTabKeyDown}
-          >
-            {SECTIONS.map((s) => {
-              const isActive = s === section;
-              const isRecent = s === "recent";
-              const tabAriaLabel =
-                isRecent && recentWorkspaces.length > 0
-                  ? `${sectionLabels[s]}, ${recentWorkspaces.length}`
-                  : undefined;
-              return (
-                <button
-                  key={s}
-                  ref={(el) => {
-                    tabRefs.current[s] = el;
-                  }}
-                  type="button"
-                  role="tab"
-                  id={`ws-tab-${s}`}
-                  aria-selected={isActive}
-                  aria-controls="ws-panel"
-                  aria-label={tabAriaLabel}
-                  tabIndex={isActive ? 0 : -1}
-                  className={`ws-nav-tab${isActive ? " ws-nav-tab--active" : ""}`}
-                  onClick={() => setSection(s)}
-                >
-                  <span className="ws-nav-tab-label">{sectionLabels[s]}</span>
-                  {isRecent && recentWorkspaces.length > 0 && (
-                    <span className="ws-nav-count" aria-hidden="true">
-                      {recentWorkspaces.length}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+      <div className="ws-body">
+        <div
+          className="ws-nav"
+          role="tablist"
+          aria-orientation="vertical"
+          aria-label={t("workspace_switcher.title")}
+          onKeyDown={handleTabKeyDown}
+        >
+          {SECTIONS.map((s) => {
+            const isActive = s === section;
+            const isRecent = s === "recent";
+            const tabAriaLabel =
+              isRecent && recentWorkspaces.length > 0
+                ? `${sectionLabels[s]}, ${recentWorkspaces.length}`
+                : undefined;
+            return (
+              <button
+                key={s}
+                ref={(el) => {
+                  tabRefs.current[s] = el;
+                }}
+                type="button"
+                role="tab"
+                id={`ws-tab-${s}`}
+                aria-selected={isActive}
+                aria-controls="ws-panel"
+                aria-label={tabAriaLabel}
+                tabIndex={isActive ? 0 : -1}
+                className={`ws-nav-tab${isActive ? " ws-nav-tab--active" : ""}`}
+                onClick={() => setSection(s)}
+              >
+                <span className="ws-nav-tab-label">{sectionLabels[s]}</span>
+                {isRecent && recentWorkspaces.length > 0 && (
+                  <span className="ws-nav-count" aria-hidden="true">
+                    {recentWorkspaces.length}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-          <div
-            className="ws-panel-content"
-            role="tabpanel"
-            id="ws-panel"
-            aria-labelledby={`ws-tab-${section}`}
-          >
-            {section === "recent" && (
-              <RecentPanel
-                recentWorkspaces={recentWorkspaces}
-                currentRootPath={currentRootPath}
-                onSelect={onSelect}
-                onRemoveRecent={onRemoveRecent}
-                onToast={onToast}
-                onClose={onClose}
-              />
-            )}
-            {section === "open" && (
-              <OpenPanel
-                onOpenOther={() => {
-                  onOpenOther();
-                  onClose();
-                }}
-              />
-            )}
-            {section === "create" && (
-              <CreatePanel
-                onCreate={onCreate}
-                onCloneStarter={(parentDir, name) => onClone(AMYTIS_STARTER_URL, parentDir, name)}
-                onSuccess={(name) => {
-                  onToast(t("workspace_switcher.toast_created", { name }));
-                  onClose();
-                }}
-              />
-            )}
-            {section === "clone" && (
-              <ClonePanel
-                onClone={onClone}
-                onSuccess={(name) => {
-                  onToast(t("workspace_switcher.toast_cloned", { name }));
-                  onClose();
-                }}
-              />
-            )}
-          </div>
+        <div
+          className="ws-panel-content"
+          role="tabpanel"
+          id="ws-panel"
+          aria-labelledby={`ws-tab-${section}`}
+        >
+          {section === "recent" && (
+            <RecentPanel
+              recentWorkspaces={recentWorkspaces}
+              currentRootPath={currentRootPath}
+              onSelect={onSelect}
+              onRemoveRecent={onRemoveRecent}
+              onToast={onToast}
+              onClose={onClose}
+            />
+          )}
+          {section === "open" && (
+            <OpenPanel
+              onOpenOther={() => {
+                onOpenOther();
+                onClose();
+              }}
+            />
+          )}
+          {section === "create" && (
+            <CreatePanel
+              onCreate={onCreate}
+              onCloneStarter={(parentDir, name) => onClone(AMYTIS_STARTER_URL, parentDir, name)}
+              onSuccess={(name) => {
+                onToast(t("workspace_switcher.toast_created", { name }));
+                onClose();
+              }}
+            />
+          )}
+          {section === "clone" && (
+            <ClonePanel
+              onClone={onClone}
+              onSuccess={(name) => {
+                onToast(t("workspace_switcher.toast_cloned", { name }));
+                onClose();
+              }}
+            />
+          )}
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 

@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next";
 import { getRemoteSummary } from "../lib/gitUi";
 import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
 import type { GitBranch, GitRemote, GitRemoteBranch, GitRemoteInfo } from "../lib/types";
-import { useFocusTrap } from "../lib/useFocusTrap";
-import "./Modal.css";
+import { Modal } from "./Modal";
 import "./WorkspaceSwitcher.css";
 
 interface BranchSwitcherProps {
@@ -40,7 +39,6 @@ export function BranchSwitcher({
   const [query, setQuery] = useState("");
   const [actionMenuBranch, setActionMenuBranch] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useFocusTrap<HTMLDivElement>();
   const actionMenuItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
@@ -95,13 +93,12 @@ export function BranchSwitcher({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
+    if (e.key === "Escape" && actionMenuBranch) {
+      // Close just the per-branch action menu; preventDefault keeps the
+      // Modal's Escape handler from closing the whole dialog.
+      e.preventDefault();
       e.stopPropagation();
-      if (actionMenuBranch) {
-        setActionMenuBranch(null);
-        return;
-      }
-      onClose();
+      setActionMenuBranch(null);
       return;
     }
     if (e.key !== "Enter" || e.target !== inputRef.current) {
@@ -155,239 +152,228 @@ export function BranchSwitcher({
   }
 
   return (
-    <div className="modal-overlay" role="presentation">
-      <button
-        type="button"
-        className="modal-backdrop"
-        aria-label={t("common.close")}
-        onClick={onClose}
-      />
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("branch_switcher.title")}
-        className="modal-panel"
-        style={{ width: 420, maxWidth: "calc(100vw - 48px)" }}
-        onKeyDown={handleKeyDown}
-      >
-        <p className="modal-title">{t("branch_switcher.title")}</p>
+    <Modal
+      ariaLabel={t("branch_switcher.title")}
+      onClose={onClose}
+      width={420}
+      onKeyDown={handleKeyDown}
+    >
+      <p className="modal-title">{t("branch_switcher.title")}</p>
 
-        {(remoteInfo.upstream || remoteInfo.remotes.length > 0) && (
-          <div className="modal-branch-row">
-            <span className="modal-branch-label">{t("branch_switcher.tracking")}</span>
-            <div className="modal-inline-actions">
-              <span className="modal-selection-count">{getRemoteSummary(remoteInfo, t)}</span>
-              {!remoteInfo.upstream && remoteInfo.remoteName && onPushAndTrack && (
+      {(remoteInfo.upstream || remoteInfo.remotes.length > 0) && (
+        <div className="modal-branch-row">
+          <span className="modal-branch-label">{t("branch_switcher.tracking")}</span>
+          <div className="modal-inline-actions">
+            <span className="modal-selection-count">{getRemoteSummary(remoteInfo, t)}</span>
+            {!remoteInfo.upstream && remoteInfo.remoteName && onPushAndTrack && (
+              <button
+                type="button"
+                className="modal-inline-btn"
+                onClick={() => onPushAndTrack(remoteInfo.remoteName as string)}
+              >
+                {t("branch_switcher.push_track")}
+              </button>
+            )}
+            {remoteInfo.remoteUrl && (
+              <>
                 <button
                   type="button"
                   className="modal-inline-btn"
-                  onClick={() => onPushAndTrack(remoteInfo.remoteName as string)}
+                  onClick={() => onOpenRemote(remoteInfo.remoteName ?? undefined)}
                 >
-                  {t("branch_switcher.push_track")}
+                  {t("branch_switcher.open")}
                 </button>
-              )}
-              {remoteInfo.remoteUrl && (
-                <>
-                  <button
-                    type="button"
-                    className="modal-inline-btn"
-                    onClick={() => onOpenRemote(remoteInfo.remoteName ?? undefined)}
-                  >
-                    {t("branch_switcher.open")}
-                  </button>
-                  <button
-                    type="button"
-                    className="modal-inline-btn"
-                    onClick={() => onCopyRemoteUrl(remoteInfo.remoteName ?? undefined)}
-                  >
-                    {t("branch_switcher.copy_url")}
-                  </button>
-                </>
-              )}
-            </div>
+                <button
+                  type="button"
+                  className="modal-inline-btn"
+                  onClick={() => onCopyRemoteUrl(remoteInfo.remoteName ?? undefined)}
+                >
+                  {t("branch_switcher.copy_url")}
+                </button>
+              </>
+            )}
           </div>
-        )}
+        </div>
+      )}
 
-        {remoteInfo.remotes.length > 1 && (
-          <fieldset className="ws-list ws-list--group">
-            <legend className="ws-list-legend">{t("branch_switcher.available_remotes")}</legend>
-            {remoteInfo.remotes.map((remote) => (
-              <div key={remote.name} className="ws-item ws-item--static">
-                <span className="ws-item-name">{remote.name}</span>
-                <span className="ws-item-path">{getRemoteMeta(remote)}</span>
-                <div className="modal-inline-actions ws-inline-actions">
-                  {remote.url && (
-                    <>
-                      <button
-                        type="button"
-                        className="modal-inline-btn"
-                        onClick={() => onOpenRemote(remote.name)}
-                      >
-                        {t("branch_switcher.open")}
-                      </button>
-                      <button
-                        type="button"
-                        className="modal-inline-btn"
-                        onClick={() => onCopyRemoteUrl(remote.name)}
-                      >
-                        {t("branch_switcher.copy_url")}
-                      </button>
-                    </>
-                  )}
-                  {!remoteInfo.upstream && onPushAndTrack && (
+      {remoteInfo.remotes.length > 1 && (
+        <fieldset className="ws-list ws-list--group">
+          <legend className="ws-list-legend">{t("branch_switcher.available_remotes")}</legend>
+          {remoteInfo.remotes.map((remote) => (
+            <div key={remote.name} className="ws-item ws-item--static">
+              <span className="ws-item-name">{remote.name}</span>
+              <span className="ws-item-path">{getRemoteMeta(remote)}</span>
+              <div className="modal-inline-actions ws-inline-actions">
+                {remote.url && (
+                  <>
                     <button
                       type="button"
                       className="modal-inline-btn"
-                      onClick={() => onPushAndTrack(remote.name)}
+                      onClick={() => onOpenRemote(remote.name)}
                     >
-                      {t("branch_switcher.push_track")}
+                      {t("branch_switcher.open")}
                     </button>
-                  )}
-                </div>
+                    <button
+                      type="button"
+                      className="modal-inline-btn"
+                      onClick={() => onCopyRemoteUrl(remote.name)}
+                    >
+                      {t("branch_switcher.copy_url")}
+                    </button>
+                  </>
+                )}
+                {!remoteInfo.upstream && onPushAndTrack && (
+                  <button
+                    type="button"
+                    className="modal-inline-btn"
+                    onClick={() => onPushAndTrack(remote.name)}
+                  >
+                    {t("branch_switcher.push_track")}
+                  </button>
+                )}
               </div>
-            ))}
-          </fieldset>
-        )}
+            </div>
+          ))}
+        </fieldset>
+      )}
 
-        <input
-          ref={inputRef}
-          className="modal-input"
-          aria-label={t("branch_switcher.search_label")}
-          value={query}
-          placeholder={t("branch_switcher.search_placeholder")}
-          {...PLAIN_TEXT_INPUT_PROPS}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+      <input
+        ref={inputRef}
+        className="modal-input"
+        aria-label={t("branch_switcher.search_label")}
+        value={query}
+        placeholder={t("branch_switcher.search_placeholder")}
+        {...PLAIN_TEXT_INPUT_PROPS}
+        onChange={(e) => setQuery(e.target.value)}
+      />
 
-        <div className="ws-list">
-          {filteredBranches.map((branch) => (
-            <div
-              key={branch.name}
-              className={`ws-item ws-item--static${branch.isCurrent ? " ws-item--active" : ""}`}
-            >
-              <div className="ws-item-header">
+      <div className="ws-list">
+        {filteredBranches.map((branch) => (
+          <div
+            key={branch.name}
+            className={`ws-item ws-item--static${branch.isCurrent ? " ws-item--active" : ""}`}
+          >
+            <div className="ws-item-header">
+              <button
+                type="button"
+                className="ws-item-button"
+                onClick={() => {
+                  setActionMenuBranch(null);
+                  onSelect(branch.name);
+                }}
+              >
+                <span className="ws-item-name">{branch.name}</span>
+                <span className="ws-item-path">
+                  {branch.upstream
+                    ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
+                    : t("branch_switcher.no_upstream")}
+                </span>
+              </button>
+              <div className="ws-item-controls">
+                {branch.isCurrent && (
+                  <span className="ws-item-badge ws-item-badge--inline">
+                    {t("branch_switcher.current")}
+                  </span>
+                )}
                 <button
                   type="button"
-                  className="ws-item-button"
-                  onClick={() => {
-                    setActionMenuBranch(null);
-                    onSelect(branch.name);
+                  className={`ws-overflow-btn${actionMenuBranch === branch.name ? " is-open" : ""}`}
+                  aria-label={t("branch_switcher.branch_actions", { branch: branch.name })}
+                  aria-haspopup="menu"
+                  aria-expanded={actionMenuBranch === branch.name}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setActionMenuBranch((current) =>
+                      current === branch.name ? null : branch.name
+                    );
                   }}
                 >
-                  <span className="ws-item-name">{branch.name}</span>
-                  <span className="ws-item-path">
-                    {branch.upstream
-                      ? `${branch.upstream}${branch.aheadBehind ? ` ${branch.aheadBehind}` : ""}`
-                      : t("branch_switcher.no_upstream")}
-                  </span>
+                  ⋯
                 </button>
-                <div className="ws-item-controls">
-                  {branch.isCurrent && (
-                    <span className="ws-item-badge ws-item-badge--inline">
-                      {t("branch_switcher.current")}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className={`ws-overflow-btn${actionMenuBranch === branch.name ? " is-open" : ""}`}
-                    aria-label={t("branch_switcher.branch_actions", { branch: branch.name })}
-                    aria-haspopup="menu"
-                    aria-expanded={actionMenuBranch === branch.name}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setActionMenuBranch((current) =>
-                        current === branch.name ? null : branch.name
-                      );
-                    }}
-                  >
-                    ⋯
-                  </button>
-                </div>
               </div>
-              {actionMenuBranch === branch.name && (
-                <div
-                  className="ws-actions-menu"
-                  role="menu"
-                  aria-label={t("branch_switcher.actions_for", { branch: branch.name })}
-                  onKeyDown={handleActionMenuKeyDown}
+            </div>
+            {actionMenuBranch === branch.name && (
+              <div
+                className="ws-actions-menu"
+                role="menu"
+                aria-label={t("branch_switcher.actions_for", { branch: branch.name })}
+                onKeyDown={handleActionMenuKeyDown}
+              >
+                <button
+                  ref={(node) => {
+                    actionMenuItemRefs.current[0] = node;
+                  }}
+                  type="button"
+                  className="ws-actions-menu-btn"
+                  role="menuitem"
+                  onClick={() => {
+                    setActionMenuBranch(null);
+                    onRenameBranch(branch.name);
+                  }}
                 >
+                  {t("branch_switcher.rename")}
+                </button>
+                {!branch.isCurrent && (
                   <button
                     ref={(node) => {
-                      actionMenuItemRefs.current[0] = node;
+                      actionMenuItemRefs.current[1] = node;
                     }}
                     type="button"
-                    className="ws-actions-menu-btn"
+                    className="ws-actions-menu-btn ws-actions-menu-btn--danger"
                     role="menuitem"
                     onClick={() => {
                       setActionMenuBranch(null);
-                      onRenameBranch(branch.name);
+                      onDeleteBranch(branch.name);
                     }}
                   >
-                    {t("branch_switcher.rename")}
+                    {t("branch_switcher.delete")}
                   </button>
-                  {!branch.isCurrent && (
-                    <button
-                      ref={(node) => {
-                        actionMenuItemRefs.current[1] = node;
-                      }}
-                      type="button"
-                      className="ws-actions-menu-btn ws-actions-menu-btn--danger"
-                      role="menuitem"
-                      onClick={() => {
-                        setActionMenuBranch(null);
-                        onDeleteBranch(branch.name);
-                      }}
-                    >
-                      {t("branch_switcher.delete")}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-          {filteredBranches.length === 0 && filteredRemoteBranches.length === 0 && (
-            <p className="ws-empty">{t("branch_switcher.no_match")}</p>
-          )}
-        </div>
-
-        {filteredRemoteBranches.length > 0 && (
-          <>
-            <div className="modal-branch-row">
-              <span className="modal-branch-label">{t("branch_switcher.remote_branches")}</span>
-            </div>
-            <fieldset className="ws-list ws-list--group">
-              <legend className="ws-list-legend" aria-hidden="true">
-                {t("branch_switcher.remote_branches")}
-              </legend>
-              {filteredRemoteBranches.map((branch) => (
-                <button
-                  key={branch.remoteRef}
-                  type="button"
-                  className="ws-item"
-                  onClick={() => onSelectRemoteBranch(branch.remoteRef)}
-                >
-                  <span className="ws-item-name">{branch.name}</span>
-                  <span className="ws-item-path">
-                    {branch.remoteRef} · {t("branch_switcher.creates_tracking")}
-                  </span>
-                </button>
-              ))}
-            </fieldset>
-          </>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+        {filteredBranches.length === 0 && filteredRemoteBranches.length === 0 && (
+          <p className="ws-empty">{t("branch_switcher.no_match")}</p>
         )}
-
-        <div className="modal-actions">
-          <button type="button" className="modal-btn modal-btn-cancel" onClick={onCreateBranch}>
-            {t("branch_switcher.new_branch")}
-          </button>
-          <div className="modal-spacer" />
-          <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
-            {t("branch_switcher.cancel")}
-          </button>
-        </div>
       </div>
-    </div>
+
+      {filteredRemoteBranches.length > 0 && (
+        <>
+          <div className="modal-branch-row">
+            <span className="modal-branch-label">{t("branch_switcher.remote_branches")}</span>
+          </div>
+          <fieldset className="ws-list ws-list--group">
+            <legend className="ws-list-legend" aria-hidden="true">
+              {t("branch_switcher.remote_branches")}
+            </legend>
+            {filteredRemoteBranches.map((branch) => (
+              <button
+                key={branch.remoteRef}
+                type="button"
+                className="ws-item"
+                onClick={() => onSelectRemoteBranch(branch.remoteRef)}
+              >
+                <span className="ws-item-name">{branch.name}</span>
+                <span className="ws-item-path">
+                  {branch.remoteRef} · {t("branch_switcher.creates_tracking")}
+                </span>
+              </button>
+            ))}
+          </fieldset>
+        </>
+      )}
+
+      <div className="modal-actions">
+        <button type="button" className="modal-btn modal-btn-cancel" onClick={onCreateBranch}>
+          {t("branch_switcher.new_branch")}
+        </button>
+        <div className="modal-spacer" />
+        <button type="button" className="modal-btn modal-btn-cancel" onClick={onClose}>
+          {t("branch_switcher.cancel")}
+        </button>
+      </div>
+    </Modal>
   );
 }

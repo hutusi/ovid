@@ -1,11 +1,14 @@
 use std::path::{Path, PathBuf};
 
-use crate::paths::{normalize_path, validate_path};
+use crate::paths::{ensure_within, ExistenceMode};
 
 use super::runner::run_git;
 use super::{GitBranch, GitCommitChange, GitRemote, GitRemoteBranch, GitRemoteInfo};
 
-pub(crate) fn validate_git_commit_path(workspace_root: &Path, requested: &str) -> Result<String, String> {
+pub(crate) fn validate_git_commit_path(
+    workspace_root: &Path,
+    requested: &str,
+) -> Result<String, String> {
     let requested_path = Path::new(requested);
     if requested.trim().is_empty() {
         return Err("commit path cannot be empty".to_string());
@@ -17,14 +20,12 @@ pub(crate) fn validate_git_commit_path(workspace_root: &Path, requested: &str) -
     let canonical_root =
         std::fs::canonicalize(workspace_root).map_err(|e| format!("workspace root: {e}"))?;
     let candidate = canonical_root.join(requested_path);
-    if candidate.exists() {
-        validate_path(&canonical_root, &candidate.to_string_lossy())?;
-    } else {
-        let normalized = normalize_path(&candidate);
-        if !normalized.starts_with(&canonical_root) {
-            return Err("path is outside the opened workspace".to_string());
-        }
-    }
+    ensure_within(
+        &canonical_root,
+        &candidate,
+        ExistenceMode::MayBeMissing,
+        "invalid path",
+    )?;
 
     Ok(requested.to_string())
 }
@@ -36,21 +37,18 @@ pub(crate) fn validate_git_commit_selection(
 ) -> Result<String, String> {
     validate_git_commit_path(git_root, requested)?;
 
+    // Dual-root shape: the path is resolved against the *git* root (where
+    // `git status` reported it) but must stay inside the *workspace* root
+    // the user opened.
     let git_root_canonical =
         std::fs::canonicalize(git_root).map_err(|e| format!("git root: {e}"))?;
-    let workspace_root_canonical =
-        std::fs::canonicalize(workspace_root).map_err(|e| format!("workspace root: {e}"))?;
     let candidate = git_root_canonical.join(requested);
-
-    let target = if candidate.exists() {
-        std::fs::canonicalize(&candidate).map_err(|e| format!("commit path: {e}"))?
-    } else {
-        normalize_path(&candidate)
-    };
-
-    if !target.starts_with(&workspace_root_canonical) {
-        return Err("path is outside the opened workspace".to_string());
-    }
+    ensure_within(
+        workspace_root,
+        &candidate,
+        ExistenceMode::MayBeMissing,
+        "commit path",
+    )?;
 
     Ok(requested.to_string())
 }

@@ -6,10 +6,10 @@ import { EditorPane } from "./components/EditorPane";
 import { getFileViewKind } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import type { AppActionCtx } from "./lib/appActions";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
 import { commands } from "./lib/commands";
-import { parseFrontmatter } from "./lib/frontmatter";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
@@ -35,7 +35,6 @@ import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspaceRevisionPoll } from "./lib/useWorkspaceRevisionPoll";
 import { useWorkspaceSession } from "./lib/useWorkspaceSession";
-import { countLocalImages, extractExcerpt, hasMathBlocks } from "./lib/wechatHtml";
 import {
   buildNoteResolverIndex,
   createWikiNote,
@@ -374,39 +373,7 @@ function App() {
     getRemoteInfo,
   } = useGit(workspaceRoot);
   isGitRepoRef.current = isGitRepo;
-  const {
-    commitDialog,
-    branchSwitcher,
-    newBranchDialogOpen,
-    renameBranchDialog,
-    deleteBranchDialog,
-    gitSyncPopoverOpen,
-    gitChangeSummary,
-    gitSyncLabel,
-    gitSyncPopover,
-    pushSuccessMessage,
-    defaultCommitMessage,
-    openCommitDialog,
-    setCommitDialog,
-    handleCommitDialogCommit,
-    runGitAction,
-    openBranchSwitcher,
-    closeBranchSwitcher,
-    switchBranch,
-    createBranch,
-    checkoutRemoteBranch,
-    renameBranch,
-    deleteBranch,
-    openRemote,
-    copyRemoteUrl,
-    handleGitSyncAction,
-    setNewBranchDialogOpen,
-    setRenameBranchDialog,
-    setDeleteBranchDialog,
-    setGitSyncPopoverOpen,
-    handleGitCredentialsSubmit,
-    handleForgetGitCredentials,
-  } = useGitUiController({
+  const gitUi = useGitUiController({
     overlay,
     gitStatusMap,
     isGitRepo,
@@ -437,6 +404,21 @@ function App() {
     getRemoteBranches,
     getRemoteInfo,
   });
+  // App-level consumers (StatusBar, menu/keyboard wiring) pull what they
+  // need off the controller; the git dialogs receive `gitUi` whole.
+  const {
+    gitChangeSummary,
+    gitSyncLabel,
+    gitSyncPopover,
+    pushSuccessMessage,
+    defaultCommitMessage,
+    openCommitDialog,
+    runGitAction,
+    openBranchSwitcher,
+    openRemote,
+    copyRemoteUrl,
+    toggleGitSyncPopover,
+  } = gitUi;
 
   // Track recently opened workspaces
   useEffect(() => {
@@ -493,22 +475,73 @@ function App() {
     }
   }, [wordCount, baselineCaptured]);
 
-  useKeyboardShortcuts({
-    overlay,
-    zenMode,
-    workspaceRoot,
-    tree,
-    isGitRepo,
-    defaultCommitMessage,
-    flushPendingSave,
-    closeActiveTabOrFile,
-    handleOpenWorkspace,
-    handleNewTodayFlow,
-    openCommitDialog,
-    setSidebarVisible,
-    setPropertiesOpen,
-    setZenMode,
-  });
+  // One context object feeds both input adapters of the global action
+  // table (ADR 0018): keyboard shortcuts and native menu events dispatch
+  // the same appActions rows.
+  const appActionCtx = useMemo<AppActionCtx>(
+    () => ({
+      overlay,
+      zenMode,
+      workspaceRoot,
+      tree,
+      isGitRepo,
+      selectedFile,
+      prefs,
+      pushSuccessMessage,
+      defaultCommitMessage,
+      pendingMarkdownRef,
+      fileContent,
+      showToast,
+      t,
+      setSidebarVisible,
+      setPropertiesOpen,
+      setZenMode,
+      setTypewriterMode,
+      flushPendingSave,
+      closeActiveTabOrFile,
+      handleOpenWorkspace,
+      handleNewTodayFlow,
+      openCommitDialog,
+      openBranchSwitcher,
+      runGitAction,
+      handlePush,
+      openRemote,
+      copyRemoteUrl,
+      handlePull,
+      handleFetch,
+      updatePrefs,
+    }),
+    [
+      overlay,
+      zenMode,
+      workspaceRoot,
+      tree,
+      isGitRepo,
+      selectedFile,
+      prefs,
+      pushSuccessMessage,
+      defaultCommitMessage,
+      pendingMarkdownRef,
+      fileContent,
+      showToast,
+      t,
+      flushPendingSave,
+      closeActiveTabOrFile,
+      handleOpenWorkspace,
+      handleNewTodayFlow,
+      openCommitDialog,
+      openBranchSwitcher,
+      runGitAction,
+      handlePush,
+      openRemote,
+      copyRemoteUrl,
+      handlePull,
+      handleFetch,
+      updatePrefs,
+    ]
+  );
+
+  useKeyboardShortcuts(appActionCtx);
 
   useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus });
 
@@ -528,82 +561,12 @@ function App() {
 
   useGitFocusFetch({ workspaceRoot, isGitRepo, handleFetch });
 
-  useMenuActions({
-    overlay,
-    workspaceRoot,
-    tree,
-    isGitRepo,
-    selectedFile,
-    prefs,
-    pushSuccessMessage,
-    defaultCommitMessage,
-    pendingMarkdownRef,
-    fileContent,
-    showToast,
-    t,
-    setSidebarVisible,
-    setPropertiesOpen,
-    setZenMode,
-    setTypewriterMode,
-    setNewBranchDialogOpen,
-    flushPendingSave,
-    closeActiveTabOrFile,
-    handleOpenWorkspace,
-    handleNewTodayFlow,
-    openCommitDialog,
-    openBranchSwitcher,
-    runGitAction,
-    handlePush,
-    openRemote,
-    copyRemoteUrl,
-    handlePull,
-    handleFetch,
-    updatePrefs,
-  });
+  useMenuActions(appActionCtx);
 
   const coverImagePath =
     parsedFrontmatter.coverImage != null && parsedFrontmatter.coverImage !== ""
       ? String(parsedFrontmatter.coverImage)
       : undefined;
-
-  // Values passed to WechatPublishDialog when opened
-  const wechatBaseDir = selectedFile
-    ? selectedFile.path.substring(0, selectedFile.path.lastIndexOf("/"))
-    : (workspaceRootPath ?? "");
-  // Pass the raw coverImage frontmatter value to Rust; Rust resolves root-relative
-  // paths (/images/…) against assetRoot and relative paths against wechatBaseDir.
-  const wechatCoverImagePath = coverImagePath ?? null;
-  // Author: frontmatter author → site.config default → empty; blank frontmatter treated as missing
-  const frontmatterAuthor =
-    parsedFrontmatter.author != null ? String(parsedFrontmatter.author).trim() : "";
-  const wechatAuthor = frontmatterAuthor || (defaultAuthor ?? "");
-  // Digest: frontmatter excerpt/description → auto-extract from body
-  // Source priority: in-flight edit → most recent on-disk content → initial
-  // load. fileContent is only updated when the editor mounts a new file, so
-  // after an auto-save fires it goes stale; lastSavedContentRef tracks every
-  // successful write and is the right fallback once any save has happened.
-  // Nullish (not truthy) check so an empty saved file is honoured rather
-  // than falling through to fileContent.
-  const wechatBody =
-    pendingMarkdownRef.current ?? parseFrontmatter(lastSavedContentRef.current ?? fileContent).body;
-  const wechatDigest = (() => {
-    if (parsedFrontmatter.excerpt != null && String(parsedFrontmatter.excerpt).trim())
-      return String(parsedFrontmatter.excerpt).trim();
-    if (parsedFrontmatter.description != null && String(parsedFrontmatter.description).trim())
-      return String(parsedFrontmatter.description).trim();
-    return extractExcerpt(wechatBody);
-  })();
-  const wechatHasMath = hasMathBlocks(wechatBody);
-  const wechatImageCount = countLocalImages(wechatBody);
-  const wechatMediaId =
-    parsedFrontmatter.wechatMediaId != null && String(parsedFrontmatter.wechatMediaId).trim()
-      ? String(parsedFrontmatter.wechatMediaId).trim()
-      : null;
-  const wechatTitle =
-    parsedFrontmatter.title != null
-      ? String(parsedFrontmatter.title)
-      : (selectedFile?.name.replace(/\.mdx?$/, "") ?? "");
-  const wechatMarkdown = wechatBody;
 
   async function handlePublishAwareFieldChange(key: string, value: unknown) {
     await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
@@ -752,7 +715,7 @@ function App() {
         gitSyncTitle={gitSyncPopover?.description}
         gitChangeLabel={gitChangeSummary?.label}
         gitChangeTitle={gitChangeSummary?.title}
-        gitSyncPopoverOpen={gitSyncPopoverOpen}
+        gitSyncPopoverOpen={overlay.is("gitSyncPopover")}
         notificationsCount={notifications.length}
         notificationsUnread={unread}
         notificationsOpen={overlay.is("notifications")}
@@ -775,7 +738,7 @@ function App() {
             : undefined
         }
         onOpenCommit={() => void openCommitDialog("Update")}
-        onOpenGitSync={() => setGitSyncPopoverOpen(!gitSyncPopoverOpen)}
+        onOpenGitSync={toggleGitSyncPopover}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
         onToggleZen={() => setZenMode((v) => !v)}
         onToggleTypewriter={() => setTypewriterMode((v) => !v)}
@@ -790,76 +753,56 @@ function App() {
         toasts={toasts}
         notifications={notifications}
         clearNotifications={clearNotifications}
-        gitSyncPopoverOpen={gitSyncPopoverOpen}
-        gitSyncPopover={gitSyncPopover}
-        setGitSyncPopoverOpen={setGitSyncPopoverOpen}
-        handleGitSyncAction={handleGitSyncAction}
-        recentWorkspaces={recentWorkspaces}
-        workspaceRootPath={workspaceRootPath}
-        openWorkspaceAtPath={openWorkspaceAtPath}
-        handleOpenWorkspace={handleOpenWorkspace}
-        removeRecentWorkspace={removeRecentWorkspace}
-        handleCreateAmytisWorkspace={handleCreateAmytisWorkspace}
-        handleCloneWorkspace={handleCloneWorkspace}
         flushPendingSave={flushPendingSave}
-        selectedFile={selectedFile}
-        wechatTitle={wechatTitle}
-        wechatAuthor={wechatAuthor}
-        authors={authors}
-        wechatDigest={wechatDigest}
-        wechatHasMath={wechatHasMath}
-        wechatImageCount={wechatImageCount}
-        wechatMarkdown={wechatMarkdown}
-        wechatBaseDir={wechatBaseDir}
-        assetRoot={assetRoot}
-        wechatCoverImagePath={wechatCoverImagePath}
-        wechatMediaId={wechatMediaId}
-        onWechatSuccess={(mediaId) => {
-          void handleFieldChange("wechatMediaId", mediaId);
+        git={{ gitUi, currentBranch, handlePush }}
+        workspace={{
+          recentWorkspaces,
+          workspaceRootPath,
+          openWorkspaceAtPath,
+          handleOpenWorkspace,
+          removeRecentWorkspace,
+          handleCreateAmytisWorkspace,
+          handleCloneWorkspace,
+          showToast,
         }}
-        handleNewFile={handleNewFile}
-        handleDuplicate={handleDuplicate}
-        handleNewFromExisting={handleNewFromExisting}
-        handleRename={handleRename}
-        collectionCandidatesFor={collectionCandidatesFor}
-        onAddCollectionItem={handleAddCollectionItem}
-        flatFiles={flatFiles}
-        recentFiles={recentFiles}
-        openFileByPath={openFileByPath}
-        commitDialog={commitDialog}
-        setCommitDialog={setCommitDialog}
-        handleCommitDialogCommit={handleCommitDialogCommit}
-        branchSwitcher={branchSwitcher}
-        currentBranch={currentBranch}
-        switchBranch={switchBranch}
-        checkoutRemoteBranch={checkoutRemoteBranch}
-        closeBranchSwitcher={closeBranchSwitcher}
-        setNewBranchDialogOpen={setNewBranchDialogOpen}
-        setRenameBranchDialog={setRenameBranchDialog}
-        setDeleteBranchDialog={setDeleteBranchDialog}
-        runGitAction={runGitAction}
-        handlePush={handlePush}
-        openRemote={openRemote}
-        copyRemoteUrl={copyRemoteUrl}
-        newBranchDialogOpen={newBranchDialogOpen}
-        createBranch={createBranch}
-        renameBranchDialog={renameBranchDialog}
-        renameBranch={renameBranch}
-        deleteBranchDialog={deleteBranchDialog}
-        deleteBranch={deleteBranch}
-        onGitCredentialsSubmit={handleGitCredentialsSubmit}
-        onGitCredentialsForget={handleForgetGitCredentials}
-        themePreference={themePreference}
-        setThemePreference={setPreference}
-        editorPrefs={prefs}
-        updateEditorPrefs={updatePrefs}
-        wordCountGoal={wordCountGoal}
-        setWordCountGoal={setWordCountGoal}
-        contentPrefs={contentPrefs}
-        updateContentPrefs={updateContentPrefs}
-        appPrefs={appPrefs}
-        updateAppPrefs={updateAppPrefs}
-        showToast={showToast}
+        files={{
+          handleNewFile,
+          handleDuplicate,
+          handleNewFromExisting,
+          handleRename,
+          collectionCandidatesFor,
+          onAddCollectionItem: handleAddCollectionItem,
+          flatFiles,
+          recentFiles,
+          openFileByPath,
+        }}
+        wechat={{
+          selectedFile,
+          parsedFrontmatter,
+          workspaceRootPath,
+          defaultAuthor: defaultAuthor ?? null,
+          pendingMarkdownRef,
+          lastSavedContentRef,
+          fileContent,
+          authors,
+          assetRoot,
+          onSuccess: (mediaId) => {
+            void handleFieldChange("wechatMediaId", mediaId);
+          },
+        }}
+        preferences={{
+          themePreference,
+          setThemePreference: setPreference,
+          editorPrefs: prefs,
+          updateEditorPrefs: updatePrefs,
+          wordCountGoal,
+          setWordCountGoal,
+          contentPrefs,
+          updateContentPrefs,
+          appPrefs,
+          updateAppPrefs,
+          showToast,
+        }}
       />
     </div>
   );
