@@ -114,7 +114,7 @@ Tech choices: **Tauri 2** (not Electron — smaller, faster, no Chromium), **Tip
 
 Aesthetic:
 - **Typora-style WYSIWYG** — markdown renders inline as you type; no split pane
-- **Typography-first** — Georgia serif for prose, generous line height, 680px max-width
+- **Typography-first** — Georgia serif for prose, generous line height, 760px max-width
 - **Minimal chrome** — sidebar collapses, no toolbar cluttering the editor
 - **Keyboard-first** — primary actions are prioritized for keyboard use; every action must have a keyboard path, mouse is optional
 

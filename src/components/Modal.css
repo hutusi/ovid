@@ -18,6 +18,8 @@
   position: absolute;
   inset: 0;
   background: var(--color-backdrop);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
   border: none;
   cursor: default;
 }
@@ -28,7 +30,9 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
+  box-shadow:
+    var(--shadow-md),
+    inset 0 1px 0 var(--panel-highlight);
   padding: 20px;
   display: flex;
   flex-direction: column;

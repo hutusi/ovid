@@ -336,6 +336,26 @@ lockstep. The two genuinely new preferences have their own hooks —
 
 ---
 
+## Visual design language
+
+The app's look is **"warm editorial paper"** ([ADR 0019](docs/adr/0019-warm-editorial-design-language.md)):
+a warm ivory/charcoal palette, warm ink, and a single contrast-tuned **copper**
+accent (`#A8612C` light / `#D08A4E` dark) that is AA-legible everywhere it is
+used — UI fills, icons, active states, prose links, and wiki-links — so no
+separate link accent is needed. All of this lives in the `global.css` token
+layer ([ADR 0005](docs/adr/0005-tailwind-first-design-tokens.md)): the `@theme`
+colours plus `:root` constants for warm umber shadows, softened radii, and two
+"material" tokens — `--texture-grain` (an inline SVG fractal-noise paper grain,
+no asset/dep) and `--panel-highlight` (the top inset edge that makes panels read
+as layered sheets). The grain is composited behind the writing canvas only
+(`multiply` on ivory, `screen` on charcoal) and never over inputs. Because the
+language is token-driven, the whole app recolours from the cascade; component
+CSS only adds the grain overlay, panel highlights, and two affordances (the
+active-tab copper indicator and the selected-file copper margin marker). The
+window-chrome geometry is unchanged — see [ADR 0013](docs/adr/0013-unified-window-chrome.md).
+
+---
+
 ## Cross-references
 
 - Operational guidance for AI agents: `CLAUDE.md`, `AGENTS.md`

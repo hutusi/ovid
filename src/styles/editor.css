@@ -1,6 +1,7 @@
 /* Tiptap / ProseMirror editor styles */
 
 .editor-wrapper {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -8,7 +9,24 @@
   background: var(--color-surface);
 }
 
+/* Faint paper grain on the writing canvas. Sits behind the scroll content
+   (never over text) and composites with the surface beneath via a per-theme
+   blend mode, so it reads as a subtle tooth in both light and dark. */
+.editor-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--texture-grain);
+  background-repeat: repeat;
+  opacity: var(--texture-grain-opacity);
+  mix-blend-mode: var(--texture-grain-blend);
+}
+
 .editor-scroll {
+  position: relative;
+  z-index: 1;
   flex: 1;
   overflow-y: auto;
   padding: 0 max(0px, calc((100% - 760px) / 2)) 48px;
@@ -36,20 +54,28 @@
 }
 
 .ProseMirror {
-  padding: 24px 32px 0;
+  padding: 32px 32px 0;
   font-family: var(--font-editor);
   font-size: var(--font-editor-size, 17px);
-  line-height: 1.75;
+  line-height: 1.78;
   color: var(--color-fg);
   outline: none;
   min-height: 100%;
+  /* Editorial typesetting — old-style numerals sit on the baseline like a
+     printed book, hanging punctuation keeps the left margin optically flush,
+     and legibility/kerning hints sharpen the serif on WebKit. */
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+  hanging-punctuation: first last;
 }
 
-/* Headings */
+/* Headings — tighter optical tracking at display sizes for an editorial feel */
 .ProseMirror h1 {
-  font-size: 2em;
+  font-size: 2.05em;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.22;
+  letter-spacing: -0.013em;
   margin-top: 1.5em;
   margin-bottom: 0.5em;
   color: var(--color-fg);
@@ -59,6 +85,7 @@
   font-size: 1.5em;
   font-weight: 600;
   line-height: 1.3;
+  letter-spacing: -0.008em;
   margin-top: 1.4em;
   margin-bottom: 0.4em;
 }
@@ -67,6 +94,7 @@
   font-size: 1.2em;
   font-weight: 600;
   line-height: 1.35;
+  letter-spacing: -0.004em;
   margin-top: 1.3em;
   margin-bottom: 0.35em;
 }
@@ -204,10 +232,10 @@
   padding-top: 12px;
 }
 
-/* Blockquote */
+/* Blockquote — a copper-tinted editorial rule */
 .ProseMirror blockquote {
-  border-left: 3px solid var(--color-border-strong);
-  padding-left: 1em;
+  border-left: 3px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-border-strong));
+  padding-left: 1.1em;
   margin: 1.2em 0;
   color: var(--color-fg-muted);
   font-style: italic;
@@ -286,7 +314,14 @@
 .ProseMirror a {
   color: var(--color-accent);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+  text-underline-offset: 0.15em;
+  transition: text-decoration-color var(--duration-fast) var(--ease-out);
+}
+
+.ProseMirror a:hover {
+  text-decoration-color: var(--color-accent);
 }
 
 /* Images */
