@@ -379,9 +379,11 @@ In the properties panel, click the **DRAFT** badge to toggle `draft: true/false`
 
 ---
 
-## Dark mode
+## Look & feel
 
-Follows the system preference by default. Toggle manually with the moon/sun icon in the status bar. The preference is persisted across sessions.
+Ovid wears a **warm editorial "paper"** design: a warm ivory canvas (charcoal in dark mode), a copper accent, a faint paper grain on the writing surface, and soft umber shadows — a calm, bookish frame for the serif prose.
+
+Both themes follow the system preference by default; toggle manually with the moon/sun icon in the status bar. The preference is persisted across sessions.
 
 ---
 
