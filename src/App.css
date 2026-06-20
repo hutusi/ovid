@@ -32,7 +32,9 @@
   flex-shrink: 0;
   height: var(--topbar-height);
   background: var(--color-surface-subtle);
-  box-shadow: inset 0 -1px 0 var(--color-border);
+  box-shadow:
+    inset 0 1px 0 var(--panel-highlight),
+    inset 0 -1px 0 var(--color-border);
 }
 
 /* macOS-only: reserve clearance for the traffic lights overlay at

@@ -149,7 +149,7 @@
   font-weight: 600;
   color: var(--color-fg-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   border: none;
   background: transparent;
   border-radius: var(--radius-xs);
@@ -373,11 +373,27 @@
 
 /* ── File rows ───────────────────────────────── */
 .sidebar-file-row {
+  position: relative;
   display: flex;
   align-items: center;
   padding-right: 6px;
   border-radius: var(--radius-sm);
   transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+/* A copper margin marker that grows in on the selected file — a quiet
+   editorial affordance pinned to the sidebar's left edge. */
+.sidebar-file-row::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2.5px;
+  height: 0;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  background: var(--color-accent);
+  transition: height var(--duration-base) var(--ease-out);
 }
 
 .sidebar-file-row:hover {
@@ -386,6 +402,10 @@
 
 .sidebar-file-row.selected {
   background: var(--color-surface-active);
+}
+
+.sidebar-file-row.selected::before {
+  height: 58%;
 }
 
 .sidebar-file {
@@ -493,7 +513,7 @@
   margin-top: 6px;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-fg-muted);
 }
