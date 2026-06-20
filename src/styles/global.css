@@ -8,46 +8,51 @@
    utility classes from @theme (e.g. bg-surface, text-fg, border-border).
    ───────────────────────────────────────────────────────────────────────── */
 @theme {
+  /* ── Warm editorial paper — light ─────────────────────────────────────────
+     Warm ivory canvas, soft-sand panels, warm ink, copper accent. The accent
+     is a contrast-tuned copper (#A8612C ≈ 4.5:1 on the ivory surface and on
+     white-on-copper buttons) so it reads as AA text everywhere it is used. */
+
   /* Surfaces */
-  --color-surface: #fafafa;
-  --color-surface-subtle: #f4f4f5;
-  --color-surface-hover: #ebebec;
-  --color-surface-active: #e4e4e7;
+  --color-surface: #fbfaf7;
+  --color-surface-subtle: #f3f1ea;
+  --color-surface-hover: #ece9e0;
+  --color-surface-active: #e2ddd1;
 
-  /* Borders */
-  --color-border: #e4e4e7;
-  --color-border-strong: #d4d4d8;
+  /* Borders — warm hairlines */
+  --color-border: #e6e1d6;
+  --color-border-strong: #d3cdbe;
 
-  /* Foreground */
-  --color-fg: #18181b;
-  --color-fg-muted: #71717a;
-  --color-fg-subtle: #a1a1aa;
+  /* Foreground — warm ink */
+  --color-fg: #1f1d18;
+  --color-fg-muted: #6b665c;
+  --color-fg-subtle: #9c968a;
 
-  /* Accent (brand) */
-  --color-accent: #6366f1;
-  --color-accent-subtle: rgba(99, 102, 241, 0.12);
+  /* Accent (brand) — copper */
+  --color-accent: #a8612c;
+  --color-accent-subtle: rgba(168, 97, 44, 0.12);
 
-  /* Wiki links */
-  --color-wiki-link: #6366f1;
-  --color-wiki-link-unresolved: #a1a1aa;
+  /* Wiki links — follow the copper accent */
+  --color-wiki-link: #a8612c;
+  --color-wiki-link-unresolved: #9c968a;
 
-  /* Status */
-  --color-warning: #f59e0b;
-  --color-warning-subtle: rgba(245, 158, 11, 0.12);
-  --color-success: #22c55e;
-  --color-error: #c0392b;
-  --color-danger: #e53e3e;
+  /* Status — warmed to sit on the paper palette */
+  --color-warning: #b5730a;
+  --color-warning-subtle: rgba(181, 115, 10, 0.14);
+  --color-success: #2e9e5a;
+  --color-error: #b23a2b;
+  --color-danger: #c0392b;
 
-  /* Modal/overlay backdrop (theme-aware via dark override below) */
-  --color-backdrop: rgba(0, 0, 0, 0.3);
+  /* Modal/overlay backdrop — warm-tinted (theme-aware via dark override) */
+  --color-backdrop: rgba(40, 32, 20, 0.28);
 
-  /* Syntax highlighting */
-  --color-syntax-comment: #a1a1aa;
-  --color-syntax-keyword: #6366f1;
-  --color-syntax-string: #16a34a;
-  --color-syntax-meta: #d97706;
-  --color-syntax-attr: #7c3aed;
-  --color-syntax-number: #ea580c;
+  /* Syntax highlighting — warm-harmonised with one cool counter-tone (attr) */
+  --color-syntax-comment: #9c968a;
+  --color-syntax-keyword: #9a4f2c;
+  --color-syntax-string: #5c7a3a;
+  --color-syntax-meta: #b0740f;
+  --color-syntax-attr: #7a5ca8;
+  --color-syntax-number: #bc5a2a;
 
   /* Fonts */
   --font-ui: system-ui, -apple-system, sans-serif;
@@ -55,40 +60,40 @@
   --font-mono: "Fira Code", "JetBrains Mono", monospace;
 }
 
-/* ── Dark mode overrides ──────────────────────────────────────────────────── */
+/* ── Dark mode overrides — warm charcoal ──────────────────────────────────── */
 [data-theme="dark"] {
-  --color-surface: #1c1c1e;
-  --color-surface-subtle: #161618;
-  --color-surface-hover: #2c2c2e;
-  --color-surface-active: #3a3a3c;
+  --color-surface: #1a1916;
+  --color-surface-subtle: #131210;
+  --color-surface-hover: #26241f;
+  --color-surface-active: #322f28;
 
-  --color-border: #3a3a3c;
-  --color-border-strong: #48484a;
+  --color-border: #322f28;
+  --color-border-strong: #423e35;
 
-  --color-fg: #f2f2f7;
-  --color-fg-muted: #aeaeb2;
-  --color-fg-subtle: #636366;
+  --color-fg: #ece7dd;
+  --color-fg-muted: #a8a296;
+  --color-fg-subtle: #6e685c;
 
-  --color-accent: #7c7fff;
-  --color-accent-subtle: rgba(124, 127, 255, 0.15);
+  --color-accent: #d08a4e;
+  --color-accent-subtle: rgba(208, 138, 78, 0.16);
 
-  --color-wiki-link: #a5b4fc;
-  --color-wiki-link-unresolved: #636366;
+  --color-wiki-link: #e0a878;
+  --color-wiki-link-unresolved: #6e685c;
 
-  --color-warning: #fbbf24;
-  --color-warning-subtle: rgba(251, 191, 36, 0.15);
-  --color-success: #4ade80;
-  --color-error: #e55347;
-  --color-danger: #fc6767;
+  --color-warning: #f0b429;
+  --color-warning-subtle: rgba(240, 180, 41, 0.16);
+  --color-success: #5cc985;
+  --color-error: #e5675a;
+  --color-danger: #f0766a;
 
-  --color-syntax-comment: #636366;
-  --color-syntax-keyword: #a5b4fc;
-  --color-syntax-string: #86efac;
-  --color-syntax-meta: #fcd34d;
-  --color-syntax-attr: #a78bfa;
-  --color-syntax-number: #fb923c;
+  --color-syntax-comment: #6e685c;
+  --color-syntax-keyword: #e0a07a;
+  --color-syntax-string: #a3c586;
+  --color-syntax-meta: #f0c674;
+  --color-syntax-attr: #c0a8e0;
+  --color-syntax-number: #e89b6c;
 
-  --color-backdrop: rgba(0, 0, 0, 0.55);
+  --color-backdrop: rgba(0, 0, 0, 0.6);
 }
 
 /* ── Constants (not in @theme — would conflict with Tailwind defaults) ──── */
@@ -108,20 +113,21 @@
   --topbar-height: 36px;
   --mac-traffic-light-gutter: 78px;
 
-  /* Shadows (theme-aware via dark :root override below) */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.16), 0 4px 12px rgba(0, 0, 0, 0.08);
+  /* Shadows — warm-tinted (umber, not pure black) for a soft paper feel;
+     theme-aware via the dark :root override below. */
+  --shadow-xs: 0 1px 2px rgba(54, 44, 28, 0.07);
+  --shadow-sm: 0 2px 8px rgba(54, 44, 28, 0.1);
+  --shadow-md: 0 8px 24px rgba(54, 44, 28, 0.14), 0 2px 6px rgba(54, 44, 28, 0.08);
+  --shadow-lg: 0 16px 40px rgba(54, 44, 28, 0.18), 0 4px 12px rgba(54, 44, 28, 0.1);
   /* Legacy alias — kept while consumers migrate (see C2). */
-  --shadow-tooltip: rgba(0, 0, 0, 0.12);
+  --shadow-tooltip: rgba(54, 44, 28, 0.14);
 
-  /* Radii */
+  /* Radii — gently softened for a bookish geometry */
   --radius-xs: 3px;
   --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
+  --radius-md: 7px;
+  --radius-lg: 9px;
+  --radius-xl: 12px;
   --radius-pill: 999px;
 
   /* Motion */
