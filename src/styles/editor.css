@@ -1,6 +1,7 @@
 /* Tiptap / ProseMirror editor styles */
 
 .editor-wrapper {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -8,7 +9,24 @@
   background: var(--color-surface);
 }
 
+/* Faint paper grain on the writing canvas. Sits behind the scroll content
+   (never over text) and composites with the surface beneath via a per-theme
+   blend mode, so it reads as a subtle tooth in both light and dark. */
+.editor-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--texture-grain);
+  background-repeat: repeat;
+  opacity: var(--texture-grain-opacity);
+  mix-blend-mode: var(--texture-grain-blend);
+}
+
 .editor-scroll {
+  position: relative;
+  z-index: 1;
   flex: 1;
   overflow-y: auto;
   padding: 0 max(0px, calc((100% - 760px) / 2)) 48px;

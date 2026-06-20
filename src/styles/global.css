@@ -137,6 +137,14 @@
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
 
+  /* Texture & material — a faint paper grain (inline SVG fractal noise, no
+     asset/dep) layered onto the editor canvas, plus a top inset highlight that
+     gives panels a sheet-of-paper edge. Tuned per theme below. */
+  --texture-grain: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='140'%20height='140'%3E%3Cfilter%20id='g'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='0.9'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3C/filter%3E%3Crect%20width='140'%20height='140'%20filter='url(%23g)'/%3E%3C/svg%3E");
+  --texture-grain-opacity: 0.55;
+  --texture-grain-blend: multiply;
+  --panel-highlight: rgba(255, 255, 255, 0.55);
+
   font-family: var(--font-ui);
   font-size: 14px;
   color: var(--color-fg);
@@ -154,6 +162,12 @@
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
   --shadow-tooltip: rgba(0, 0, 0, 0.28);
+
+  /* On charcoal the grain reads as a faint light tooth (screen), and the panel
+     edge highlight is a barely-there warm-white. */
+  --texture-grain-opacity: 0.16;
+  --texture-grain-blend: screen;
+  --panel-highlight: rgba(255, 255, 255, 0.045);
 }
 
 @media (prefers-reduced-motion: reduce) {
