@@ -10,8 +10,9 @@ use super::args::{
     git_push_args, git_rename_branch_args,
 };
 use super::classify::{
-    classify_git_branch_delete_error, classify_git_fetch_error, classify_git_pull_error,
-    classify_git_push_error, AUTH_REQUIRED_PREFIX,
+    classify_git_branch_delete_error, classify_git_create_branch_error, classify_git_fetch_error,
+    classify_git_pull_error, classify_git_push_error, classify_git_rename_branch_error,
+    classify_git_switch_branch_error, AUTH_REQUIRED_PREFIX,
 };
 use super::creds::{
     forget_host_credentials, get_host_credentials, git_creds_path, save_host_credentials,
@@ -425,7 +426,8 @@ pub(crate) fn git_has_credentials_for_host(
 pub(crate) async fn git_switch_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
     run_blocking_git(move || {
-        run_git(&git_root, &["switch", "--", &branch])?;
+        run_git(&git_root, &["switch", "--", &branch])
+            .map_err(|err| classify_git_switch_branch_error(&err))?;
         Ok(())
     })
     .await
@@ -442,7 +444,7 @@ pub(crate) async fn git_create_branch(branch: String, state: State<'_, Workspace
     run_blocking_git(move || {
         let args = git_create_branch_args(&branch_name);
         let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-        run_git(&git_root, &arg_refs)?;
+        run_git(&git_root, &arg_refs).map_err(|err| classify_git_create_branch_error(&err))?;
         Ok(())
     })
     .await
@@ -459,7 +461,7 @@ pub(crate) async fn git_rename_branch(
     run_blocking_git(move || {
         let args = git_rename_branch_args(&old_branch, &new_branch);
         let arg_refs = args.iter().map(String::as_str).collect::<Vec<_>>();
-        run_git(&git_root, &arg_refs)?;
+        run_git(&git_root, &arg_refs).map_err(|err| classify_git_rename_branch_error(&err))?;
         Ok(())
     })
     .await

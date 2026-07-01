@@ -285,12 +285,12 @@ The `Overlay` kinds:
 | `wechatPublish` | — | yes |
 | `shortcutsHelp` | — | yes |
 | `preferences` | — | yes |
-| `commit` | `useGitUiController` | yes |
-| `branchSwitcher` | `useGitUiController` | yes |
+| `commit` | `useGitCommitFlow` | yes |
+| `branchSwitcher` | `useGitBranchActions` | yes |
 | `newBranch` | — | yes |
-| `renameBranch` | `useGitUiController` | yes |
-| `deleteBranch` | `useGitUiController` | yes |
-| `gitCredentials` | `useGitUiController` | yes |
+| `renameBranch` | `useGitBranchActions` | yes |
+| `deleteBranch` | `useGitBranchActions` | yes |
+| `gitCredentials` | `useGitCredentialsRetry` | yes |
 | `gitSyncPopover` | — | **no** (transient, status-bar anchored) |
 | `notifications` | — | **no** (transient, status-bar anchored) |
 
@@ -299,8 +299,8 @@ The `Overlay` kinds:
 added to `NON_BLOCKING_KINDS`.
 
 **Separation of visibility from payload.** The overlay stack owns visibility.
-Hooks like `useGitUiController` still own the *data* a dialog needs (commit
-changes, branch lists) — they just call `overlay.open({ kind, state })`
+Git-domain hooks still own the *data* a dialog needs (commit changes, branch
+lists) — they just call `overlay.open({ kind, state })`
 instead of storing a separate `isOpen` boolean.
 
 **Consumers.**

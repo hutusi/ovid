@@ -5,6 +5,7 @@ import markdownit from "markdown-it";
 import { Markdown } from "tiptap-markdown";
 import { registerHappyDom, unregisterHappyDom } from "../../../scripts/test-setup";
 import { IMEComposition } from "./IMEComposition";
+import { getMarkdownStorage } from "./markdownStorage";
 import { registerWikiLinkMarkdownItRule, WikiLink, wikiLinkSuggestionKey } from "./WikiLink";
 
 beforeAll(registerHappyDom);
@@ -26,8 +27,7 @@ function makeEditor(opts: { content?: string } = {}) {
 }
 
 function getMarkdown(editor: Editor): string {
-  // biome-ignore lint/suspicious/noExplicitAny: tiptap-markdown storage has no public type.
-  return (editor.storage as any).markdown.getMarkdown();
+  return getMarkdownStorage(editor).getMarkdown();
 }
 
 interface WikiLinkAttrs {

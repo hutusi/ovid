@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { getJSON, setJSON } from "./safeLocalStorage";
 import type { RecentWorkspace } from "./types";
 
 const MAX_WORKSPACES = 5;
@@ -14,23 +15,13 @@ function isValidWorkspace(item: unknown): item is RecentWorkspace {
 }
 
 function loadWorkspaces(): RecentWorkspace[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidWorkspace).slice(0, MAX_WORKSPACES);
-  } catch {
-    return [];
-  }
+  const parsed = getJSON<unknown>(STORAGE_KEY, []);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(isValidWorkspace).slice(0, MAX_WORKSPACES);
 }
 
 function saveWorkspaces(workspaces: RecentWorkspace[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(workspaces));
-  } catch {
-    // localStorage quota exceeded — silently ignore
-  }
+  setJSON(STORAGE_KEY, workspaces);
 }
 
 export function useRecentWorkspaces() {

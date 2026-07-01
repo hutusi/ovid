@@ -4,7 +4,9 @@ use std::sync::Mutex;
 use tauri::menu::{
     CheckMenuItemBuilder, MenuItemBuilder, MenuItemKind, PredefinedMenuItem, SubmenuBuilder,
 };
-use tauri::State;
+use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
 
 // Holds translated strings for the About dialog (non-macOS only).
 pub(crate) struct AboutState {
@@ -281,6 +283,52 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
     )
 }
 
+/// Registers the native menu-event handler on `app`. Help/about ids are
+/// handled here directly (dialog / external URL); everything else is
+/// forwarded to the frontend as a "menu-action" event. Called once from
+/// `lib.rs`'s setup hook, right after the menu itself is built.
+pub(crate) fn register_menu_event_handler(app: &tauri::App) {
+    let handle = app.handle().clone();
+    app.on_menu_event(move |_app, event| {
+        dispatch_menu_event(&handle, event.id().as_ref());
+    });
+}
+
+fn dispatch_menu_event(handle: &AppHandle, id: &str) {
+    match id {
+        "about" => {
+            let about: State<'_, AboutState> = handle.state();
+            let (Ok(title), Ok(body_template)) = (
+                about.title.lock().map(|g| g.clone()),
+                about.body_template.lock().map(|g| g.clone()),
+            ) else {
+                return;
+            };
+            let version = handle.package_info().version.to_string();
+            let _ = handle
+                .dialog()
+                .message(format!("Ovid {version}\n\n{body_template}"))
+                .title(title)
+                .blocking_show();
+        }
+        "help-docs" => {
+            let _ = handle
+                .opener()
+                .open_url("https://github.com/hutusi/ovid", None::<&str>);
+        }
+        "help-issues" => {
+            let _ = handle
+                .opener()
+                .open_url("https://github.com/hutusi/ovid/issues", None::<&str>);
+        }
+        id => {
+            if let Some(window) = handle.get_webview_window("main") {
+                let _ = window.emit("menu-action", id);
+            }
+        }
+    }
+}
+
 pub(crate) fn initial_menu_labels() -> HashMap<String, String> {
     const EN: &str = include_str!("../../src/locales/en.json");
     const ZH_CN: &str = include_str!("../../src/locales/zh-CN.json");
@@ -372,6 +420,7 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
             "file_wechat_copy_math_warning",
             "Copied for WeChat (math blocks removed \u{2014} WeChat cannot render LaTeX)",
         ),
+        ("file_wechat_copy_failed", "Failed to copy for WeChat: {{message}}"),
         ("help_check_updates", "Check for Updates\u{2026}"),
         ("help_shortcuts", "Keyboard Shortcuts"),
         ("help_docs", "Ovid Documentation"),

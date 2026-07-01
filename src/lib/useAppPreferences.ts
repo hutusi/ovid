@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { getItem, setJSON } from "./safeLocalStorage";
 
 export interface AppPreferences {
   /** Reopen the last workspace and its tabs on launch. */
@@ -29,11 +30,7 @@ export function parseAppPreferences(raw: string | null): AppPreferences {
 }
 
 function load(): AppPreferences {
-  try {
-    return parseAppPreferences(localStorage.getItem(STORAGE_KEY));
-  } catch {
-    return DEFAULT_PREFS;
-  }
+  return parseAppPreferences(getItem(STORAGE_KEY));
 }
 
 export function useAppPreferences() {
@@ -42,11 +39,7 @@ export function useAppPreferences() {
   const updatePrefs = useCallback((updates: Partial<AppPreferences>) => {
     setPrefs((prev) => {
       const next = { ...prev, ...updates };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      setJSON(STORAGE_KEY, next);
       return next;
     });
   }, []);

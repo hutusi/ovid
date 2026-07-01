@@ -514,6 +514,7 @@
     "file_wechat_copy_success": "Copied for WeChat",
     "file_wechat_copy_math_warning": "Copied for WeChat (math blocks removed — WeChat cannot render LaTeX)",
     "file_wechat_copy_no_content": "No content to copy",
+    "file_wechat_copy_failed": "Failed to copy for WeChat: {{message}}",
     "edit_find_in_workspace": "Find in Workspace\u2026",
     "edit_find": "Find\u2026",
     "edit_find_replace": "Find & Replace\u2026",
@@ -713,7 +714,8 @@
     "git_create_branch_failed": "Create branch failed: {{message}}",
     "git_checkout_failed": "Checkout branch failed: {{message}}",
     "git_rename_branch_failed": "Rename branch failed: {{message}}",
-    "git_delete_branch_failed": "Delete branch failed: {{message}}"
+    "git_delete_branch_failed": "Delete branch failed: {{message}}",
+    "git_forget_credentials_failed": "Failed to forget credentials: {{message}}"
   },
   "confirm": {
     "delete_title": "Delete",

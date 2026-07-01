@@ -2,11 +2,11 @@ import { useCallback, useMemo, useState } from "react";
 import type { ModalState } from "./types";
 import type {
   BranchSwitcherState,
-  CommitDialogState,
   DeleteBranchDialogState,
-  GitCredentialsDialogState,
   RenameBranchDialogState,
-} from "./useGitUiController";
+} from "./useGitBranchActions";
+import type { CommitDialogState } from "./useGitCommitFlow";
+import type { GitCredentialsDialogState } from "./useGitCredentialsRetry";
 
 // One source of truth for "what overlay is on top of the editor right now."
 // Replaces the 12+ independent visibility flags that were previously spread

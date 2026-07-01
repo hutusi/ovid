@@ -98,6 +98,38 @@ pub(crate) fn classify_git_branch_delete_error(stderr: &str) -> String {
     stderr.to_string()
 }
 
+pub(crate) fn classify_git_switch_branch_error(stderr: &str) -> String {
+    let lower = stderr.to_lowercase();
+    if lower.contains("invalid reference") {
+        return "Switch failed because that branch no longer exists. Refresh and try again."
+            .to_string();
+    }
+    if lower.contains("would be overwritten by checkout") {
+        return "Switch blocked by local changes. Commit, stash, or discard changes first."
+            .to_string();
+    }
+    stderr.to_string()
+}
+
+pub(crate) fn classify_git_create_branch_error(stderr: &str) -> String {
+    let lower = stderr.to_lowercase();
+    if lower.contains("already exists") {
+        return "Create failed because a branch with that name already exists.".to_string();
+    }
+    if lower.contains("not a valid branch name") {
+        return "Create failed because that name isn't a valid branch name.".to_string();
+    }
+    stderr.to_string()
+}
+
+pub(crate) fn classify_git_rename_branch_error(stderr: &str) -> String {
+    let lower = stderr.to_lowercase();
+    if lower.contains("already exists") {
+        return "Rename failed because a branch with that name already exists.".to_string();
+    }
+    stderr.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,5 +250,65 @@ mod tests {
             classify_git_branch_delete_error(stderr),
             "Delete stopped because the branch has unmerged commits. Merge it first or use Git CLI to force delete."
         );
+    }
+
+    // Sample stderr for the following tests was captured from real git runs,
+    // not guessed — see the commit message for the exact commands used.
+
+    #[test]
+    fn classify_git_switch_branch_error_detects_missing_branch() {
+        let stderr = "fatal: invalid reference: does-not-exist";
+        assert_eq!(
+            classify_git_switch_branch_error(stderr),
+            "Switch failed because that branch no longer exists. Refresh and try again."
+        );
+    }
+
+    #[test]
+    fn classify_git_switch_branch_error_detects_local_changes_blocking_switch() {
+        let stderr = "error: Your local changes to the following files would be overwritten by checkout:\n\ttracked.txt\nPlease commit your changes or stash them before you switch branches.\nAborting";
+        assert_eq!(
+            classify_git_switch_branch_error(stderr),
+            "Switch blocked by local changes. Commit, stash, or discard changes first."
+        );
+    }
+
+    #[test]
+    fn classify_git_switch_branch_error_falls_back_to_raw_stderr() {
+        let stderr = "fatal: some unrecognized failure";
+        assert_eq!(classify_git_switch_branch_error(stderr), stderr);
+    }
+
+    #[test]
+    fn classify_git_create_branch_error_detects_existing_branch() {
+        let stderr = "fatal: a branch named 'existing-branch' already exists";
+        assert_eq!(
+            classify_git_create_branch_error(stderr),
+            "Create failed because a branch with that name already exists."
+        );
+    }
+
+    #[test]
+    fn classify_git_create_branch_error_detects_invalid_name() {
+        let stderr = "fatal: '-foo' is not a valid branch name";
+        assert_eq!(
+            classify_git_create_branch_error(stderr),
+            "Create failed because that name isn't a valid branch name."
+        );
+    }
+
+    #[test]
+    fn classify_git_rename_branch_error_detects_existing_branch() {
+        let stderr = "fatal: a branch named 'existing-branch' already exists";
+        assert_eq!(
+            classify_git_rename_branch_error(stderr),
+            "Rename failed because a branch with that name already exists."
+        );
+    }
+
+    #[test]
+    fn classify_git_rename_branch_error_falls_back_to_raw_stderr() {
+        let stderr = "fatal: some unrecognized failure";
+        assert_eq!(classify_git_rename_branch_error(stderr), stderr);
     }
 }

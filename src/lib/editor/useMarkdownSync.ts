@@ -1,6 +1,7 @@
 import type { Editor } from "@tiptap/core";
 import { useCallback, useEffect, useRef } from "react";
 import { measureSync } from "../perf";
+import { getMarkdownStorage } from "../tiptap/markdownStorage";
 
 const MARKDOWN_SERIALIZE_DELAY_MS = 150;
 
@@ -23,8 +24,7 @@ export function useMarkdownSync({ onChange, registerPendingFlush }: UseMarkdownS
     (editorInstance: Editor) =>
       measureSync(
         "editor.markdownSerialize",
-        // biome-ignore lint/suspicious/noExplicitAny: tiptap-markdown storage has no public type
-        () => (editorInstance.storage as any).markdown.getMarkdown() as string,
+        () => getMarkdownStorage(editorInstance).getMarkdown(),
         {
           docSize: editorInstance.state.doc.content.size,
         }

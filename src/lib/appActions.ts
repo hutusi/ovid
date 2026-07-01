@@ -113,7 +113,8 @@ async function runWechatCopy(ctx: AppActionCtx): Promise<void> {
     try {
       await navigator.clipboard.writeText(html);
     } catch (fallbackErr) {
-      ctx.showToast(String(fallbackErr));
+      const message = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+      ctx.showToast(ctx.t("menu.file_wechat_copy_failed", { message }));
       return;
     }
   }

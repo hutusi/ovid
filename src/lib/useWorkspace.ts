@@ -13,6 +13,7 @@ import { commands } from "./commands";
 import type { Author } from "./commands/generated/Author";
 import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import type { I18nConfig } from "./commands/generated/I18nConfig";
+import type { WorkspaceResult as GeneratedWorkspaceResult } from "./commands/generated/WorkspaceResult";
 import { type FlatFile, flattenTree } from "./fileSearch";
 import { createTodayFlowFrontmatter } from "./frontmatter";
 import { measureAsync } from "./perf";
@@ -22,20 +23,12 @@ import { forContentMode } from "./sidebarUtils";
 import type { FileNode } from "./types";
 import type { ContentPreferences } from "./useContentPreferences";
 
-interface WorkspaceResult {
-  name: string;
-  rootPath: string;
-  treeRoot: string;
-  assetRoot: string;
-  tree: FileNode[];
-  isAmytisWorkspace: boolean;
-  cdnBase?: string;
-  defaultAuthor?: string;
-  postsBasePath?: string;
-  features?: FeatureBucket[];
-  authors?: Author[];
-  i18n?: I18nConfig;
-}
+// Same as the generated (Rust-sourced) WorkspaceResult, except `tree` is
+// re-typed to the frontend's own FileNode (./types) — the sidebar projections'
+// richer shape, not the wire-format one. Deriving the rest from the generated
+// type (rather than redeclaring it) means a real backend field change shows
+// up here as a compile error instead of silently drifting.
+type WorkspaceResult = Omit<GeneratedWorkspaceResult, "tree"> & { tree: FileNode[] };
 
 interface UseWorkspaceOptions {
   showToast: (msg: string) => void;

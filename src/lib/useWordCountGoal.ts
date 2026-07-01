@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { getItem, removeItem, setItem } from "./safeLocalStorage";
 
 const STORAGE_KEY = "ovid:wordCountGoal";
 
@@ -21,11 +22,7 @@ export function normalizeGoal(n: number | null): number | null {
 }
 
 function loadGoal(): number | null {
-  try {
-    return parseGoal(localStorage.getItem(STORAGE_KEY));
-  } catch {
-    return null;
-  }
+  return parseGoal(getItem(STORAGE_KEY));
 }
 
 export function useWordCountGoal() {
@@ -34,14 +31,10 @@ export function useWordCountGoal() {
   const setGoal = useCallback((n: number | null) => {
     const normalized = normalizeGoal(n);
     setGoalState(normalized);
-    try {
-      if (normalized === null) {
-        localStorage.removeItem(STORAGE_KEY);
-      } else {
-        localStorage.setItem(STORAGE_KEY, String(normalized));
-      }
-    } catch {
-      // ignore
+    if (normalized === null) {
+      removeItem(STORAGE_KEY);
+    } else {
+      setItem(STORAGE_KEY, String(normalized));
     }
   }, []);
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { measureSync } from "./perf";
+import { getItem, setJSON } from "./safeLocalStorage";
 import {
   buildExpandedStorageKey,
   findAncestorPaths,
@@ -64,7 +65,7 @@ export function useSidebarExpansion({
   // Load persisted expansion state when the workspace changes.
   useEffect(() => {
     expandedStorageKeyRef.current = expandedStorageKey;
-    const stored = localStorage.getItem(expandedStorageKey);
+    const stored = getItem(expandedStorageKey);
     const next = parseExpandedPaths(stored);
     setExpandedPaths(next.expandedPaths);
     setIsLoaded(true);
@@ -74,7 +75,7 @@ export function useSidebarExpansion({
   // overwrite the stored state with `{}` on first mount.
   useEffect(() => {
     if (!isLoaded) return;
-    localStorage.setItem(expandedStorageKeyRef.current, JSON.stringify(expandedPaths));
+    setJSON(expandedStorageKeyRef.current, expandedPaths);
   }, [expandedPaths, isLoaded]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: selectedPath is intentionally included so sibling-file navigation (same ancestorKey, different path) re-triggers ancestor expansion

@@ -209,7 +209,7 @@ When compressing conversation history, preserve in priority order:
 ## Reference Docs
 
 - [CONTEXT.md](./CONTEXT.md) — domain vocabulary & architectural seams (the *concepts* behind the code); update it in the same PR when a concept changes
-- `docs/adr/` — architectural decision records (0001–0013)
+- `docs/adr/` — architectural decision records (see the directory for the full, current list)
 - [ROADMAP.md](./ROADMAP.md) — phased plan; complete the current phase before starting the next
 - [AGENTS.md](./AGENTS.md) — sibling guidance file with overlapping conventions; keep the two in sync if either changes
 - `docs/shortcuts.md` — full keyboard shortcut reference (kept in sync with `src/lib/shortcuts.ts`)
