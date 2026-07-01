@@ -21,10 +21,10 @@ This roadmap is organized into deliberate phases — each phase must feel comple
 ## ✅ Phase 1 — Core UX Polish
 > Goal: make what exists feel complete and intentional. No new features until these feel right.
 
-6. ✅ **Sidebar collapse** (`Cmd+\`) — toggle sidebar visibility to maximize writing space; animate width; remember state across sessions
+6. ✅ **Sidebar collapse** (`Cmd+Shift+L`) — toggle sidebar visibility to maximize writing space; animate width; remember state across sessions
 7. ✅ **Directory expand/collapse** — sidebar directories currently show all children always; add click-to-toggle with chevron; persist expanded state per workspace
 8. ✅ **Keyboard shortcuts** — register global shortcuts:
-   - `Cmd+\` — toggle sidebar
+   - `Cmd+Shift+L` — toggle sidebar
    - `Cmd+Shift+P` — toggle properties panel
    - `Cmd+S` — force-save immediately (bypass debounce)
    - `Cmd+W` — close current file (return to blank state)

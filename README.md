@@ -79,7 +79,7 @@ Most-used:
 | `Cmd+H` | Find & replace |
 | `Cmd+Shift+F` | Full-text search (workspace) |
 | `Cmd+Shift+P` | Toggle properties panel |
-| `Cmd+\` | Toggle sidebar |
+| `Cmd+Shift+L` | Toggle sidebar |
 | `Cmd+N` | New file |
 | `Cmd+S` | Save (force, bypass debounce) |
 | `Cmd+W` | Close current file or tab |
@@ -144,7 +144,7 @@ Press `Cmd+Shift+O` or click the workspace name at the top of the sidebar to ope
 
 The sidebar shows the full file tree of the current workspace, filtered to `.md` / `.mdx` files.
 
-- **Toggle** — `Cmd+\` hides/shows the sidebar; state is remembered across sessions
+- **Toggle** — `Cmd+Shift+L` hides/shows the sidebar; state is remembered across sessions
 - **Resize** — drag the right border to resize between 180 px and 480 px; width is persisted across sessions
 - **Directory expand/collapse** — click a directory to toggle; folder icon changes between open/closed state
 - **Filter** — click the 🔍 icon next to the workspace name to reveal the filter input; type to narrow the file list by filename or frontmatter `title` in real time; press `Esc` once to clear, again to collapse the input (or click the 🔍 icon to close and clear in one step)
