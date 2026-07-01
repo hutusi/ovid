@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getJSON, removeItem, setJSON } from "./safeLocalStorage";
 import type { FileNode, RecentFile } from "./types";
 
 export type { RecentFile };
@@ -7,20 +8,11 @@ const MAX_RECENT = 10;
 export const STORAGE_KEY = "ovid:recentFiles";
 
 function loadRecent(workspaceRoot: string): RecentFile[] {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_KEY}:${workspaceRoot}`);
-    return raw ? (JSON.parse(raw) as RecentFile[]) : [];
-  } catch {
-    return [];
-  }
+  return getJSON<RecentFile[]>(`${STORAGE_KEY}:${workspaceRoot}`, []);
 }
 
 function saveRecent(workspaceRoot: string, files: RecentFile[]): void {
-  try {
-    localStorage.setItem(`${STORAGE_KEY}:${workspaceRoot}`, JSON.stringify(files));
-  } catch {
-    // localStorage quota exceeded — silently ignore
-  }
+  setJSON(`${STORAGE_KEY}:${workspaceRoot}`, files);
 }
 
 export function rewriteRecentPaths(
@@ -121,11 +113,7 @@ export function useRecentFiles(workspaceRoot: string | null) {
   const clearRecent = useCallback(() => {
     if (!workspaceRoot) return;
     setRecentFiles([]);
-    try {
-      localStorage.removeItem(`${STORAGE_KEY}:${workspaceRoot}`);
-    } catch {
-      // storage-restricted environments — silently ignore
-    }
+    removeItem(`${STORAGE_KEY}:${workspaceRoot}`);
   }, [workspaceRoot]);
 
   return { recentFiles, pushRecent, renameRecent, removeRecent, clearRecent };

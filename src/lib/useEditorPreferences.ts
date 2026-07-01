@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { getJSON, setJSON } from "./safeLocalStorage";
 
 export type FontFamily = "serif" | "sans" | "mono";
 export type FontSize = "small" | "default" | "large";
@@ -30,14 +31,7 @@ const FONT_SIZE_VALUES: Record<FontSize, string> = {
 };
 
 function load(): EditorPreferences {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw
-      ? { ...DEFAULT_PREFS, ...(JSON.parse(raw) as Partial<EditorPreferences>) }
-      : DEFAULT_PREFS;
-  } catch {
-    return DEFAULT_PREFS;
-  }
+  return { ...DEFAULT_PREFS, ...getJSON<Partial<EditorPreferences>>(STORAGE_KEY, {}) };
 }
 
 function applyPrefs(prefs: EditorPreferences): void {
@@ -59,11 +53,7 @@ export function useEditorPreferences() {
     setPrefs((prev) => {
       const next = { ...prev, ...updates };
       applyPrefs(next);
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      setJSON(STORAGE_KEY, next);
       return next;
     });
   }, []);

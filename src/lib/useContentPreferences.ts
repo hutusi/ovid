@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import type { ContentFormat, ContentLayout } from "./amytisScaffold";
+import { getItem, setJSON } from "./safeLocalStorage";
 
 export interface ContentPreferences {
   /** Extension for new content (`generic`/`flow` always stay `.md`). */
@@ -35,11 +36,7 @@ export function parseContentPreferences(raw: string | null): ContentPreferences 
 }
 
 function load(): ContentPreferences {
-  try {
-    return parseContentPreferences(localStorage.getItem(STORAGE_KEY));
-  } catch {
-    return DEFAULT_PREFS;
-  }
+  return parseContentPreferences(getItem(STORAGE_KEY));
 }
 
 export function useContentPreferences() {
@@ -48,11 +45,7 @@ export function useContentPreferences() {
   const updatePrefs = useCallback((updates: Partial<ContentPreferences>) => {
     setPrefs((prev) => {
       const next = { ...prev, ...updates };
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
+      setJSON(STORAGE_KEY, next);
       return next;
     });
   }, []);

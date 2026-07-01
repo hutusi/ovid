@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getJSON, setJSON } from "./safeLocalStorage";
 
 export const MAX_OPEN_TABS = 8;
 export const STORAGE_KEY = "ovid:openTabs";
@@ -48,23 +49,13 @@ export function filterRemovedTabPaths(tabs: string[], removedPath: string): stri
 }
 
 function loadTabs(workspaceRoot: string): string[] {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_KEY}:${workspaceRoot}`);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((p): p is string => typeof p === "string").slice(0, MAX_OPEN_TABS);
-  } catch {
-    return [];
-  }
+  const parsed = getJSON<unknown>(`${STORAGE_KEY}:${workspaceRoot}`, []);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((p): p is string => typeof p === "string").slice(0, MAX_OPEN_TABS);
 }
 
 function saveTabs(workspaceRoot: string, tabs: string[]): void {
-  try {
-    localStorage.setItem(`${STORAGE_KEY}:${workspaceRoot}`, JSON.stringify(tabs));
-  } catch {
-    // localStorage quota exceeded — silently ignore
-  }
+  setJSON(`${STORAGE_KEY}:${workspaceRoot}`, tabs);
 }
 
 export function useOpenTabs(workspaceRoot: string | null) {
