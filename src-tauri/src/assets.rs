@@ -7,10 +7,6 @@ use crate::app::relative_path_from;
 use crate::paths::to_slash;
 use crate::state::WorkspaceState;
 
-/// Copy an image from an arbitrary path into `<workspace>/assets/` and return
-/// a path relative to the active markdown file (or `assets/<name>` as fallback).
-///
-/// Note: unlike `read_file`/`write_file`, `src_path` is intentionally not
 /// Open a native file picker filtered to image types and return the chosen path.
 #[tauri::command]
 pub(crate) async fn pick_image_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
@@ -94,6 +90,14 @@ pub(crate) fn reserve_unique_name(dir: &Path, base_name: &str) -> Result<String,
 
 /// Save a drag-and-dropped image file to the active file's sibling `images/`
 /// directory (falls back to `<workspace_root>/images/`).
+///
+/// Note: unlike `read_file`/`write_file`, `src_path` is intentionally not
+/// validated against the workspace root — it names a file dropped from the
+/// OS file system (Finder/Explorer), which by definition lives outside it.
+/// Safety instead comes from the destination side: `resolve_images_dir`
+/// canonicalizes the target directory and falls back to the workspace root
+/// whenever it can't prove containment, so the write itself can never land
+/// outside the workspace regardless of where `src_path` points.
 #[tauri::command]
 pub(crate) fn save_asset(
     src_path: String,
@@ -110,6 +114,12 @@ pub(crate) fn save_asset(
         .ok_or("invalid source path")?
         .to_string_lossy()
         .to_string();
+
+    let ext = src
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    validate_image_extension(&ext)?;
 
     let images_dir = resolve_images_dir(active_file_path.as_deref(), &root);
     std::fs::create_dir_all(&images_dir)
@@ -132,6 +142,16 @@ pub(crate) fn save_asset(
 
 const ALLOWED_IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"];
 
+/// Shared allowlist check used by both `save_asset` (drag-and-drop) and
+/// `save_asset_from_bytes` (paste) so the two entry points for "add an image
+/// to the workspace" can't drift out of sync on what's accepted.
+fn validate_image_extension(ext: &str) -> Result<(), String> {
+    if ALLOWED_IMAGE_EXTENSIONS.contains(&ext) {
+        Ok(())
+    } else {
+        Err(format!("unsupported image type: {ext}"))
+    }
+}
 
 /// Save raw image bytes (e.g. from the clipboard) to the active file's sibling
 /// `images/` directory (falls back to `<workspace_root>/images/`).
@@ -144,9 +164,7 @@ pub(crate) fn save_asset_from_bytes(
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
     let ext = extension.trim_start_matches('.').to_lowercase();
-    if !ALLOWED_IMAGE_EXTENSIONS.contains(&ext.as_str()) {
-        return Err(format!("unsupported image type: {ext}"));
-    }
+    validate_image_extension(&ext)?;
 
     let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
@@ -257,5 +275,32 @@ mod tests {
         let name = reserve_unique_name(dir.path(), "image.png").unwrap();
         assert!(name.ends_with("_image.png"), "expected timestamp prefix, got: {name}");
         assert!(dir.path().join(&name).exists());
+    }
+
+    // ── validate_image_extension ────────────────────────────────────────────
+    // save_asset (drag-and-drop) previously had no allowlist at all, unlike
+    // save_asset_from_bytes (paste) — an arbitrary file type could be copied
+    // into the workspace's images/ directory unchecked. Both entry points now
+    // share this one check.
+
+    #[test]
+    fn validate_image_extension_accepts_allowed_types() {
+        for ext in ["png", "jpg", "jpeg", "gif", "webp", "avif", "svg"] {
+            assert!(
+                validate_image_extension(ext).is_ok(),
+                "expected {ext} to be allowed"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_image_extension_rejects_disallowed_type() {
+        let err = validate_image_extension("exe").unwrap_err();
+        assert_eq!(err, "unsupported image type: exe");
+    }
+
+    #[test]
+    fn validate_image_extension_rejects_empty_extension() {
+        assert!(validate_image_extension("").is_err());
     }
 }
