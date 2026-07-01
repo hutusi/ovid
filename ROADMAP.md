@@ -4,7 +4,7 @@ Ovid is a writing and knowledge tool for people who take their words seriously. 
 
 This roadmap is organized into deliberate phases — each phase must feel complete and polished before the next begins. Features are tagged by primary audience: 🖊 Writer · 🧠 Knowledge · 📢 Publisher.
 
-> Release status: `0.9.0` shipped on 2026-04-15 as the first public preview release.
+> Release status: `0.16.0` shipped on 2026-06-08, the latest of several releases since the `0.9.0` first public preview (2026-04-15). See `CHANGELOG.md` for the full release history.
 
 ---
 
