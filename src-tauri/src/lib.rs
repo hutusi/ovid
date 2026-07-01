@@ -1,8 +1,5 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tauri::{Emitter, Manager};
-use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_opener::OpenerExt;
 
 mod app;
 mod assets;
@@ -76,43 +73,7 @@ pub fn run() {
         .setup(|app| {
             let menu = build_app_menu(app, &initial_menu_labels(), true, true)?;
             app.set_menu(menu)?;
-
-            // Help links are resolved in Rust; everything else is forwarded to
-            // the frontend as a "menu-action" event.
-            let handle = app.handle().clone();
-            app.on_menu_event(move |_app, event| match event.id().as_ref() {
-                "about" => {
-                    let about: tauri::State<'_, AboutState> = handle.state();
-                    let (Ok(title), Ok(body_template)) = (
-                        about.title.lock().map(|g| g.clone()),
-                        about.body_template.lock().map(|g| g.clone()),
-                    ) else {
-                        return;
-                    };
-                    let version = handle.package_info().version.to_string();
-                    let _ = handle
-                        .dialog()
-                        .message(format!("Ovid {version}\n\n{body_template}"))
-                        .title(title)
-                        .blocking_show();
-                }
-                "help-docs" => {
-                    let _ = handle
-                        .opener()
-                        .open_url("https://github.com/hutusi/ovid", None::<&str>);
-                }
-                "help-issues" => {
-                    let _ = handle
-                        .opener()
-                        .open_url("https://github.com/hutusi/ovid/issues", None::<&str>);
-                }
-                id => {
-                    if let Some(window) = handle.get_webview_window("main") {
-                        let _ = window.emit("menu-action", id);
-                    }
-                }
-            });
-
+            menu::register_menu_event_handler(app);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
