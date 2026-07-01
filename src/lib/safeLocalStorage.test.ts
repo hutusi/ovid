@@ -35,7 +35,10 @@ describe("safeLocalStorage", () => {
 
   it("setJSON/getJSON round-trip an arbitrary value", () => {
     setJSON("obj", { a: 1, b: [1, 2, 3] });
-    expect(getJSON("obj", null)).toEqual({ a: 1, b: [1, 2, 3] });
+    expect(getJSON<{ a: number; b: number[] } | null>("obj", null)).toEqual({
+      a: 1,
+      b: [1, 2, 3],
+    });
   });
 
   it("getItem/getJSON fall back cleanly when localStorage.getItem throws", () => {
