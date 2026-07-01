@@ -20,7 +20,7 @@ Ovid is a Tauri 2 desktop app with a React/TypeScript frontend and Rust backend.
 
 Use TypeScript with 2-space indentation, double quotes, semicolons, trailing commas, and a 100-character line width. Biome enforces formatting and linting via `biome.json`.
 
-Prefer PascalCase for React components (`WorkspaceSwitcher.tsx`), camelCase for hooks/utilities (`useTheme.ts`), and colocated `*.css` files for component styling. Keep design tokens in `src/styles/global.css`; do not introduce ad hoc color or typography values.
+Prefer PascalCase for React components (`WorkspaceSwitcher.tsx`), camelCase for hooks/utilities (`useTheme.ts`), and colocated `*.css` files for component styling. Keep design tokens in `src/styles/global.css`; do not introduce ad hoc color or typography values. The current palette is the warm ivory/copper "editorial paper" design language (ADR 0019) — a warm ink/copper-accent light theme and warm-charcoal dark theme, with a subtle paper-grain texture on the writing canvas.
 
 Tauri/WebView constraints matter here: avoid portal-based UI libraries and prefer native HTML plus plain CSS. Dialogs render through the shared `<Modal>` primitive (`src/components/Modal.tsx`, ADR 0017), which owns the focus trap, dialog ARIA, and Escape handling. Use Tauri commands or plugins for file access; do not introduce Node-style filesystem APIs into the frontend.
 
@@ -43,6 +43,8 @@ Open a PR into `main` once the branch is green; include a short description, lin
 ## Architecture Notes
 
 Preserve the constraints in `CLAUDE.md`: keep the app keyboard-first, writing-focused, and Amytis-native. On-disk files must remain plain Markdown, frontmatter should round-trip cleanly on plain editor saves, and user-facing failures should surface through the toast/error path.
+
+Global shortcuts and native menu actions dispatch through one declarative table in `src/lib/appActions.ts` (action id == menu payload id); `src/lib/shortcuts.ts` is the single source of truth for every shortcut, and `docs/shortcuts.md` is hand-maintained to match it. See ADR 0018 for the dispatch-table rationale.
 
 Content creation mirrors Amytis conventions — type is derived from the bucket folder (not a `type:` field) and new files are scaffolded by `src/lib/amytisScaffold.ts` to match the Amytis `new-*` scripts (ADR 0009). A `type: collection` series references its members via an `items:` list rendered as sidebar links and edited in place (ADR 0010). Note: *structured* frontmatter edits (the properties panel, and collection `items:`) re-serialize the frontmatter block rather than round-tripping it verbatim — comments in those files are not preserved.
 
