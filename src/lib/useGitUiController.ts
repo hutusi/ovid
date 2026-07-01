@@ -620,10 +620,10 @@ export function useGitUiController({
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        showToast(message);
+        showToast(t("errors.git_forget_credentials_failed", { message }));
       }
     },
-    [handleForgetCredentials, overlay, showToast]
+    [handleForgetCredentials, overlay, showToast, t]
   );
 
   return {

@@ -514,6 +514,7 @@
     "file_wechat_copy_success": "已复制为微信公众号格式",
     "file_wechat_copy_math_warning": "已复制（公式已移除——微信不支持 LaTeX 渲染）",
     "file_wechat_copy_no_content": "没有可复制的内容",
+    "file_wechat_copy_failed": "复制到微信失败：{{message}}",
     "edit_find_in_workspace": "在工作区中搜索…",
     "edit_find": "查找…",
     "edit_find_replace": "查找和替换…",
@@ -713,7 +714,8 @@
     "git_create_branch_failed": "创建分支失败：{{message}}",
     "git_checkout_failed": "检出分支失败：{{message}}",
     "git_rename_branch_failed": "重命名分支失败：{{message}}",
-    "git_delete_branch_failed": "删除分支失败：{{message}}"
+    "git_delete_branch_failed": "删除分支失败：{{message}}",
+    "git_forget_credentials_failed": "忘记凭据失败：{{message}}"
   },
   "confirm": {
     "delete_title": "删除",
