@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { formatGitActionError, type GitAction } from "./gitActionError";
+import { formatGitActionError, type GitAction, getErrorMessage } from "./gitActionError";
 import {
   getGitChangeSummary,
   getGitSyncLabel,
@@ -65,7 +65,7 @@ export function useGitSyncActions({
         await run();
         showToast(successMessage);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = getErrorMessage(err);
         if (await openGitCredentialsDialog(action, successMessage, message)) return;
         showToast(formatGitActionError(action, message, t));
       }

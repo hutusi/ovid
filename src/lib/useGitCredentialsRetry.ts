@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { parseAuthRequired } from "./commands/git";
-import { formatGitActionError, type GitAction } from "./gitActionError";
+import { formatGitActionError, type GitAction, getErrorMessage } from "./gitActionError";
 import type { OverlayStack } from "./useOverlayStack";
 
 // State for the credentials dialog opened on AUTH_REQUIRED. `host` keys the
@@ -157,7 +157,7 @@ export function useGitCredentialsRetry({
         pendingAuthRetryRef.current = null;
         showToast(pending?.successMessage ?? t(`toast.git_${args.operation}ed`));
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = getErrorMessage(err);
         const reopened = await openGitCredentialsDialog(
           args.operation,
           pending?.successMessage ?? t(`toast.git_${args.operation}ed`),
@@ -202,7 +202,7 @@ export function useGitCredentialsRetry({
           });
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = getErrorMessage(err);
         showToast(t("errors.git_forget_credentials_failed", { message }));
       }
     },

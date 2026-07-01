@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { getErrorMessage } from "./gitActionError";
 import type { GitBranch, GitRemoteBranch, GitRemoteInfo } from "./types";
 import type { OverlayStack } from "./useOverlayStack";
 
@@ -85,9 +86,20 @@ export function useGitBranchActions({
     [getBranches, getRemoteBranches, getRemoteInfo]
   );
 
+  // Errors here must not propagate: switchBranch/createBranch/
+  // checkoutRemoteBranch call this after their own git mutation has already
+  // succeeded, inside the same try block as that mutation — an uncaught
+  // reload failure would surface as e.g. "Switch failed: <reload error>"
+  // even though the switch itself worked. openWorkspaceAtPath already shows
+  // its own toast for the common failure modes; this only guards the rarer
+  // case (e.g. flushPendingSave throwing before that function's own try).
   const reloadWorkspaceAfterGitChange = useCallback(async () => {
     if (!workspaceRootPath) return;
-    await openWorkspaceAtPath(workspaceRootPath);
+    try {
+      await openWorkspaceAtPath(workspaceRootPath);
+    } catch (err) {
+      console.error("Failed to reload workspace after git change:", err);
+    }
   }, [openWorkspaceAtPath, workspaceRootPath]);
 
   const openBranchSwitcher = useCallback(async () => {
@@ -128,7 +140,7 @@ export function useGitBranchActions({
         await reloadWorkspaceAfterGitChange();
         showToast(t("toast.git_switched_to", { branch }));
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = getErrorMessage(err);
         showToast(t("errors.git_switch_branch_failed", { message }));
       }
     },
@@ -153,7 +165,7 @@ export function useGitBranchActions({
         await reloadWorkspaceAfterGitChange();
         showToast(t("toast.git_created_and_switched_to", { branch }));
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = getErrorMessage(err);
         showToast(t("errors.git_create_branch_failed", { message }));
       }
     },
@@ -179,7 +191,7 @@ export function useGitBranchActions({
         await reloadWorkspaceAfterGitChange();
         showToast(t("toast.git_checked_out", { ref: branchName || remoteRef }));
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = getErrorMessage(err);
         showToast(t("errors.git_checkout_failed", { message }));
       }
     },
@@ -203,7 +215,7 @@ export function useGitBranchActions({
         await reopenBranchSwitcher();
         showToast(t("toast.git_renamed", { from: oldBranch, to: newBranch }));
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = getErrorMessage(err);
         showToast(t("errors.git_rename_branch_failed", { message }));
       }
     },
@@ -219,7 +231,7 @@ export function useGitBranchActions({
         await reopenBranchSwitcher();
         showToast(t("toast.git_deleted", { branch }));
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = getErrorMessage(err);
         showToast(t("errors.git_delete_branch_failed", { message }));
       }
     },

@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { getErrorMessage } from "./gitActionError";
 import type { GitRemoteInfo } from "./types";
 
 interface UseGitRemoteActionsOptions {
@@ -47,7 +48,7 @@ export function useGitRemoteActions({
       try {
         await handleOpenRemote(remoteName);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = getErrorMessage(err);
         showToast(t("errors.git_open_remote_failed", { message }));
       }
     },

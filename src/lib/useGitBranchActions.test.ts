@@ -163,6 +163,23 @@ describe("useGitBranchActions", () => {
     expect(spies.showToast).toHaveBeenCalledWith("Created and switched to feature/new");
   });
 
+  it("switchBranch still toasts success when the post-switch workspace reload fails", async () => {
+    // The reload (openWorkspaceAtPath) runs after handleSwitchBranch has
+    // already succeeded — its failure must not be misreported as the
+    // switch itself failing.
+    const spies = makeSpies();
+    spies.openWorkspaceAtPath = mock(() => Promise.reject(new Error("disk error")));
+    const { result } = renderController({ spies });
+
+    await act(async () => {
+      await result.current.controller.switchBranch("feature/x");
+    });
+
+    expect(spies.showToast).toHaveBeenCalledWith("Switched to feature/x");
+    const toastCalls = spies.showToast.mock.calls.map((c: unknown[]) => c[0] as string);
+    expect(toastCalls.some((m) => m.toLowerCase().includes("failed"))).toBe(false);
+  });
+
   it("renameBranch reopens a refreshed switcher even though its dialog replaced it", async () => {
     const spies = makeSpies();
     spies.getBranches = mock(() => Promise.resolve([sampleBranch]));
