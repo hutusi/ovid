@@ -21,6 +21,7 @@ import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useContentPreferences } from "./lib/useContentPreferences";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
+import { useFileResetState } from "./lib/useFileResetState";
 import { useFilesMode } from "./lib/useFilesMode";
 import { useGit } from "./lib/useGit";
 import { useGitFocusFetch } from "./lib/useGitFocusFetch";
@@ -71,10 +72,7 @@ function App() {
   }, [propertiesOpen]);
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
-  const [sessionBaseline, setSessionBaseline] = useState<number | null>(null);
-  const [baselineCaptured, setBaselineCaptured] = useState(false);
   const overlay = useOverlayStack();
-  const [coverImageVisible, setCoverImageVisible] = useState(false);
   const pendingAutoOpenPath = useRef<string | null>(null);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
 
@@ -104,6 +102,10 @@ function App() {
     handleFieldChange,
     registerEditorFlush,
   } = useFileEditor({ showToast });
+  const { sessionWordsAdded, coverImageVisible, toggleCoverImage } = useFileResetState(
+    selectedFile,
+    wordCount
+  );
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
   const saveStatusRef = useRef<"saved" | "unsaved">(saveStatus);
   const isGitRepoRef = useRef(false);
@@ -459,22 +461,6 @@ function App() {
     openFileByPath(path);
   }, [tree, selectedFile, openFileByPath]);
 
-  // Reset per-file UI state when switching files (selectedFile is the trigger, not used in body)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: selectedFile is the intended trigger
-  useEffect(() => {
-    setSessionBaseline(null);
-    setBaselineCaptured(false);
-    setCoverImageVisible(false);
-  }, [selectedFile]);
-
-  // Capture baseline on first word-count event for the new file (including empty files)
-  useEffect(() => {
-    if (!baselineCaptured) {
-      setSessionBaseline(wordCount);
-      setBaselineCaptured(true);
-    }
-  }, [wordCount, baselineCaptured]);
-
   // One context object feeds both input adapters of the global action
   // table (ADR 0018): keyboard shortcuts and native menu events dispatch
   // the same appActions rows.
@@ -598,8 +584,6 @@ function App() {
     else void handleCloseFile();
   }
 
-  const sessionWordsAdded = sessionBaseline !== null ? Math.max(0, wordCount - sessionBaseline) : 0;
-
   return (
     <div
       className="app"
@@ -694,7 +678,7 @@ function App() {
           onOpenRecent={handleOpenByPath}
           propertiesOpen={propertiesOpen}
           onToggleProperties={() => togglePersisted(setPropertiesOpen, PROPERTIES_OPEN_KEY)}
-          onToggleCoverImage={() => setCoverImageVisible((v) => !v)}
+          onToggleCoverImage={toggleCoverImage}
         />
       </div>
       <StatusBar
