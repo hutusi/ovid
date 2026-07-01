@@ -9,6 +9,7 @@ import { registerHappyDom, unregisterHappyDom } from "../../../scripts/test-setu
 import { IMEComposition } from "./IMEComposition";
 import { ImageRenderer } from "./ImageRenderer";
 import { BoldWithMarkdownShortcut, ItalicWithMarkdownShortcut } from "./markdownInputRules";
+import { getMarkdownStorage } from "./markdownStorage";
 
 beforeAll(registerHappyDom);
 afterAll(unregisterHappyDom);
@@ -183,8 +184,7 @@ describe("image markdown round-trip", () => {
     expect(img?.src).toBe("https://example.com/cat.png");
     expect(img?.alt).toBe("cat");
 
-    // biome-ignore lint/suspicious/noExplicitAny: tiptap-markdown's storage shape isn't in the public Storage type
-    const md = (editor.storage as any).markdown.getMarkdown() as string;
+    const md = getMarkdownStorage(editor).getMarkdown();
     expect(md).toContain("![cat](https://example.com/cat.png)");
     editor.destroy();
   });
@@ -192,8 +192,7 @@ describe("image markdown round-trip", () => {
   it("preserves empty alt round-trip", () => {
     const editor = makeEditor();
     editor.commands.setContent("![](https://example.com/x.png)");
-    // biome-ignore lint/suspicious/noExplicitAny: tiptap-markdown's storage shape isn't in the public Storage type
-    const md = (editor.storage as any).markdown.getMarkdown() as string;
+    const md = getMarkdownStorage(editor).getMarkdown();
     expect(md).toContain("![](https://example.com/x.png)");
     editor.destroy();
   });
