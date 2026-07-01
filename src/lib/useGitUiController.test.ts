@@ -123,9 +123,9 @@ describe("useGitUiController helpers", () => {
 //
 // useGitUiController takes every action handler and data fetcher as an
 // option, so there's no Tauri seam to mock — we pass spy callbacks directly.
-// The real useOverlayStack is composed inside a wrapper hook so we can read
-// the resulting `commitDialog`, `branchSwitcher`, etc. fields off the
-// controller. Pattern follows useEditorSession.test.ts from PR #97.
+// The real useOverlayStack is composed inside a wrapper hook so tests can
+// read dialog state off `overlay.active`, same as GitDialogs.tsx does.
+// Pattern follows useEditorSession.test.ts from PR #97.
 
 const EMPTY_REMOTE_INFO: GitRemoteInfo = {
   remotes: [],
@@ -208,6 +208,16 @@ function renderController(options: RenderOptions) {
   });
 }
 
+// The controller no longer re-exposes dialog state derived from the overlay
+// (that was dead — nothing consumed it; GitDialogs.tsx reads overlay.active
+// directly instead). Tests read it the same way.
+function commitDialogState(overlay: ReturnType<typeof useOverlayStack>) {
+  return overlay.active?.kind === "commit" ? overlay.active.state : null;
+}
+function branchSwitcherState(overlay: ReturnType<typeof useOverlayStack>) {
+  return overlay.active?.kind === "branchSwitcher" ? overlay.active.state : null;
+}
+
 const sampleChange: GitCommitChange = {
   path: "/ws/content/posts/hello.md",
   displayPath: "content/posts/hello.md",
@@ -238,7 +248,7 @@ describe("useGitUiController — dialogs + branch actions", () => {
 
     expect(spies.getBranch).toHaveBeenCalledTimes(1);
     expect(spies.getCommitChanges).toHaveBeenCalledTimes(1);
-    expect(result.current.controller.commitDialog).toEqual({
+    expect(commitDialogState(result.current.overlay)).toEqual({
       message: "My commit",
       branch: "feature/x",
       changes: [sampleChange],
@@ -255,7 +265,7 @@ describe("useGitUiController — dialogs + branch actions", () => {
     });
 
     expect(spies.showToast).toHaveBeenCalledWith("No git changes to commit");
-    expect(result.current.controller.commitDialog).toBeNull();
+    expect(commitDialogState(result.current.overlay)).toBeNull();
   });
 
   it("openBranchSwitcher loads parallel data and opens the dialog", async () => {
@@ -275,8 +285,8 @@ describe("useGitUiController — dialogs + branch actions", () => {
     expect(spies.getBranches).toHaveBeenCalledTimes(1);
     expect(spies.getRemoteBranches).toHaveBeenCalledTimes(1);
     expect(spies.getRemoteInfo).toHaveBeenCalledTimes(1);
-    expect(result.current.controller.branchSwitcher).not.toBeNull();
-    expect(result.current.controller.branchSwitcher?.branches).toEqual([sampleBranch]);
+    expect(branchSwitcherState(result.current.overlay)).not.toBeNull();
+    expect(branchSwitcherState(result.current.overlay)?.branches).toEqual([sampleBranch]);
   });
 
   it("openBranchSwitcher toasts when the repo has no local branches", async () => {
@@ -289,7 +299,7 @@ describe("useGitUiController — dialogs + branch actions", () => {
     });
 
     expect(spies.showToast).toHaveBeenCalledWith("No local branches found");
-    expect(result.current.controller.branchSwitcher).toBeNull();
+    expect(branchSwitcherState(result.current.overlay)).toBeNull();
   });
 
   it("reopenBranchSwitcher loads fresh data and opens the switcher", async () => {
@@ -302,7 +312,7 @@ describe("useGitUiController — dialogs + branch actions", () => {
     });
 
     expect(spies.getBranches).toHaveBeenCalledTimes(1);
-    expect(result.current.controller.branchSwitcher).not.toBeNull();
+    expect(branchSwitcherState(result.current.overlay)).not.toBeNull();
   });
 
   it("switchBranch flushes, switches, reloads, closes dialog, toasts", async () => {
@@ -313,7 +323,7 @@ describe("useGitUiController — dialogs + branch actions", () => {
     await act(async () => {
       await result.current.controller.openBranchSwitcher();
     });
-    expect(result.current.controller.branchSwitcher).not.toBeNull();
+    expect(branchSwitcherState(result.current.overlay)).not.toBeNull();
 
     await act(async () => {
       await result.current.controller.switchBranch("feature/x");
@@ -323,7 +333,7 @@ describe("useGitUiController — dialogs + branch actions", () => {
     expect(spies.handleSwitchBranch).toHaveBeenCalledWith("feature/x");
     expect(spies.openWorkspaceAtPath).toHaveBeenCalledWith("/ws");
     expect(spies.showToast).toHaveBeenCalledWith("Switched to feature/x");
-    expect(result.current.controller.branchSwitcher).toBeNull();
+    expect(branchSwitcherState(result.current.overlay)).toBeNull();
   });
 
   it("createBranch mirrors switchBranch but uses handleCreateBranch", async () => {
@@ -359,7 +369,7 @@ describe("useGitUiController — dialogs + branch actions", () => {
     expect(spies.handleRenameBranch).toHaveBeenCalledWith("old", "new");
     expect(spies.showToast).toHaveBeenCalledWith("Renamed old to new");
     expect(spies.getBranches).toHaveBeenCalledTimes(1);
-    expect(result.current.controller.branchSwitcher).not.toBeNull();
+    expect(branchSwitcherState(result.current.overlay)).not.toBeNull();
   });
 
   it("deleteBranch deletes, then reopens a refreshed switcher", async () => {
@@ -380,7 +390,7 @@ describe("useGitUiController — dialogs + branch actions", () => {
     expect(spies.handleDeleteBranch).toHaveBeenCalledWith("feature/x");
     expect(spies.showToast).toHaveBeenCalledWith("Deleted feature/x");
     expect(spies.getBranches).toHaveBeenCalledTimes(1);
-    expect(result.current.controller.branchSwitcher).not.toBeNull();
+    expect(branchSwitcherState(result.current.overlay)).not.toBeNull();
   });
 
   it("checkoutRemoteBranch trims the remote prefix and reloads the workspace", async () => {
@@ -493,7 +503,7 @@ describe("useGitUiController — sync popover + commit flow", () => {
     await act(async () => {
       await result.current.controller.openCommitDialog("My change");
     });
-    expect(result.current.controller.commitDialog).not.toBeNull();
+    expect(commitDialogState(result.current.overlay)).not.toBeNull();
 
     await act(async () => {
       await result.current.controller.handleCommitDialogCommit(
@@ -505,7 +515,7 @@ describe("useGitUiController — sync popover + commit flow", () => {
 
     expect(spies.flushPendingSave).toHaveBeenCalled();
     expect(spies.handleCommit).toHaveBeenCalledWith("My change", [sampleChange.path], false);
-    expect(result.current.controller.commitDialog).toBeNull();
+    expect(commitDialogState(result.current.overlay)).toBeNull();
   });
 
   it("handleCommitDialogCommit toasts a formatted error when handleCommit rejects", async () => {
@@ -540,7 +550,7 @@ describe("useGitUiController — sync popover + commit flow", () => {
     await act(async () => {
       await result.current.controller.openCommitDialog("My change");
     });
-    expect(result.current.controller.commitDialog).not.toBeNull();
+    expect(commitDialogState(result.current.overlay)).not.toBeNull();
 
     await act(async () => {
       await result.current.controller.handleCommitDialogCommit(
@@ -551,7 +561,7 @@ describe("useGitUiController — sync popover + commit flow", () => {
     });
 
     // Commit dialog closed, credentials dialog opened, no flash-by toast.
-    expect(result.current.controller.commitDialog).toBeNull();
+    expect(commitDialogState(result.current.overlay)).toBeNull();
     expect(result.current.overlay.active?.kind).toBe("gitCredentials");
     if (result.current.overlay.active?.kind === "gitCredentials") {
       expect(result.current.overlay.active.state.host).toBe("github.com");

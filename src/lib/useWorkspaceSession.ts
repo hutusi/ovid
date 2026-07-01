@@ -1,16 +1,7 @@
 import { useRef } from "react";
-import type { FileNode } from "./types";
 import type { ContentPreferences } from "./useContentPreferences";
-import { useEditorSession } from "./useEditorSession";
+import { type FileEditorHandle, useEditorSession } from "./useEditorSession";
 import { useWorkspace } from "./useWorkspace";
-
-interface FileEditorHandle {
-  selectedFile: FileNode | null;
-  selectedPathRef: { current: string | null };
-  setSelectedFile: (node: FileNode | null) => void;
-  handleSelectFile: (node: FileNode) => Promise<void>;
-  handleCloseFile: () => Promise<void>;
-}
 
 interface UseWorkspaceSessionOptions {
   showToast: (msg: string) => void;

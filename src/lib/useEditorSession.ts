@@ -5,7 +5,7 @@ import type { FileNode } from "./types";
 import { useOpenTabs } from "./useOpenTabs";
 import { useRecentFiles } from "./useRecentFiles";
 
-interface FileEditorHandle {
+export interface FileEditorHandle {
   selectedFile: FileNode | null;
   selectedPathRef: { current: string | null };
   setSelectedFile: (node: FileNode | null) => void;

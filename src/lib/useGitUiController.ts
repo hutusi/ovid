@@ -179,21 +179,6 @@ export function useGitUiController({
   getRemoteBranches,
   getRemoteInfo,
 }: UseGitUiControllerOptions) {
-  // Visibility lives in the shared overlay stack so only one of these can
-  // be active at a time. The dialog *data* (commit changes, branch lists,
-  // target branch names) still lives in the overlay payload — the
-  // controller just constructs and reads those payloads.
-  const commitDialog: CommitDialogState =
-    overlay.active?.kind === "commit" ? overlay.active.state : null;
-  const branchSwitcher: BranchSwitcherState =
-    overlay.active?.kind === "branchSwitcher" ? overlay.active.state : null;
-  const newBranchDialogOpen = overlay.is("newBranch");
-  const renameBranchDialog: RenameBranchDialogState =
-    overlay.active?.kind === "renameBranch" ? overlay.active.state : null;
-  const deleteBranchDialog: DeleteBranchDialogState =
-    overlay.active?.kind === "deleteBranch" ? overlay.active.state : null;
-  const gitSyncPopoverOpen = overlay.is("gitSyncPopover");
-
   const toggleGitSyncPopover = useCallback(() => {
     if (overlay.is("gitSyncPopover")) overlay.close("gitSyncPopover");
     else overlay.open({ kind: "gitSyncPopover" });
@@ -642,12 +627,6 @@ export function useGitUiController({
   );
 
   return {
-    commitDialog,
-    branchSwitcher,
-    newBranchDialogOpen,
-    renameBranchDialog,
-    deleteBranchDialog,
-    gitSyncPopoverOpen,
     gitChangeSummary,
     gitSyncLabel,
     gitSyncPopover,
