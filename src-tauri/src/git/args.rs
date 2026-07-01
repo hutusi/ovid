@@ -44,6 +44,13 @@ pub(crate) fn git_push_args(
     ])
 }
 
+// `git switch -c <branch>` deliberately has no `--` before <branch>: unlike
+// `branch -m`/`branch -d` below, `-c`'s value is consumed unconditionally by
+// git itself (verified empirically: `git switch -c -foo` fails with "'-foo'
+// is not a valid branch name", not an option-parsing error) — inserting `--`
+// here doesn't add safety and actively breaks the command ("fatal: invalid
+// reference" for a valid branch name, since `--` lands between `-c` and its
+// mandatory value). Do not "fix" this to match the -m/-d pattern below.
 pub(crate) fn git_create_branch_args(branch_name: &str) -> Vec<String> {
     vec![
         "switch".to_string(),
@@ -52,23 +59,41 @@ pub(crate) fn git_create_branch_args(branch_name: &str) -> Vec<String> {
     ]
 }
 
+// Unlike `switch -c` above, `branch -m <old> <new>` reparses <old>/<new>
+// through the general option parser — verified empirically: `git branch -m
+// plainname -weird` (no `--`) fails with "unknown switch `w`", not a
+// ref-name error, so a name starting with `-` really can be misread as a
+// flag here. `--` right after `-m` is confirmed safe for valid names too.
 pub(crate) fn git_rename_branch_args(old_branch: &str, new_branch: &str) -> Vec<String> {
     vec![
         "branch".to_string(),
         "-m".to_string(),
+        "--".to_string(),
         old_branch.to_string(),
         new_branch.to_string(),
     ]
 }
 
+// Same reasoning as git_rename_branch_args: `branch -d <name>` reparses
+// <name> through the general option parser, so `--` right after `-d` is
+// both needed and safe.
 pub(crate) fn git_delete_branch_args(branch_name: &str) -> Vec<String> {
     vec![
         "branch".to_string(),
         "-d".to_string(),
+        "--".to_string(),
         branch_name.to_string(),
     ]
 }
 
+// `remote_ref` here is always a remote-tracking ref parsed from a real `git
+// branch -r` listing (BranchSwitcher.tsx's remote-branch list), never
+// free-typed user text, so it can't start with `-` in practice. It's also
+// not safely fixable: unlike `-m`/`-d`, inserting `--` anywhere in this
+// `switch -c <branch> --track <start-point>` invocation breaks even the
+// valid case (verified empirically — `switch -c b --track -- origin/x`
+// fails with "fatal: invalid reference: origin/x", not just for a
+// dash-prefixed ref). Do not add a separator here.
 pub(crate) fn git_checkout_remote_branch_args(remote_ref: &str) -> Result<Vec<String>, String> {
     let trimmed = remote_ref.trim();
     let Some((_, branch_name)) = trimmed.split_once('/') else {
@@ -106,8 +131,29 @@ mod tests {
             vec![
                 "branch".to_string(),
                 "-m".to_string(),
+                "--".to_string(),
                 "main".to_string(),
                 "renamed-main".to_string()
+            ]
+        );
+    }
+
+    // `git branch -m <old> <new>` reparses <old>/<new> through the general
+    // option parser (unlike `switch -c <branch>`, which consumes its value
+    // unconditionally) — a name starting with `-` would otherwise be
+    // misread as a flag rather than rejected as an invalid ref name.
+    // Verified against real git: `git branch -m plainname -weird` (no `--`)
+    // fails with "unknown switch `w`", not a ref-name error.
+    #[test]
+    fn git_rename_branch_args_separates_dash_prefixed_new_name() {
+        assert_eq!(
+            git_rename_branch_args("main", "-weird"),
+            vec![
+                "branch".to_string(),
+                "-m".to_string(),
+                "--".to_string(),
+                "main".to_string(),
+                "-weird".to_string()
             ]
         );
     }
@@ -119,6 +165,7 @@ mod tests {
             vec![
                 "branch".to_string(),
                 "-d".to_string(),
+                "--".to_string(),
                 "feature/test".to_string()
             ]
         );
