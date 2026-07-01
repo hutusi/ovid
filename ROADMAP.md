@@ -2,7 +2,7 @@
 
 Ovid is a writing and knowledge tool for people who take their words seriously. It serves three overlapping audiences: **writers and bloggers** who want a calm, focused environment for long-form work; **knowledge workers** who think and organize in interconnected notes; and **Amytis publishers** who want to manage their site content without leaving the editor. Deep Amytis integration is first-class, but Ovid is equally at home for anyone who writes in Markdown.
 
-This roadmap is organized into deliberate phases — each phase must feel complete and polished before the next begins. Features are tagged by primary audience: 🖊 Writer · 🧠 Knowledge · 📢 Publisher.
+This roadmap is organized into deliberate phases, worked roughly in order — each phase should reach a complete, polished state before its remaining items are considered done. In practice a later phase's highest-value item sometimes lands early when it's ready and low-risk (see Phase 11/13's early-shipped items while Phase 10 is still open); that's an accepted exception, not phase-order drift. Features are tagged by primary audience: 🖊 Writer · 🧠 Knowledge · 📢 Publisher.
 
 > Release status: `0.16.0` shipped on 2026-06-08, the latest of several releases since the `0.9.0` first public preview (2026-04-15). See `CHANGELOG.md` for the full release history.
 
