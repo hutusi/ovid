@@ -372,6 +372,7 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
             "file_wechat_copy_math_warning",
             "Copied for WeChat (math blocks removed \u{2014} WeChat cannot render LaTeX)",
         ),
+        ("file_wechat_copy_failed", "Failed to copy for WeChat: {{message}}"),
         ("help_check_updates", "Check for Updates\u{2026}"),
         ("help_shortcuts", "Keyboard Shortcuts"),
         ("help_docs", "Ovid Documentation"),
