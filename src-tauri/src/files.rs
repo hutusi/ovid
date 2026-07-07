@@ -19,7 +19,7 @@ pub(crate) fn write_file(
     content: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
     write_atomic(&canonical, &content).map_err(|e| e.to_string())
@@ -31,7 +31,7 @@ pub(crate) fn create_file(
     content: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let new_path = validate_new_path(root, &path)?;
     if new_path.exists() {
@@ -46,7 +46,7 @@ pub(crate) fn rename_file(
     new_path: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical_old = validate_path(root, &old_path)?;
     let new = validate_new_path(root, &new_path)?;
@@ -86,7 +86,7 @@ pub(crate) fn duplicate_entry(
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
     let root = {
-        let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
         root_guard.as_ref().ok_or("no workspace open")?.clone()
     };
     let src = validate_path(&root, &src_path)?;
@@ -99,7 +99,7 @@ pub(crate) fn duplicate_entry(
 
 #[tauri::command]
 pub(crate) fn trash_file(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
     trash::delete(&canonical).map_err(|e| e.to_string())
@@ -107,7 +107,7 @@ pub(crate) fn trash_file(path: String, state: State<'_, WorkspaceState>) -> Resu
 
 #[tauri::command]
 pub(crate) fn create_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let new_path = validate_new_path(root, &path)?;
     if new_path.exists() {
@@ -120,7 +120,7 @@ pub(crate) fn create_dir(path: String, state: State<'_, WorkspaceState>) -> Resu
 /// it already exists. Unlike `create_dir`, the parent need not exist yet.
 #[tauri::command]
 pub(crate) fn ensure_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
     drop(root_guard);
     let new_path = validate_new_dir_path(&root, &path)?;

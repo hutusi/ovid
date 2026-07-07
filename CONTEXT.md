@@ -27,7 +27,12 @@ Ovid edits markdown content on disk. The container for that content is a
 The two paths matter when reasoning about *where* files live:
 
 - **`workspaceRootPath`** — the folder the user opened. Always the outermost
-  scope. Path validation in Rust (`read_file`, `write_file`) is anchored here.
+  scope. Path validation in Rust for **every** file command (`read_file`,
+  `write_file`, and each create/rename/duplicate/trash/`*_dir` command) is
+  anchored here — never at the tree root. Anchoring reads and writes at the same
+  root is what lets a top-level file shown in files mode (e.g. `site.config.ts`)
+  be both opened and saved; validating writes against the content subtree
+  instead would let you open such a file but reject the save.
 - **`workspaceRoot`** (a.k.a. *tree root*) — the folder the **sidebar** treats
   as the visible root. For an Amytis workspace in content mode this is
   `workspaceRootPath + "/content"`. For a generic workspace, or for files

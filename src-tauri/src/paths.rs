@@ -204,6 +204,27 @@ mod tests {
     }
 
     #[test]
+    fn validate_path_contains_top_level_file_against_workspace_root_only() {
+        // Amytis layout: workspace_root is the project root, tree_root is the
+        // content/ subdir. A top-level file (e.g. site.config.ts) is contained
+        // by the workspace root but NOT by the content root. read_file and every
+        // write/rename/trash command must therefore validate against the SAME
+        // (workspace) root, or a file you can open in Files mode can't be saved.
+        let dir = TempDir::new().unwrap();
+        let workspace_root = dir.path();
+        let content_root = workspace_root.join("content");
+        fs::create_dir(&content_root).unwrap();
+        let top_level = workspace_root.join("site.config.ts");
+        fs::write(&top_level, "export default {}").unwrap();
+
+        assert!(validate_path(workspace_root, &top_level.to_string_lossy()).is_ok());
+        assert_eq!(
+            validate_path(&content_root, &top_level.to_string_lossy()),
+            Err("path is outside the opened workspace".to_string())
+        );
+    }
+
+    #[test]
     fn validate_new_dir_path_allows_missing_nested_directory_inside_workspace() {
         let dir = TempDir::new().unwrap();
         fs::create_dir_all(dir.path().join("posts")).unwrap();
