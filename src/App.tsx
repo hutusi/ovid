@@ -17,6 +17,7 @@ import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUti
 import type { CollectionItem, FileNode, SaveStatus } from "./lib/types";
 import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
+import { useCloseGuard } from "./lib/useCloseGuard";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useContentPreferences } from "./lib/useContentPreferences";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
@@ -106,6 +107,9 @@ function App() {
     handleFieldChange,
     registerEditorFlush,
   } = useFileEditor({ showToast });
+  // Flush pending saves before the window closes so the last ~1s of typing held
+  // by the autosave debounce isn't lost when the WebView is torn down on quit.
+  useCloseGuard(flushPendingSave, showToast);
   const { sessionWordsAdded, coverImageVisible, toggleCoverImage } = useFileResetState(
     selectedFile,
     wordCount
