@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 use ts_rs::TS;
 
-use tauri::State;
+use tauri::Manager;
 
 use crate::paths::{is_markdown_path, to_slash};
 use crate::perf::log_perf;
@@ -167,65 +167,72 @@ pub(crate) fn search_dir(
     results
 }
 
+// Async + spawn_blocking so the recursive walk + file reads (cold cache) run
+// off the main thread. State is reached via the AppHandle inside the closure.
 #[tauri::command]
-pub(crate) fn search_workspace(
+pub(crate) async fn search_workspace(
     query: String,
-    state: State<'_, WorkspaceState>,
+    app: tauri::AppHandle,
 ) -> Result<Vec<SearchResult>, String> {
-    let started = Instant::now();
-    if query.trim().is_empty() {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<WorkspaceState>();
+        let started = Instant::now();
+        if query.trim().is_empty() {
+            log_perf(
+                "search_workspace",
+                started.elapsed(),
+                &[("query", "empty".to_string()), ("results", "0".to_string())],
+            );
+            return Ok(Vec::new());
+        }
+        // Clone root before releasing the lock so the mutex is not held during search
+        let root = {
+            let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+            root_guard.as_ref().ok_or("no workspace open")?.clone()
+        };
+        let query_lower = query.trim().to_lowercase();
+        let results = {
+            // Keep cache lock ordering consistent: search_cache first, then
+            // frontmatter_cache. If this path ever changes, preserve that order to
+            // avoid introducing deadlocks across future cache-aware search/tree code.
+            let mut cache = state.search_cache.lock().map_err(|e| e.to_string())?;
+            let frontmatter_cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
+            search_dir(&root, &query_lower, &mut cache, &frontmatter_cache)
+        };
+        let mut scored_results = results
+            .into_iter()
+            .map(|result| {
+                let score = score_search_result(&result, &query_lower, &root);
+                (score, result)
+            })
+            .collect::<Vec<_>>();
+        scored_results.sort_by(|(score_a, result_a), (score_b, result_b)| {
+            score_b
+                .cmp(score_a)
+                .then_with(|| result_a.path.cmp(&result_b.path))
+        });
+        let results = scored_results
+            .into_iter()
+            .map(|(_, result)| result)
+            .collect::<Vec<_>>();
+        let file_count = results.len();
+        let match_count = results
+            .iter()
+            .map(|result| result.total_matches)
+            .sum::<usize>();
         log_perf(
             "search_workspace",
             started.elapsed(),
-            &[("query", "empty".to_string()), ("results", "0".to_string())],
+            &[
+                ("query", query.trim().to_string()),
+                ("files", file_count.to_string()),
+                ("matches", match_count.to_string()),
+            ],
         );
-        return Ok(Vec::new());
-    }
-    // Clone root before releasing the lock so the mutex is not held during search
-    let root = {
-        let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
-        root_guard.as_ref().ok_or("no workspace open")?.clone()
-    };
-    let query_lower = query.trim().to_lowercase();
-    let results = {
-        // Keep cache lock ordering consistent: search_cache first, then
-        // frontmatter_cache. If this path ever changes, preserve that order to
-        // avoid introducing deadlocks across future cache-aware search/tree code.
-        let mut cache = state.search_cache.lock().map_err(|e| e.to_string())?;
-        let frontmatter_cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        search_dir(&root, &query_lower, &mut cache, &frontmatter_cache)
-    };
-    let mut scored_results = results
-        .into_iter()
-        .map(|result| {
-            let score = score_search_result(&result, &query_lower, &root);
-            (score, result)
-        })
-        .collect::<Vec<_>>();
-    scored_results.sort_by(|(score_a, result_a), (score_b, result_b)| {
-        score_b
-            .cmp(score_a)
-            .then_with(|| result_a.path.cmp(&result_b.path))
-    });
-    let results = scored_results
-        .into_iter()
-        .map(|(_, result)| result)
-        .collect::<Vec<_>>();
-    let file_count = results.len();
-    let match_count = results
-        .iter()
-        .map(|result| result.total_matches)
-        .sum::<usize>();
-    log_perf(
-        "search_workspace",
-        started.elapsed(),
-        &[
-            ("query", query.trim().to_string()),
-            ("files", file_count.to_string()),
-            ("matches", match_count.to_string()),
-        ],
-    );
-    Ok(results)
+        Ok(results)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

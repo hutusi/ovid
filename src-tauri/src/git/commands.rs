@@ -68,67 +68,79 @@ fn stored_credentials_for(creds_path: &Path, host: Option<&str>) -> Option<GitHo
     get_host_credentials(creds_path, host).ok().flatten()
 }
 
+// These read-only commands are `async` + `run_blocking_git` so their git
+// subprocesses (some spawn several) run off the main thread and don't stutter
+// the UI. `resolve_git_root` stays synchronous — its single quick `rev-parse`
+// matches how the mutating git commands already resolve the root.
 #[tauri::command]
-pub(crate) fn get_git_status(state: State<'_, WorkspaceState>) -> Result<Vec<GitFileStatus>, String> {
+pub(crate) async fn get_git_status(
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<GitFileStatus>, String> {
     let git_root = match resolve_git_root(state)? {
         Some(root) => root,
         None => return Ok(Vec::new()),
     };
-
-    Ok(parse_git_status(&git_root)?
-        .into_iter()
-        .map(|change| GitFileStatus {
-            path: change.path,
-            status: if change.status == "untracked" {
-                "untracked".to_string()
-            } else if change.staged {
-                "staged".to_string()
-            } else {
-                "modified".to_string()
-            },
-        })
-        .collect())
+    run_blocking_git(move || {
+        Ok(parse_git_status(&git_root)?
+            .into_iter()
+            .map(|change| GitFileStatus {
+                path: change.path,
+                status: if change.status == "untracked" {
+                    "untracked".to_string()
+                } else if change.staged {
+                    "staged".to_string()
+                } else {
+                    "modified".to_string()
+                },
+            })
+            .collect())
+    })
+    .await
 }
 
 #[tauri::command]
-pub(crate) fn get_git_commit_changes(
+pub(crate) async fn get_git_commit_changes(
     state: State<'_, WorkspaceState>,
 ) -> Result<Vec<GitCommitChange>, String> {
     let git_root = match resolve_git_root(state)? {
         Some(root) => root,
         None => return Ok(Vec::new()),
     };
-    parse_git_status(&git_root)
+    run_blocking_git(move || parse_git_status(&git_root)).await
 }
 
 #[tauri::command]
-pub(crate) fn get_git_branch(state: State<'_, WorkspaceState>) -> Result<String, String> {
+pub(crate) async fn get_git_branch(state: State<'_, WorkspaceState>) -> Result<String, String> {
     let Some(git_root) = resolve_git_root(state)? else {
         return Ok(String::new());
     };
-    Ok(get_current_branch_inner(&git_root).unwrap_or_default())
+    run_blocking_git(move || Ok(get_current_branch_inner(&git_root).unwrap_or_default())).await
 }
 
 #[tauri::command]
-pub(crate) fn get_git_branches(state: State<'_, WorkspaceState>) -> Result<Vec<GitBranch>, String> {
+pub(crate) async fn get_git_branches(
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<GitBranch>, String> {
     let Some(git_root) = resolve_git_root(state)? else {
         return Ok(Vec::new());
     };
-    parse_git_branches(&git_root)
+    run_blocking_git(move || parse_git_branches(&git_root)).await
 }
 
 #[tauri::command]
-pub(crate) fn get_git_remote_branches(
+pub(crate) async fn get_git_remote_branches(
     state: State<'_, WorkspaceState>,
 ) -> Result<Vec<GitRemoteBranch>, String> {
     let Some(git_root) = resolve_git_root(state)? else {
         return Ok(Vec::new());
     };
-    parse_git_remote_branches(&git_root)
+    run_blocking_git(move || parse_git_remote_branches(&git_root)).await
 }
 
 #[tauri::command]
-pub(crate) fn get_git_remote_info(state: State<'_, WorkspaceState>) -> Result<GitRemoteInfo, String> {
+pub(crate) async fn get_git_remote_info(
+    state: State<'_, WorkspaceState>,
+) -> Result<GitRemoteInfo, String> {
     let Some(git_root) = resolve_git_root(state)? else {
         return Ok(GitRemoteInfo {
             remotes: Vec::new(),
@@ -138,7 +150,7 @@ pub(crate) fn get_git_remote_info(state: State<'_, WorkspaceState>) -> Result<Gi
             ahead_behind: None,
         });
     };
-    get_git_remote_info_inner(&git_root)
+    run_blocking_git(move || get_git_remote_info_inner(&git_root)).await
 }
 
 /// Helper: run `git push` for the resolved branch, transparently using stored
