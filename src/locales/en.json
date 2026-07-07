@@ -4,6 +4,13 @@
     "done": "Done",
     "retry": "Retry"
   },
+  "conflict": {
+    "title": "File changed on disk",
+    "body": "\"{{name}}\" was changed by another program since you opened it. What would you like to do?",
+    "reload": "Discard my changes & reload",
+    "keep_editing": "Keep editing",
+    "overwrite": "Overwrite with my changes"
+  },
   "preferences": {
     "title": "Preferences",
     "tabs": {

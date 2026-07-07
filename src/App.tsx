@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
+import { ConflictDialog } from "./components/ConflictDialog";
 import type { EditorViewState } from "./components/EditorPane";
 import { EditorPane } from "./components/EditorPane";
 import { getFileViewKind } from "./components/FileViewer";
@@ -86,6 +87,10 @@ function App() {
   const { prefs, updatePrefs } = useEditorPreferences();
   const { goal: wordCountGoal, setGoal: setWordCountGoal } = useWordCountGoal();
 
+  // Open the external-change conflict prompt when a save is refused because the
+  // file changed on disk. Memoized so useFileEditor's conflict handler is stable.
+  const openConflictDialog = useCallback(() => overlay.open({ kind: "conflict" }), [overlay.open]);
+
   const {
     selectedFile,
     setSelectedFile,
@@ -94,6 +99,7 @@ function App() {
     setWordCount,
     parsedFrontmatter,
     saveStatus,
+    resolveConflict,
     selectedPathRef,
     pendingMarkdownRef,
     lastSavedContentRef,
@@ -106,7 +112,7 @@ function App() {
     handleEditorDirty,
     handleFieldChange,
     registerEditorFlush,
-  } = useFileEditor({ showToast });
+  } = useFileEditor({ showToast, onConflict: openConflictDialog });
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
   useCloseGuard(flushPendingSave, showToast);
@@ -796,6 +802,23 @@ function App() {
           showToast,
         }}
       />
+      {overlay.is("conflict") && (
+        <ConflictDialog
+          fileName={selectedFile?.name ?? ""}
+          onReload={() => {
+            overlay.close("conflict");
+            void resolveConflict("reload");
+          }}
+          onOverwrite={() => {
+            overlay.close("conflict");
+            void resolveConflict("overwrite");
+          }}
+          onKeepEditing={() => {
+            overlay.close("conflict");
+            void resolveConflict("dismiss");
+          }}
+        />
+      )}
     </div>
   );
 }

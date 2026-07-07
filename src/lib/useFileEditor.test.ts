@@ -64,6 +64,7 @@ describe("useFileEditor — save flush semantics", () => {
   it("debounce coalescing: rapid edits before a flush produce one write with the latest content", async () => {
     invokeImpl = whenInvoke({
       read_file: () => "",
+      get_file_mtime: () => 1000,
       write_file: () => undefined,
     });
     const showToast = mock((_: string) => {});
@@ -95,6 +96,7 @@ describe("useFileEditor — save flush semantics", () => {
   it("forced flush pre-empts the debounce: content is written immediately, not after the delay", async () => {
     invokeImpl = whenInvoke({
       read_file: () => "",
+      get_file_mtime: () => 1000,
       write_file: () => undefined,
     });
     const showToast = mock((_: string) => {});
@@ -124,6 +126,7 @@ describe("useFileEditor — save flush semantics", () => {
     const writeStarted = mock(() => {});
     invokeImpl = whenInvoke({
       read_file: () => "",
+      get_file_mtime: () => 1000,
       write_file: () => {
         writeStarted();
         return new Promise<void>((resolve) => {
@@ -181,6 +184,7 @@ describe("useFileEditor — save flush semantics", () => {
     const writeStarted = mock(() => {});
     invokeImpl = whenInvoke({
       read_file: () => "---\ntitle: Old\n---\nbody",
+      get_file_mtime: () => 1000,
       write_file: () => {
         writeStarted();
         return new Promise<void>((resolve) => {
@@ -224,5 +228,38 @@ describe("useFileEditor — save flush semantics", () => {
       await blocking;
     });
     expect(blockingResolved).toBe(true);
+  });
+
+  it("prompts (does not clobber) when the file changed on disk", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "hello",
+      get_file_mtime: () => 1000,
+      // Simulate the Rust optimistic-concurrency guard rejecting the write.
+      write_file: () => {
+        throw new Error("EXTERNAL_CHANGE_CONFLICT");
+      },
+    });
+    const showToast = mock((_: string) => {});
+    const onConflict = mock(() => {});
+    const { result } = renderHook(() => useFileEditor({ showToast, onConflict }));
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+
+    act(() => {
+      result.current.handleEditorChange("my local edit");
+    });
+
+    // A forced flush attempts the write, which conflicts. The hook must surface
+    // the prompt rather than treating it as a generic save failure.
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+
+    expect(onConflict).toHaveBeenCalledTimes(1);
+    expect(result.current.conflictActive).toBe(true);
+    // A conflict is not a save error — no error toast.
+    expect(showToast).not.toHaveBeenCalled();
   });
 });

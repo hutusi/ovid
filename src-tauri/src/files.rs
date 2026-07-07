@@ -1,9 +1,26 @@
 use std::path::Path;
+use std::time::UNIX_EPOCH;
 
 use tauri::State;
 
 use crate::paths::{validate_new_dir_path, validate_new_path, validate_path, write_atomic};
 use crate::state::WorkspaceState;
+
+/// Marker returned when the on-disk file changed since the client last read or
+/// wrote it. The frontend matches on this exact string to open the
+/// external-change conflict prompt instead of silently clobbering the change.
+pub(crate) const EXTERNAL_CHANGE_CONFLICT: &str = "EXTERNAL_CHANGE_CONFLICT";
+
+/// Modification time as milliseconds since the Unix epoch, or `None` if the file
+/// is missing or its mtime is unavailable. Used as an optimistic-concurrency
+/// token so a save can detect an external change without hashing file contents.
+fn file_mtime_millis(path: &Path) -> Option<u64> {
+    std::fs::metadata(path)
+        .ok()
+        .and_then(|meta| meta.modified().ok())
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map(|dur| dur.as_millis() as u64)
+}
 
 #[tauri::command]
 pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Result<String, String> {
@@ -13,16 +30,53 @@ pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Resul
     std::fs::read_to_string(&canonical).map_err(|e| e.to_string())
 }
 
+/// Return the target file's mtime token so the client can seed its
+/// optimistic-concurrency check when it opens a file.
+#[tauri::command]
+pub(crate) fn get_file_mtime(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<Option<u64>, String> {
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
+    let root = root_guard.as_ref().ok_or("no workspace open")?;
+    let canonical = validate_path(root, &path)?;
+    Ok(file_mtime_millis(&canonical))
+}
+
+/// Write `content` atomically, returning the post-write mtime token.
+///
+/// When `expected_mtime` is `Some` and the file on disk no longer carries that
+/// mtime, an external process changed it since the client last read/wrote it —
+/// the write is refused with `EXTERNAL_CHANGE_CONFLICT` so the caller can prompt
+/// instead of clobbering. `None` forces the write (used to resolve a conflict by
+/// overwriting).
+/// Optimistic-concurrency write, factored out of the Tauri command so it can be
+/// unit-tested without a `WorkspaceState`. Refuses the write with
+/// `EXTERNAL_CHANGE_CONFLICT` when `expected_mtime` is `Some` and the on-disk
+/// mtime no longer matches; returns the post-write mtime on success.
+fn write_checked(canonical: &Path, content: &str, expected_mtime: Option<u64>) -> Result<u64, String> {
+    if let Some(expected) = expected_mtime {
+        if let Some(current) = file_mtime_millis(canonical) {
+            if current != expected {
+                return Err(EXTERNAL_CHANGE_CONFLICT.to_string());
+            }
+        }
+    }
+    write_atomic(canonical, content).map_err(|e| e.to_string())?;
+    Ok(file_mtime_millis(canonical).unwrap_or(0))
+}
+
 #[tauri::command]
 pub(crate) fn write_file(
     path: String,
     content: String,
+    expected_mtime: Option<u64>,
     state: State<'_, WorkspaceState>,
-) -> Result<(), String> {
+) -> Result<u64, String> {
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
-    write_atomic(&canonical, &content).map_err(|e| e.to_string())
+    write_checked(&canonical, &content, expected_mtime)
 }
 
 #[tauri::command]
@@ -132,6 +186,43 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn write_checked_rejects_stale_mtime_without_clobbering() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, "v1").unwrap();
+        // The client thinks it last saw an older mtime than what's on disk now.
+        let stale = file_mtime_millis(&path).unwrap().wrapping_sub(5_000);
+
+        assert_eq!(
+            write_checked(&path, "v2", Some(stale)),
+            Err(EXTERNAL_CHANGE_CONFLICT.to_string())
+        );
+        assert_eq!(fs::read_to_string(&path).unwrap(), "v1", "file must be untouched");
+    }
+
+    #[test]
+    fn write_checked_writes_when_mtime_matches() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, "v1").unwrap();
+        let current = file_mtime_millis(&path).unwrap();
+
+        let new_mtime = write_checked(&path, "v2", Some(current)).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "v2");
+        assert!(new_mtime >= current);
+    }
+
+    #[test]
+    fn write_checked_forces_write_when_expected_is_none() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, "v1").unwrap();
+        // Simulate an external change by pretending disk is newer; None bypasses.
+        write_checked(&path, "v2", None).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "v2");
+    }
 
     #[test]
     fn copy_entry_recursive_copies_nested_directories() {

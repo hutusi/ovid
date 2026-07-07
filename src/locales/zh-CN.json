@@ -4,6 +4,13 @@
     "done": "完成",
     "retry": "重试"
   },
+  "conflict": {
+    "title": "文件已在磁盘上更改",
+    "body": "自你打开以来，“{{name}}”已被其他程序更改。你想怎么做？",
+    "reload": "放弃我的更改并重新加载",
+    "keep_editing": "继续编辑",
+    "overwrite": "用我的更改覆盖"
+  },
   "preferences": {
     "title": "偏好设置",
     "tabs": {

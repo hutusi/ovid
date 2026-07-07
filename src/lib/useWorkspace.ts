@@ -427,7 +427,9 @@ export function useWorkspace({
     try {
       const raw = await commands.files.read({ path: indexPath });
       const next = setCollectionItems(raw, transform(parseCollectionItems(raw)));
-      await commands.files.write({ path: indexPath, content: next });
+      // Read-modify-write of a collection index (not the open editor file); it
+      // has no tracked mtime, so force the write.
+      await commands.files.write({ path: indexPath, content: next, expectedMtime: null });
       await refreshTree();
     } catch (err) {
       console.error("Failed to update collection:", err);
