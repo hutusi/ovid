@@ -175,4 +175,54 @@ describe("useFileEditor — save flush semantics", () => {
     // existing in-flight one.
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(1);
   });
+
+  it("frontmatter writes are tracked so a blocking flush waits for them", async () => {
+    let resolveWrite: () => void = () => {};
+    const writeStarted = mock(() => {});
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: Old\n---\nbody",
+      write_file: () => {
+        writeStarted();
+        return new Promise<void>((resolve) => {
+          resolveWrite = resolve;
+        });
+      },
+    });
+    const showToast = mock((_: string) => {});
+    const { result } = renderHook(() => useFileEditor({ showToast }));
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+
+    // A property edit reads the body then issues a write. If that write bypassed
+    // trackWrite (a direct commands.files.write), the blocking flush below would
+    // not wait for it — the regression this guards against.
+    act(() => {
+      void result.current.handleFieldChange("title", "New");
+    });
+    await act(async () => {
+      for (let i = 0; i < 10 && writeStarted.mock.calls.length === 0; i++) {
+        await Promise.resolve();
+      }
+    });
+    expect(writeStarted).toHaveBeenCalledTimes(1);
+
+    // The blocking flush has no new pending markdown but must still wait for the
+    // in-flight frontmatter write.
+    let blockingResolved = false;
+    const blocking = result.current.flushPendingSave().then(() => {
+      blockingResolved = true;
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(blockingResolved).toBe(false);
+
+    await act(async () => {
+      resolveWrite();
+      await blocking;
+    });
+    expect(blockingResolved).toBe(true);
+  });
 });

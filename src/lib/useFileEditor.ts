@@ -64,7 +64,11 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
   }, []);
 
   const writeMarkdown = useCallback(
-    (path: string, markdown: string, perfName: "editor.writeFile" | "editor.flushPendingWrite") => {
+    (
+      path: string,
+      markdown: string,
+      perfName: "editor.writeFile" | "editor.flushPendingWrite" | "editor.writeFrontmatter"
+    ) => {
       const diskContent = joinFrontmatter(frontmatterRef.current, markdown);
       return trackWrite(
         measureAsync(
@@ -260,12 +264,14 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
     }
 
     const filePath = selectedFile.path;
+    // Route through writeMarkdown (which composes joinFrontmatter from the ref
+    // we just set) so the write is tracked — flushPendingSave's
+    // awaitInFlightWrites will wait for it, and lastSavedContentRef stays in
+    // sync. A direct commands.files.write here would be invisible to the
+    // save-coordination model and could be dropped by a concurrent
+    // file-switch/close/quit.
     try {
-      const fullContent = joinFrontmatter(newFrontmatter, body);
-      await commands.files.write({ path: filePath, content: fullContent });
-      if (selectedPathRef.current === filePath) {
-        lastSavedContentRef.current = fullContent;
-      }
+      await writeMarkdown(filePath, body, "editor.writeFrontmatter");
     } catch (err) {
       console.error("Failed to save frontmatter:", err);
       showToast(t("errors.save_failed"));
