@@ -32,6 +32,8 @@ mock.module("@tauri-apps/api/window", () => ({
 
 const { useCloseGuard } = await import("./useCloseGuard");
 
+type FlushOpts = { mode?: "blocking" | "background" };
+
 /** Fire the captured close-requested handler and wait for its async body. */
 async function fireClose(): Promise<{ prevented: boolean }> {
   let prevented = false;
@@ -55,7 +57,7 @@ describe("useCloseGuard", () => {
   });
 
   it("blocks-flushes then destroys the window on close", async () => {
-    const flush = mock(() => Promise.resolve());
+    const flush = mock((_opts?: FlushOpts) => Promise.resolve());
     const showToast = mock(() => {});
     renderHook(() => useCloseGuard(flush, showToast));
 
@@ -70,7 +72,7 @@ describe("useCloseGuard", () => {
   });
 
   it("keeps the window open and toasts when the save fails", async () => {
-    const flush = mock(() => Promise.reject(new Error("disk full")));
+    const flush = mock((_opts?: FlushOpts) => Promise.reject(new Error("disk full")));
     const showToast = mock(() => {});
     renderHook(() => useCloseGuard(flush, showToast));
 
@@ -83,7 +85,7 @@ describe("useCloseGuard", () => {
   });
 
   it("background-flushes on window blur", async () => {
-    const flush = mock(() => Promise.resolve());
+    const flush = mock((_opts?: FlushOpts) => Promise.resolve());
     renderHook(() =>
       useCloseGuard(
         flush,
