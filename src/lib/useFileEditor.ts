@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "./commands";
-import { EXTERNAL_CHANGE_CONFLICT } from "./commands/files";
+import { EXTERNAL_CHANGE_CONFLICT, FILE_TOO_LARGE } from "./commands/files";
 import {
   type FrontmatterValue,
   joinFrontmatter,
@@ -23,6 +23,10 @@ export type ConflictResolution = "reload" | "overwrite" | "dismiss";
 
 function isExternalChangeConflict(err: unknown): boolean {
   return err instanceof Error && err.message === EXTERNAL_CHANGE_CONFLICT;
+}
+
+function isFileTooLarge(err: unknown): boolean {
+  return err instanceof Error && err.message === FILE_TOO_LARGE;
 }
 
 export function useFileEditor({
@@ -274,7 +278,7 @@ export function useFileEditor({
       await applyDiskContent(node);
     } catch (err) {
       console.error("Failed to read file:", err);
-      showToast(t("errors.open_file_failed"));
+      showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.open_file_failed"));
       if (selectedPathRef.current === node.path) selectedPathRef.current = prevPath;
     }
   }
@@ -286,7 +290,7 @@ export function useFileEditor({
         return await applyDiskContent(node);
       } catch (err) {
         console.error("Failed to reload file:", err);
-        showToast(t("errors.reload_file_failed"));
+        showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.reload_file_failed"));
         return false;
       }
     },

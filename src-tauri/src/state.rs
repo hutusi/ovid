@@ -9,8 +9,10 @@ use ts_rs::TS;
 pub(crate) struct WorkspaceState {
     pub(crate) tree_root: Mutex<Option<PathBuf>>,
     pub(crate) workspace_root: Mutex<Option<PathBuf>>,
-    // TODO: add bounded eviction or explicit workspace/session clears if cache
-    // growth becomes a measured memory issue in long-running large-workspace sessions.
+    // Both caches are cleared on workspace open (see build_workspace_result) so
+    // they can't grow unbounded across a multi-workspace session; within one
+    // workspace they stay bounded by its file set, keyed by path and refreshed
+    // by (mtime, len).
     pub(crate) frontmatter_cache: Mutex<HashMap<PathBuf, CachedFrontmatter>>,
     pub(crate) search_cache: Mutex<HashMap<PathBuf, CachedSearchFile>>,
 }

@@ -161,6 +161,13 @@ fn build_workspace_result(
     *state.tree_root.lock().map_err(|e| e.to_string())? = Some(tree_root);
     *state.workspace_root.lock().map_err(|e| e.to_string())? = Some(root.clone());
 
+    // Drop per-file caches from any previously-opened workspace so they don't
+    // accumulate across a long-running multi-workspace session. Within a single
+    // workspace the caches stay bounded by its file set (they are keyed by path
+    // and refreshed by mtime/len).
+    state.frontmatter_cache.lock().map_err(|e| e.to_string())?.clear();
+    state.search_cache.lock().map_err(|e| e.to_string())?.clear();
+
     let result = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
         build_workspace_result_core(root, &mut cache)

@@ -11,6 +11,16 @@ use crate::state::WorkspaceState;
 /// external-change conflict prompt instead of silently clobbering the change.
 pub(crate) const EXTERNAL_CHANGE_CONFLICT: &str = "EXTERNAL_CHANGE_CONFLICT";
 
+/// Marker returned when a file is too large to load into the editor. The
+/// frontend matches on this to show a "file too large" message instead of the
+/// generic open-failed toast.
+pub(crate) const FILE_TOO_LARGE: &str = "FILE_TOO_LARGE";
+
+/// Upper bound on files loaded into the editor. Prose markdown is far smaller;
+/// this guards against accidentally opening a huge or binary file and OOMing
+/// the whole `read_to_string` into memory + across the IPC bridge.
+const MAX_READ_FILE_BYTES: u64 = 25 * 1024 * 1024;
+
 /// Modification time as milliseconds since the Unix epoch, or `None` if the file
 /// is missing or its mtime is unavailable. Used as an optimistic-concurrency
 /// token so a save can detect an external change without hashing file contents.
@@ -27,6 +37,11 @@ pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Resul
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
+    if let Ok(meta) = std::fs::metadata(&canonical) {
+        if meta.len() > MAX_READ_FILE_BYTES {
+            return Err(FILE_TOO_LARGE.to_string());
+        }
+    }
     std::fs::read_to_string(&canonical).map_err(|e| e.to_string())
 }
 

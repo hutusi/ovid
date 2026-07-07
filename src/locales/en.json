@@ -693,6 +693,7 @@
     "unexpected": "Something went wrong — check console for details",
     "close_save_failed": "Couldn't save before closing — window kept open so you don't lose changes",
     "save_failed": "Failed to save — check console for details",
+    "file_too_large": "This file is too large to open in the editor",
     "open_file_failed": "Failed to open file — check console for details",
     "reload_file_failed": "Failed to reload file — check console for details",
     "load_file_failed": "Failed to load file — check console for details",

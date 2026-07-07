@@ -6,6 +6,10 @@ import { invokeCmd } from "./internal";
  *  `EXTERNAL_CHANGE_CONFLICT` in `src-tauri/src/files.rs`. */
 export const EXTERNAL_CHANGE_CONFLICT = "EXTERNAL_CHANGE_CONFLICT";
 
+/** Error message `read_file` returns when a file exceeds the editor size limit.
+ *  Mirrors `FILE_TOO_LARGE` in `src-tauri/src/files.rs`. */
+export const FILE_TOO_LARGE = "FILE_TOO_LARGE";
+
 export interface ReadFileArgs {
   path: string;
 }
