@@ -14,7 +14,7 @@ import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
-import type { CollectionItem, FileNode } from "./lib/types";
+import type { CollectionItem, FileNode, SaveStatus } from "./lib/types";
 import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
@@ -111,7 +111,7 @@ function App() {
     wordCount
   );
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
-  const saveStatusRef = useRef<"saved" | "unsaved">(saveStatus);
+  const saveStatusRef = useRef<SaveStatus>(saveStatus);
   const isGitRepoRef = useRef(false);
 
   selectedFileRef.current = selectedFile;
@@ -563,7 +563,7 @@ function App() {
     if (key === "draft" && value === false && isGitRepo) {
       try {
         const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
-        await openCommitDialog(`Publish: ${title}`);
+        await openCommitDialog(t("commit_dialog.default_publish_message", { title }));
       } catch {
         // git unavailable — ignore
       }
@@ -725,7 +725,7 @@ function App() {
                 })
             : undefined
         }
-        onOpenCommit={() => void openCommitDialog("Update")}
+        onOpenCommit={() => void openCommitDialog(t("commit_dialog.default_update_message"))}
         onOpenGitSync={toggleGitSyncPopover}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
         onToggleZen={() => setZenMode((v) => !v)}

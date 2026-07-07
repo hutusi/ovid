@@ -52,6 +52,7 @@
   },
   "status_bar": {
     "unsaved": "Unsaved changes",
+    "saving": "Saving…",
     "saved": "Saved",
     "rename_path": "Rename path",
     "session_goal": "{{added}} / {{goal}} words (session goal)",
@@ -200,7 +201,9 @@
     "renamed": "Renamed",
     "already_staged": "already staged",
     "cancel": "Cancel",
-    "commit": "Commit"
+    "commit": "Commit",
+    "default_publish_message": "Publish: {{title}}",
+    "default_update_message": "Update"
   },
   "branch_switcher": {
     "title": "Switch branch",

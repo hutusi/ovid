@@ -1,7 +1,7 @@
 import type React from "react";
 import { useEffect, useRef } from "react";
 import { commands } from "./commands";
-import type { FileNode } from "./types";
+import type { FileNode, SaveStatus } from "./types";
 import { getExternalWorkspaceChangeAction } from "./workspaceRefresh";
 
 const WORKSPACE_REVISION_POLL_MS = 2000;
@@ -16,7 +16,7 @@ interface UseWorkspaceRevisionPollOptions {
   t: (key: string, vars?: Record<string, unknown>) => string;
   lastSavedContentRef: React.RefObject<string | null>;
   selectedFileRef: React.RefObject<FileNode | null>;
-  saveStatusRef: React.RefObject<"saved" | "unsaved">;
+  saveStatusRef: React.RefObject<SaveStatus>;
   isGitRepoRef: React.RefObject<boolean>;
 }
 

@@ -213,6 +213,7 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       saveTimerRef.current = null;
       const snapshot = pendingMarkdownRef.current;
       if (snapshot === null) return;
+      setSaveStatus("saving");
       try {
         await writeMarkdown(pathToSave, snapshot, "editor.writeFile");
         if (pendingMarkdownRef.current === snapshot) {
@@ -222,6 +223,9 @@ export function useFileEditor({ showToast }: { showToast: (msg: string) => void 
       } catch (err) {
         console.error("Failed to save file:", err);
         showToast(t("errors.save_failed"));
+        // Roll back to unsaved so the dot doesn't sit on "saving" forever after
+        // a failed write; the pending markdown is retained for the next attempt.
+        if (pendingMarkdownRef.current === snapshot) setSaveStatus("unsaved");
       }
     }, SAVE_DELAY_MS);
   }

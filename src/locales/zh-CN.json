@@ -52,6 +52,7 @@
   },
   "status_bar": {
     "unsaved": "未保存的修改",
+    "saving": "保存中…",
     "saved": "已保存",
     "rename_path": "重命名路径",
     "session_goal": "{{added}} / {{goal}} 字（本次目标）",
@@ -200,7 +201,9 @@
     "renamed": "已重命名",
     "already_staged": "已暂存",
     "cancel": "取消",
-    "commit": "提交"
+    "commit": "提交",
+    "default_publish_message": "发布：{{title}}",
+    "default_update_message": "更新"
   },
   "branch_switcher": {
     "title": "切换分支",
