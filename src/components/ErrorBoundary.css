@@ -1,0 +1,18 @@
+.error-boundary {
+  padding: 24px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-fg);
+}
+
+.error-boundary__message {
+  white-space: pre-wrap;
+  margin-top: 8px;
+  color: var(--color-error);
+  overflow-x: auto;
+}
+
+.error-boundary__retry {
+  margin-top: 12px;
+  cursor: pointer;
+}

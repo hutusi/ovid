@@ -1,7 +1,8 @@
 {
   "common": {
     "close": "Close",
-    "done": "Done"
+    "done": "Done",
+    "retry": "Retry"
   },
   "preferences": {
     "title": "Preferences",
@@ -678,6 +679,8 @@
     "done": "Done"
   },
   "errors": {
+    "boundary_title": "Something went wrong",
+    "unexpected": "Something went wrong — check console for details",
     "save_failed": "Failed to save — check console for details",
     "open_file_failed": "Failed to open file — check console for details",
     "reload_file_failed": "Failed to reload file — check console for details",

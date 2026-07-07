@@ -1,12 +1,43 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import "./ErrorBoundary.css";
 
 interface Props {
   children: ReactNode;
   resetKey?: string;
+  /** Optional heading; falls back to a generic localized "Something went wrong". */
+  title?: string;
 }
 
 interface State {
   error: Error | null;
+}
+
+/** Rendered inside the class boundary so the fallback can use hooks (i18n) and
+ *  re-localize when the language changes. */
+function ErrorFallback({
+  error,
+  title,
+  onRetry,
+}: {
+  error: Error;
+  title?: string;
+  onRetry: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="error-boundary" role="alert">
+      <strong>{title ?? t("errors.boundary_title")}</strong>
+      <pre className="error-boundary__message">
+        {error.message}
+        {"\n\n"}
+        {error.stack}
+      </pre>
+      <button type="button" className="error-boundary__retry" onClick={onRetry}>
+        {t("common.retry")}
+      </button>
+    </div>
+  );
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -29,27 +60,11 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: "24px", fontFamily: "monospace", fontSize: "13px" }}>
-          <strong>Editor error:</strong>
-          <pre
-            style={{
-              whiteSpace: "pre-wrap",
-              marginTop: "8px",
-              color: "var(--color-error, #c0392b)",
-            }}
-          >
-            {this.state.error.message}
-            {"\n\n"}
-            {this.state.error.stack}
-          </pre>
-          <button
-            type="button"
-            onClick={() => this.setState({ error: null })}
-            style={{ marginTop: "12px", cursor: "pointer" }}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorFallback
+          error={this.state.error}
+          title={this.props.title}
+          onRetry={() => this.setState({ error: null })}
+        />
       );
     }
     return this.props.children;

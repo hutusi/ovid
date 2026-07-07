@@ -27,6 +27,7 @@ import { useGit } from "./lib/useGit";
 import { useGitFocusFetch } from "./lib/useGitFocusFetch";
 import { useGitRefreshOnSave } from "./lib/useGitRefreshOnSave";
 import { useGitUiController } from "./lib/useGitUiController";
+import { useGlobalErrorHandlers } from "./lib/useGlobalErrorHandlers";
 import { useKeyboardShortcuts } from "./lib/useKeyboardShortcuts";
 import { useMenuActions } from "./lib/useMenuActions";
 import { useOverlayStack } from "./lib/useOverlayStack";
@@ -78,6 +79,9 @@ function App() {
 
   const { toasts, showToast, notifications, unread, markNotificationsRead, clearNotifications } =
     useToast();
+  // Surface otherwise-silent async failures (fire-and-forget promises, uncaught
+  // errors) as a throttled toast instead of losing them to the console.
+  useGlobalErrorHandlers(showToast);
   const { prefs, updatePrefs } = useEditorPreferences();
   const { goal: wordCountGoal, setGoal: setWordCountGoal } = useWordCountGoal();
 

@@ -1,7 +1,8 @@
 {
   "common": {
     "close": "关闭",
-    "done": "完成"
+    "done": "完成",
+    "retry": "重试"
   },
   "preferences": {
     "title": "偏好设置",
@@ -678,6 +679,8 @@
     "done": "完成"
   },
   "errors": {
+    "boundary_title": "出错了",
+    "unexpected": "发生意外错误——详情请见控制台",
     "save_failed": "保存失败——详情请见控制台",
     "open_file_failed": "打开文件失败——详情请见控制台",
     "reload_file_failed": "重新加载文件失败——详情请见控制台",
