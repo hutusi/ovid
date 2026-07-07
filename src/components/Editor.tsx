@@ -17,6 +17,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "tiptap-markdown";
 import { commands } from "../lib/commands";
+import { countWords } from "../lib/countWords";
 import type { FindReplaceMode } from "../lib/editor/commands";
 import {
   createImageDropHandler,
@@ -376,7 +377,7 @@ export function Editor({
         const text = measureSync("editor.wordCountText", () => editor.getText(), {
           docSize: editor.state.doc.content.size,
         });
-        const count = text.trim() ? text.trim().split(/\s+/).length : 0;
+        const count = countWords(text);
         // `useEditor` constructs the Tiptap editor synchronously in its
         // `useState` initializer, and ProseMirror dispatches an initial
         // transaction during that construction — so onUpdate can fire while
@@ -431,7 +432,7 @@ export function Editor({
     clearPendingRestore();
     editor.commands.setContent(content, { emitUpdate: false });
     const text = editor.getText();
-    onWordCount?.(text.trim() ? text.trim().split(/\s+/).length : 0);
+    onWordCount?.(countWords(text));
   }, [clearPendingRestore, content, editor, onWordCount]);
 
   useEffect(() => {
