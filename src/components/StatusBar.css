@@ -36,6 +36,11 @@
   outline-offset: 1px;
 }
 
+.save-dot.saving {
+  background: var(--color-fg-subtle);
+  opacity: 1;
+}
+
 .save-dot.saved {
   opacity: 0;
 }

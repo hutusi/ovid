@@ -161,6 +161,13 @@ fn build_workspace_result(
     *state.tree_root.lock().map_err(|e| e.to_string())? = Some(tree_root);
     *state.workspace_root.lock().map_err(|e| e.to_string())? = Some(root.clone());
 
+    // Drop per-file caches from any previously-opened workspace so they don't
+    // accumulate across a long-running multi-workspace session. Within a single
+    // workspace the caches stay bounded by its file set (they are keyed by path
+    // and refreshed by mtime/len).
+    state.frontmatter_cache.lock().map_err(|e| e.to_string())?.clear();
+    state.search_cache.lock().map_err(|e| e.to_string())?.clear();
+
     let result = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
         build_workspace_result_core(root, &mut cache)
@@ -184,28 +191,34 @@ fn build_workspace_result(
 /// canonical tree. Called by the frontend after mutations and on the periodic
 /// revision poll. Replaces the previous `list_workspace` (content-only walk)
 /// and `list_workspace_children` (shallow lazy-load).
+// Async + spawn_blocking so the full recursive tree walk (and its
+// frontmatter-cache access) runs off the main thread. State is reached via the
+// AppHandle inside the blocking closure since `State` can't cross the boundary.
 #[tauri::command]
-pub(crate) fn list_workspace_tree(
-    state: State<'_, WorkspaceState>,
-) -> Result<Vec<FileNode>, String> {
-    let started = Instant::now();
-    let root = {
-        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-        root_guard.as_ref().ok_or("no workspace open")?.clone()
-    };
-    let tree = {
-        let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        walk_tree(&root, &mut cache)
-    };
-    log_perf(
-        "list_workspace_tree",
-        started.elapsed(),
-        &[
-            ("workspaceRoot", to_slash(&root)),
-            ("nodes", tree.len().to_string()),
-        ],
-    );
-    Ok(tree)
+pub(crate) async fn list_workspace_tree(app: tauri::AppHandle) -> Result<Vec<FileNode>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<WorkspaceState>();
+        let started = Instant::now();
+        let root = {
+            let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
+            root_guard.as_ref().ok_or("no workspace open")?.clone()
+        };
+        let tree = {
+            let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
+            walk_tree(&root, &mut cache)
+        };
+        log_perf(
+            "list_workspace_tree",
+            started.elapsed(),
+            &[
+                ("workspaceRoot", to_slash(&root)),
+                ("nodes", tree.len().to_string()),
+            ],
+        );
+        Ok(tree)
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Scaffold a brand-new Amytis workspace at `<parent_dir>/<name>` and open
@@ -283,10 +296,18 @@ pub(crate) async fn clone_workspace(
 }
 
 #[tauri::command]
-pub(crate) fn get_workspace_revision(state: State<'_, WorkspaceState>) -> Result<String, String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    Ok(compute_workspace_revision(root))
+pub(crate) async fn get_workspace_revision(
+    state: State<'_, WorkspaceState>,
+) -> Result<String, String> {
+    // Clone the root out of the mutex, then hash off the main thread — this runs
+    // every couple of seconds from the poll and stats every markdown file.
+    let root = {
+        let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+        root_guard.as_ref().ok_or("no workspace open")?.clone()
+    };
+    tauri::async_runtime::spawn_blocking(move || compute_workspace_revision(&root))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

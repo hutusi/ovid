@@ -28,7 +28,8 @@ export type Overlay =
   | { kind: "deleteBranch"; state: NonNullable<DeleteBranchDialogState> }
   | { kind: "gitCredentials"; state: NonNullable<GitCredentialsDialogState> }
   | { kind: "gitSyncPopover" }
-  | { kind: "notifications" };
+  | { kind: "notifications" }
+  | { kind: "conflict" };
 
 export type OverlayKind = Overlay["kind"];
 

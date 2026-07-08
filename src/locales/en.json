@@ -1,7 +1,15 @@
 {
   "common": {
     "close": "Close",
-    "done": "Done"
+    "done": "Done",
+    "retry": "Retry"
+  },
+  "conflict": {
+    "title": "File changed on disk",
+    "body": "\"{{name}}\" was changed by another program since you opened it. What would you like to do?",
+    "reload": "Discard my changes & reload",
+    "keep_editing": "Keep editing",
+    "overwrite": "Overwrite with my changes"
   },
   "preferences": {
     "title": "Preferences",
@@ -51,6 +59,7 @@
   },
   "status_bar": {
     "unsaved": "Unsaved changes",
+    "saving": "Saving…",
     "saved": "Saved",
     "rename_path": "Rename path",
     "session_goal": "{{added}} / {{goal}} words (session goal)",
@@ -199,7 +208,9 @@
     "renamed": "Renamed",
     "already_staged": "already staged",
     "cancel": "Cancel",
-    "commit": "Commit"
+    "commit": "Commit",
+    "default_publish_message": "Publish: {{title}}",
+    "default_update_message": "Update"
   },
   "branch_switcher": {
     "title": "Switch branch",
@@ -678,7 +689,11 @@
     "done": "Done"
   },
   "errors": {
+    "boundary_title": "Something went wrong",
+    "unexpected": "Something went wrong — check console for details",
+    "close_save_failed": "Couldn't save before closing — window kept open so you don't lose changes",
     "save_failed": "Failed to save — check console for details",
+    "file_too_large": "This file is too large to open in the editor",
     "open_file_failed": "Failed to open file — check console for details",
     "reload_file_failed": "Failed to reload file — check console for details",
     "load_file_failed": "Failed to load file — check console for details",

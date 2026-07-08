@@ -30,6 +30,8 @@ On macOS, `Cmd` is the ⌘ key and `Alt` is the ⌥ (Option) key. On Windows and
 | `Cmd+Shift+V` | Paste as plain text | Ovid |
 | `Cmd+F` | Find (in document) | Ovid |
 | `Cmd+H` | Find & replace | Ovid · macOS Hide may intercept |
+| `Enter` / `Shift+Enter` | Next / previous match (in the find field) | Ovid |
+| `Enter` / `Cmd+Enter` | Replace current / replace all (in the replace field) | Ovid |
 | `Cmd+Z` | Undo | Tiptap |
 | `Cmd+Shift+Z` | Redo | Tiptap |
 | `Tab` | Indent (in list item) | Tiptap |

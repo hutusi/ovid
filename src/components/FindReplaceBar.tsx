@@ -67,7 +67,20 @@ export function FindReplaceBar({ editor, showReplace, onClose }: FindReplaceBarP
   }
 
   function handleReplaceKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape") {
+      onClose();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (matchCount === 0) return;
+      // Enter replaces the current match; Cmd/Ctrl+Enter replaces all.
+      if (e.metaKey || e.ctrlKey) {
+        editor.commands.replaceAll(replaceTerm);
+      } else {
+        editor.commands.replaceOne(replaceTerm);
+      }
+    }
   }
 
   const countLabel =

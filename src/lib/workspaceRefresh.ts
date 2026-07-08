@@ -24,7 +24,9 @@ export function getExternalWorkspaceChangeAction({
 }): ExternalWorkspaceChangeAction {
   if (!activeFile) return { type: "none" };
 
-  if (saveStatus === "unsaved") {
+  // "saving" means a write is in flight, so there are still local edits that a
+  // blind reload would clobber — treat it like "unsaved" here.
+  if (saveStatus !== "saved") {
     if (lastWarnedRevision === revision) return { type: "none" };
     return { type: "warn-unsaved", revision };
   }

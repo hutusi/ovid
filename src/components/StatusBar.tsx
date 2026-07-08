@@ -130,10 +130,7 @@ export function StatusBar({
     <div className="statusbar">
       <div className="statusbar-left">
         {fileLabel && (
-          <span
-            className={`save-dot ${saveStatus}`}
-            title={saveStatus === "unsaved" ? t("status_bar.unsaved") : t("status_bar.saved")}
-          />
+          <span className={`save-dot ${saveStatus}`} title={t(`status_bar.${saveStatus}`)} />
         )}
         {fileLabel ? (
           <button

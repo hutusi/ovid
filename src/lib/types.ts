@@ -39,7 +39,7 @@ export interface WorkspaceState {
   tree: FileNode[];
 }
 
-export type SaveStatus = "saved" | "unsaved";
+export type SaveStatus = "saving" | "saved" | "unsaved";
 
 export interface RecentFile {
   path: string;

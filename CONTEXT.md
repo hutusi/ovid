@@ -27,7 +27,12 @@ Ovid edits markdown content on disk. The container for that content is a
 The two paths matter when reasoning about *where* files live:
 
 - **`workspaceRootPath`** — the folder the user opened. Always the outermost
-  scope. Path validation in Rust (`read_file`, `write_file`) is anchored here.
+  scope. Path validation in Rust for **every** file command (`read_file`,
+  `write_file`, and each create/rename/duplicate/trash/`*_dir` command) is
+  anchored here — never at the tree root. Anchoring reads and writes at the same
+  root is what lets a top-level file shown in files mode (e.g. `site.config.ts`)
+  be both opened and saved; validating writes against the content subtree
+  instead would let you open such a file but reject the save.
 - **`workspaceRoot`** (a.k.a. *tree root*) — the folder the **sidebar** treats
   as the visible root. For an Amytis workspace in content mode this is
   `workspaceRootPath + "/content"`. For a generic workspace, or for files
@@ -187,6 +192,23 @@ and the file-mutation handlers**; when a mutation lands, it fires
 `onPathCreated` / `onPathRenamed` / `onPathRemoved` callbacks for the session
 to react to. That callback flow is what `useWorkspaceSession` (ADR 0007)
 encapsulates so `App.tsx` doesn't have to wire it manually.
+
+### Save coordination & external-change conflicts
+
+`useFileEditor` funnels **every** write through `writeMarkdown` → `trackWrite`
+so `flushPendingSave` can await in-flight saves before a switch/close/quit
+(there is no un-tracked `commands.files.write` from the editor — a property
+edit routes through the same path). Saves carry an **optimistic-concurrency
+token**: `write_file` takes the mtime the client last saw (`lastSavedMtimeRef`,
+seeded by `get_file_mtime` on open) and returns the post-write mtime. If the
+on-disk mtime no longer matches, the Rust side refuses the write with
+`EXTERNAL_CHANGE_CONFLICT` instead of clobbering. The hook then pauses autosave
+(keeping the pending edit) and calls `onConflict`, which opens the blocking
+`conflict` overlay; `resolveConflict("reload" | "overwrite" | "dismiss")`
+either reloads the disk version, force-writes (`expectedMtime: null`), or leaves
+the file unsaved for a later retry. This is the write-time complement to the
+revision poll (`useWorkspaceRevisionPoll`), which handles the no-local-edits
+case by reloading, and treats the `saving` state like `unsaved`.
 
 ---
 

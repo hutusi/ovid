@@ -167,6 +167,8 @@ Progress landed so far:
 - git status refreshes are coalesced and stale workspace refresh results are discarded
 - file switcher and workspace search now use stronger relevance ordering instead of mostly traversal order
 - startup bundle work now defers overlays and the editor, with the editor stack split into smaller deferred chunks
+- read-only workspace/git commands (full tree walk, the ~2s revision hash, cold-cache search, and git status/branches/remote-info) now run off the main thread via `spawn_blocking` so large workspaces and slow repos don't stutter the UI
+- per-file caches are cleared on workspace open so they can't grow unbounded across a multi-workspace session, and `read_file` is size-guarded against accidentally loading a huge/binary file
 
 ---
 

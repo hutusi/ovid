@@ -1,7 +1,15 @@
 {
   "common": {
     "close": "关闭",
-    "done": "完成"
+    "done": "完成",
+    "retry": "重试"
+  },
+  "conflict": {
+    "title": "文件已在磁盘上更改",
+    "body": "自你打开以来，“{{name}}”已被其他程序更改。你想怎么做？",
+    "reload": "放弃我的更改并重新加载",
+    "keep_editing": "继续编辑",
+    "overwrite": "用我的更改覆盖"
   },
   "preferences": {
     "title": "偏好设置",
@@ -51,6 +59,7 @@
   },
   "status_bar": {
     "unsaved": "未保存的修改",
+    "saving": "保存中…",
     "saved": "已保存",
     "rename_path": "重命名路径",
     "session_goal": "{{added}} / {{goal}} 字（本次目标）",
@@ -199,7 +208,9 @@
     "renamed": "已重命名",
     "already_staged": "已暂存",
     "cancel": "取消",
-    "commit": "提交"
+    "commit": "提交",
+    "default_publish_message": "发布：{{title}}",
+    "default_update_message": "更新"
   },
   "branch_switcher": {
     "title": "切换分支",
@@ -678,7 +689,11 @@
     "done": "完成"
   },
   "errors": {
+    "boundary_title": "出错了",
+    "unexpected": "发生意外错误——详情请见控制台",
+    "close_save_failed": "关闭前保存失败——已保留窗口，以免丢失更改",
     "save_failed": "保存失败——详情请见控制台",
+    "file_too_large": "此文件太大，无法在编辑器中打开",
     "open_file_failed": "打开文件失败——详情请见控制台",
     "reload_file_failed": "重新加载文件失败——详情请见控制台",
     "load_file_failed": "加载文件失败——详情请见控制台",

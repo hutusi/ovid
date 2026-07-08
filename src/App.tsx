@@ -14,9 +14,10 @@ import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
-import type { CollectionItem, FileNode } from "./lib/types";
+import type { CollectionItem, FileNode, SaveStatus } from "./lib/types";
 import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
+import { useCloseGuard } from "./lib/useCloseGuard";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useContentPreferences } from "./lib/useContentPreferences";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
@@ -27,6 +28,7 @@ import { useGit } from "./lib/useGit";
 import { useGitFocusFetch } from "./lib/useGitFocusFetch";
 import { useGitRefreshOnSave } from "./lib/useGitRefreshOnSave";
 import { useGitUiController } from "./lib/useGitUiController";
+import { useGlobalErrorHandlers } from "./lib/useGlobalErrorHandlers";
 import { useKeyboardShortcuts } from "./lib/useKeyboardShortcuts";
 import { useMenuActions } from "./lib/useMenuActions";
 import { useOverlayStack } from "./lib/useOverlayStack";
@@ -78,8 +80,15 @@ function App() {
 
   const { toasts, showToast, notifications, unread, markNotificationsRead, clearNotifications } =
     useToast();
+  // Surface otherwise-silent async failures (fire-and-forget promises, uncaught
+  // errors) as a throttled toast instead of losing them to the console.
+  useGlobalErrorHandlers(showToast);
   const { prefs, updatePrefs } = useEditorPreferences();
   const { goal: wordCountGoal, setGoal: setWordCountGoal } = useWordCountGoal();
+
+  // Open the external-change conflict prompt when a save is refused because the
+  // file changed on disk. Memoized so useFileEditor's conflict handler is stable.
+  const openConflictDialog = useCallback(() => overlay.open({ kind: "conflict" }), [overlay.open]);
 
   const {
     selectedFile,
@@ -89,6 +98,7 @@ function App() {
     setWordCount,
     parsedFrontmatter,
     saveStatus,
+    resolveConflict,
     selectedPathRef,
     pendingMarkdownRef,
     lastSavedContentRef,
@@ -101,13 +111,16 @@ function App() {
     handleEditorDirty,
     handleFieldChange,
     registerEditorFlush,
-  } = useFileEditor({ showToast });
+  } = useFileEditor({ showToast, onConflict: openConflictDialog });
+  // Flush pending saves before the window closes so the last ~1s of typing held
+  // by the autosave debounce isn't lost when the WebView is torn down on quit.
+  useCloseGuard(flushPendingSave, showToast);
   const { sessionWordsAdded, coverImageVisible, toggleCoverImage } = useFileResetState(
     selectedFile,
     wordCount
   );
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
-  const saveStatusRef = useRef<"saved" | "unsaved">(saveStatus);
+  const saveStatusRef = useRef<SaveStatus>(saveStatus);
   const isGitRepoRef = useRef(false);
 
   selectedFileRef.current = selectedFile;
@@ -559,7 +572,7 @@ function App() {
     if (key === "draft" && value === false && isGitRepo) {
       try {
         const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
-        await openCommitDialog(`Publish: ${title}`);
+        await openCommitDialog(t("commit_dialog.default_publish_message", { title }));
       } catch {
         // git unavailable — ignore
       }
@@ -721,7 +734,7 @@ function App() {
                 })
             : undefined
         }
-        onOpenCommit={() => void openCommitDialog("Update")}
+        onOpenCommit={() => void openCommitDialog(t("commit_dialog.default_update_message"))}
         onOpenGitSync={toggleGitSyncPopover}
         onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
         onToggleZen={() => setZenMode((v) => !v)}
@@ -786,6 +799,10 @@ function App() {
           appPrefs,
           updateAppPrefs,
           showToast,
+        }}
+        conflict={{
+          fileName: selectedFile?.name ?? "",
+          resolveConflict,
         }}
       />
     </div>
