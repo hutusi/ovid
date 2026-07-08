@@ -1,7 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
-import { ConflictDialog } from "./components/ConflictDialog";
 import type { EditorViewState } from "./components/EditorPane";
 import { EditorPane } from "./components/EditorPane";
 import { getFileViewKind } from "./components/FileViewer";
@@ -801,24 +800,11 @@ function App() {
           updateAppPrefs,
           showToast,
         }}
+        conflict={{
+          fileName: selectedFile?.name ?? "",
+          resolveConflict,
+        }}
       />
-      {overlay.is("conflict") && (
-        <ConflictDialog
-          fileName={selectedFile?.name ?? ""}
-          onReload={() => {
-            overlay.close("conflict");
-            void resolveConflict("reload");
-          }}
-          onOverwrite={() => {
-            overlay.close("conflict");
-            void resolveConflict("overwrite");
-          }}
-          onKeepEditing={() => {
-            overlay.close("conflict");
-            void resolveConflict("dismiss");
-          }}
-        />
-      )}
     </div>
   );
 }

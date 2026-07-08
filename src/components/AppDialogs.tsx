@@ -3,9 +3,11 @@ import { isPerfLoggingEnabled } from "../lib/perf";
 import type { AppPreferences } from "../lib/useAppPreferences";
 import type { ContentPreferences } from "../lib/useContentPreferences";
 import type { EditorPreferences } from "../lib/useEditorPreferences";
+import type { ConflictResolution } from "../lib/useFileEditor";
 import type { OverlayStack } from "../lib/useOverlayStack";
 import type { ThemePreference } from "../lib/useTheme";
 import type { NotificationEntry, Toast } from "../lib/useToast";
+import { ConflictDialog } from "./ConflictDialog";
 import { FileDialogs, type FileDialogsProps } from "./dialogs/FileDialogs";
 import { GitDialogs, type GitDialogsProps } from "./dialogs/GitDialogs";
 import { WechatDialogs, type WechatDialogsProps } from "./dialogs/WechatDialogs";
@@ -60,6 +62,11 @@ export interface AppDialogsProps {
   files: Omit<FileDialogsProps, "overlay">;
   wechat: Omit<WechatDialogsProps, "overlay">;
   preferences: PreferencesDialogGroupProps;
+  // External-change conflict prompt. Visibility is the `conflict` overlay.
+  conflict: {
+    fileName: string;
+    resolveConflict: (resolution: ConflictResolution) => void;
+  };
 }
 
 export function AppDialogs({
@@ -73,6 +80,7 @@ export function AppDialogs({
   files,
   wechat,
   preferences,
+  conflict,
 }: AppDialogsProps) {
   return (
     <>
@@ -129,6 +137,23 @@ export function AppDialogs({
       )}
       <WechatDialogs overlay={overlay} {...wechat} />
       <FileDialogs overlay={overlay} {...files} />
+      {overlay.is("conflict") && (
+        <ConflictDialog
+          fileName={conflict.fileName}
+          onReload={() => {
+            overlay.close("conflict");
+            conflict.resolveConflict("reload");
+          }}
+          onOverwrite={() => {
+            overlay.close("conflict");
+            conflict.resolveConflict("overwrite");
+          }}
+          onKeepEditing={() => {
+            overlay.close("conflict");
+            conflict.resolveConflict("dismiss");
+          }}
+        />
+      )}
       {isPerfLoggingEnabled() && (
         <Suspense fallback={null}>
           <PerfPanel />
