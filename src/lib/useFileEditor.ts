@@ -162,18 +162,23 @@ export function useFileEditor({
 
       const path = selectedPathRef.current;
       const markdown = pendingMarkdownRef.current;
+      // Background flushes (file switch / close / window blur) are fire-and-
+      // forget and clear the pending ref optimistically below — by the time the
+      // write could reject we may have already switched files, so there's
+      // nowhere to sanely resolve a conflict and the pending edit is gone.
+      // Force those writes (matching pre-conflict-detection behaviour); conflict
+      // detection stays on the interactive paths (autosave, and blocking flushes
+      // from Cmd+S / the quit close-guard).
       const pendingWrite =
         path && markdown !== null
-          ? writeMarkdown(path, markdown, "editor.flushPendingWrite")
+          ? writeMarkdown(path, markdown, "editor.flushPendingWrite", {
+              force: mode === "background",
+            })
           : null;
 
       if (pendingWrite) {
         if (mode === "background") {
           pendingWrite.catch((err) => {
-            if (isExternalChangeConflict(err)) {
-              triggerConflict();
-              return;
-            }
             console.error("Failed to flush pending save:", err);
             showToast(t("errors.save_failed"));
           });

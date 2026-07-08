@@ -53,6 +53,13 @@ function writeArgs(index: number) {
   return call?.args as { path: string; content: string } | undefined;
 }
 
+function lastWriteArgs() {
+  const calls = invokeCalls.filter((c) => c.name === "write_file");
+  return calls[calls.length - 1]?.args as
+    | { path: string; content: string; expectedMtime: number | null }
+    | undefined;
+}
+
 describe("useFileEditor — save flush semantics", () => {
   beforeAll(registerHappyDom);
   afterAll(unregisterHappyDom);
@@ -261,5 +268,135 @@ describe("useFileEditor — save flush semantics", () => {
     expect(result.current.conflictActive).toBe(true);
     // A conflict is not a save error — no error toast.
     expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it("background flushes force-write and never open a conflict prompt", async () => {
+    // Background flushes (switch/close/blur) clear pending state optimistically,
+    // so they must bypass the mtime check rather than open a stale prompt.
+    invokeImpl = whenInvoke({
+      read_file: () => "hello",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const onConflict = mock(() => {});
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict })
+    );
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("edit");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave({ mode: "background" });
+    });
+
+    expect(lastWriteArgs()?.expectedMtime).toBeNull();
+    expect(onConflict).not.toHaveBeenCalled();
+  });
+
+  it("resolveConflict('reload') discards the local edit and re-reads disk", async () => {
+    let diskContent = "original";
+    invokeImpl = whenInvoke({
+      read_file: () => diskContent,
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        throw new Error("EXTERNAL_CHANGE_CONFLICT");
+      },
+    });
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: mock(() => {}) })
+    );
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("my local edit");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    expect(result.current.conflictActive).toBe(true);
+
+    diskContent = "external version";
+    await act(async () => {
+      await result.current.resolveConflict("reload");
+    });
+
+    expect(result.current.conflictActive).toBe(false);
+    expect(result.current.fileContent).toBe("external version");
+    expect(result.current.saveStatus).toBe("saved");
+  });
+
+  it("resolveConflict('overwrite') force-writes the pending edit", async () => {
+    let conflict = true;
+    invokeImpl = whenInvoke({
+      read_file: () => "original",
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        if (conflict) throw new Error("EXTERNAL_CHANGE_CONFLICT");
+        return 3000;
+      },
+    });
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: mock(() => {}) })
+    );
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("my local edit");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    expect(result.current.conflictActive).toBe(true);
+
+    conflict = false;
+    await act(async () => {
+      await result.current.resolveConflict("overwrite");
+    });
+
+    const forced = lastWriteArgs();
+    expect(forced?.expectedMtime).toBeNull();
+    expect(forced?.content).toContain("my local edit");
+    expect(result.current.conflictActive).toBe(false);
+    expect(result.current.saveStatus).toBe("saved");
+  });
+
+  it("resolveConflict('dismiss') clears the prompt but keeps the edit unsaved", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "original",
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        throw new Error("EXTERNAL_CHANGE_CONFLICT");
+      },
+    });
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: mock(() => {}) })
+    );
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("my local edit");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    expect(result.current.conflictActive).toBe(true);
+
+    await act(async () => {
+      await result.current.resolveConflict("dismiss");
+    });
+
+    expect(result.current.conflictActive).toBe(false);
+    expect(result.current.saveStatus).toBe("unsaved");
+    expect(result.current.pendingMarkdownRef.current).toBe("my local edit");
   });
 });
