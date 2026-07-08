@@ -35,16 +35,24 @@ export function useCloseGuard(
     const appWindow = getCurrentWindow();
     let mounted = true;
     let unlisten: (() => void) | undefined;
+    // Guard against a second close-request firing while the first flush is still
+    // in flight: a concurrent blocking flush could hit a self-inflicted mtime
+    // conflict, and a second destroy() could throw on the already-closing window.
+    let closing = false;
 
     void appWindow
       .onCloseRequested(async (event) => {
         event.preventDefault();
+        if (closing) return;
+        closing = true;
         try {
           await flushRef.current({ mode: "blocking" });
           await appWindow.destroy();
         } catch {
-          // flushPendingSave already toasts the save failure; add a distinct
-          // signal that the close was cancelled so the open window isn't a mystery.
+          // Save failed — allow a future close attempt. flushPendingSave already
+          // toasts the failure; add a distinct signal that the close was
+          // cancelled so the open window isn't a mystery.
+          closing = false;
           toastRef.current(tRef.current("errors.close_save_failed"));
         }
       })
