@@ -14,7 +14,6 @@ import { corpusReadFile, readCorpus } from "./lib/corpusCache";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
-import { frontmatterLineOffset as computeFrontmatterLineOffset } from "./lib/searchJump";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
 import type { CollectionItem, FileNode, SaveStatus, SearchJumpTarget } from "./lib/types";
 import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
@@ -96,6 +95,7 @@ function App() {
     selectedFile,
     setSelectedFile,
     fileContent,
+    frontmatterLineOffset,
     wordCount,
     setWordCount,
     parsedFrontmatter,
@@ -275,17 +275,6 @@ function App() {
   const [searchJump, setSearchJump] = useState<SearchJumpTarget | null>(null);
   const searchJumpGenRef = useRef(0);
   const handleSearchJumpHandled = useCallback(() => setSearchJump(null), []);
-  // Lines the frontmatter block occupies — search line numbers are full-file,
-  // the editor doc is body-only. `lastSavedContentRef` (the raw file) is set
-  // alongside `fileContent` (the body) in applyDiskContent, so recomputing
-  // when fileContent changes reads the matching raw content.
-  const [frontmatterLineOffset, setFrontmatterLineOffset] = useState(0);
-  // fileContent is a trigger-only dep: the body it names changes exactly when
-  // the raw content in the ref does, which is what we actually read.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: fileContent triggers the ref re-read.
-  useEffect(() => {
-    setFrontmatterLineOffset(computeFrontmatterLineOffset(lastSavedContentRef.current ?? ""));
-  }, [fileContent, lastSavedContentRef]);
 
   const [noteResolverIndex, setNoteResolverIndex] =
     useState<NoteResolverIndex>(EMPTY_NOTE_RESOLVER_INDEX);
@@ -616,11 +605,15 @@ function App() {
   }
 
   function handleCloseTab(path: string) {
-    const wasActive = selectedFile?.path === path;
-    const { neighbor } = closeTab(path);
-    if (!wasActive) return;
-    if (neighbor) handleSelectFromTab(neighbor);
-    else void handleCloseFile();
+    // Closing the active tab must save/switch first and drop the tab only on
+    // success — closeActive owns that ordering (peek neighbour → transition →
+    // remove tab). A non-active tab has no outgoing save to protect, so remove
+    // it directly.
+    if (selectedFile?.path === path) {
+      void closeActive();
+      return;
+    }
+    closeTab(path);
   }
 
   return (

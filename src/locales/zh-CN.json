@@ -732,6 +732,7 @@
     "new_from_existing_failed": "基于现有创建失败：{{message}}",
     "delete_failed": "删除失败：{{message}}",
     "update_collection_failed": "更新合集失败：{{message}}",
+    "collection_changed": "合集已在磁盘上变更，请重试。",
     "git_no_changes": "没有可提交的 git 更改",
     "git_load_changes_failed": "加载 git 更改失败",
     "git_no_local_branches": "未找到本地分支",

@@ -105,7 +105,7 @@ function makeFakeFileEditor(selected: FileNode | null = null): FakeFileEditor {
     selectedPathRef: { current: selected?.path ?? null },
     setSelectedFile: mock((_: FileNode | null) => {}),
     handleSelectFile: mock((_: FileNode) => Promise.resolve(true)),
-    handleCloseFile: mock(() => Promise.resolve()),
+    handleCloseFile: mock(() => Promise.resolve(true)),
   };
 }
 
@@ -223,13 +223,42 @@ describe("useEditorSession orchestration", () => {
       await result.current.openFile(b);
     });
 
-    act(() => {
-      result.current.closeActive();
+    await act(async () => {
+      await result.current.closeActive();
     });
 
     expect(result.current.tabs).not.toContain(b.path);
     // The hook routes to the neighbour via openByPath -> handleSelectFile,
     // which means handleCloseFile is NOT called (neighbour takeover).
+    expect(fileEditor.handleCloseFile).not.toHaveBeenCalled();
+  });
+
+  it("closeActive keeps the tab when advancing to the neighbour aborts", async () => {
+    const a = makeFile("/ws/posts/a.md");
+    const b = makeFile("/ws/posts/b.md");
+    const fileEditor = makeFakeFileEditor(b);
+    const { result } = renderHook(() =>
+      useEditorSession({
+        fileEditor,
+        workspaceRoot: "ws",
+        workspaceRootPath: "/ws",
+        flatFiles: [makeFlatFile(a), makeFlatFile(b)],
+      })
+    );
+
+    await act(async () => {
+      await result.current.openFile(a);
+      await result.current.openFile(b);
+    });
+
+    // The outgoing save conflicts/fails, so opening the neighbour aborts.
+    fileEditor.handleSelectFile = mock((_: FileNode) => Promise.resolve(false));
+    await act(async () => {
+      await result.current.closeActive();
+    });
+
+    // The active tab must remain — a failed transition can't orphan the file.
+    expect(result.current.tabs).toContain(b.path);
     expect(fileEditor.handleCloseFile).not.toHaveBeenCalled();
   });
 
@@ -246,8 +275,8 @@ describe("useEditorSession orchestration", () => {
     );
 
     // Don't open any tab; selectedFile.path is not in tabs.
-    act(() => {
-      result.current.closeActive();
+    await act(async () => {
+      await result.current.closeActive();
     });
 
     expect(fileEditor.handleCloseFile).toHaveBeenCalledTimes(1);

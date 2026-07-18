@@ -10,7 +10,7 @@ interface UseWorkspaceRevisionPollOptions {
   workspaceRoot: string | null;
   refreshTree: () => Promise<FileNode[]>;
   reloadSelectedFileFromDisk: (node: FileNode) => Promise<boolean>;
-  handleCloseFile: (opts?: { discard?: boolean }) => Promise<void>;
+  handleCloseFile: (opts?: { discard?: boolean }) => Promise<boolean>;
   refreshGitStatus: () => void;
   showToast: (message: string) => void;
   t: (key: string, vars?: Record<string, unknown>) => string;

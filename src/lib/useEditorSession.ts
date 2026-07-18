@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import { makeFileNodeFromPath } from "./fileNode";
 import type { FlatFile } from "./fileSearch";
 import type { FileNode } from "./types";
-import { useOpenTabs } from "./useOpenTabs";
+import { removeTabPath, useOpenTabs } from "./useOpenTabs";
 import { useRecentFiles } from "./useRecentFiles";
 
 export interface FileEditorHandle {
@@ -13,8 +13,9 @@ export interface FileEditorHandle {
    *  failed, the outgoing save aborted the switch, or a newer selection
    *  superseded it. */
   handleSelectFile: (node: FileNode) => Promise<boolean>;
-  /** Saves then closes; `discard: true` skips the save (file was removed). */
-  handleCloseFile: (opts?: { discard?: boolean }) => Promise<void>;
+  /** Saves then closes; `discard: true` skips the save (file was removed).
+   *  Resolves true when the file was closed, false when the close aborted. */
+  handleCloseFile: (opts?: { discard?: boolean }) => Promise<boolean>;
 }
 
 /**
@@ -104,12 +105,13 @@ export function useEditorSession({
    *  succeeds — a missing or unreadable file must not leave a phantom tab or
    *  recents entry behind. Resolves when the file content has loaded. */
   const openFile = useCallback(
-    async (node: FileNode): Promise<void> => {
-      if (node.isDirectory) return;
+    async (node: FileNode): Promise<boolean> => {
+      if (node.isDirectory) return false;
       const opened = await fileEditor.handleSelectFile(node);
-      if (!opened) return;
+      if (!opened) return false;
       recents.pushRecent(node);
       tabs.openTab(node.path);
+      return true;
     },
     [fileEditor.handleSelectFile, recents.pushRecent, tabs.openTab]
   );
@@ -118,24 +120,30 @@ export function useEditorSession({
    *  falls back to a minimal synthetic node when the path is not in the
    *  index (e.g. a recently-deleted file linked from the tab bar history). */
   const openByPath = useCallback(
-    (path: string): Promise<void> => openFile(lookupNode(path)),
+    (path: string): Promise<boolean> => openFile(lookupNode(path)),
     [openFile, lookupNode]
   );
 
   /** Close the active file. When the file has a tab and there's another tab
    *  to fall back to, advance to the neighbour rather than closing the editor
-   *  entirely — matches the IDE-style "close tab, surface adjacent" affordance. */
-  const closeActive = useCallback(() => {
+   *  entirely — matches the IDE-style "close tab, surface adjacent" affordance.
+   *  The tab is removed only after the transition succeeds, so a conflicting
+   *  or failed outgoing save leaves the file and its tab in place. */
+  const closeActive = useCallback(async () => {
     const sel = fileEditor.selectedFile;
     if (sel && tabs.tabs.includes(sel.path)) {
-      const { neighbor } = tabs.closeTab(sel.path);
+      // Peek the neighbour without mutating the tab list yet.
+      const { neighbor } = removeTabPath(tabs.tabs, sel.path);
       if (neighbor) {
-        void openByPath(neighbor);
+        if (await openByPath(neighbor)) tabs.removeTab(sel.path);
         return;
       }
+      // No neighbour: close the editor, and drop the tab only if it closed.
+      if (await fileEditor.handleCloseFile()) tabs.removeTab(sel.path);
+      return;
     }
     void fileEditor.handleCloseFile();
-  }, [fileEditor.selectedFile, fileEditor.handleCloseFile, tabs.tabs, tabs.closeTab, openByPath]);
+  }, [fileEditor.selectedFile, fileEditor.handleCloseFile, tabs.tabs, tabs.removeTab, openByPath]);
 
   /** Called by `useWorkspace.handleRename` / `handleDuplicate` (when the
    *  duplicate replaces the original) after a successful filesystem rename.

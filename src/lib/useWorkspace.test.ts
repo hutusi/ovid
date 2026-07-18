@@ -561,10 +561,11 @@ describe("useWorkspace", () => {
 
     invokeImpl = whenInvoke({
       open_workspace_at_path: () => makeWorkspaceResult({ tree: [indexNode] }),
+      get_file_mtime: () => 1000,
       read_file: () => originalContent,
       write_file: (args) => {
         writtenContent = (args as { path: string; content: string }).content;
-        return undefined;
+        return 2000;
       },
       list_workspace_tree: () => [indexNode],
     });
@@ -581,10 +582,55 @@ describe("useWorkspace", () => {
     });
 
     expect(writtenContent).not.toBeNull();
+    // The write is checked against the index's mtime, not forced.
+    const writeCall = invokeCalls.find((c) => c.name === "write_file");
+    expect((writeCall?.args as { expectedMtime: number | null }).expectedMtime).toBe(1000);
     // The transformed YAML keeps the existing item and appends the new one.
     const out = writtenContent as unknown as string;
     expect(out).toContain("existing-post");
     expect(out).toContain("new-post");
+  });
+
+  it("addCollectionItem re-applies the edit and merges when the index changed on disk", async () => {
+    const indexPath = "/ws/content/series/my-series/index.md";
+    const indexNode = makeNode(indexPath);
+    // First read has one item; after the conflict, disk has an externally-added
+    // item. The retry must merge (keep the external item, add ours).
+    let readCount = 0;
+    const reads = [
+      "---\ntitle: My Series\ntype: collection\nitems:\n  - post: existing-post\n---\n",
+      "---\ntitle: My Series\ntype: collection\nitems:\n  - post: existing-post\n  - post: external-post\n---\n",
+    ];
+    let writeCount = 0;
+    let finalContent: string | null = null;
+
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult({ tree: [indexNode] }),
+      get_file_mtime: () => 1000 + readCount,
+      read_file: () => reads[Math.min(readCount++, reads.length - 1)],
+      write_file: (args) => {
+        writeCount += 1;
+        if (writeCount === 1) throw new Error("EXTERNAL_CHANGE_CONFLICT");
+        finalContent = (args as { content: string }).content;
+        return 3000;
+      },
+      list_workspace_tree: () => [indexNode],
+    });
+
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+    await act(async () => {
+      await result.current.addCollectionItem(indexPath, { post: "new-post" });
+    });
+
+    expect(writeCount).toBe(2);
+    const out = finalContent as unknown as string;
+    expect(out).toContain("external-post");
+    expect(out).toContain("new-post");
+    expect(opts.showToast).not.toHaveBeenCalled();
   });
 
   it("removeCollectionItem strips an item from the index file", async () => {
@@ -596,10 +642,11 @@ describe("useWorkspace", () => {
 
     invokeImpl = whenInvoke({
       open_workspace_at_path: () => makeWorkspaceResult({ tree: [indexNode] }),
+      get_file_mtime: () => 1000,
       read_file: () => originalContent,
       write_file: (args) => {
         writtenContent = (args as { path: string; content: string }).content;
-        return undefined;
+        return 2000;
       },
       list_workspace_tree: () => [indexNode],
     });

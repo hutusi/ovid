@@ -732,6 +732,7 @@
     "new_from_existing_failed": "Failed to create post from existing: {{message}}",
     "delete_failed": "Failed to delete: {{message}}",
     "update_collection_failed": "Failed to update collection: {{message}}",
+    "collection_changed": "The collection changed on disk. Please try again.",
     "git_no_changes": "No git changes to commit",
     "git_load_changes_failed": "Failed to load git changes",
     "git_no_local_branches": "No local branches found",

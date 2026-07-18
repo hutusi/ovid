@@ -52,7 +52,8 @@ export function useWorkspaceSession({
     flushPendingSave,
     resetFileState,
     contentPrefs,
-    onPathCreated: (node) => sessionRef.current?.openFile(node) ?? Promise.resolve(),
+    onPathCreated: (node) =>
+      sessionRef.current?.openFile(node).then(() => undefined) ?? Promise.resolve(),
     onPathRenamed: (oldPath, newPath, lookup) =>
       sessionRef.current?.notifyPathRenamed(oldPath, newPath, lookup),
     onPathRemoved: (path) => sessionRef.current?.notifyPathRemoved(path) ?? Promise.resolve(),

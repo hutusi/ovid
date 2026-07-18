@@ -26,6 +26,11 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
   renderStartedAtRef.current = performance.now();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  // The trimmed query the displayed results belong to. During the debounce
+  // window `query` can already be ahead of this — the results are then stale
+  // and must not be actionable (opening one would attach the new query to an
+  // old match).
+  const [resultsQuery, setResultsQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -56,6 +61,7 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
     const gen = guard.current();
     if (!q.trim()) {
       setResults([]);
+      setResultsQuery("");
       setError(null);
       setSearching(false);
       return;
@@ -70,6 +76,7 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
       );
       if (!guard.isCurrent(gen)) return;
       setResults(res);
+      setResultsQuery(query);
       setError(null);
       setActiveIndex(-1);
     } catch (err) {
@@ -113,13 +120,20 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
     resultsRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
+  // Results are stale once the input has moved past the query they belong to
+  // (a newer search is pending in the debounce window). Opening a stale row
+  // would attach the new query to an old match, so actions no-op until the
+  // pending search lands.
+  const resultsStale = query.trim() !== resultsQuery;
+
   function openMatch(index: number) {
+    if (resultsStale) return;
     const item = flatMatches[index];
     if (!item) return;
     onOpenFile(item.path, {
       lineContent: item.match.lineContent,
       lineNumber: item.match.lineNumber,
-      query: query.trim(),
+      query: resultsQuery,
     });
   }
 
@@ -239,7 +253,9 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
                     // keyboard cursor.
                     tabIndex={-1}
                     data-draft={result.draft ? "true" : undefined}
-                    onClick={() => onOpenFile(result.path)}
+                    onClick={() => {
+                      if (!resultsStale) onOpenFile(result.path);
+                    }}
                   >
                     {displayName}
                   </button>
@@ -254,13 +270,7 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
                         aria-selected={flatIndex === activeIndex}
                         className="search-result-match"
                         data-active={flatIndex === activeIndex ? "true" : undefined}
-                        onClick={() =>
-                          onOpenFile(result.path, {
-                            lineContent: match.lineContent,
-                            lineNumber: match.lineNumber,
-                            query: query.trim(),
-                          })
-                        }
+                        onClick={() => openMatch(flatIndex)}
                       >
                         <span className="search-match-line">{match.lineNumber}</span>
                         <span className="search-match-content">

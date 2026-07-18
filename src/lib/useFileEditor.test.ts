@@ -600,6 +600,65 @@ describe("useFileEditor — save flush semantics", () => {
     expect(result.current.parsedFrontmatter.title).toBe("Old");
   });
 
+  it("a property edit marks the file unsaved immediately and saved after the write", async () => {
+    // Guards the conflict-protection hole: while a property edit is pending,
+    // saveStatus must be "unsaved" so the revision poll won't reload (and then
+    // silently overwrite an external change with the stale field write).
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: Old\n---\nbody",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    expect(result.current.saveStatus).toBe("saved");
+
+    act(() => {
+      void result.current.handleFieldChange("title", "New");
+    });
+    // Unsaved the instant the edit lands, before the debounce fires.
+    expect(result.current.saveStatus).toBe("unsaved");
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+    expect(result.current.saveStatus).toBe("saved");
+  });
+
+  it("reloading from disk cancels a pending field write so it can't overwrite the reload", async () => {
+    let diskTitle = "Old";
+    invokeImpl = whenInvoke({
+      read_file: () => `---\ntitle: ${diskTitle}\n---\nbody`,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+
+    // A property edit is pending in the debounce window...
+    act(() => {
+      void result.current.handleFieldChange("title", "Local");
+    });
+    const writesBefore = invokeCalls.filter((c) => c.name === "write_file").length;
+
+    // ...when an external change triggers a reload of the file.
+    diskTitle = "External";
+    await act(async () => {
+      await result.current.reloadSelectedFileFromDisk(NODE);
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+
+    // The pending field write was cancelled — no write fired after the reload,
+    // so the external frontmatter change survives.
+    expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(writesBefore);
+    expect(result.current.parsedFrontmatter.title).toBe("External");
+  });
+
   it("a failed background flush restores the pending edit for a later retry", async () => {
     let failWrites = true;
     invokeImpl = whenInvoke({

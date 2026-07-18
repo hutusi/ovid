@@ -10,6 +10,7 @@ import {
   setCollectionItems,
 } from "./collection";
 import { commands } from "./commands";
+import { EXTERNAL_CHANGE_CONFLICT } from "./commands/files";
 import type { Author } from "./commands/generated/Author";
 import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import type { I18nConfig } from "./commands/generated/I18nConfig";
@@ -446,18 +447,36 @@ export function useWorkspace({
 
   // Edit a collection index's `items:` list. Flush first so we don't lose
   // unsaved editor work; the revision poll reloads the editor if the index is
-  // the open file. Read-modify-write the whole file via the collection helpers.
+  // the open file. Read-modify-write the whole file via the collection helpers,
+  // guarded by the same optimistic-mtime check editor/frontmatter saves use:
+  // an external edit between our read and write is detected, and because the
+  // transform (add/remove item) is well-defined against any content, we
+  // re-read and re-apply it once to auto-merge rather than clobbering.
   async function mutateCollection(
     indexPath: string,
     transform: (items: CollectionItem[]) => CollectionItem[]
   ) {
     await flushPendingSave();
-    try {
+    const attempt = async (): Promise<number | "conflict"> => {
+      const mtime = await commands.files.getMtime({ path: indexPath });
       const raw = await commands.files.read({ path: indexPath });
       const next = setCollectionItems(raw, transform(parseCollectionItems(raw)));
-      // Read-modify-write of a collection index (not the open editor file); it
-      // has no tracked mtime, so force the write.
-      await commands.files.write({ path: indexPath, content: next, expectedMtime: null });
+      try {
+        await commands.files.write({ path: indexPath, content: next, expectedMtime: mtime });
+        return 0;
+      } catch (err) {
+        if (err instanceof Error && err.message === EXTERNAL_CHANGE_CONFLICT) return "conflict";
+        throw err;
+      }
+    };
+    try {
+      // One retry: re-read the externally-changed index and re-apply the same
+      // add/remove, merging our edit with theirs.
+      if ((await attempt()) === "conflict" && (await attempt()) === "conflict") {
+        showToast(t("errors.collection_changed"));
+        await refreshTree();
+        return;
+      }
       await refreshTree();
     } catch (err) {
       console.error("Failed to update collection:", err);

@@ -12,6 +12,7 @@ import {
 } from "./frontmatter";
 import { setFrontmatterFieldValue } from "./frontmatterSchema";
 import { measureAsync } from "./perf";
+import { frontmatterLineOffset as computeFrontmatterLineOffset } from "./searchJump";
 import type { FileNode, SaveStatus } from "./types";
 
 const SAVE_DELAY_MS = 750;
@@ -44,6 +45,10 @@ export function useFileEditor({
   const { t } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [fileContent, setFileContent] = useState("");
+  // Lines the current file's frontmatter occupies. Set atomically with
+  // fileContent in applyDiskContent so a search jump maps its full-file line
+  // number to a body line using this file's offset, never the previous one.
+  const [frontmatterLineOffset, setFrontmatterLineOffset] = useState(0);
   const [wordCount, setWordCount] = useState(0);
   const [parsedFrontmatter, setParsedFrontmatter] = useState<ParsedFrontmatter>({});
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
@@ -237,7 +242,14 @@ export function useFileEditor({
       }
       console.error("Failed to save frontmatter:", err);
       showToast(t("errors.save_failed"));
-      if (selectedPathRef.current === path) revertFrontmatterToLastSaved();
+      if (selectedPathRef.current === path) {
+        // Revert the panel to the last-saved frontmatter (the failed edit is
+        // discarded, with the toast as notice). The dot then reflects whatever
+        // body edit is still pending, not the abandoned field write — and
+        // never stays stuck on "saving".
+        revertFrontmatterToLastSaved();
+        setSaveStatus(pendingMarkdownRef.current !== null ? "unsaved" : "saved");
+      }
     },
     [triggerConflict, showToast, t, revertFrontmatterToLastSaved]
   );
@@ -271,10 +283,24 @@ export function useFileEditor({
       }
       return pending.body;
     };
+    if (selectedPathRef.current === pending.path) setSaveStatus("saving");
     const save = writeMarkdown(pending.path, resolveBody, "editor.writeFrontmatter", {
       frontmatter: pending.frontmatter,
     });
-    save.catch((err) => handleFieldSaveError(pending.path, err));
+    save
+      .then(() => {
+        // Assert "saved" only when this was the latest transaction — no newer
+        // field edit queued and no body autosave pending — so a slower write
+        // can't flip the dot to saved while newer edits are still unsaved.
+        if (
+          selectedPathRef.current === pending.path &&
+          pendingFieldSaveRef.current === null &&
+          pendingMarkdownRef.current === null
+        ) {
+          setSaveStatus("saved");
+        }
+      })
+      .catch((err) => handleFieldSaveError(pending.path, err));
     return save;
   }, [discardFieldSave, writeMarkdown, handleFieldSaveError]);
 
@@ -394,6 +420,7 @@ export function useFileEditor({
   const resetFileState = useCallback(() => {
     setSelectedFile(null);
     setFileContent("");
+    setFrontmatterLineOffset(0);
     setWordCount(0);
     setParsedFrontmatter({});
     setSaveStatus("saved");
@@ -410,18 +437,21 @@ export function useFileEditor({
    *  transaction and aborts the close (file stays open, edit intact, error
    *  already surfaced) when it fails or conflicts. `discard: true` skips the
    *  save entirely — for closes driven by the file's removal, where there is
-   *  nothing left on disk to save to. */
+   *  nothing left on disk to save to. Returns true when the file was closed,
+   *  false when the close aborted — callers use this to remove the tab only
+   *  after a successful close. */
   const handleCloseFile = useCallback(
-    async ({ discard = false }: { discard?: boolean } = {}) => {
+    async ({ discard = false }: { discard?: boolean } = {}): Promise<boolean> => {
       if (!discard) {
         try {
           await flushPendingSave();
         } catch {
           // flushPendingSave surfaced the failure (toast or conflict prompt).
-          return;
+          return false;
         }
       }
       resetFileState();
+      return true;
     },
     [flushPendingSave, resetFileState]
   );
@@ -440,6 +470,10 @@ export function useFileEditor({
       lastSavedContentRef.current = raw;
       lastSavedMtimeRef.current = mtime;
       pendingMarkdownRef.current = null;
+      // Cancel any debounced field write — its content is now stale against
+      // the freshly-read mtime, so letting it fire would clobber the reloaded
+      // (possibly externally-changed) frontmatter.
+      discardFieldSave();
       clearConflict();
       // Update all state only after a successful read so a failure leaves the
       // previous file's metadata intact on screen.
@@ -447,10 +481,14 @@ export function useFileEditor({
       setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
       setSaveStatus("saved");
       setFileContent(body);
+      // Commit the frontmatter line offset atomically with the body so a
+      // search jump can't map its file-line number using the previous file's
+      // offset. `raw` is `frontmatter + body`.
+      setFrontmatterLineOffset(computeFrontmatterLineOffset(raw));
       setSelectedFile(node);
       return true;
     },
-    [clearConflict]
+    [clearConflict, discardFieldSave]
   );
 
   /** Returns true when the file was read and is now the active selection —
@@ -550,6 +588,11 @@ export function useFileEditor({
     // caught by the write's mtime check instead of raced by a read.
     const body =
       pendingMarkdownRef.current ?? parseFrontmatter(lastSavedContentRef.current ?? "").body;
+    // Mark unsaved *now*, before the debounce — otherwise the revision poll
+    // sees a "saved" file with a pending property write and may reload it,
+    // refreshing the mtime so the debounced write then silently overwrites the
+    // external change. (Same reason handleEditorChange marks unsaved up front.)
+    setSaveStatus("unsaved");
     // Debounce the whole-file rewrite: per-keystroke title edits coalesce into
     // one write. The eventual write routes through writeMarkdown (tracked +
     // per-path ordered) so flushPendingSave's awaitInFlightWrites still covers
@@ -601,6 +644,7 @@ export function useFileEditor({
     selectedFile,
     setSelectedFile,
     fileContent,
+    frontmatterLineOffset,
     wordCount,
     setWordCount,
     parsedFrontmatter,

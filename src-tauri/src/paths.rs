@@ -153,16 +153,28 @@ pub(crate) fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
     );
     let tmp_path = dir.join(&tmp_name);
 
+    // Remove the temp file on any early return after creation (a failed
+    // write_all/flush/sync/rename), so a uniquely-named partial file is never
+    // left behind. Disarmed only after a successful rename consumes it.
+    struct TmpGuard(Option<PathBuf>);
+    impl Drop for TmpGuard {
+        fn drop(&mut self) {
+            if let Some(path) = self.0.take() {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
+    let mut guard = TmpGuard(Some(tmp_path.clone()));
+
     let mut file = std::fs::File::create(&tmp_path)?;
     file.write_all(content.as_bytes())?;
     file.flush()?;
     file.sync_all()?;
     drop(file);
 
-    std::fs::rename(&tmp_path, path).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp_path);
-        e
-    })
+    std::fs::rename(&tmp_path, path)?;
+    guard.0 = None; // rename consumed the temp file; nothing to clean up.
+    Ok(())
 }
 
 /// Normalize a path to forward-slash separators for JSON serialization.
@@ -233,6 +245,26 @@ mod tests {
             .filter(|name| name.starts_with(".~"))
             .collect();
         assert!(leftovers.is_empty(), "unexpected temp files: {leftovers:?}");
+    }
+
+    #[test]
+    fn write_atomic_cleans_up_temp_when_the_write_cannot_complete() {
+        // Target path is an existing directory, so the final rename fails. The
+        // cleanup guard must still remove the temp file (exercises the
+        // early-return-after-temp-creation path, not just rename success).
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("collides");
+        fs::create_dir(&target).unwrap();
+
+        assert!(write_atomic(&target, "content").is_err());
+
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|name| name.starts_with(".~"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp file leaked: {leftovers:?}");
     }
 
     #[test]
