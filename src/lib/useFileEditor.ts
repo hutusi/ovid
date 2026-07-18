@@ -67,14 +67,14 @@ export function useFileEditor({
   // write that starts after its file was deselected compose against what
   // actually landed, instead of a stale queue-time snapshot; entries live only
   // while the path's chain is non-empty.
-  const lastWrittenByPathRef = useRef(new Map<string, { content: string; version: number }>());
+  const lastWrittenByPathRef = useRef(new Map<string, { content: string; version: string }>());
   // Tracks the full file content (frontmatter + body) as last written to or read from disk.
   // Used to distinguish our own saves from external changes in the workspace refresh loop.
   const lastSavedContentRef = useRef<string | null>(null);
   // Optimistic-concurrency token: the file's content-hash version as last
   // read/written. Passed to write_file so it can refuse a save that would
   // clobber an external change.
-  const lastSavedVersionRef = useRef<number | null>(null);
+  const lastSavedVersionRef = useRef<string | null>(null);
   // The (path, markdown) of the write that hit a conflict, so an "overwrite"
   // resolution can force exactly that content back through writeMarkdown.
   const conflictRetryRef = useRef<{ path: string; markdown: string } | null>(null);

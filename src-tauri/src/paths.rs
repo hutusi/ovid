@@ -185,9 +185,11 @@ pub(crate) fn write_atomic(
     drop(file);
 
     // Preserve the existing target's permissions on the replacement so a save
-    // never widens a 0600 file to 0644. New files keep the default.
+    // never widens a 0600 file to 0644. New files keep the default. Fail closed:
+    // if the mode can't be copied, abort (the guard removes the temp) rather
+    // than committing a wider-permission replacement.
     if let Ok(meta) = std::fs::metadata(path) {
-        let _ = std::fs::set_permissions(&tmp_path, meta.permissions());
+        std::fs::set_permissions(&tmp_path, meta.permissions()).map_err(|e| e.to_string())?;
     }
 
     // Last chance to reject before we overwrite — runs against the current

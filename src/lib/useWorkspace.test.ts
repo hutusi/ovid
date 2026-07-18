@@ -50,7 +50,8 @@ function whenInvoke(handlers: InvokeHandlers): InvokeImpl {
     // unless a test overrides it explicitly.
     if (name === "read_file_versioned" && !handlers.read_file_versioned) {
       const content = handlers.read_file?.(args);
-      const version = handlers.get_file_mtime?.(args) ?? 0;
+      // Opaque string token; tests describe it via get_file_mtime, stringified.
+      const version = String(handlers.get_file_mtime?.(args) ?? 0);
       return { content, version };
     }
     const handler = handlers[name];
@@ -592,7 +593,7 @@ describe("useWorkspace", () => {
     expect(writtenContent).not.toBeNull();
     // The write is checked against the index's mtime, not forced.
     const writeCall = invokeCalls.find((c) => c.name === "write_file");
-    expect((writeCall?.args as { expectedVersion: number | null }).expectedVersion).toBe(1000);
+    expect((writeCall?.args as { expectedVersion: string | null }).expectedVersion).toBe("1000");
     // The transformed YAML keeps the existing item and appends the new one.
     const out = writtenContent as unknown as string;
     expect(out).toContain("existing-post");

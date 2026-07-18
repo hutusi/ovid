@@ -1,4 +1,5 @@
 use std::hash::{Hash, Hasher};
+use std::io::Write;
 use std::path::Path;
 
 use serde::Serialize;
@@ -23,21 +24,24 @@ pub(crate) const FILE_TOO_LARGE: &str = "FILE_TOO_LARGE";
 /// the whole `read_to_string` into memory + across the IPC bridge.
 const MAX_READ_FILE_BYTES: u64 = 25 * 1024 * 1024;
 
-/// The optimistic-concurrency token: a hash of the file's content. Unlike an
-/// mtime it has no granularity (two writes in the same millisecond produce
-/// distinct tokens iff their content differs) and no read/write TOCTOU (it is
-/// intrinsic to the bytes, not a separate stat). Session-scoped — re-seeded on
-/// every read — so a non-portable hash is fine; matches `revision.rs`.
-fn content_version(content: &str) -> u64 {
+/// The optimistic-concurrency token: a hash of the file's content, as a decimal
+/// string. Unlike an mtime it has no granularity (two writes in the same
+/// millisecond produce distinct tokens iff their content differs) and no
+/// read/write TOCTOU (it is intrinsic to the bytes, not a separate stat).
+/// Returned as a *string* because the raw u64 exceeds JS's safe-integer range
+/// (2^53) for ~all inputs and would lose precision crossing the JSON bridge as
+/// a `number` — the token must round-trip byte-exact. Session-scoped (re-seeded
+/// on every read), so a non-portable hash is fine; matches `revision.rs`.
+fn content_version(content: &str) -> String {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     content.hash(&mut hasher);
-    hasher.finish()
+    hasher.finish().to_string()
 }
 
 /// The token for the file currently at `path`, or `None` when it can't be read
-/// (missing/unreadable) — mirrors the old mtime leniency: a save then treats an
-/// absent target as "no conflict" rather than blocking.
-fn current_version(path: &Path) -> Option<u64> {
+/// as UTF-8 text (missing/unreadable/binary). Callers decide how to treat
+/// `None`: `write_checked` conflicts on it when a token was expected.
+fn current_version(path: &Path) -> Option<String> {
     std::fs::read_to_string(path).ok().map(|c| content_version(&c))
 }
 
@@ -62,10 +66,10 @@ pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Resul
 #[ts(export, export_to = "../../src/lib/commands/generated/")]
 pub(crate) struct VersionedFile {
     pub(crate) content: String,
-    // A u64 hash; crosses the bridge as `number` rather than ts-rs's default
-    // u64 → bigint. The frontend treats it as an opaque token.
-    #[ts(type = "number")]
-    pub(crate) version: u64,
+    /// Opaque content-hash token (decimal string). A string, not a number, so
+    /// it round-trips the JSON bridge byte-exact — the u64 hash overflows JS's
+    /// safe-integer range.
+    pub(crate) version: String,
 }
 
 /// Core of `read_file_versioned`, factored out of the Tauri command so it can
@@ -147,12 +151,19 @@ pub(crate) async fn read_files_bulk(
 /// external edit during staging is caught, not clobbered. A missing target is
 /// treated as no-conflict. Returns the written content's token. `None` forces
 /// the write (conflict resolution / untracked writes).
-fn write_checked(canonical: &Path, content: &str, expected_version: Option<u64>) -> Result<u64, String> {
+fn write_checked(
+    canonical: &Path,
+    content: &str,
+    expected_version: Option<&str>,
+) -> Result<String, String> {
     write_atomic(canonical, content, |target| match expected_version {
-        Some(expected) => match current_version(target) {
-            Some(current) if current != expected => Err(EXTERNAL_CHANGE_CONFLICT.to_string()),
-            _ => Ok(()),
-        },
+        // Proceed only when the current on-disk content is readable AND its
+        // token matches. A target that was deleted, made unreadable, or
+        // replaced with non-UTF-8 during staging yields `None` → conflict,
+        // rather than silently recreating/overwriting it.
+        Some(expected) if current_version(target).as_deref() == Some(expected) => Ok(()),
+        Some(_) => Err(EXTERNAL_CHANGE_CONFLICT.to_string()),
+        // No expected token forces the write (conflict resolution / new files).
         None => Ok(()),
     })?;
     Ok(content_version(content))
@@ -162,13 +173,13 @@ fn write_checked(canonical: &Path, content: &str, expected_version: Option<u64>)
 pub(crate) fn write_file(
     path: String,
     content: String,
-    expected_version: Option<u64>,
+    expected_version: Option<String>,
     state: State<'_, WorkspaceState>,
-) -> Result<u64, String> {
+) -> Result<String, String> {
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
-    write_checked(&canonical, &content, expected_version)
+    write_checked(&canonical, &content, expected_version.as_deref())
 }
 
 #[tauri::command]
@@ -180,10 +191,29 @@ pub(crate) fn create_file(
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let new_path = validate_new_path(root, &path)?;
-    if new_path.exists() {
-        return Err("file already exists".to_string());
-    }
-    write_atomic(&new_path, &content, |_| Ok(()))
+    create_new_checked(&new_path, &content)
+}
+
+/// Create a new file atomically (O_EXCL): fails with "file already exists" if
+/// the target is present, so an external process creating it can't be
+/// clobbered — an `exists()` + write would race. A brand-new file needs no
+/// atomic-rename staging (there is no prior content to protect on a mid-write
+/// crash). Factored out of the command so it's unit-testable.
+fn create_new_checked(new_path: &Path, content: &str) -> Result<(), String> {
+    let mut file = match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(new_path)
+    {
+        Ok(file) => file,
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+            return Err("file already exists".to_string());
+        }
+        Err(err) => return Err(err.to_string()),
+    };
+    file.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -289,6 +319,41 @@ mod tests {
     }
 
     #[test]
+    fn versioned_file_serializes_the_token_as_a_full_precision_json_string() {
+        // The regression: a u64 token exported as a JSON *number* is parsed by
+        // JS as an f64 and loses precision above 2^53, so the round-tripped
+        // token mismatches and every save false-conflicts. Serializing through
+        // the exact serde_json path the Tauri bridge uses must emit the token
+        // as a quoted string with all its digits intact.
+        let token = content_version("hello");
+        let vf = VersionedFile {
+            content: "hello".to_string(),
+            version: token.clone(),
+        };
+        let json = serde_json::to_string(&vf).unwrap();
+        assert!(
+            json.contains(&format!("\"version\":\"{token}\"")),
+            "token must serialize as a quoted string, got: {json}"
+        );
+        // And the digits are the full u64, not a rounded value.
+        assert!(token.len() >= 19);
+    }
+
+    #[test]
+    fn content_version_is_a_string_that_round_trips_a_large_hash_exactly() {
+        // The token must survive the JSON bridge as a JS string. The raw u64
+        // hash exceeds JS's 2^53 safe-integer range for essentially all inputs
+        // (a `number` would round it and break every save — the regression this
+        // fixes). Assert it's a plain decimal string equal to the full u64.
+        let token = content_version("hello");
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        "hello".hash(&mut hasher);
+        assert_eq!(token, hasher.finish().to_string());
+        // Sanity: this hash is indeed outside JS safe-integer range.
+        assert!(token.parse::<u64>().unwrap() > (1u64 << 53));
+    }
+
+    #[test]
     fn write_checked_rejects_a_stale_version_without_clobbering() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("note.md");
@@ -297,10 +362,25 @@ mod tests {
         let stale = content_version("something the client last saw");
 
         assert_eq!(
-            write_checked(&path, "v2", Some(stale)),
+            write_checked(&path, "v2", Some(&stale)),
             Err(EXTERNAL_CHANGE_CONFLICT.to_string())
         );
         assert_eq!(fs::read_to_string(&path).unwrap(), "v1", "file must be untouched");
+    }
+
+    #[test]
+    fn write_checked_conflicts_when_the_target_is_deleted_mid_save() {
+        // With an expected token, a target that becomes unreadable (here:
+        // deleted before the write) must conflict, not silently recreate it.
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("gone.md");
+        let expected = content_version("original");
+        // File does not exist → current_version is None → conflict.
+        assert_eq!(
+            write_checked(&path, "recreated", Some(&expected)),
+            Err(EXTERNAL_CHANGE_CONFLICT.to_string())
+        );
+        assert!(!path.exists(), "target must not be recreated on conflict");
     }
 
     #[test]
@@ -336,12 +416,12 @@ mod tests {
         fs::write(&path, "v1").unwrap();
         let current = content_version("v1");
 
-        let token = write_checked(&path, "v2", Some(current)).unwrap();
+        let token = write_checked(&path, "v2", Some(&current)).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "v2");
         // The returned token is the written content's own — a follow-up save
         // carrying it finds the file unchanged and does not conflict.
         assert_eq!(token, content_version("v2"));
-        write_checked(&path, "v3", Some(token)).unwrap();
+        write_checked(&path, "v3", Some(&token)).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "v3");
     }
 
@@ -353,6 +433,22 @@ mod tests {
         // None bypasses the version check (conflict resolution / untracked write).
         write_checked(&path, "v2", None).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "v2");
+    }
+
+    #[test]
+    fn create_new_checked_writes_a_fresh_file_and_rejects_an_existing_one() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+
+        create_new_checked(&path, "hello").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "hello");
+
+        // A second create must fail atomically without touching the content.
+        assert_eq!(
+            create_new_checked(&path, "clobber"),
+            Err("file already exists".to_string())
+        );
+        assert_eq!(fs::read_to_string(&path).unwrap(), "hello");
     }
 
     #[test]

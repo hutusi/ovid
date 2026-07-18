@@ -23,9 +23,12 @@ Add an **optimistic-concurrency handshake** keyed on a **content-hash version
 token**, and a resolution prompt when it fails.
 
 - `read`/open seeds a token: `read_file_versioned` returns `{ content, version
-  }` where `version = hash(content)` (a `u64`), stored in `lastSavedVersionRef`.
-  Because the token is intrinsic to the bytes, content and token are trivially
-  consistent — there is no read-time TOCTOU.
+  }` where `version` is `hash(content)` rendered as a **decimal string** (the
+  raw u64 overflows JS's 2^53 safe-integer range, so it must cross the bridge
+  as a string, not a `number`, or it loses precision and every save
+  false-conflicts). Stored in `lastSavedVersionRef`. Because the token is
+  intrinsic to the bytes, content and token are trivially consistent — no
+  read-time TOCTOU.
 - Every editor write goes through `writeMarkdown` → `write_file(path, content,
   expected_version)`. Rust stages the new content in a temp file, then —
   immediately before the rename — reads the *current* on-disk content and

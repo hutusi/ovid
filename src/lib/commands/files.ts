@@ -24,8 +24,9 @@ export interface WriteFileArgs {
   path: string;
   content: string;
   /** The content-hash version token the client last saw for this file, or null
-   *  to force the write (conflict resolution / new file). */
-  expectedVersion: number | null;
+   *  to force the write (conflict resolution / new file). Opaque string — the
+   *  u64 hash overflows JS's safe-integer range, so it must not be a number. */
+  expectedVersion: string | null;
 }
 
 export interface CreateFileArgs {
@@ -67,7 +68,7 @@ export const files = {
   readBulk: (args: ReadFilesBulkArgs) => invokeCmd<BulkFileContent[]>("read_files_bulk", args),
   /** Returns the post-write version token. Rejects with EXTERNAL_CHANGE_CONFLICT
    *  when expectedVersion is set and the file's content changed on disk. */
-  write: (args: WriteFileArgs) => invokeCmd<number>("write_file", args),
+  write: (args: WriteFileArgs) => invokeCmd<string>("write_file", args),
   create: (args: CreateFileArgs) => invokeCmd<void>("create_file", args),
   rename: (args: RenameFileArgs) => invokeCmd<void>("rename_file", args),
   duplicate: (args: DuplicateEntryArgs) => invokeCmd<void>("duplicate_entry", args),

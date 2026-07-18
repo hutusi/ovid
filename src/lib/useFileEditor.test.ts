@@ -42,7 +42,9 @@ function whenInvoke(handlers: InvokeHandlers): InvokeImpl {
     // (the token value is opaque) unless a test overrides read_file_versioned.
     if (name === "read_file_versioned" && !handlers.read_file_versioned) {
       const content = handlers.read_file?.(args);
-      const version = handlers.get_file_mtime?.(args) ?? 0;
+      // The token is an opaque string (a content hash); tests still describe it
+      // with the simpler get_file_mtime handler's value, stringified.
+      const version = String(handlers.get_file_mtime?.(args) ?? 0);
       return { content, version };
     }
     const handler = handlers[name];
@@ -65,7 +67,7 @@ function writeArgs(index: number) {
 function lastWriteArgs() {
   const calls = invokeCalls.filter((c) => c.name === "write_file");
   return calls[calls.length - 1]?.args as
-    | { path: string; content: string; expectedVersion: number | null }
+    | { path: string; content: string; expectedVersion: string | null }
     | undefined;
 }
 
@@ -305,7 +307,7 @@ describe("useFileEditor — save flush semantics", () => {
       for (let i = 0; i < 10; i++) await Promise.resolve();
     });
 
-    expect(lastWriteArgs()?.expectedVersion).toBe(1000);
+    expect(lastWriteArgs()?.expectedVersion).toBe("1000");
     expect(onConflict).toHaveBeenCalledTimes(1);
     expect(result.current.conflictActive).toBe(true);
     expect(result.current.pendingMarkdownRef.current).toBe("edit");
@@ -430,7 +432,7 @@ describe("useFileEditor — save flush semantics", () => {
       get_file_mtime: () => 1000,
       write_file: () => {
         if (conflict) throw new Error("EXTERNAL_CHANGE_CONFLICT");
-        return 3000;
+        return "3000";
       },
     });
     const { result } = renderHook(() =>
@@ -493,7 +495,7 @@ describe("useFileEditor — save flush semantics", () => {
   });
 
   it("serializes writes per file: a queued write starts only after the previous settles", async () => {
-    let resolveFirst: (mtime: number) => void = () => {};
+    let resolveFirst: (token: string) => void = () => {};
     let writeCount = 0;
     invokeImpl = whenInvoke({
       read_file: () => "body",
@@ -501,11 +503,11 @@ describe("useFileEditor — save flush semantics", () => {
       write_file: () => {
         writeCount += 1;
         if (writeCount === 1) {
-          return new Promise<number>((resolve) => {
+          return new Promise<string>((resolve) => {
             resolveFirst = resolve;
           });
         }
-        return 3000;
+        return "3000";
       },
     });
     const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
@@ -533,7 +535,7 @@ describe("useFileEditor — save flush semantics", () => {
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(1);
 
     await act(async () => {
-      resolveFirst(2000);
+      resolveFirst("2000");
       for (let i = 0; i < 10; i++) await Promise.resolve();
     });
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(2);
@@ -541,7 +543,7 @@ describe("useFileEditor — save flush semantics", () => {
     // mtime token returned by the first write — not the stale token from when
     // it was queued (which would trip the conflict check against ourselves) —
     // and the body the first write actually landed, not a stale snapshot.
-    expect(lastWriteArgs()?.expectedVersion).toBe(2000);
+    expect(lastWriteArgs()?.expectedVersion).toBe("2000");
     expect(lastWriteArgs()?.content).toContain("title: New");
     expect(lastWriteArgs()?.content).toContain("edit one");
   });
@@ -674,8 +676,8 @@ describe("useFileEditor — save flush semantics", () => {
     // the next save must carry that mtime, not null (which would force-write and
     // bypass conflict detection).
     invokeImpl = whenInvoke({
-      read_file_versioned: () => ({ content: "hello", version: 4242 }),
-      write_file: () => 5000,
+      read_file_versioned: () => ({ content: "hello", version: "4242" }),
+      write_file: () => "5000",
     });
     const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
     await act(async () => {
@@ -689,7 +691,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.flushPendingSave();
     });
 
-    expect(lastWriteArgs()?.expectedVersion).toBe(4242);
+    expect(lastWriteArgs()?.expectedVersion).toBe("4242");
   });
 
   it("a failed field write keeps a newer field edit instead of reverting it", async () => {

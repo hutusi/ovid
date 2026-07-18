@@ -5,4 +5,10 @@
  * token is derived from the same bytes we return, the two are trivially
  * consistent — there's no read-time TOCTOU to guard against.
  */
-export type VersionedFile = { content: string, version: number, };
+export type VersionedFile = { content: string, 
+/**
+ * Opaque content-hash token (decimal string). A string, not a number, so
+ * it round-trips the JSON bridge byte-exact — the u64 hash overflows JS's
+ * safe-integer range.
+ */
+version: string, };

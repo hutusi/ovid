@@ -338,6 +338,10 @@ function App() {
   );
 
   async function handleSidebarSelect(node: FileNode) {
+    // Bump first, before any branch or early return, so *every* sidebar click
+    // — including an unsupported-file click that only toasts — supersedes a
+    // pending non-Markdown selection whose slow close is still in flight.
+    const gen = viewerGen.bump();
     const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
     if (sidebarMode === "content" || isMarkdown) {
       setFileViewerNode(null);
@@ -349,10 +353,6 @@ function App() {
       showToast(t("file_viewer.cannot_open"));
       return;
     }
-    // Capture the generation *after* the branch decision but before the await,
-    // so a newer content selection (from the sidebar or any other entry point,
-    // each of which bumps via setFileViewerNode) invalidates this one.
-    const gen = viewerGen.bump();
     // Show the (read-only) viewer only after the open Markdown file's save
     // transaction closes — a conflicting/failed close keeps the editor and its
     // pending edit on screen rather than hiding it behind the viewer. Guard on
