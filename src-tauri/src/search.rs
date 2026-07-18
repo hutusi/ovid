@@ -6,7 +6,7 @@ use ts_rs::TS;
 
 use tauri::Manager;
 
-use crate::paths::{is_markdown_path, to_slash};
+use crate::paths::{is_markdown_path, should_skip_walk_entry, to_slash};
 use crate::perf::log_perf;
 use crate::state::{CachedFrontmatter, CachedSearchFile, WorkspaceState};
 use crate::workspace::load_search_file_cached;
@@ -115,11 +115,10 @@ pub(crate) fn search_dir(
     for entry in entries {
         let entry_path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
-        if name.starts_with('.') {
-            continue;
-        }
-        // Skip symlinks to prevent traversal outside the workspace
-        if entry.file_type().map(|ft| ft.is_symlink()).unwrap_or(false) {
+        // Shared walker rule: noise dirs and symlinks (traversal outside the
+        // workspace) are never followed; dot-entries are skipped here.
+        let is_symlink = entry.file_type().map(|ft| ft.is_symlink()).unwrap_or(false);
+        if should_skip_walk_entry(&name, is_symlink, false) {
             continue;
         }
         if entry_path.is_dir() {
@@ -315,6 +314,30 @@ mod tests {
             first_elapsed.as_millis(),
             second_elapsed.as_millis()
         );
+    }
+
+    #[test]
+    fn search_dir_skips_noise_and_dot_directories() {
+        // Shared walker rule: search must not surface markdown the canonical
+        // tree hides (node_modules etc.), and keeps skipping dot-dirs.
+        let dir = TempDir::new().unwrap();
+        let content_root = dir.path().join("content");
+        fs::create_dir_all(&content_root).unwrap();
+        write_markdown_file(&content_root.join("real.md"), "Real", "needle here");
+
+        let noise = dir.path().join("node_modules").join("pkg");
+        fs::create_dir_all(&noise).unwrap();
+        write_markdown_file(&noise.join("README.md"), "Generated", "needle here");
+        let dot = dir.path().join(".obsidian");
+        fs::create_dir_all(&dot).unwrap();
+        write_markdown_file(&dot.join("hidden.md"), "Hidden", "needle here");
+
+        let mut cache = HashMap::new();
+        let frontmatter_cache = HashMap::new();
+        let results = search_dir(dir.path(), "needle", &mut cache, &frontmatter_cache);
+
+        assert_eq!(results.len(), 1);
+        assert!(results[0].path.ends_with("content/real.md"));
     }
 
     #[test]

@@ -147,11 +147,22 @@ export function useWorkspaceRevisionPoll({
     }
 
     void refreshForExternalChanges();
-    const interval = window.setInterval(refreshForExternalChanges, WORKSPACE_REVISION_POLL_MS);
+    // Each poll walks and stats the whole corpus in Rust — don't burn that
+    // while the window is hidden; the visibility handler below catches up
+    // immediately when the window comes back.
+    const interval = window.setInterval(() => {
+      if (document.hidden) return;
+      void refreshForExternalChanges();
+    }, WORKSPACE_REVISION_POLL_MS);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) void refreshForExternalChanges();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       mounted = false;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       workspaceRevisionRef.current = null;
       workspaceRefreshFailureToastRef.current = null;
       externalUnsavedToastRevisionRef.current = null;

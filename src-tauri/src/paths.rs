@@ -8,6 +8,47 @@ pub(crate) fn is_markdown_path(path: &Path) -> bool {
     )
 }
 
+/// Directories that are universally noise across the developer ecosystem and
+/// should never be traversed by any workspace walker (tree, revision hashing,
+/// search). Mirrors the TS `NOISE_DIRS` list previously applied client-side.
+const NOISE_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    "vendor",
+    ".cache",
+    "__pycache__",
+    ".tox",
+    ".venv",
+    "venv",
+    "out",
+    ".turbo",
+    ".vercel",
+    ".parcel-cache",
+];
+
+fn is_noise_dir(name: &str) -> bool {
+    NOISE_DIRS.iter().any(|n| *n == name)
+}
+
+/// The one shared skip rule for every recursive workspace walker. Noise
+/// directories are never traversed and symlinks are never followed, in every
+/// walker. `keep_dot_entries` is the single policy knob: the canonical tree
+/// keeps dot-entries (they are visible in Files mode), while revision hashing
+/// and search skip them — so `.github/notes.md` can appear in the tree
+/// without ever bumping the revision or matching a search.
+pub(crate) fn should_skip_walk_entry(name: &str, is_symlink: bool, keep_dot_entries: bool) -> bool {
+    if is_symlink || is_noise_dir(name) {
+        return true;
+    }
+    !keep_dot_entries && name.starts_with('.')
+}
+
 /// How `ensure_within` resolves a candidate that may not be on disk yet.
 pub(crate) enum ExistenceMode {
     /// The candidate must exist; it is canonicalized (defeating symlinks).

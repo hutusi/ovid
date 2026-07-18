@@ -1,7 +1,7 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::Path;
 
-use crate::paths::is_markdown_path;
+use crate::paths::{is_markdown_path, should_skip_walk_entry};
 
 pub(crate) fn hash_workspace_entry(path: &Path, root: &Path, hasher: &mut DefaultHasher) {
     let Ok(metadata) = std::fs::metadata(path) else {
@@ -28,15 +28,11 @@ pub(crate) fn hash_workspace_dir(path: &Path, root: &Path, hasher: &mut DefaultH
         let entry_path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
 
-        if name.starts_with('.') {
-            continue;
-        }
-
         let Ok(file_type) = entry.file_type() else {
             continue;
         };
 
-        if file_type.is_symlink() {
+        if should_skip_walk_entry(&name, file_type.is_symlink(), false) {
             continue;
         }
 
@@ -89,6 +85,23 @@ mod tests {
         fs::write(dir.path().join("posts").join("hello.md"), "# Hello").unwrap();
 
         assert_ne!(compute_workspace_revision(dir.path()), before);
+    }
+
+    #[test]
+    fn compute_workspace_revision_ignores_markdown_inside_noise_dirs() {
+        // The canonical tree never shows node_modules/target/dist etc.
+        // (shared walker rule) — markdown churn inside them must not bump the
+        // revision either, or every poll would trigger a refresh for files
+        // the user can't even see.
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("real.md"), "# Real").unwrap();
+        let noise = dir.path().join("node_modules").join("pkg");
+        fs::create_dir_all(&noise).unwrap();
+        let before = compute_workspace_revision(dir.path());
+
+        fs::write(noise.join("README.md"), "# Generated").unwrap();
+
+        assert_eq!(compute_workspace_revision(dir.path()), before);
     }
 
     #[test]
