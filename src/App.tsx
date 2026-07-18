@@ -259,9 +259,9 @@ function App() {
   // only have to clear the FileViewer (a separate, files-mode UI concern) and
   // delegate. Two-line wrappers rather than re-implementing the orchestration.
   const openFileByPath = useCallback(
-    (path: string) => {
+    (path: string): Promise<boolean> => {
       setFileViewerNode(null);
-      void openByPath(path);
+      return openByPath(path);
     },
     [openByPath, setFileViewerNode]
   );
@@ -335,7 +335,7 @@ function App() {
     [workspaceRoot, postsBasePath, refreshTree, openByPath, setFileViewerNode, showToast, t]
   );
 
-  function handleSidebarSelect(node: FileNode) {
+  async function handleSidebarSelect(node: FileNode) {
     const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
     if (sidebarMode === "content" || isMarkdown) {
       setFileViewerNode(null);
@@ -347,8 +347,10 @@ function App() {
       showToast(t("file_viewer.cannot_open"));
       return;
     }
-    void handleCloseFile();
-    setFileViewerNode(node);
+    // Show the (read-only) viewer only after the open Markdown file's save
+    // transaction closes — a conflicting/failed close keeps the editor and its
+    // pending edit on screen rather than hiding it behind the viewer.
+    if (await handleCloseFile()) setFileViewerNode(node);
   }
 
   const closeActiveTabOrFile = useCallback(() => {
@@ -589,14 +591,16 @@ function App() {
     }
   }
 
-  function handleOpenByPath(
+  async function handleOpenByPath(
     path: string,
     match?: { lineContent: string; lineNumber: number; query: string }
   ) {
-    openFileByPath(path);
-    // A one-shot jump request the editor consumes once the file is open.
-    if (match) setSearchJump({ path, ...match, gen: ++searchJumpGenRef.current });
     overlay.close("search");
+    // Await the open (which reloads content + frontmatter offset) before
+    // publishing the jump, so the editor never consumes it against the
+    // outgoing file's state, and an aborted open publishes no jump.
+    const opened = await openFileByPath(path);
+    if (match && opened) setSearchJump({ path, ...match, gen: ++searchJumpGenRef.current });
   }
 
   function handleSelectFromTab(path: string) {

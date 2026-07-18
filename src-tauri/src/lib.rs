@@ -19,7 +19,7 @@ use app::restart_app;
 use assets::{pick_image_file, save_asset, save_asset_from_bytes};
 use files::{
     create_dir, create_file, duplicate_entry, ensure_dir, get_file_mtime, read_file,
-    read_files_bulk, rename_file, trash_file, write_file,
+    read_file_versioned, read_files_bulk, rename_file, trash_file, write_file,
 };
 use git::commands::{
     get_git_branch, get_git_branches, get_git_commit_changes, get_git_remote_branches,
@@ -84,6 +84,7 @@ pub fn run() {
             list_workspace_tree,
             get_workspace_revision,
             read_file,
+            read_file_versioned,
             read_files_bulk,
             get_file_mtime,
             write_file,

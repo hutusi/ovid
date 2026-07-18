@@ -242,14 +242,20 @@ export function useFileEditor({
       }
       console.error("Failed to save frontmatter:", err);
       showToast(t("errors.save_failed"));
-      if (selectedPathRef.current === path) {
-        // Revert the panel to the last-saved frontmatter (the failed edit is
-        // discarded, with the toast as notice). The dot then reflects whatever
-        // body edit is still pending, not the abandoned field write — and
-        // never stays stuck on "saving".
-        revertFrontmatterToLastSaved();
-        setSaveStatus(pendingMarkdownRef.current !== null ? "unsaved" : "saved");
+      if (selectedPathRef.current !== path) return;
+      if (pendingFieldSaveRef.current !== null) {
+        // A newer property edit is already queued — its displayed value is
+        // live and its own flush will persist it. Reverting here would strand
+        // that edit (panel shows old, disk later shows new). Just keep unsaved.
+        setSaveStatus("unsaved");
+        return;
       }
+      // Revert the panel to the last-saved frontmatter (the failed edit is
+      // discarded, with the toast as notice). The dot then reflects whatever
+      // body edit is still pending, not the abandoned field write — and never
+      // stays stuck on "saving".
+      revertFrontmatterToLastSaved();
+      setSaveStatus(pendingMarkdownRef.current !== null ? "unsaved" : "saved");
     },
     [triggerConflict, showToast, t, revertFrontmatterToLastSaved]
   );
@@ -461,9 +467,11 @@ export function useFileEditor({
    *  changed underneath us. Throws if the read fails (caller toasts). */
   const applyDiskContent = useCallback(
     async (node: FileNode): Promise<boolean> => {
-      const raw = await commands.files.read({ path: node.path });
-      if (selectedPathRef.current !== node.path) return false;
-      const mtime = await commands.files.getMtime({ path: node.path }).catch(() => null);
+      // One consistent snapshot: content paired with the mtime it's valid
+      // against, so a later save can't clobber an external change that landed
+      // between two separate read/mtime calls. Throws (→ caller toasts) if the
+      // file is unreadable, too large, or has no mtime token.
+      const { content: raw, mtime } = await commands.files.readVersioned({ path: node.path });
       if (selectedPathRef.current !== node.path) return false;
       const { frontmatter, body } = parseFrontmatter(raw);
       frontmatterRef.current = frontmatter;
@@ -582,6 +590,9 @@ export function useFileEditor({
     setParsedFrontmatter(updated);
     const newFrontmatter = serializeFrontmatter(updated);
     frontmatterRef.current = newFrontmatter;
+    // Keep the search-jump offset correct when a property edit changes the
+    // frontmatter's line count (offset is otherwise only recomputed on load).
+    setFrontmatterLineOffset(computeFrontmatterLineOffset(newFrontmatter));
 
     // The body comes from the live pending edit when dirty, else from the last
     // content known to be on disk — no re-read needed; an external change is

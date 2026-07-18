@@ -36,6 +36,15 @@ mock.module("@tauri-apps/api/event", () => ({
 
 function whenInvoke(handlers: InvokeHandlers): InvokeImpl {
   return async (name, args) => {
+    // The editor reads via read_file_versioned (content + mtime as one
+    // snapshot). Tests still describe the disk with the simpler read_file +
+    // get_file_mtime handlers, so synthesize the versioned result from them
+    // unless a test overrides read_file_versioned explicitly.
+    if (name === "read_file_versioned" && !handlers.read_file_versioned) {
+      const content = handlers.read_file?.(args);
+      const mtime = handlers.get_file_mtime?.(args) ?? 0;
+      return { content, mtime };
+    }
     const handler = handlers[name];
     if (!handler) {
       throw new Error(`useFileEditor test issued unmocked invoke: ${name}`);
@@ -338,7 +347,8 @@ describe("useFileEditor — save flush semantics", () => {
     expect(result.current.pendingMarkdownRef.current).toBe("precious edit");
     expect(result.current.saveStatus).toBe("unsaved");
     expect(showToast).toHaveBeenCalledTimes(1);
-    expect(invokeCalls.filter((c) => c.name === "read_file")).toHaveLength(1);
+    // Only the initial NODE open read from disk — OTHER was never read.
+    expect(invokeCalls.filter((c) => c.name === "read_file_versioned")).toHaveLength(1);
   });
 
   it("switching files aborts and prompts when the outgoing save conflicts", async () => {
@@ -657,6 +667,68 @@ describe("useFileEditor — save flush semantics", () => {
     // so the external frontmatter change survives.
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(writesBefore);
     expect(result.current.parsedFrontmatter.title).toBe("External");
+  });
+
+  it("opens via a versioned read, seeding a real mtime the next save carries", async () => {
+    // read_file_versioned returns content + a consistent mtime as one snapshot;
+    // the next save must carry that mtime, not null (which would force-write and
+    // bypass conflict detection).
+    invokeImpl = whenInvoke({
+      read_file_versioned: () => ({ content: "hello", mtime: 4242 }),
+      write_file: () => 5000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+
+    act(() => {
+      result.current.handleEditorChange("edited");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+
+    expect(lastWriteArgs()?.expectedMtime).toBe(4242);
+  });
+
+  it("a failed field write keeps a newer field edit instead of reverting it", async () => {
+    // Field write A is in flight and fails; edit B was made meanwhile. B must
+    // survive on screen (and reach disk via its own flush), not be reverted to
+    // the last-saved value.
+    let failNext = false;
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: Old\n---\nbody",
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        if (failNext) throw new Error("disk full");
+        return 2000;
+      },
+    });
+    const showToast = mock((_: string) => {});
+    const { result } = renderHook(() => useFileEditor({ showToast }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+
+    // Edit A, dispatch its write (which will fail), then edit B before A rejects.
+    act(() => {
+      void result.current.handleFieldChange("title", "A");
+    });
+    failNext = true;
+    const flushA = result.current.flushPendingSave();
+    act(() => {
+      void result.current.handleFieldChange("title", "B");
+    });
+    await act(async () => {
+      await flushA.catch(() => {});
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+
+    // B is preserved (not reverted to "Old"), and the file stays unsaved so
+    // B's own flush still persists it.
+    expect(result.current.parsedFrontmatter.title).toBe("B");
+    expect(result.current.saveStatus).toBe("unsaved");
   });
 
   it("a failed background flush restores the pending edit for a later retry", async () => {

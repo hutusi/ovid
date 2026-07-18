@@ -47,6 +47,60 @@ pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Resul
     std::fs::read_to_string(&canonical).map_err(|e| e.to_string())
 }
 
+/// A file's content together with the optimistic-concurrency token (mtime) that
+/// the content is consistent with — read as one snapshot so a save can't later
+/// pair old content with a newer mtime and silently clobber an external change.
+#[derive(Serialize, TS, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/lib/commands/generated/")]
+pub(crate) struct VersionedFile {
+    pub(crate) content: String,
+    // ms since epoch; fits a JS number. Match get_file_mtime/write_file, which
+    // cross the bridge as `number`, rather than ts-rs's default u64 → bigint.
+    #[ts(type = "number")]
+    pub(crate) mtime: u64,
+}
+
+/// Read `path`'s content and its mtime token as a consistent pair. Reading them
+/// via two separate commands leaves a TOCTOU gap where an external replace
+/// between the calls yields old-content/new-mtime — the next save then matches
+/// the mtime and overwrites the change. Here we stat → read → stat: if the mtime
+/// is stable across the read the token provably matches the content; if it
+/// changed mid-read we return the *pre-read* mtime, which is deliberately stale
+/// so the next save conflict-prompts rather than clobbers. A missing mtime is an
+/// error — the editor must not open a file it can't guard.
+/// Core of `read_file_versioned`, factored out of the Tauri command so it can
+/// be unit-tested without a `WorkspaceState`.
+fn read_versioned_checked(canonical: &Path) -> Result<VersionedFile, String> {
+    if let Ok(meta) = std::fs::metadata(canonical) {
+        if meta.len() > MAX_READ_FILE_BYTES {
+            return Err(FILE_TOO_LARGE.to_string());
+        }
+    }
+    let mtime_before = file_mtime_millis(canonical).ok_or("cannot read file mtime")?;
+    let content = std::fs::read_to_string(canonical).map_err(|e| e.to_string())?;
+    let mtime_after = file_mtime_millis(canonical).ok_or("cannot read file mtime")?;
+    // Stable across the read → the token matches the content. Otherwise fall
+    // back to the earlier (now-stale) token so the next save conflicts.
+    let mtime = if mtime_before == mtime_after {
+        mtime_after
+    } else {
+        mtime_before
+    };
+    Ok(VersionedFile { content, mtime })
+}
+
+#[tauri::command]
+pub(crate) fn read_file_versioned(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<VersionedFile, String> {
+    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
+    let root = root_guard.as_ref().ok_or("no workspace open")?;
+    let canonical = validate_path(root, &path)?;
+    read_versioned_checked(&canonical)
+}
+
 /// One corpus file returned by `read_files_bulk`, keyed by the path string
 /// the caller requested so client-side lookups need no normalisation.
 #[derive(Serialize, TS)]
@@ -264,6 +318,38 @@ mod tests {
             Err(EXTERNAL_CHANGE_CONFLICT.to_string())
         );
         assert_eq!(fs::read_to_string(&path).unwrap(), "v1", "file must be untouched");
+    }
+
+    #[test]
+    fn read_versioned_checked_returns_content_and_a_stable_mtime() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, "hello").unwrap();
+        let expected = file_mtime_millis(&path).unwrap();
+
+        let versioned = read_versioned_checked(&path).unwrap();
+        assert_eq!(versioned.content, "hello");
+        assert_eq!(versioned.mtime, expected, "token must match the read content");
+
+        // The token is a valid optimistic-concurrency mtime: an unchanged file
+        // still carries it, so a save with this token would not conflict.
+        let unchanged = file_mtime_millis(&path).unwrap();
+        assert_eq!(versioned.mtime, unchanged);
+    }
+
+    #[test]
+    fn read_versioned_checked_rejects_oversized_files() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("huge.md");
+        // A sparse file over the limit — set_len doesn't allocate real bytes.
+        let file = fs::File::create(&path).unwrap();
+        file.set_len(MAX_READ_FILE_BYTES + 1).unwrap();
+        drop(file);
+
+        assert_eq!(
+            read_versioned_checked(&path),
+            Err(FILE_TOO_LARGE.to_string())
+        );
     }
 
     #[test]

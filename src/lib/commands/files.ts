@@ -1,4 +1,5 @@
 import type { BulkFileContent } from "./generated/BulkFileContent";
+import type { VersionedFile } from "./generated/VersionedFile";
 import { invokeCmd } from "./internal";
 
 /** Error message the Rust `write_file` returns when the file changed on disk
@@ -60,6 +61,10 @@ export interface EnsureDirArgs {
 
 export const files = {
   read: (args: ReadFileArgs) => invokeCmd<string>("read_file", args),
+  /** Read a file's content and its consistent mtime token in one snapshot, so
+   *  a later save can't pair stale content with a newer mtime. Rejects with
+   *  FILE_TOO_LARGE for oversized files. */
+  readVersioned: (args: ReadFileArgs) => invokeCmd<VersionedFile>("read_file_versioned", args),
   /** Read many files in one IPC round-trip. Unreadable, oversized, or
    *  out-of-workspace paths are omitted from the result. */
   readBulk: (args: ReadFilesBulkArgs) => invokeCmd<BulkFileContent[]>("read_files_bulk", args),

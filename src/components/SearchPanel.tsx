@@ -268,6 +268,10 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
                         id={`search-option-${flatIndex}`}
                         role="option"
                         aria-selected={flatIndex === activeIndex}
+                        // Keep options out of the tab order: the combobox input
+                        // is the single keyboard cursor, driving selection via
+                        // aria-activedescendant. Arrow keys + Enter navigate.
+                        tabIndex={-1}
                         className="search-result-match"
                         data-active={flatIndex === activeIndex ? "true" : undefined}
                         onClick={() => openMatch(flatIndex)}
