@@ -478,41 +478,6 @@ export function Editor({
     onWordCount?.(countWords(text));
   }, [clearPendingRestore, content, editor, onWordCount]);
 
-  // Consume a pending search-match jump once this editor shows the target
-  // file. Locate the match by its raw line text first (exact for plain prose
-  // lines), falling back to the query's first occurrence — inline marks split
-  // styled lines across text nodes, where the full raw line can't match.
-  // Declared after the content-apply effect so the doc is current when it
-  // runs; the lastAppliedContentRef guard makes it wait for that apply.
-  useEffect(() => {
-    if (!editor || !searchJump || searchJump.path !== filePath) return;
-    if (lastAppliedContentRef.current !== content) return;
-    const doc = editor.state.doc;
-    // Rank identical body lines by proximity to the match's mapped body line,
-    // and select the same-rank in-document hit (collectMatches yields hits in
-    // document order) — so a repeated line jumps to the clicked occurrence,
-    // not the first on the page. Fall back to the query's first occurrence for
-    // styled lines split across text nodes.
-    const lineHits = collectMatches(doc, searchJump.lineContent);
-    let target: { from: number; to: number } | undefined;
-    if (lineHits.length > 0) {
-      const targetBodyLine = searchJump.lineNumber - 1 - frontmatterLineOffset;
-      const rank = matchOccurrenceRank(content.split("\n"), searchJump.lineContent, targetBodyLine);
-      target = lineHits[Math.min(rank, lineHits.length - 1)];
-    } else {
-      target = collectMatches(doc, searchJump.query)[0];
-    }
-    if (target) {
-      editor
-        .chain()
-        .focus()
-        .setTextSelection({ from: target.from, to: target.to })
-        .scrollIntoView()
-        .run();
-    }
-    onSearchJumpHandled?.();
-  }, [editor, searchJump, filePath, content, frontmatterLineOffset, onSearchJumpHandled]);
-
   useEffect(() => {
     const scrollEl = scrollRef.current;
     if (!scrollEl || !editor) return;
@@ -555,6 +520,53 @@ export function Editor({
       clearPendingRestore();
     };
   }, [clearPendingRestore, editor, initialScrollTop, initialSelection]);
+
+  // Consume a pending search-match jump once this editor shows the target
+  // file. Declared *after* the view-state-restoration effect so it can cancel
+  // that effect's scheduled restore (RAF + timers up to 320 ms) via
+  // clearPendingRestore — otherwise a delayed restore would reset selection
+  // and scroll back to the saved position, undoing the jump on a
+  // previously-visited file. The lastAppliedContentRef guard makes it wait
+  // for the content-apply effect above.
+  useEffect(() => {
+    if (!editor || !searchJump || searchJump.path !== filePath) return;
+    if (lastAppliedContentRef.current !== content) return;
+    const doc = editor.state.doc;
+    // Rank identical body lines by proximity to the match's mapped body line,
+    // and select the same-rank in-document hit (collectMatches yields hits in
+    // document order) — so a repeated line jumps to the clicked occurrence,
+    // not the first on the page. Fall back to the query's first occurrence for
+    // styled lines split across text nodes.
+    const lineHits = collectMatches(doc, searchJump.lineContent);
+    let target: { from: number; to: number } | undefined;
+    if (lineHits.length > 0) {
+      const targetBodyLine = searchJump.lineNumber - 1 - frontmatterLineOffset;
+      const rank = matchOccurrenceRank(content.split("\n"), searchJump.lineContent, targetBodyLine);
+      target = lineHits[Math.min(rank, lineHits.length - 1)];
+    } else {
+      target = collectMatches(doc, searchJump.query)[0];
+    }
+    if (target) {
+      // Cancel any pending view-state restore first, so it can't fire later
+      // and clobber the jump we're about to apply.
+      clearPendingRestore();
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: target.from, to: target.to })
+        .scrollIntoView()
+        .run();
+    }
+    onSearchJumpHandled?.();
+  }, [
+    editor,
+    searchJump,
+    filePath,
+    content,
+    frontmatterLineOffset,
+    clearPendingRestore,
+    onSearchJumpHandled,
+  ]);
 
   // Update spellcheck live — set directly on the DOM to avoid replacing editorProps
   useEffect(() => {

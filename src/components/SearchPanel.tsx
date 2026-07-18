@@ -174,6 +174,11 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           aria-label={t("search_panel.aria_label")}
+          role="combobox"
+          aria-expanded={flatMatches.length > 0}
+          aria-controls="search-listbox"
+          aria-autocomplete="list"
+          aria-activedescendant={activeIndex >= 0 ? `search-option-${activeIndex}` : undefined}
           className="h-7 text-[13px]"
         />
         <button
@@ -214,57 +219,69 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
           </p>
         )}
 
-        {results.map((result) => {
-          const baseName =
-            result.path
-              .split("/")
-              .pop()
-              ?.replace(/\.mdx?$/, "") ?? result.path;
-          const displayName = result.title || baseName;
-          return (
-            <div key={result.path} className="search-result-group">
-              <button
-                type="button"
-                className="search-result-file"
-                data-draft={result.draft ? "true" : undefined}
-                onClick={() => onOpenFile(result.path)}
-              >
-                {displayName}
-              </button>
-              {result.matches.map((match, matchIdx) => {
-                const flatIndex = (matchOffsets.get(result.path) ?? 0) + matchIdx;
-                return (
+        {results.length > 0 && (
+          <div id="search-listbox" role="listbox" aria-label={t("search_panel.aria_label")}>
+            {results.map((result) => {
+              const baseName =
+                result.path
+                  .split("/")
+                  .pop()
+                  ?.replace(/\.mdx?$/, "") ?? result.path;
+              const displayName = result.title || baseName;
+              return (
+                <div key={result.path} className="search-result-group">
                   <button
-                    key={match.lineNumber}
                     type="button"
-                    className="search-result-match"
-                    data-active={flatIndex === activeIndex ? "true" : undefined}
-                    onClick={() =>
-                      onOpenFile(result.path, {
-                        lineContent: match.lineContent,
-                        lineNumber: match.lineNumber,
-                        query: query.trim(),
-                      })
-                    }
+                    className="search-result-file"
+                    // File headers open the file but aren't part of the
+                    // arrow-key option sequence — keep them out of the tab
+                    // order so the input's aria-activedescendant is the single
+                    // keyboard cursor.
+                    tabIndex={-1}
+                    data-draft={result.draft ? "true" : undefined}
+                    onClick={() => onOpenFile(result.path)}
                   >
-                    <span className="search-match-line">{match.lineNumber}</span>
-                    <span className="search-match-content">
-                      <HighlightedLine text={match.lineContent} query={query} />
-                    </span>
+                    {displayName}
                   </button>
-                );
-              })}
-              {result.hasMoreMatches && (
-                <p className="search-status">
-                  {t("search_panel.overflow", {
-                    shown: result.matches.length,
-                    total: result.totalMatches,
+                  {result.matches.map((match, matchIdx) => {
+                    const flatIndex = (matchOffsets.get(result.path) ?? 0) + matchIdx;
+                    return (
+                      <button
+                        key={match.lineNumber}
+                        type="button"
+                        id={`search-option-${flatIndex}`}
+                        role="option"
+                        aria-selected={flatIndex === activeIndex}
+                        className="search-result-match"
+                        data-active={flatIndex === activeIndex ? "true" : undefined}
+                        onClick={() =>
+                          onOpenFile(result.path, {
+                            lineContent: match.lineContent,
+                            lineNumber: match.lineNumber,
+                            query: query.trim(),
+                          })
+                        }
+                      >
+                        <span className="search-match-line">{match.lineNumber}</span>
+                        <span className="search-match-content">
+                          <HighlightedLine text={match.lineContent} query={query} />
+                        </span>
+                      </button>
+                    );
                   })}
-                </p>
-              )}
-            </div>
-          );
-        })}
+                  {result.hasMoreMatches && (
+                    <p className="search-status">
+                      {t("search_panel.overflow", {
+                        shown: result.matches.length,
+                        total: result.totalMatches,
+                      })}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

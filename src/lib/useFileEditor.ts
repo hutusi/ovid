@@ -86,39 +86,6 @@ export function useFileEditor({
     selectedFileRef.current = selectedFile;
   }, [selectedFile]);
 
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      // Best-effort flush on unmount — fire-and-forget since cleanup is
-      // synchronous. Passes the expected mtime so it won't clobber an external
-      // change (the primary quit path is the blocking close-guard flush).
-      if (fieldSaveTimerRef.current) clearTimeout(fieldSaveTimerRef.current);
-      const path = selectedPathRef.current;
-      const markdown = pendingMarkdownRef.current;
-      if (path && markdown !== null) {
-        void commands.files
-          .write({
-            path,
-            content: joinFrontmatter(frontmatterRef.current, markdown),
-            expectedMtime: lastSavedMtimeRef.current,
-          })
-          .catch(() => {});
-      } else if (pendingFieldSaveRef.current) {
-        // Field-only edit still in its debounce window: same best-effort write
-        // (the pending field save can only belong to the selected file — any
-        // switch/close flushed it already).
-        const pending = pendingFieldSaveRef.current;
-        void commands.files
-          .write({
-            path: pending.path,
-            content: joinFrontmatter(pending.frontmatter, pending.body),
-            expectedMtime: lastSavedMtimeRef.current,
-          })
-          .catch(() => {});
-      }
-    };
-  }, []);
-
   /** Start `start` only after every earlier write to the same path has
    *  settled. Autosave, frontmatter edits, and flushes can otherwise overlap
    *  in flight, letting an older payload land on disk after a newer one (or
@@ -214,6 +181,30 @@ export function useFileEditor({
     },
     [enqueueWrite]
   );
+
+  // Best-effort flush on unmount. Declared after writeMarkdown so it can route
+  // through it — fire-and-forget (cleanup is synchronous) but still chained
+  // behind any in-flight write to the same path (never landing stale-last) and
+  // non-forced so it won't clobber an external change. The primary quit path
+  // is the blocking close-guard flush.
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (fieldSaveTimerRef.current) clearTimeout(fieldSaveTimerRef.current);
+      const path = selectedPathRef.current;
+      const markdown = pendingMarkdownRef.current;
+      if (path && markdown !== null) {
+        writeMarkdown(path, markdown, "editor.flushPendingWrite").catch(() => {});
+      } else if (pendingFieldSaveRef.current) {
+        // Field-only edit still in its debounce window (the pending field save
+        // can only belong to the selected file — any switch/close flushed it).
+        const pending = pendingFieldSaveRef.current;
+        writeMarkdown(pending.path, pending.body, "editor.writeFrontmatter", {
+          frontmatter: pending.frontmatter,
+        }).catch(() => {});
+      }
+    };
+  }, [writeMarkdown]);
 
   const triggerConflict = useCallback(() => {
     if (conflictActiveRef.current) return;
