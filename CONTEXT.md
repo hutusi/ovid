@@ -195,10 +195,13 @@ encapsulates so `App.tsx` doesn't have to wire it manually.
 
 ### Save coordination & external-change conflicts
 
-`useFileEditor` funnels **every** write through `writeMarkdown` → `trackWrite`
-so `flushPendingSave` can await in-flight saves before a switch/close/quit
-(there is no un-tracked `commands.files.write` from the editor — a property
-edit routes through the same path). Saves carry an **optimistic-concurrency
+`useFileEditor` funnels **every** write through `writeMarkdown` →
+`enqueueWrite`, which serializes writes per file path (a write starts only
+after every earlier write to the same file settles, composing its payload and
+mtime token at start time) and tracks them so `flushPendingSave` can await
+in-flight saves before a switch/close/quit (there is no un-tracked
+`commands.files.write` from the editor — a property edit routes through the
+same path). Saves carry an **optimistic-concurrency
 token**: `write_file` takes the mtime the client last saw (`lastSavedMtimeRef`,
 seeded by `get_file_mtime` on open) and returns the post-write mtime. If the
 on-disk mtime no longer matches, the Rust side refuses the write with
@@ -206,9 +209,13 @@ on-disk mtime no longer matches, the Rust side refuses the write with
 (keeping the pending edit) and calls `onConflict`, which opens the blocking
 `conflict` overlay; `resolveConflict("reload" | "overwrite" | "dismiss")`
 either reloads the disk version, force-writes (`expectedMtime: null`), or leaves
-the file unsaved for a later retry. This is the write-time complement to the
-revision poll (`useWorkspaceRevisionPoll`), which handles the no-local-edits
-case by reloading, and treats the `saving` state like `unsaved`.
+the file unsaved for a later retry. Fire-and-forget **background flushes**
+(file switch / close / window blur) force-write instead of conflicting — there
+is nowhere to prompt once the editor has moved on — and restore the pending
+edit on failure; see ADR 0020 for the trade-off. This is the write-time
+complement to the revision poll (`useWorkspaceRevisionPoll`), which handles
+the no-local-edits case by reloading, and treats the `saving` state like
+`unsaved`.
 
 ---
 

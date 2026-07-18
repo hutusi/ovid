@@ -53,6 +53,8 @@ export function useFileEditor({
   const pendingMarkdownRef = useRef<string | null>(null);
   const editorFlushRef = useRef<(() => void) | null>(null);
   const inFlightWritesRef = useRef(new Set<Promise<void>>());
+  // Tail of the write queue per file path — see enqueueWrite.
+  const writeChainsRef = useRef(new Map<string, Promise<void>>());
   // Tracks the full file content (frontmatter + body) as last written to or read from disk.
   // Used to distinguish our own saves from external changes in the workspace refresh loop.
   const lastSavedContentRef = useRef<string | null>(null);
@@ -89,11 +91,21 @@ export function useFileEditor({
     };
   }, []);
 
-  const trackWrite = useCallback((write: Promise<void>) => {
+  /** Start `start` only after every earlier write to the same path has
+   *  settled. Autosave, frontmatter edits, and flushes can otherwise overlap
+   *  in flight, letting an older payload land on disk after a newer one (or
+   *  trip the mtime check against our own previous write). A failed
+   *  predecessor doesn't block successors; the returned promise reflects this
+   *  write alone. */
+  const enqueueWrite = useCallback((path: string, start: () => Promise<void>) => {
+    const prev = writeChainsRef.current.get(path);
+    const write = prev ? prev.catch(() => {}).then(start) : start();
+    writeChainsRef.current.set(path, write);
     inFlightWritesRef.current.add(write);
     write
       .finally(() => {
         inFlightWritesRef.current.delete(write);
+        if (writeChainsRef.current.get(path) === write) writeChainsRef.current.delete(path);
       })
       // The caller owns `write` and handles its rejection; swallow here so this
       // bookkeeping chain can't surface a rejected write as an unhandled
@@ -109,11 +121,14 @@ export function useFileEditor({
   }, []);
 
   const writeMarkdown = useCallback(
-    (path: string, markdown: string, perfName: WritePerfName, opts?: { force?: boolean }) => {
-      const diskContent = joinFrontmatter(frontmatterRef.current, markdown);
-      const expectedMtime = opts?.force ? null : lastSavedMtimeRef.current;
-      return trackWrite(
-        measureAsync(
+    (path: string, markdown: string, perfName: WritePerfName, opts?: { force?: boolean }) =>
+      enqueueWrite(path, () => {
+        // Compose the payload when the write actually starts, not when it was
+        // queued — an earlier write to the same path may have just updated the
+        // frontmatter ref and the mtime token.
+        const diskContent = joinFrontmatter(frontmatterRef.current, markdown);
+        const expectedMtime = opts?.force ? null : lastSavedMtimeRef.current;
+        return measureAsync(
           perfName,
           async () => {
             try {
@@ -138,10 +153,9 @@ export function useFileEditor({
           {
             contentLength: diskContent.length,
           }
-        )
-      );
-    },
-    [trackWrite]
+        );
+      }),
+    [enqueueWrite]
   );
 
   const triggerConflict = useCallback(() => {
@@ -165,10 +179,10 @@ export function useFileEditor({
       // Background flushes (file switch / close / window blur) are fire-and-
       // forget and clear the pending ref optimistically below — by the time the
       // write could reject we may have already switched files, so there's
-      // nowhere to sanely resolve a conflict and the pending edit is gone.
+      // nowhere to sanely resolve a conflict.
       // Force those writes (matching pre-conflict-detection behaviour); conflict
       // detection stays on the interactive paths (autosave, and blocking flushes
-      // from Cmd+S / the quit close-guard).
+      // from Cmd+S / the quit close-guard). See ADR 0020.
       const pendingWrite =
         path && markdown !== null
           ? writeMarkdown(path, markdown, "editor.flushPendingWrite", {
@@ -181,6 +195,14 @@ export function useFileEditor({
           pendingWrite.catch((err) => {
             console.error("Failed to flush pending save:", err);
             showToast(t("errors.save_failed"));
+            // The optimistic clear below already ran; restore the edit (unless
+            // a newer one superseded it or the file changed) so a later flush
+            // or the quit close-guard retries — a failed fire-and-forget write
+            // must not drop content while the status dot claims "saved".
+            if (selectedPathRef.current === path && pendingMarkdownRef.current === null) {
+              pendingMarkdownRef.current = markdown;
+              setSaveStatus("unsaved");
+            }
           });
         } else {
           try {

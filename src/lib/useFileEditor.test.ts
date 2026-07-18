@@ -399,4 +399,94 @@ describe("useFileEditor — save flush semantics", () => {
     expect(result.current.saveStatus).toBe("unsaved");
     expect(result.current.pendingMarkdownRef.current).toBe("my local edit");
   });
+
+  it("serializes writes per file: a queued write starts only after the previous settles", async () => {
+    let resolveFirst: (mtime: number) => void = () => {};
+    let writeCount = 0;
+    invokeImpl = whenInvoke({
+      read_file: () => "body",
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        writeCount += 1;
+        if (writeCount === 1) {
+          return new Promise<number>((resolve) => {
+            resolveFirst = resolve;
+          });
+        }
+        return 3000;
+      },
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("edit one");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave({ mode: "background" });
+    });
+    expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(1);
+
+    // A frontmatter edit while the first write is still in flight must queue
+    // behind it, not race it.
+    act(() => {
+      void result.current.handleFieldChange("title", "New");
+    });
+    await act(async () => {
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+    expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(1);
+
+    await act(async () => {
+      resolveFirst(2000);
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+    expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(2);
+    // The queued write composed its payload at start time, so it carries the
+    // mtime token returned by the first write — not the stale token from when
+    // it was queued (which would trip the conflict check against ourselves).
+    expect(lastWriteArgs()?.expectedMtime).toBe(2000);
+  });
+
+  it("a failed background flush restores the pending edit for a later retry", async () => {
+    let failWrites = true;
+    invokeImpl = whenInvoke({
+      read_file: () => "hello",
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        if (failWrites) throw new Error("disk full");
+        return 2000;
+      },
+    });
+    const showToast = mock((_: string) => {});
+    const { result } = renderHook(() => useFileEditor({ showToast }));
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("precious edit");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave({ mode: "background" });
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+
+    // The failure was surfaced and the edit restored — not silently dropped
+    // while the status dot claims "saved".
+    expect(showToast).toHaveBeenCalledTimes(1);
+    expect(result.current.pendingMarkdownRef.current).toBe("precious edit");
+    expect(result.current.saveStatus).toBe("unsaved");
+
+    failWrites = false;
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    const writes = invokeCalls.filter((c) => c.name === "write_file");
+    expect(writes).toHaveLength(2);
+    expect((writes[1]?.args as { content: string }).content).toBe("precious edit");
+    expect(result.current.saveStatus).toBe("saved");
+  });
 });
