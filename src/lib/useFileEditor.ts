@@ -67,13 +67,14 @@ export function useFileEditor({
   // write that starts after its file was deselected compose against what
   // actually landed, instead of a stale queue-time snapshot; entries live only
   // while the path's chain is non-empty.
-  const lastWrittenByPathRef = useRef(new Map<string, { content: string; mtime: number }>());
+  const lastWrittenByPathRef = useRef(new Map<string, { content: string; version: number }>());
   // Tracks the full file content (frontmatter + body) as last written to or read from disk.
   // Used to distinguish our own saves from external changes in the workspace refresh loop.
   const lastSavedContentRef = useRef<string | null>(null);
-  // Optimistic-concurrency token: the file's mtime as last read/written. Passed
-  // to write_file so it can refuse a save that would clobber an external change.
-  const lastSavedMtimeRef = useRef<number | null>(null);
+  // Optimistic-concurrency token: the file's content-hash version as last
+  // read/written. Passed to write_file so it can refuse a save that would
+  // clobber an external change.
+  const lastSavedVersionRef = useRef<number | null>(null);
   // The (path, markdown) of the write that hit a conflict, so an "overwrite"
   // resolution can force exactly that content back through writeMarkdown.
   const conflictRetryRef = useRef<{ path: string; markdown: string } | null>(null);
@@ -132,12 +133,12 @@ export function useFileEditor({
     ) => {
       // Queue-time snapshots, refreshed at start time only while `path` is
       // still the selected file — the refs then still describe this file (an
-      // earlier queued write may have advanced the mtime token). After a
+      // earlier queued write may have advanced the version token). After a
       // switch the refs describe the newly-opened file and must not bleed
       // into a write that is still queued for the previous one; such a write
       // falls back to what the chain last wrote (or these snapshots).
       const queuedFrontmatter = opts?.frontmatter ?? frontmatterRef.current;
-      const queuedMtime = lastSavedMtimeRef.current;
+      const queuedVersion = lastSavedVersionRef.current;
       return enqueueWrite(path, () => {
         const stillSelected = selectedPathRef.current === path;
         // A thunk body (debounced field save) resolves once predecessors have
@@ -150,24 +151,24 @@ export function useFileEditor({
             : queuedFrontmatter;
         const diskContent = joinFrontmatter(frontmatter, body);
         const lastWritten = lastWrittenByPathRef.current.get(path);
-        const expectedMtime = opts?.force
+        const expectedVersion = opts?.force
           ? null
           : stillSelected
-            ? lastSavedMtimeRef.current
-            : (lastWritten?.mtime ?? queuedMtime);
+            ? lastSavedVersionRef.current
+            : (lastWritten?.version ?? queuedVersion);
         return measureAsync(
           perfName,
           async () => {
             try {
-              const newMtime = await commands.files.write({
+              const newVersion = await commands.files.write({
                 path,
                 content: diskContent,
-                expectedMtime,
+                expectedVersion,
               });
-              lastWrittenByPathRef.current.set(path, { content: diskContent, mtime: newMtime });
+              lastWrittenByPathRef.current.set(path, { content: diskContent, version: newVersion });
               if (selectedPathRef.current === path) {
                 lastSavedContentRef.current = diskContent;
-                lastSavedMtimeRef.current = newMtime;
+                lastSavedVersionRef.current = newVersion;
               }
             } catch (err) {
               // Remember what we tried to write so an "overwrite" resolution can
@@ -437,7 +438,7 @@ export function useFileEditor({
     selectedPathRef.current = null;
     pendingMarkdownRef.current = null;
     lastSavedContentRef.current = null;
-    lastSavedMtimeRef.current = null;
+    lastSavedVersionRef.current = null;
     discardFieldSave();
     clearConflict();
   }, [clearConflict, discardFieldSave]);
@@ -470,19 +471,19 @@ export function useFileEditor({
    *  changed underneath us. Throws if the read fails (caller toasts). */
   const applyDiskContent = useCallback(
     async (node: FileNode): Promise<boolean> => {
-      // One consistent snapshot: content paired with the mtime it's valid
-      // against, so a later save can't clobber an external change that landed
-      // between two separate read/mtime calls. Throws (→ caller toasts) if the
-      // file is unreadable, too large, or has no mtime token.
-      const { content: raw, mtime } = await commands.files.readVersioned({ path: node.path });
+      // One consistent snapshot: content paired with the content-hash version
+      // it's valid against (the token is intrinsic to the bytes, so there's no
+      // read-time race). Throws (→ caller toasts) if the file is unreadable or
+      // too large.
+      const { content: raw, version } = await commands.files.readVersioned({ path: node.path });
       if (selectedPathRef.current !== node.path) return false;
       const { frontmatter, body } = parseFrontmatter(raw);
       frontmatterRef.current = frontmatter;
       lastSavedContentRef.current = raw;
-      lastSavedMtimeRef.current = mtime;
+      lastSavedVersionRef.current = version;
       pendingMarkdownRef.current = null;
       // Cancel any debounced field write — its content is now stale against
-      // the freshly-read mtime, so letting it fire would clobber the reloaded
+      // the freshly-read version, so letting it fire would clobber the reloaded
       // (possibly externally-changed) frontmatter.
       discardFieldSave();
       clearConflict();

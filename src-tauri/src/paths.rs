@@ -1,19 +1,9 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::UNIX_EPOCH;
 
 /// Process-wide counter making each atomic-write temp file unique.
 static TMP_WRITE_COUNTER: AtomicU64 = AtomicU64::new(0);
-
-/// Modification time of `path` as milliseconds since the Unix epoch.
-fn mtime_millis(path: &Path) -> std::io::Result<u64> {
-    let modified = std::fs::metadata(path)?.modified()?;
-    modified
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-}
 
 pub(crate) fn is_markdown_path(path: &Path) -> bool {
     matches!(
@@ -146,20 +136,27 @@ pub(crate) fn validate_new_path(workspace_root: &Path, requested: &str) -> Resul
     Ok(new_path)
 }
 
-/// Write content atomically: write to a sibling temp file then rename over the
+/// Write content atomically: stage a sibling temp file, then rename it over the
 /// target. The temp name carries the pid and a process-wide counter so two
 /// concurrent writers to the same target never collide on the temp file — a
-/// safety margin for any caller reached outside the `workspace_root` mutex
-/// that serializes today's editor writes.
-/// Returns the mtime (ms since epoch) of the written content. It's read from
-/// the temp file *before* the rename — and `rename` preserves the inode's
-/// mtime — so the token provably belongs to the content we wrote, closing the
-/// window a post-rename stat on the final path would leave for an external
-/// replace to swap in a mtime for someone else's content.
-pub(crate) fn write_atomic(path: &Path, content: &str) -> std::io::Result<u64> {
+/// safety margin for any caller reached outside the `workspace_root` mutex.
+///
+/// `verify_before_commit` runs on the target path *after* staging but
+/// *immediately before* the rename, so a caller can enforce an
+/// optimistic-concurrency check against the freshest on-disk state, shrinking
+/// the check→commit window to a single syscall. If it returns `Err`, the temp
+/// is discarded and the target is left untouched.
+///
+/// The staged file inherits the target's permissions (when it exists) so an
+/// atomic save never widens a private file's mode.
+pub(crate) fn write_atomic(
+    path: &Path,
+    content: &str,
+    verify_before_commit: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
     let dir = path
         .parent()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no parent dir"))?;
+        .ok_or("no parent dir for atomic write")?;
     let tmp_name = format!(
         ".~{}.tmp.{}-{}",
         path.file_name().unwrap_or_default().to_string_lossy(),
@@ -169,8 +166,8 @@ pub(crate) fn write_atomic(path: &Path, content: &str) -> std::io::Result<u64> {
     let tmp_path = dir.join(&tmp_name);
 
     // Remove the temp file on any early return after creation (a failed
-    // write_all/flush/sync/rename), so a uniquely-named partial file is never
-    // left behind. Disarmed only after a successful rename consumes it.
+    // write/verify/rename), so a uniquely-named partial file is never left
+    // behind. Disarmed only after a successful rename consumes it.
     struct TmpGuard(Option<PathBuf>);
     impl Drop for TmpGuard {
         fn drop(&mut self) {
@@ -181,19 +178,26 @@ pub(crate) fn write_atomic(path: &Path, content: &str) -> std::io::Result<u64> {
     }
     let mut guard = TmpGuard(Some(tmp_path.clone()));
 
-    let mut file = std::fs::File::create(&tmp_path)?;
-    file.write_all(content.as_bytes())?;
-    file.flush()?;
-    file.sync_all()?;
+    let mut file = std::fs::File::create(&tmp_path).map_err(|e| e.to_string())?;
+    file.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
+    file.flush().map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
     drop(file);
 
-    // Capture the mtime of the just-written temp (our content) before the
-    // rename; rename preserves it, so the returned token matches the content
-    // on disk without a racy post-rename stat.
-    let mtime = mtime_millis(&tmp_path)?;
-    std::fs::rename(&tmp_path, path)?;
+    // Preserve the existing target's permissions on the replacement so a save
+    // never widens a 0600 file to 0644. New files keep the default.
+    if let Ok(meta) = std::fs::metadata(path) {
+        let _ = std::fs::set_permissions(&tmp_path, meta.permissions());
+    }
+
+    // Last chance to reject before we overwrite — runs against the current
+    // on-disk target, so the optimistic-concurrency check sees the freshest
+    // state and the overwrite window is just this call plus the rename.
+    verify_before_commit(path)?;
+
+    std::fs::rename(&tmp_path, path).map_err(|e| e.to_string())?;
     guard.0 = None; // rename consumed the temp file; nothing to clean up.
-    Ok(mtime)
+    Ok(())
 }
 
 /// Normalize a path to forward-slash separators for JSON serialization.
@@ -252,8 +256,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("note.md");
 
-        write_atomic(&path, "first").unwrap();
-        write_atomic(&path, "second").unwrap();
+        write_atomic(&path, "first", |_| Ok(())).unwrap();
+        write_atomic(&path, "second", |_| Ok(())).unwrap();
 
         assert_eq!(fs::read_to_string(&path).unwrap(), "second");
         // No orphaned temp files (`.~note.md.tmp.*`) remain after the renames.
@@ -275,7 +279,7 @@ mod tests {
         let target = dir.path().join("collides");
         fs::create_dir(&target).unwrap();
 
-        assert!(write_atomic(&target, "content").is_err());
+        assert!(write_atomic(&target, "content", |_| Ok(())).is_err());
 
         let leftovers: Vec<_> = fs::read_dir(dir.path())
             .unwrap()
@@ -294,9 +298,37 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("note.md");
         let before = TMP_WRITE_COUNTER.load(Ordering::Relaxed);
-        write_atomic(&path, "a").unwrap();
-        write_atomic(&path, "b").unwrap();
+        write_atomic(&path, "a", |_| Ok(())).unwrap();
+        write_atomic(&path, "b", |_| Ok(())).unwrap();
         assert!(TMP_WRITE_COUNTER.load(Ordering::Relaxed) >= before + 2);
+    }
+
+    #[test]
+    fn write_atomic_runs_verify_before_committing() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, "original").unwrap();
+
+        // A verify that rejects must leave the target untouched.
+        let result = write_atomic(&path, "new", |_| Err("nope".to_string()));
+        assert_eq!(result, Err("nope".to_string()));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "original");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_atomic_preserves_existing_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("private.md");
+        fs::write(&path, "secret").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        write_atomic(&path, "updated secret", |_| Ok(())).unwrap();
+
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "atomic save must not widen file permissions");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "updated secret");
     }
 
     // ── normalize_path ───────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
+use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
 use tauri::State;
@@ -23,15 +23,22 @@ pub(crate) const FILE_TOO_LARGE: &str = "FILE_TOO_LARGE";
 /// the whole `read_to_string` into memory + across the IPC bridge.
 const MAX_READ_FILE_BYTES: u64 = 25 * 1024 * 1024;
 
-/// Modification time as milliseconds since the Unix epoch, or `None` if the file
-/// is missing or its mtime is unavailable. Used as an optimistic-concurrency
-/// token so a save can detect an external change without hashing file contents.
-fn file_mtime_millis(path: &Path) -> Option<u64> {
-    std::fs::metadata(path)
-        .ok()
-        .and_then(|meta| meta.modified().ok())
-        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-        .map(|dur| dur.as_millis() as u64)
+/// The optimistic-concurrency token: a hash of the file's content. Unlike an
+/// mtime it has no granularity (two writes in the same millisecond produce
+/// distinct tokens iff their content differs) and no read/write TOCTOU (it is
+/// intrinsic to the bytes, not a separate stat). Session-scoped — re-seeded on
+/// every read — so a non-portable hash is fine; matches `revision.rs`.
+fn content_version(content: &str) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    content.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// The token for the file currently at `path`, or `None` when it can't be read
+/// (missing/unreadable) — mirrors the old mtime leniency: a save then treats an
+/// absent target as "no conflict" rather than blocking.
+fn current_version(path: &Path) -> Option<u64> {
+    std::fs::read_to_string(path).ok().map(|c| content_version(&c))
 }
 
 #[tauri::command]
@@ -47,56 +54,18 @@ pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Resul
     std::fs::read_to_string(&canonical).map_err(|e| e.to_string())
 }
 
-/// A file's content together with the optimistic-concurrency token (mtime) that
-/// the content is consistent with — read as one snapshot so a save can't later
-/// pair old content with a newer mtime and silently clobber an external change.
+/// A file's content together with its content-hash version token. Because the
+/// token is derived from the same bytes we return, the two are trivially
+/// consistent — there's no read-time TOCTOU to guard against.
 #[derive(Serialize, TS, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/lib/commands/generated/")]
 pub(crate) struct VersionedFile {
     pub(crate) content: String,
-    // ms since epoch; fits a JS number. Match get_file_mtime/write_file, which
-    // cross the bridge as `number`, rather than ts-rs's default u64 → bigint.
+    // A u64 hash; crosses the bridge as `number` rather than ts-rs's default
+    // u64 → bigint. The frontend treats it as an opaque token.
     #[ts(type = "number")]
-    pub(crate) mtime: u64,
-}
-
-/// Read `path`'s content and its mtime token as a consistent pair. Reading them
-/// via two separate commands leaves a TOCTOU gap where an external replace
-/// between the calls yields old-content/new-mtime — the next save then matches
-/// the mtime and overwrites the change. Here we stat → read → stat: if the mtime
-/// is stable across the read the token provably matches the content; if it
-/// changed mid-read we return the *pre-read* mtime, which is deliberately stale
-/// so the next save conflict-prompts rather than clobbers. A missing mtime is an
-/// error — the editor must not open a file it can't guard.
-/// How many times a versioned read re-attempts the stat → read → stat cycle
-/// before giving up on getting a consistent snapshot.
-const VERSIONED_READ_RETRIES: usize = 5;
-
-/// Read content and its mtime as a consistent snapshot: stat → read → stat, and
-/// accept the pair only when the mtime is unchanged across the read (the token
-/// then provably matches the content). Retries a bounded number of times if the
-/// file changes mid-read, then errors — rather than returning torn/new content
-/// with a stale token (which would show inconsistent content and raise a
-/// spurious conflict on the first save). Generic over the stat/read closures so
-/// the retry and error branches are unit-testable without racing a real file.
-fn read_stable<S, R>(stat: S, read: R, retries: usize) -> Result<VersionedFile, String>
-where
-    S: Fn() -> Option<u64>,
-    R: Fn() -> std::io::Result<String>,
-{
-    for _ in 0..retries {
-        let mtime_before = stat().ok_or("cannot read file mtime")?;
-        let content = read().map_err(|e| e.to_string())?;
-        let mtime_after = stat().ok_or("cannot read file mtime")?;
-        if mtime_before == mtime_after {
-            return Ok(VersionedFile {
-                content,
-                mtime: mtime_after,
-            });
-        }
-    }
-    Err("file changed during read".to_string())
+    pub(crate) version: u64,
 }
 
 /// Core of `read_file_versioned`, factored out of the Tauri command so it can
@@ -107,11 +76,9 @@ fn read_versioned_checked(canonical: &Path) -> Result<VersionedFile, String> {
             return Err(FILE_TOO_LARGE.to_string());
         }
     }
-    read_stable(
-        || file_mtime_millis(canonical),
-        || std::fs::read_to_string(canonical),
-        VERSIONED_READ_RETRIES,
-    )
+    let content = std::fs::read_to_string(canonical).map_err(|e| e.to_string())?;
+    let version = content_version(&content);
+    Ok(VersionedFile { content, version })
 }
 
 #[tauri::command]
@@ -172,55 +139,36 @@ pub(crate) async fn read_files_bulk(
     .map_err(|e| e.to_string())
 }
 
-/// Return the target file's mtime token so the client can seed its
-/// optimistic-concurrency check when it opens a file.
-#[tauri::command]
-pub(crate) fn get_file_mtime(
-    path: String,
-    state: State<'_, WorkspaceState>,
-) -> Result<Option<u64>, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = validate_path(root, &path)?;
-    Ok(file_mtime_millis(&canonical))
-}
-
-/// Write `content` atomically, returning the post-write mtime token.
-///
-/// When `expected_mtime` is `Some` and the file on disk no longer carries that
-/// mtime, an external process changed it since the client last read/wrote it —
-/// the write is refused with `EXTERNAL_CHANGE_CONFLICT` so the caller can prompt
-/// instead of clobbering. `None` forces the write (used to resolve a conflict by
-/// overwriting).
 /// Optimistic-concurrency write, factored out of the Tauri command so it can be
-/// unit-tested without a `WorkspaceState`. Refuses the write with
-/// `EXTERNAL_CHANGE_CONFLICT` when `expected_mtime` is `Some` and the on-disk
-/// mtime no longer matches; returns the post-write mtime on success.
-fn write_checked(canonical: &Path, content: &str, expected_mtime: Option<u64>) -> Result<u64, String> {
-    if let Some(expected) = expected_mtime {
-        if let Some(current) = file_mtime_millis(canonical) {
-            if current != expected {
-                return Err(EXTERNAL_CHANGE_CONFLICT.to_string());
-            }
-        }
-    }
-    // write_atomic returns the written content's own mtime (captured pre-rename,
-    // preserved across it), so there's no racy post-rename stat that could pick
-    // up an external replace's mtime.
-    write_atomic(canonical, content).map_err(|e| e.to_string())
+/// unit-tested without a `WorkspaceState`. When `expected_version` is `Some`,
+/// the check runs against the *current on-disk* content immediately before the
+/// rename (via `write_atomic`'s verify hook), refusing with
+/// `EXTERNAL_CHANGE_CONFLICT` if the content's hash no longer matches — so an
+/// external edit during staging is caught, not clobbered. A missing target is
+/// treated as no-conflict. Returns the written content's token. `None` forces
+/// the write (conflict resolution / untracked writes).
+fn write_checked(canonical: &Path, content: &str, expected_version: Option<u64>) -> Result<u64, String> {
+    write_atomic(canonical, content, |target| match expected_version {
+        Some(expected) => match current_version(target) {
+            Some(current) if current != expected => Err(EXTERNAL_CHANGE_CONFLICT.to_string()),
+            _ => Ok(()),
+        },
+        None => Ok(()),
+    })?;
+    Ok(content_version(content))
 }
 
 #[tauri::command]
 pub(crate) fn write_file(
     path: String,
     content: String,
-    expected_mtime: Option<u64>,
+    expected_version: Option<u64>,
     state: State<'_, WorkspaceState>,
 ) -> Result<u64, String> {
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
-    write_checked(&canonical, &content, expected_mtime)
+    write_checked(&canonical, &content, expected_version)
 }
 
 #[tauri::command]
@@ -235,7 +183,7 @@ pub(crate) fn create_file(
     if new_path.exists() {
         return Err("file already exists".to_string());
     }
-    write_atomic(&new_path, &content).map(|_| ()).map_err(|e| e.to_string())
+    write_atomic(&new_path, &content, |_| Ok(()))
 }
 
 #[tauri::command]
@@ -332,12 +280,21 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn write_checked_rejects_stale_mtime_without_clobbering() {
+    fn content_version_tracks_content_not_time() {
+        // Same content → same token (even across writes at different times);
+        // different content → different token. This is what fixes the mtime
+        // millisecond-collision class.
+        assert_eq!(content_version("hello"), content_version("hello"));
+        assert_ne!(content_version("hello"), content_version("world"));
+    }
+
+    #[test]
+    fn write_checked_rejects_a_stale_version_without_clobbering() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("note.md");
         fs::write(&path, "v1").unwrap();
-        // The client thinks it last saw an older mtime than what's on disk now.
-        let stale = file_mtime_millis(&path).unwrap().wrapping_sub(5_000);
+        // The client's expected token is for content that's no longer on disk.
+        let stale = content_version("something the client last saw");
 
         assert_eq!(
             write_checked(&path, "v2", Some(stale)),
@@ -347,52 +304,14 @@ mod tests {
     }
 
     #[test]
-    fn read_versioned_checked_returns_content_and_a_stable_mtime() {
+    fn read_versioned_checked_returns_content_and_its_own_token() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("note.md");
         fs::write(&path, "hello").unwrap();
-        let expected = file_mtime_millis(&path).unwrap();
 
         let versioned = read_versioned_checked(&path).unwrap();
         assert_eq!(versioned.content, "hello");
-        assert_eq!(versioned.mtime, expected, "token must match the read content");
-
-        // The token is a valid optimistic-concurrency mtime: an unchanged file
-        // still carries it, so a save with this token would not conflict.
-        let unchanged = file_mtime_millis(&path).unwrap();
-        assert_eq!(versioned.mtime, unchanged);
-    }
-
-    #[test]
-    fn read_stable_returns_content_when_mtime_is_stable_across_the_read() {
-        let result = read_stable(|| Some(1000), || Ok("body".to_string()), 5).unwrap();
-        assert_eq!(result.content, "body");
-        assert_eq!(result.mtime, 1000);
-    }
-
-    #[test]
-    fn read_stable_errors_when_the_file_never_stops_changing() {
-        // Every stat returns a different value, so no read is ever consistent.
-        let counter = std::cell::Cell::new(0u64);
-        let stat = || {
-            let n = counter.get();
-            counter.set(n + 1);
-            Some(n)
-        };
-        assert_eq!(
-            read_stable(stat, || Ok("body".to_string()), 5),
-            Err("file changed during read".to_string())
-        );
-    }
-
-    #[test]
-    fn read_stable_succeeds_on_a_later_retry_once_the_file_settles() {
-        // Unstable for the first pair, stable afterward.
-        let seq = std::cell::RefCell::new(vec![1u64, 2, 7, 7, 7, 7]);
-        let stat = || Some(seq.borrow_mut().remove(0));
-        let result = read_stable(stat, || Ok("settled".to_string()), 5).unwrap();
-        assert_eq!(result.content, "settled");
-        assert_eq!(result.mtime, 7);
+        assert_eq!(versioned.version, content_version("hello"));
     }
 
     #[test]
@@ -411,19 +330,18 @@ mod tests {
     }
 
     #[test]
-    fn write_checked_writes_when_mtime_matches() {
+    fn write_checked_writes_when_the_version_matches_and_round_trips_its_token() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("note.md");
         fs::write(&path, "v1").unwrap();
-        let current = file_mtime_millis(&path).unwrap();
+        let current = content_version("v1");
 
-        let new_mtime = write_checked(&path, "v2", Some(current)).unwrap();
+        let token = write_checked(&path, "v2", Some(current)).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "v2");
-        assert!(new_mtime >= current);
-        // The returned token is the written content's own mtime — a save with it
-        // as expected_mtime finds the file unchanged and does not conflict.
-        assert_eq!(new_mtime, file_mtime_millis(&path).unwrap());
-        write_checked(&path, "v3", Some(new_mtime)).unwrap();
+        // The returned token is the written content's own — a follow-up save
+        // carrying it finds the file unchanged and does not conflict.
+        assert_eq!(token, content_version("v2"));
+        write_checked(&path, "v3", Some(token)).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "v3");
     }
 
@@ -432,7 +350,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("note.md");
         fs::write(&path, "v1").unwrap();
-        // Simulate an external change by pretending disk is newer; None bypasses.
+        // None bypasses the version check (conflict resolution / untracked write).
         write_checked(&path, "v2", None).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "v2");
     }

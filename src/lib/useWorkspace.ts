@@ -458,11 +458,12 @@ export function useWorkspace({
   ) {
     await flushPendingSave();
     const attempt = async (): Promise<number | "conflict"> => {
-      const mtime = await commands.files.getMtime({ path: indexPath });
-      const raw = await commands.files.read({ path: indexPath });
+      // Read content + its version token as one snapshot, then write against
+      // that token so an external edit between read and write is caught.
+      const { content: raw, version } = await commands.files.readVersioned({ path: indexPath });
       const next = setCollectionItems(raw, transform(parseCollectionItems(raw)));
       try {
-        await commands.files.write({ path: indexPath, content: next, expectedMtime: mtime });
+        await commands.files.write({ path: indexPath, content: next, expectedVersion: version });
         return 0;
       } catch (err) {
         if (err instanceof Error && err.message === EXTERNAL_CHANGE_CONFLICT) return "conflict";

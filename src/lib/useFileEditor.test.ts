@@ -36,14 +36,14 @@ mock.module("@tauri-apps/api/event", () => ({
 
 function whenInvoke(handlers: InvokeHandlers): InvokeImpl {
   return async (name, args) => {
-    // The editor reads via read_file_versioned (content + mtime as one
+    // The editor reads via read_file_versioned (content + version token as one
     // snapshot). Tests still describe the disk with the simpler read_file +
     // get_file_mtime handlers, so synthesize the versioned result from them
-    // unless a test overrides read_file_versioned explicitly.
+    // (the token value is opaque) unless a test overrides read_file_versioned.
     if (name === "read_file_versioned" && !handlers.read_file_versioned) {
       const content = handlers.read_file?.(args);
-      const mtime = handlers.get_file_mtime?.(args) ?? 0;
-      return { content, mtime };
+      const version = handlers.get_file_mtime?.(args) ?? 0;
+      return { content, version };
     }
     const handler = handlers[name];
     if (!handler) {
@@ -65,7 +65,7 @@ function writeArgs(index: number) {
 function lastWriteArgs() {
   const calls = invokeCalls.filter((c) => c.name === "write_file");
   return calls[calls.length - 1]?.args as
-    | { path: string; content: string; expectedMtime: number | null }
+    | { path: string; content: string; expectedVersion: number | null }
     | undefined;
 }
 
@@ -305,7 +305,7 @@ describe("useFileEditor — save flush semantics", () => {
       for (let i = 0; i < 10; i++) await Promise.resolve();
     });
 
-    expect(lastWriteArgs()?.expectedMtime).toBe(1000);
+    expect(lastWriteArgs()?.expectedVersion).toBe(1000);
     expect(onConflict).toHaveBeenCalledTimes(1);
     expect(result.current.conflictActive).toBe(true);
     expect(result.current.pendingMarkdownRef.current).toBe("edit");
@@ -454,7 +454,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     const forced = lastWriteArgs();
-    expect(forced?.expectedMtime).toBeNull();
+    expect(forced?.expectedVersion).toBeNull();
     expect(forced?.content).toContain("my local edit");
     expect(result.current.conflictActive).toBe(false);
     expect(result.current.saveStatus).toBe("saved");
@@ -541,7 +541,7 @@ describe("useFileEditor — save flush semantics", () => {
     // mtime token returned by the first write — not the stale token from when
     // it was queued (which would trip the conflict check against ourselves) —
     // and the body the first write actually landed, not a stale snapshot.
-    expect(lastWriteArgs()?.expectedMtime).toBe(2000);
+    expect(lastWriteArgs()?.expectedVersion).toBe(2000);
     expect(lastWriteArgs()?.content).toContain("title: New");
     expect(lastWriteArgs()?.content).toContain("edit one");
   });
@@ -674,7 +674,7 @@ describe("useFileEditor — save flush semantics", () => {
     // the next save must carry that mtime, not null (which would force-write and
     // bypass conflict detection).
     invokeImpl = whenInvoke({
-      read_file_versioned: () => ({ content: "hello", mtime: 4242 }),
+      read_file_versioned: () => ({ content: "hello", version: 4242 }),
       write_file: () => 5000,
     });
     const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
@@ -689,7 +689,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.flushPendingSave();
     });
 
-    expect(lastWriteArgs()?.expectedMtime).toBe(4242);
+    expect(lastWriteArgs()?.expectedVersion).toBe(4242);
   });
 
   it("a failed field write keeps a newer field edit instead of reverting it", async () => {

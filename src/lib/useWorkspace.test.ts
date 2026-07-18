@@ -45,6 +45,14 @@ mock.module("@tauri-apps/plugin-dialog", () => ({
  *  loudly so a test that forgot to mock a call doesn't pass by accident. */
 function whenInvoke(handlers: InvokeHandlers): InvokeImpl {
   return async (name, args) => {
+    // Collection edits read via read_file_versioned; synthesize it from the
+    // simpler read_file + get_file_mtime handlers (the token value is opaque)
+    // unless a test overrides it explicitly.
+    if (name === "read_file_versioned" && !handlers.read_file_versioned) {
+      const content = handlers.read_file?.(args);
+      const version = handlers.get_file_mtime?.(args) ?? 0;
+      return { content, version };
+    }
     const handler = handlers[name];
     if (!handler) {
       throw new Error(`useWorkspace test issued unmocked invoke: ${name}`);
@@ -584,7 +592,7 @@ describe("useWorkspace", () => {
     expect(writtenContent).not.toBeNull();
     // The write is checked against the index's mtime, not forced.
     const writeCall = invokeCalls.find((c) => c.name === "write_file");
-    expect((writeCall?.args as { expectedMtime: number | null }).expectedMtime).toBe(1000);
+    expect((writeCall?.args as { expectedVersion: number | null }).expectedVersion).toBe(1000);
     // The transformed YAML keeps the existing item and appends the new one.
     const out = writtenContent as unknown as string;
     expect(out).toContain("existing-post");

@@ -20,16 +20,12 @@ export interface ReadFilesBulkArgs {
   paths: string[];
 }
 
-export interface GetFileMtimeArgs {
-  path: string;
-}
-
 export interface WriteFileArgs {
   path: string;
   content: string;
-  /** The mtime token (ms since epoch) the client last saw for this file, or
-   *  null to force the write (conflict resolution / new file). */
-  expectedMtime: number | null;
+  /** The content-hash version token the client last saw for this file, or null
+   *  to force the write (conflict resolution / new file). */
+  expectedVersion: number | null;
 }
 
 export interface CreateFileArgs {
@@ -61,16 +57,16 @@ export interface EnsureDirArgs {
 
 export const files = {
   read: (args: ReadFileArgs) => invokeCmd<string>("read_file", args),
-  /** Read a file's content and its consistent mtime token in one snapshot, so
-   *  a later save can't pair stale content with a newer mtime. Rejects with
-   *  FILE_TOO_LARGE for oversized files. */
+  /** Read a file's content and its content-hash version token in one snapshot.
+   *  The token is intrinsic to the content, so there's no read-time race and a
+   *  later save can't pair stale content with someone else's token. Rejects
+   *  with FILE_TOO_LARGE for oversized files. */
   readVersioned: (args: ReadFileArgs) => invokeCmd<VersionedFile>("read_file_versioned", args),
   /** Read many files in one IPC round-trip. Unreadable, oversized, or
    *  out-of-workspace paths are omitted from the result. */
   readBulk: (args: ReadFilesBulkArgs) => invokeCmd<BulkFileContent[]>("read_files_bulk", args),
-  getMtime: (args: GetFileMtimeArgs) => invokeCmd<number | null>("get_file_mtime", args),
-  /** Returns the post-write mtime token. Rejects with EXTERNAL_CHANGE_CONFLICT
-   *  when expectedMtime is set and the file changed on disk. */
+  /** Returns the post-write version token. Rejects with EXTERNAL_CHANGE_CONFLICT
+   *  when expectedVersion is set and the file's content changed on disk. */
   write: (args: WriteFileArgs) => invokeCmd<number>("write_file", args),
   create: (args: CreateFileArgs) => invokeCmd<void>("create_file", args),
   rename: (args: RenameFileArgs) => invokeCmd<void>("rename_file", args),
