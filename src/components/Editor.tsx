@@ -235,7 +235,7 @@ export function Editor({
         transformCopiedText: true,
       }),
       Placeholder.configure({
-        placeholder: "Start writing…",
+        placeholder: t("editor.placeholder"),
       }),
       Typography,
       Link.extend({

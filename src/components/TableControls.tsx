@@ -2,6 +2,7 @@ import type { Editor } from "@tiptap/react";
 import { useEditorState } from "@tiptap/react";
 import { FloatingMenu } from "@tiptap/react/menus";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import "./TableControls.css";
 
 interface TableControlsProps {
@@ -9,6 +10,7 @@ interface TableControlsProps {
 }
 
 export function TableControls({ editor }: TableControlsProps) {
+  const { t } = useTranslation();
   const isInTable = useEditorState({
     editor,
     selector: ({ editor: e }) => e.isActive("table"),
@@ -18,68 +20,68 @@ export function TableControls({ editor }: TableControlsProps) {
 
   return (
     <FloatingMenu editor={editor} shouldShow={shouldShow}>
-      <div className="table-controls" role="toolbar" aria-label="Table controls">
+      <div className="table-controls" role="toolbar" aria-label={t("table_controls.toolbar_label")}>
         <button
           type="button"
           className="table-ctrl-btn"
-          title="Add row below"
-          aria-label="Add row below"
+          title={t("table_controls.add_row")}
+          aria-label={t("table_controls.add_row")}
           onMouseDown={(e) => {
             e.preventDefault();
             editor.chain().focus().addRowAfter().run();
           }}
         >
-          +row
+          {t("table_controls.add_row_text")}
         </button>
         <button
           type="button"
           className="table-ctrl-btn"
-          title="Delete row"
-          aria-label="Delete row"
+          title={t("table_controls.delete_row")}
+          aria-label={t("table_controls.delete_row")}
           onMouseDown={(e) => {
             e.preventDefault();
             editor.chain().focus().deleteRow().run();
           }}
         >
-          −row
+          {t("table_controls.delete_row_text")}
         </button>
         <div className="table-ctrl-divider" aria-hidden="true" />
         <button
           type="button"
           className="table-ctrl-btn"
-          title="Add column after"
-          aria-label="Add column after"
+          title={t("table_controls.add_col")}
+          aria-label={t("table_controls.add_col")}
           onMouseDown={(e) => {
             e.preventDefault();
             editor.chain().focus().addColumnAfter().run();
           }}
         >
-          +col
+          {t("table_controls.add_col_text")}
         </button>
         <button
           type="button"
           className="table-ctrl-btn"
-          title="Delete column"
-          aria-label="Delete column"
+          title={t("table_controls.delete_col")}
+          aria-label={t("table_controls.delete_col")}
           onMouseDown={(e) => {
             e.preventDefault();
             editor.chain().focus().deleteColumn().run();
           }}
         >
-          −col
+          {t("table_controls.delete_col_text")}
         </button>
         <div className="table-ctrl-divider" aria-hidden="true" />
         <button
           type="button"
           className="table-ctrl-btn table-ctrl-delete"
-          title="Delete table"
-          aria-label="Delete table"
+          title={t("table_controls.delete_table")}
+          aria-label={t("table_controls.delete_table")}
           onMouseDown={(e) => {
             e.preventDefault();
             editor.chain().focus().deleteTable().run();
           }}
         >
-          ✕ table
+          {t("table_controls.delete_table_text")}
         </button>
       </div>
     </FloatingMenu>

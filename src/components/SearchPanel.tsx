@@ -170,7 +170,11 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
       </div>
 
       <div className="search-results" ref={resultsRef}>
-        {searching && <p className="search-status">{t("search_panel.searching")}</p>}
+        {searching && (
+          <p className="search-status" role="status">
+            {t("search_panel.searching")}
+          </p>
+        )}
 
         {!searching && error && (
           <p className="search-status search-error" role="alert">
@@ -179,11 +183,13 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
         )}
 
         {!searching && !error && query.trim() && results.length === 0 && (
-          <p className="search-status">{t("search_panel.no_results", { query })}</p>
+          <p className="search-status" role="status">
+            {t("search_panel.no_results", { query })}
+          </p>
         )}
 
         {!searching && results.length > 0 && (
-          <p className="search-summary">
+          <p className="search-summary" role="status">
             {t("search_panel.summary", {
               matches: t("search_panel.matches", { count: totalMatches }),
               files: t("search_panel.files", { count: results.length }),

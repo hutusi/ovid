@@ -64,6 +64,7 @@
     "rename_path": "重命名路径",
     "session_goal": "{{added}} / {{goal}} 字（本次目标）",
     "session_words_title": "本次新增字数",
+    "current_branch": "当前分支：{{branch}}",
     "session_display": "+{{added}}{{goalDisplay}}",
     "word_count": "{{count}} 字",
     "typewriter_disable": "关闭打字机模式",
@@ -645,7 +646,25 @@
     "h1_warning": "⚠ 此文档已有标题。建议将此处改为 ## 二级标题。",
     "paste_image_error": "粘贴图片失败：{{reason}}",
     "drop_image_error": "拖放图片失败：{{reason}}",
-    "loading": "加载编辑器…"
+    "loading": "加载编辑器…",
+    "placeholder": "开始写作…"
+  },
+  "table_controls": {
+    "toolbar_label": "表格工具",
+    "add_row": "在下方添加行",
+    "delete_row": "删除行",
+    "add_col": "在右侧添加列",
+    "delete_col": "删除列",
+    "delete_table": "删除表格",
+    "add_row_text": "+行",
+    "delete_row_text": "−行",
+    "add_col_text": "+列",
+    "delete_col_text": "−列",
+    "delete_table_text": "✕ 表格"
+  },
+  "perf_panel": {
+    "aria_label": "性能事件",
+    "title": "性能"
   },
   "wechat": {
     "title": "保存到微信草稿箱",

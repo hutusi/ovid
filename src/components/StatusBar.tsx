@@ -130,7 +130,15 @@ export function StatusBar({
     <div className="statusbar">
       <div className="statusbar-left">
         {fileLabel && (
-          <span className={`save-dot ${saveStatus}`} title={t(`status_bar.${saveStatus}`)} />
+          <span
+            className={`save-dot ${saveStatus}`}
+            role="status"
+            title={t(`status_bar.${saveStatus}`)}
+          >
+            {/* Announce save-state transitions (saving → saved / unsaved) to
+                assistive tech — the dot itself conveys state only by color. */}
+            <span className="sr-only">{t(`status_bar.${saveStatus}`)}</span>
+          </span>
         )}
         {fileLabel ? (
           <button
@@ -151,7 +159,7 @@ export function StatusBar({
               type="button"
               className="statusbar-branch"
               onClick={onOpenBranches}
-              title={gitBranchTitle ?? `Current branch: ${gitBranch}`}
+              title={gitBranchTitle ?? t("status_bar.current_branch", { branch: gitBranch })}
             >
               <GitBranch className="statusbar-git-icon" aria-hidden="true" />
               {gitBranch}

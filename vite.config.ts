@@ -53,12 +53,27 @@ function manualChunks(id: string): string | undefined {
   return undefined;
 }
 
+// KaTeX ships every font face as woff2 + woff + ttf (~60 files); Tauri's
+// WebViews (WKWebView / WebView2) always support woff2, so the woff/ttf
+// fallbacks are dead weight in the app bundle. Drop them at emit time — the
+// CSS still lists them as fallback sources, but they are never requested.
+function pruneKatexFontFallbacks() {
+  return {
+    name: "prune-katex-font-fallbacks",
+    generateBundle(_options: unknown, bundle: Record<string, unknown>) {
+      for (const name of Object.keys(bundle)) {
+        if (/KaTeX_.*\.(woff|ttf)$/.test(name)) delete bundle[name];
+      }
+    },
+  };
+}
+
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [tailwindcss(), react()],
+  plugins: [tailwindcss(), react(), pruneKatexFontFallbacks()],
 
   resolve: {
     alias: {

@@ -3,7 +3,9 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { Check, MoreHorizontal, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import logoUrl from "../../branding/ovid-logo-square.png?url";
+// 144px render copy of branding/ovid-logo-square.png (the 796px original is
+// 443 kB; the switcher shows it at 48px, so shipping the original is waste).
+import logoUrl from "../assets/ovid-logo-square.png?url";
 import type { CloneProgress } from "../lib/commands/generated/CloneProgress";
 import { listenEvent } from "../lib/commands/internal";
 import type { RecentWorkspace } from "../lib/types";

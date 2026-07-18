@@ -64,6 +64,7 @@
     "rename_path": "Rename path",
     "session_goal": "{{added}} / {{goal}} words (session goal)",
     "session_words_title": "Words added this session",
+    "current_branch": "Current branch: {{branch}}",
     "session_display": "+{{added}}{{goalDisplay}}",
     "word_count": "{{count}} words",
     "typewriter_disable": "Disable typewriter mode",
@@ -645,7 +646,25 @@
     "h1_warning": "⚠ This document already has a title. Consider changing this heading to ##.",
     "paste_image_error": "Failed to paste image: {{reason}}",
     "drop_image_error": "Failed to drop image: {{reason}}",
-    "loading": "Loading editor…"
+    "loading": "Loading editor…",
+    "placeholder": "Start writing…"
+  },
+  "table_controls": {
+    "toolbar_label": "Table controls",
+    "add_row": "Add row below",
+    "delete_row": "Delete row",
+    "add_col": "Add column after",
+    "delete_col": "Delete column",
+    "delete_table": "Delete table",
+    "add_row_text": "+row",
+    "delete_row_text": "−row",
+    "add_col_text": "+col",
+    "delete_col_text": "−col",
+    "delete_table_text": "✕ table"
+  },
+  "perf_panel": {
+    "aria_label": "Performance events",
+    "title": "Perf"
   },
   "wechat": {
     "title": "Save to WeChat Drafts",

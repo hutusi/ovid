@@ -76,9 +76,18 @@ export function AddToCollectionDialog({
           placeholder={t("collection_dialog.search_placeholder")}
           className="fs-search-input"
           aria-label={t("collection_dialog.search_label")}
+          role="combobox"
+          aria-expanded={results.length > 0}
+          aria-controls="atc-listbox"
+          aria-autocomplete="list"
+          aria-activedescendant={
+            results.length > 0 && activeIndex >= 0 && activeIndex < results.length
+              ? `atc-option-${activeIndex}`
+              : undefined
+          }
         />
       </div>
-      <div className="fs-list" role="listbox" aria-label={title}>
+      <div className="fs-list" id="atc-listbox" role="listbox" aria-label={title}>
         {results.length === 0 ? (
           <div className="fs-empty">{t("collection_dialog.no_match")}</div>
         ) : (
@@ -86,6 +95,7 @@ export function AddToCollectionDialog({
             <button
               key={candidate.key}
               type="button"
+              id={`atc-option-${index}`}
               role="option"
               aria-selected={index === activeIndex}
               className={`fs-item${index === activeIndex ? " is-active" : ""}`}
