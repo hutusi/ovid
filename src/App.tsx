@@ -10,6 +10,7 @@ import type { AppActionCtx } from "./lib/appActions";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
 import { commands } from "./lib/commands";
+import { corpusReadFile, readCorpus } from "./lib/corpusCache";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
@@ -278,9 +279,11 @@ function App() {
   useEffect(() => {
     const gen = ++noteResolverGenRef.current;
     void (async () => {
-      const index = await buildNoteResolverIndex(flatFiles, (path) =>
-        commands.files.read({ path })
-      );
+      // One bulk IPC read per tree generation, shared with the backlinks
+      // scanner via the corpus cache — not one read_file per note.
+      const contents = await readCorpus(flatFiles).catch(() => new Map<string, string>());
+      if (gen !== noteResolverGenRef.current) return;
+      const index = await buildNoteResolverIndex(flatFiles, corpusReadFile(contents));
       if (gen === noteResolverGenRef.current) {
         setNoteResolverIndex(index);
       }

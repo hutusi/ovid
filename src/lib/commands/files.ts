@@ -1,3 +1,4 @@
+import type { BulkFileContent } from "./generated/BulkFileContent";
 import { invokeCmd } from "./internal";
 
 /** Error message the Rust `write_file` returns when the file changed on disk
@@ -12,6 +13,10 @@ export const FILE_TOO_LARGE = "FILE_TOO_LARGE";
 
 export interface ReadFileArgs {
   path: string;
+}
+
+export interface ReadFilesBulkArgs {
+  paths: string[];
 }
 
 export interface GetFileMtimeArgs {
@@ -55,6 +60,9 @@ export interface EnsureDirArgs {
 
 export const files = {
   read: (args: ReadFileArgs) => invokeCmd<string>("read_file", args),
+  /** Read many files in one IPC round-trip. Unreadable, oversized, or
+   *  out-of-workspace paths are omitted from the result. */
+  readBulk: (args: ReadFilesBulkArgs) => invokeCmd<BulkFileContent[]>("read_files_bulk", args),
   getMtime: (args: GetFileMtimeArgs) => invokeCmd<number | null>("get_file_mtime", args),
   /** Returns the post-write mtime token. Rejects with EXTERNAL_CHANGE_CONFLICT
    *  when expectedMtime is set and the file changed on disk. */

@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { type Backlink, findBacklinks } from "../lib/backlinks";
-import { commands } from "../lib/commands";
+import { corpusReadFile, readCorpus } from "../lib/corpusCache";
 import type { FlatFile } from "../lib/fileSearch";
 import type { NoteResolverIndex } from "../lib/wikiLink";
 
@@ -37,11 +37,15 @@ export function BacklinksPanel({
     let cancelled = false;
     setLoading(true);
     void (async () => {
+      // The corpus cache serves the whole scan from one bulk read per tree
+      // generation — switching files re-scans in memory with zero IPC.
+      const contents = await readCorpus(flatFiles).catch(() => new Map<string, string>());
+      if (cancelled) return;
       const result = await findBacklinks(currentRelativePath, {
         flatFiles,
         resolverIndex,
         excludeRelativePath: currentRelativePath,
-        readFile: (path) => commands.files.read({ path }),
+        readFile: corpusReadFile(contents),
       });
       if (cancelled) return;
       setBacklinks(result);

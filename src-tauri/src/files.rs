@@ -1,7 +1,9 @@
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
+use serde::Serialize;
 use tauri::State;
+use ts_rs::TS;
 
 use crate::paths::{validate_new_dir_path, validate_new_path, validate_path, write_atomic};
 use crate::state::WorkspaceState;
@@ -43,6 +45,53 @@ pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Resul
         }
     }
     std::fs::read_to_string(&canonical).map_err(|e| e.to_string())
+}
+
+/// One corpus file returned by `read_files_bulk`, keyed by the path string
+/// the caller requested so client-side lookups need no normalisation.
+#[derive(Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/lib/commands/generated/")]
+pub(crate) struct BulkFileContent {
+    pub(crate) path: String,
+    pub(crate) content: String,
+}
+
+/// Read many workspace files in one IPC round-trip — the corpus feed for
+/// wiki-link resolution and backlinks, which would otherwise pay one
+/// invocation per file. Unreadable, oversized, or out-of-workspace paths are
+/// skipped rather than failing the batch; callers treat missing entries as
+/// unreadable files.
+#[tauri::command]
+pub(crate) async fn read_files_bulk(
+    paths: Vec<String>,
+    state: State<'_, WorkspaceState>,
+) -> Result<Vec<BulkFileContent>, String> {
+    let root = {
+        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
+        root_guard.as_ref().ok_or("no workspace open")?.clone()
+    };
+    // Read off the main thread — this walks the whole markdown corpus.
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut files = Vec::with_capacity(paths.len());
+        for path in paths {
+            let Ok(canonical) = validate_path(&root, &path) else {
+                continue;
+            };
+            if let Ok(meta) = std::fs::metadata(&canonical) {
+                if meta.len() > MAX_READ_FILE_BYTES {
+                    continue;
+                }
+            }
+            let Ok(content) = std::fs::read_to_string(&canonical) else {
+                continue;
+            };
+            files.push(BulkFileContent { path, content });
+        }
+        files
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Return the target file's mtime token so the client can seed its
