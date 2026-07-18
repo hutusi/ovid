@@ -44,7 +44,11 @@ import {
   StrikeWithMarkdownShortcut,
 } from "../lib/tiptap/markdownInputRules";
 import { TextFolding } from "../lib/tiptap/TextFolding";
-import { getTaskListTypingNormalization, normalizeTaskLists } from "../lib/tiptap/taskLists";
+import {
+  getTaskListTypingNormalization,
+  getTypedTaskPrefixLength,
+  normalizeTaskLists,
+} from "../lib/tiptap/taskLists";
 import { WikiLink } from "../lib/tiptap/WikiLink";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { BacklinksPanel } from "./BacklinksPanel";
@@ -59,6 +63,10 @@ import "katex/dist/katex.min.css";
 import "../styles/editor.css";
 
 const lowlight = createLowlight(common);
+
+// Word counting walks the whole document via getText(); coalesce keystrokes
+// so long documents don't pay that cost per character typed.
+const WORD_COUNT_DEBOUNCE_MS = 300;
 
 interface EditorProps {
   content?: string;
@@ -116,6 +124,7 @@ export function Editor({
 }: EditorProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const wordCountTimerRef = useRef<number | null>(null);
   const typewriterRef = useRef(typewriterMode);
   const updateStartedAtRef = useRef(0);
   const pendingRestoreTimersRef = useRef<number[]>([]);
@@ -346,20 +355,31 @@ export function Editor({
         ancestorNodeNames.push(selection.$from.node(depth).type.name);
       }
 
-      const typingNormalization = measureSync(
-        "editor.taskListNormalization",
-        () =>
-          getTaskListTypingNormalization(
-            editor.getJSON(),
-            currentBlock?.parent.toJSON(),
-            selection.from,
-            ancestorNodeNames
-          ),
-        {
-          selectionDepth: selection.$from.depth,
-          docSize: editor.state.doc.content.size,
-        }
-      );
+      // Cheap guards first: only the caret's own block is serialized per
+      // keystroke; the full-document getJSON() (measurable in long documents)
+      // runs only when the block actually carries a typed task prefix inside
+      // a bullet list — the case normalization can act on.
+      const currentBlockJson =
+        currentBlock !== null && ancestorNodeNames.includes("bulletList")
+          ? currentBlock.parent.toJSON()
+          : undefined;
+      const typingNormalization =
+        currentBlockJson !== undefined && getTypedTaskPrefixLength(currentBlockJson) !== null
+          ? measureSync(
+              "editor.taskListNormalization",
+              () =>
+                getTaskListTypingNormalization(
+                  editor.getJSON(),
+                  currentBlockJson,
+                  selection.from,
+                  ancestorNodeNames
+                ),
+              {
+                selectionDepth: selection.$from.depth,
+                docSize: editor.state.doc.content.size,
+              }
+            )
+          : null;
 
       if (typingNormalization) {
         editor.commands.setContent(typingNormalization.normalized, { emitUpdate: false });
@@ -374,17 +394,21 @@ export function Editor({
       }
 
       if (onWordCount) {
-        const text = measureSync("editor.wordCountText", () => editor.getText(), {
-          docSize: editor.state.doc.content.size,
-        });
-        const count = countWords(text);
-        // `useEditor` constructs the Tiptap editor synchronously in its
-        // `useState` initializer, and ProseMirror dispatches an initial
-        // transaction during that construction — so onUpdate can fire while
-        // Editor is still rendering. Calling `onWordCount` synchronously
-        // would setState in App mid-render. The microtask lands after the
-        // current render commits.
-        queueMicrotask(() => onWordCount(count));
+        // Debounced: getText() walks the whole document — don't pay that per
+        // keystroke. The timeout also lands after the current render commits,
+        // which matters because ProseMirror dispatches an initial transaction
+        // while `useEditor` is still constructing (a synchronous onWordCount
+        // would setState in App mid-render). The immediate count on file load
+        // comes from the content-change effect below, not this path.
+        if (wordCountTimerRef.current !== null) window.clearTimeout(wordCountTimerRef.current);
+        wordCountTimerRef.current = window.setTimeout(() => {
+          wordCountTimerRef.current = null;
+          if (editor.isDestroyed) return;
+          const text = measureSync("editor.wordCountText", () => editor.getText(), {
+            docSize: editor.state.doc.content.size,
+          });
+          onWordCount(countWords(text));
+        }, WORD_COUNT_DEBOUNCE_MS);
       }
 
       if (isPerfLoggingEnabled()) {
@@ -425,6 +449,13 @@ export function Editor({
   useEffect(() => {
     setCurrentEditor(editor);
   }, [editor, setCurrentEditor]);
+
+  useEffect(
+    () => () => {
+      if (wordCountTimerRef.current !== null) window.clearTimeout(wordCountTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!editor || content === lastAppliedContentRef.current) return;
