@@ -206,16 +206,16 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
 
-    // A property edit reads the body then issues a write. If that write bypassed
-    // trackWrite (a direct commands.files.write), the blocking flush below would
-    // not wait for it — the regression this guards against.
+    // A property edit issues a (debounced) write. If that write bypassed the
+    // tracked path (a direct commands.files.write), the blocking flush below
+    // would not wait for it — the regression this guards against.
     act(() => {
       void result.current.handleFieldChange("title", "New");
     });
+    // The field write sits behind a debounce; a background flush pre-empts the
+    // timer and dispatches it without awaiting.
     await act(async () => {
-      for (let i = 0; i < 10 && writeStarted.mock.calls.length === 0; i++) {
-        await Promise.resolve();
-      }
+      await result.current.flushPendingSave({ mode: "background" });
     });
     expect(writeStarted).toHaveBeenCalledTimes(1);
 
@@ -430,12 +430,13 @@ describe("useFileEditor — save flush semantics", () => {
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(1);
 
     // A frontmatter edit while the first write is still in flight must queue
-    // behind it, not race it.
+    // behind it, not race it. (The background flush pre-empts the field
+    // debounce and dispatches the write.)
     act(() => {
       void result.current.handleFieldChange("title", "New");
     });
     await act(async () => {
-      for (let i = 0; i < 10; i++) await Promise.resolve();
+      await result.current.flushPendingSave({ mode: "background" });
     });
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(1);
 
@@ -446,8 +447,75 @@ describe("useFileEditor — save flush semantics", () => {
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(2);
     // The queued write composed its payload at start time, so it carries the
     // mtime token returned by the first write — not the stale token from when
-    // it was queued (which would trip the conflict check against ourselves).
+    // it was queued (which would trip the conflict check against ourselves) —
+    // and the body the first write actually landed, not a stale snapshot.
     expect(lastWriteArgs()?.expectedMtime).toBe(2000);
+    expect(lastWriteArgs()?.content).toContain("title: New");
+    expect(lastWriteArgs()?.content).toContain("edit one");
+  });
+
+  it("field edits are debounced: rapid property changes coalesce into one write", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: Old\n---\nbody",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+
+    act(() => {
+      void result.current.handleFieldChange("title", "A");
+    });
+    act(() => {
+      void result.current.handleFieldChange("title", "AB");
+    });
+    act(() => {
+      void result.current.handleFieldChange("title", "ABC");
+    });
+    // No write yet — each keystroke resets the field debounce — but the panel
+    // reflects the edit immediately.
+    expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(0);
+    expect(result.current.parsedFrontmatter.title).toBe("ABC");
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    const writes = invokeCalls.filter((c) => c.name === "write_file");
+    expect(writes).toHaveLength(1);
+    const content = (writes[0]?.args as { content: string }).content;
+    expect(content).toContain("title: ABC");
+    expect(content).toContain("body");
+  });
+
+  it("a failed field write reverts the panel to the last saved frontmatter", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: Old\n---\nbody",
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        throw new Error("disk full");
+      },
+    });
+    const showToast = mock((_: string) => {});
+    const { result } = renderHook(() => useFileEditor({ showToast }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+
+    act(() => {
+      void result.current.handleFieldChange("title", "New");
+    });
+    expect(result.current.parsedFrontmatter.title).toBe("New");
+
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+
+    // The failure was surfaced and the panel no longer shows a value that was
+    // never persisted.
+    expect(showToast).toHaveBeenCalledTimes(1);
+    expect(result.current.parsedFrontmatter.title).toBe("Old");
   });
 
   it("a failed background flush restores the pending edit for a later retry", async () => {

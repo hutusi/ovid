@@ -15,6 +15,9 @@ import { measureAsync } from "./perf";
 import type { FileNode, SaveStatus } from "./types";
 
 const SAVE_DELAY_MS = 750;
+// Property-panel/title edits rewrite the whole file; coalesce keystrokes on a
+// shorter debounce than body autosave so the panel still feels immediate.
+const FIELD_SAVE_DELAY_MS = 300;
 type FlushMode = "blocking" | "background";
 type WritePerfName = "editor.writeFile" | "editor.flushPendingWrite" | "editor.writeFrontmatter";
 
@@ -55,6 +58,11 @@ export function useFileEditor({
   const inFlightWritesRef = useRef(new Set<Promise<void>>());
   // Tail of the write queue per file path — see enqueueWrite.
   const writeChainsRef = useRef(new Map<string, Promise<void>>());
+  // What the chain most recently wrote to each path (content + mtime). Lets a
+  // write that starts after its file was deselected compose against what
+  // actually landed, instead of a stale queue-time snapshot; entries live only
+  // while the path's chain is non-empty.
+  const lastWrittenByPathRef = useRef(new Map<string, { content: string; mtime: number }>());
   // Tracks the full file content (frontmatter + body) as last written to or read from disk.
   // Used to distinguish our own saves from external changes in the workspace refresh loop.
   const lastSavedContentRef = useRef<string | null>(null);
@@ -66,6 +74,13 @@ export function useFileEditor({
   const conflictRetryRef = useRef<{ path: string; markdown: string } | null>(null);
   // Ref mirror of conflictActive so async write handlers can guard re-entrancy.
   const conflictActiveRef = useRef(false);
+  // Debounced property-panel/title edit awaiting its write, captured as a
+  // (path, body, frontmatter) snapshot at edit time so a file switch can't
+  // bleed the next file's state into the write.
+  const pendingFieldSaveRef = useRef<{ path: string; body: string; frontmatter: string } | null>(
+    null
+  );
+  const fieldSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     selectedFileRef.current = selectedFile;
@@ -77,6 +92,7 @@ export function useFileEditor({
       // Best-effort flush on unmount — fire-and-forget since cleanup is
       // synchronous. Passes the expected mtime so it won't clobber an external
       // change (the primary quit path is the blocking close-guard flush).
+      if (fieldSaveTimerRef.current) clearTimeout(fieldSaveTimerRef.current);
       const path = selectedPathRef.current;
       const markdown = pendingMarkdownRef.current;
       if (path && markdown !== null) {
@@ -84,6 +100,18 @@ export function useFileEditor({
           .write({
             path,
             content: joinFrontmatter(frontmatterRef.current, markdown),
+            expectedMtime: lastSavedMtimeRef.current,
+          })
+          .catch(() => {});
+      } else if (pendingFieldSaveRef.current) {
+        // Field-only edit still in its debounce window: same best-effort write
+        // (the pending field save can only belong to the selected file — any
+        // switch/close flushed it already).
+        const pending = pendingFieldSaveRef.current;
+        void commands.files
+          .write({
+            path: pending.path,
+            content: joinFrontmatter(pending.frontmatter, pending.body),
             expectedMtime: lastSavedMtimeRef.current,
           })
           .catch(() => {});
@@ -105,7 +133,10 @@ export function useFileEditor({
     write
       .finally(() => {
         inFlightWritesRef.current.delete(write);
-        if (writeChainsRef.current.get(path) === write) writeChainsRef.current.delete(path);
+        if (writeChainsRef.current.get(path) === write) {
+          writeChainsRef.current.delete(path);
+          lastWrittenByPathRef.current.delete(path);
+        }
       })
       // The caller owns `write` and handles its rejection; swallow here so this
       // bookkeeping chain can't surface a rejected write as an unhandled
@@ -121,13 +152,37 @@ export function useFileEditor({
   }, []);
 
   const writeMarkdown = useCallback(
-    (path: string, markdown: string, perfName: WritePerfName, opts?: { force?: boolean }) =>
-      enqueueWrite(path, () => {
-        // Compose the payload when the write actually starts, not when it was
-        // queued — an earlier write to the same path may have just updated the
-        // frontmatter ref and the mtime token.
-        const diskContent = joinFrontmatter(frontmatterRef.current, markdown);
-        const expectedMtime = opts?.force ? null : lastSavedMtimeRef.current;
+    (
+      path: string,
+      markdown: string | (() => string),
+      perfName: WritePerfName,
+      opts?: { force?: boolean; frontmatter?: string }
+    ) => {
+      // Queue-time snapshots, refreshed at start time only while `path` is
+      // still the selected file — the refs then still describe this file (an
+      // earlier queued write may have advanced the mtime token). After a
+      // switch the refs describe the newly-opened file and must not bleed
+      // into a write that is still queued for the previous one; such a write
+      // falls back to what the chain last wrote (or these snapshots).
+      const queuedFrontmatter = opts?.frontmatter ?? frontmatterRef.current;
+      const queuedMtime = lastSavedMtimeRef.current;
+      return enqueueWrite(path, () => {
+        const stillSelected = selectedPathRef.current === path;
+        // A thunk body (debounced field save) resolves once predecessors have
+        // settled, so it composes against the freshest body — not the one from
+        // when the edit was made.
+        const body = typeof markdown === "function" ? markdown() : markdown;
+        const frontmatter =
+          stillSelected && opts?.frontmatter === undefined
+            ? frontmatterRef.current
+            : queuedFrontmatter;
+        const diskContent = joinFrontmatter(frontmatter, body);
+        const lastWritten = lastWrittenByPathRef.current.get(path);
+        const expectedMtime = opts?.force
+          ? null
+          : stillSelected
+            ? lastSavedMtimeRef.current
+            : (lastWritten?.mtime ?? queuedMtime);
         return measureAsync(
           perfName,
           async () => {
@@ -137,6 +192,7 @@ export function useFileEditor({
                 content: diskContent,
                 expectedMtime,
               });
+              lastWrittenByPathRef.current.set(path, { content: diskContent, mtime: newMtime });
               if (selectedPathRef.current === path) {
                 lastSavedContentRef.current = diskContent;
                 lastSavedMtimeRef.current = newMtime;
@@ -145,7 +201,7 @@ export function useFileEditor({
               // Remember what we tried to write so an "overwrite" resolution can
               // force exactly this content back to disk.
               if (isExternalChangeConflict(err) && selectedPathRef.current === path) {
-                conflictRetryRef.current = { path, markdown };
+                conflictRetryRef.current = { path, markdown: body };
               }
               throw err;
             }
@@ -154,7 +210,8 @@ export function useFileEditor({
             contentLength: diskContent.length,
           }
         );
-      }),
+      });
+    },
     [enqueueWrite]
   );
 
@@ -166,6 +223,66 @@ export function useFileEditor({
     onConflict?.();
   }, [onConflict]);
 
+  /** Revert in-memory frontmatter to the last content known to be on disk —
+   *  used when a debounced field write fails, so the properties panel doesn't
+   *  keep showing a value that was never persisted. */
+  const revertFrontmatterToLastSaved = useCallback(() => {
+    const raw = lastSavedContentRef.current;
+    if (raw === null) return;
+    const { frontmatter } = parseFrontmatter(raw);
+    frontmatterRef.current = frontmatter;
+    setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
+  }, []);
+
+  const handleFieldSaveError = useCallback(
+    (path: string, err: unknown) => {
+      if (isExternalChangeConflict(err)) {
+        triggerConflict();
+        return;
+      }
+      console.error("Failed to save frontmatter:", err);
+      showToast(t("errors.save_failed"));
+      if (selectedPathRef.current === path) revertFrontmatterToLastSaved();
+    },
+    [triggerConflict, showToast, t, revertFrontmatterToLastSaved]
+  );
+
+  const discardFieldSave = useCallback(() => {
+    pendingFieldSaveRef.current = null;
+    if (fieldSaveTimerRef.current) {
+      clearTimeout(fieldSaveTimerRef.current);
+      fieldSaveTimerRef.current = null;
+    }
+  }, []);
+
+  /** Write the debounced field edit now. Returns the write promise (rejection
+   *  already surfaced via handleFieldSaveError) or null when nothing pends. */
+  const flushFieldSave = useCallback((): Promise<void> | null => {
+    const pending = pendingFieldSaveRef.current;
+    discardFieldSave();
+    if (!pending) return null;
+    // The body resolves when the write starts (after any queued predecessor
+    // lands): prefer the live pending markdown, then the last content written
+    // or read for this file, then the edit-time snapshot — so a slow in-flight
+    // body write can't be clobbered by a stale field-save body.
+    const resolveBody = () => {
+      if (selectedPathRef.current === pending.path) {
+        if (pendingMarkdownRef.current !== null) return pendingMarkdownRef.current;
+        const raw = lastSavedContentRef.current;
+        if (raw !== null) return parseFrontmatter(raw).body;
+      } else {
+        const written = lastWrittenByPathRef.current.get(pending.path);
+        if (written !== undefined) return parseFrontmatter(written.content).body;
+      }
+      return pending.body;
+    };
+    const save = writeMarkdown(pending.path, resolveBody, "editor.writeFrontmatter", {
+      frontmatter: pending.frontmatter,
+    });
+    save.catch((err) => handleFieldSaveError(pending.path, err));
+    return save;
+  }, [discardFieldSave, writeMarkdown, handleFieldSaveError]);
+
   const flushPendingSave = useCallback(
     async ({ mode = "blocking" }: { mode?: FlushMode } = {}) => {
       editorFlushRef.current?.();
@@ -176,6 +293,21 @@ export function useFileEditor({
 
       const path = selectedPathRef.current;
       const markdown = pendingMarkdownRef.current;
+
+      // A pending body write composes its payload at start time, so it already
+      // carries the latest frontmatter — a debounced field save for the same
+      // file is redundant then and is dropped. Otherwise flush it now so a
+      // switch/close/quit can't lose a property edit sitting in the debounce
+      // window.
+      let fieldSave: Promise<void> | null = null;
+      if (pendingFieldSaveRef.current !== null) {
+        if (markdown !== null && path === pendingFieldSaveRef.current.path) {
+          discardFieldSave();
+        } else {
+          fieldSave = flushFieldSave();
+        }
+      }
+
       // Background flushes (file switch / close / window blur) are fire-and-
       // forget and clear the pending ref optimistically below — by the time the
       // write could reject we may have already switched files, so there's
@@ -227,6 +359,10 @@ export function useFileEditor({
       }
 
       if (mode === "blocking") {
+        // The field save already surfaced its own failure (conflict prompt or
+        // toast + revert); re-await it so the caller (e.g. the close-guard)
+        // still treats the flush as failed.
+        if (fieldSave) await fieldSave;
         try {
           await awaitInFlightWrites();
         } catch (err) {
@@ -240,7 +376,15 @@ export function useFileEditor({
         }
       }
     },
-    [awaitInFlightWrites, showToast, t, triggerConflict, writeMarkdown]
+    [
+      awaitInFlightWrites,
+      discardFieldSave,
+      flushFieldSave,
+      showToast,
+      t,
+      triggerConflict,
+      writeMarkdown,
+    ]
   );
 
   const clearConflict = useCallback(() => {
@@ -260,8 +404,9 @@ export function useFileEditor({
     pendingMarkdownRef.current = null;
     lastSavedContentRef.current = null;
     lastSavedMtimeRef.current = null;
+    discardFieldSave();
     clearConflict();
-  }, [clearConflict]);
+  }, [clearConflict, discardFieldSave]);
 
   const handleCloseFile = useCallback(async () => {
     await flushPendingSave({ mode: "background" });
@@ -295,18 +440,22 @@ export function useFileEditor({
     [clearConflict]
   );
 
-  async function handleSelectFile(node: FileNode) {
+  /** Returns true when the file was read and is now the active selection —
+   *  callers use this to record session side-effects (tabs, recents) only for
+   *  opens that actually succeeded. */
+  async function handleSelectFile(node: FileNode): Promise<boolean> {
     await flushPendingSave({ mode: "background" });
     const prevPath = selectedPathRef.current;
     selectedPathRef.current = node.path;
     pendingMarkdownRef.current = null;
 
     try {
-      await applyDiskContent(node);
+      return await applyDiskContent(node);
     } catch (err) {
       console.error("Failed to read file:", err);
       showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.open_file_failed"));
       if (selectedPathRef.current === node.path) selectedPathRef.current = prevPath;
+      return false;
     }
   }
 
@@ -373,37 +522,22 @@ export function useFileEditor({
     const newFrontmatter = serializeFrontmatter(updated);
     frontmatterRef.current = newFrontmatter;
 
-    let body: string;
-    if (pendingMarkdownRef.current !== null) {
-      body = pendingMarkdownRef.current;
-    } else {
-      try {
-        const raw = await commands.files.read({ path: selectedFile.path });
-        body = parseFrontmatter(raw).body;
-      } catch (err) {
-        console.error("Failed to read file body for frontmatter update:", err);
-        showToast(t("errors.load_file_failed"));
-        return;
-      }
-    }
-
-    const filePath = selectedFile.path;
-    // Route through writeMarkdown (which composes joinFrontmatter from the ref
-    // we just set) so the write is tracked — flushPendingSave's
-    // awaitInFlightWrites will wait for it, and lastSavedContentRef stays in
-    // sync. A direct commands.files.write here would be invisible to the
-    // save-coordination model and could be dropped by a concurrent
-    // file-switch/close/quit.
-    try {
-      await writeMarkdown(filePath, body, "editor.writeFrontmatter");
-    } catch (err) {
-      if (isExternalChangeConflict(err)) {
-        triggerConflict();
-        return;
-      }
-      console.error("Failed to save frontmatter:", err);
-      showToast(t("errors.save_failed"));
-    }
+    // The body comes from the live pending edit when dirty, else from the last
+    // content known to be on disk — no re-read needed; an external change is
+    // caught by the write's mtime check instead of raced by a read.
+    const body =
+      pendingMarkdownRef.current ?? parseFrontmatter(lastSavedContentRef.current ?? "").body;
+    // Debounce the whole-file rewrite: per-keystroke title edits coalesce into
+    // one write. The eventual write routes through writeMarkdown (tracked +
+    // per-path ordered) so flushPendingSave's awaitInFlightWrites still covers
+    // it, and flushPendingSave itself flushes or supersedes the debounce on
+    // switch/close/quit. See flushFieldSave.
+    pendingFieldSaveRef.current = { path: selectedFile.path, body, frontmatter: newFrontmatter };
+    if (fieldSaveTimerRef.current) clearTimeout(fieldSaveTimerRef.current);
+    fieldSaveTimerRef.current = setTimeout(() => {
+      fieldSaveTimerRef.current = null;
+      void flushFieldSave();
+    }, FIELD_SAVE_DELAY_MS);
   }
 
   const resolveConflict = useCallback(

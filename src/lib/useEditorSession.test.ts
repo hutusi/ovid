@@ -104,7 +104,7 @@ function makeFakeFileEditor(selected: FileNode | null = null): FakeFileEditor {
     selectedFile: selected,
     selectedPathRef: { current: selected?.path ?? null },
     setSelectedFile: mock((_: FileNode | null) => {}),
-    handleSelectFile: mock((_: FileNode) => Promise.resolve()),
+    handleSelectFile: mock((_: FileNode) => Promise.resolve(true)),
     handleCloseFile: mock(() => Promise.resolve()),
   };
 }
@@ -135,6 +135,28 @@ describe("useEditorSession orchestration", () => {
     expect(fileEditor.handleSelectFile).toHaveBeenCalledWith(node);
     expect(result.current.tabs).toContain(node.path);
     expect(result.current.recentFiles[0]?.path).toBe(node.path);
+  });
+
+  it("openFile records no tab or recent when the read fails", async () => {
+    const node = makeFile("/ws/posts/broken.md");
+    const fileEditor = makeFakeFileEditor();
+    fileEditor.handleSelectFile = mock((_: FileNode) => Promise.resolve(false));
+    const { result } = renderHook(() =>
+      useEditorSession({
+        fileEditor,
+        workspaceRoot: "ws",
+        workspaceRootPath: "/ws",
+        flatFiles: [makeFlatFile(node)],
+      })
+    );
+
+    await act(async () => {
+      await result.current.openFile(node);
+    });
+
+    expect(fileEditor.handleSelectFile).toHaveBeenCalledTimes(1);
+    expect(result.current.tabs).not.toContain(node.path);
+    expect(result.current.recentFiles).toHaveLength(0);
   });
 
   it("openByPath routes a known path through openFile", async () => {

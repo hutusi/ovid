@@ -9,7 +9,9 @@ export interface FileEditorHandle {
   selectedFile: FileNode | null;
   selectedPathRef: { current: string | null };
   setSelectedFile: (node: FileNode | null) => void;
-  handleSelectFile: (node: FileNode) => Promise<void>;
+  /** Resolves true when the file was read and selected; false when the read
+   *  failed or a newer selection superseded it. */
+  handleSelectFile: (node: FileNode) => Promise<boolean>;
   handleCloseFile: () => Promise<void>;
 }
 
@@ -64,7 +66,8 @@ interface UseEditorSessionOptions {
  * `onPathRemoved`).
  *
  * The four invariants this hook enforces:
- * - opening a file always selects it, pushes it to recents, and opens its tab
+ * - opening a file selects it and, once the read succeeds, pushes it to
+ *   recents and opens its tab (a failed open records nothing)
  * - renaming a file updates its tab, its recents entry, and the selection
  *   (if it was the active file) in lockstep
  * - removing a file closes its tab, drops its recents entry, and closes the
@@ -94,15 +97,17 @@ export function useEditorSession({
     );
   }, []);
 
-  /** Make the given node the active file: select it, push to recents, open
-   *  a tab. Returns the editor's read-from-disk promise so callers can await
-   *  the file content actually loading. */
+  /** Make the given node the active file: select it, then push it to recents
+   *  and open its tab. Session entries are recorded only after the read
+   *  succeeds — a missing or unreadable file must not leave a phantom tab or
+   *  recents entry behind. Resolves when the file content has loaded. */
   const openFile = useCallback(
-    (node: FileNode): Promise<void> => {
-      if (node.isDirectory) return Promise.resolve();
+    async (node: FileNode): Promise<void> => {
+      if (node.isDirectory) return;
+      const opened = await fileEditor.handleSelectFile(node);
+      if (!opened) return;
       recents.pushRecent(node);
       tabs.openTab(node.path);
-      return fileEditor.handleSelectFile(node);
     },
     [fileEditor.handleSelectFile, recents.pushRecent, tabs.openTab]
   );
