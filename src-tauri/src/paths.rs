@@ -1,9 +1,19 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::UNIX_EPOCH;
 
 /// Process-wide counter making each atomic-write temp file unique.
 static TMP_WRITE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Modification time of `path` as milliseconds since the Unix epoch.
+fn mtime_millis(path: &Path) -> std::io::Result<u64> {
+    let modified = std::fs::metadata(path)?.modified()?;
+    modified
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+}
 
 pub(crate) fn is_markdown_path(path: &Path) -> bool {
     matches!(
@@ -141,7 +151,12 @@ pub(crate) fn validate_new_path(workspace_root: &Path, requested: &str) -> Resul
 /// concurrent writers to the same target never collide on the temp file — a
 /// safety margin for any caller reached outside the `workspace_root` mutex
 /// that serializes today's editor writes.
-pub(crate) fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
+/// Returns the mtime (ms since epoch) of the written content. It's read from
+/// the temp file *before* the rename — and `rename` preserves the inode's
+/// mtime — so the token provably belongs to the content we wrote, closing the
+/// window a post-rename stat on the final path would leave for an external
+/// replace to swap in a mtime for someone else's content.
+pub(crate) fn write_atomic(path: &Path, content: &str) -> std::io::Result<u64> {
     let dir = path
         .parent()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no parent dir"))?;
@@ -172,9 +187,13 @@ pub(crate) fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
     file.sync_all()?;
     drop(file);
 
+    // Capture the mtime of the just-written temp (our content) before the
+    // rename; rename preserves it, so the returned token matches the content
+    // on disk without a racy post-rename stat.
+    let mtime = mtime_millis(&tmp_path)?;
     std::fs::rename(&tmp_path, path)?;
     guard.0 = None; // rename consumed the temp file; nothing to clean up.
-    Ok(())
+    Ok(mtime)
 }
 
 /// Normalize a path to forward-slash separators for JSON serialization.

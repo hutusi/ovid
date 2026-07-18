@@ -29,7 +29,7 @@ import { useMarkdownSync } from "../lib/editor/useMarkdownSync";
 import type { FlatFile } from "../lib/fileSearch";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
-import { matchOccurrenceRank } from "../lib/searchJump";
+import { matchOccurrenceRank, stripLineMarkers } from "../lib/searchJump";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
 import { collectMatches, FindReplace } from "../lib/tiptap/FindReplace";
 import { Footnotes } from "../lib/tiptap/Footnotes";
@@ -535,13 +535,29 @@ export function Editor({
     // Rank identical body lines by proximity to the match's mapped body line,
     // and select the same-rank in-document hit (collectMatches yields hits in
     // document order) — so a repeated line jumps to the clicked occurrence,
-    // not the first on the page. Fall back to the query's first occurrence for
-    // styled lines split across text nodes.
-    const lineHits = collectMatches(doc, searchJump.lineContent);
+    // not the first on the page. The raw line often carries Markdown syntax
+    // (`# Heading`, `**bold**`) the rendered doc text lacks, so fall back to a
+    // marker-stripped line, then to the query's first occurrence.
+    let lineHits = collectMatches(doc, searchJump.lineContent);
+    // Rank candidates with the same transform that produced the hits, so the
+    // occurrence count matches the hit set being indexed.
+    let normalize: (line: string) => string = (line) => line.trim();
+    if (lineHits.length === 0) {
+      const stripped = stripLineMarkers(searchJump.lineContent);
+      if (stripped && stripped !== searchJump.lineContent.trim()) {
+        lineHits = collectMatches(doc, stripped);
+        normalize = stripLineMarkers;
+      }
+    }
     let target: { from: number; to: number } | undefined;
     if (lineHits.length > 0) {
       const targetBodyLine = searchJump.lineNumber - 1 - frontmatterLineOffset;
-      const rank = matchOccurrenceRank(content.split("\n"), searchJump.lineContent, targetBodyLine);
+      const rank = matchOccurrenceRank(
+        content.split("\n"),
+        searchJump.lineContent,
+        targetBodyLine,
+        normalize
+      );
       target = lineHits[Math.min(rank, lineHits.length - 1)];
     } else {
       target = collectMatches(doc, searchJump.query)[0];

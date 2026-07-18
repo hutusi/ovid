@@ -69,6 +69,36 @@ pub(crate) struct VersionedFile {
 /// changed mid-read we return the *pre-read* mtime, which is deliberately stale
 /// so the next save conflict-prompts rather than clobbers. A missing mtime is an
 /// error — the editor must not open a file it can't guard.
+/// How many times a versioned read re-attempts the stat → read → stat cycle
+/// before giving up on getting a consistent snapshot.
+const VERSIONED_READ_RETRIES: usize = 5;
+
+/// Read content and its mtime as a consistent snapshot: stat → read → stat, and
+/// accept the pair only when the mtime is unchanged across the read (the token
+/// then provably matches the content). Retries a bounded number of times if the
+/// file changes mid-read, then errors — rather than returning torn/new content
+/// with a stale token (which would show inconsistent content and raise a
+/// spurious conflict on the first save). Generic over the stat/read closures so
+/// the retry and error branches are unit-testable without racing a real file.
+fn read_stable<S, R>(stat: S, read: R, retries: usize) -> Result<VersionedFile, String>
+where
+    S: Fn() -> Option<u64>,
+    R: Fn() -> std::io::Result<String>,
+{
+    for _ in 0..retries {
+        let mtime_before = stat().ok_or("cannot read file mtime")?;
+        let content = read().map_err(|e| e.to_string())?;
+        let mtime_after = stat().ok_or("cannot read file mtime")?;
+        if mtime_before == mtime_after {
+            return Ok(VersionedFile {
+                content,
+                mtime: mtime_after,
+            });
+        }
+    }
+    Err("file changed during read".to_string())
+}
+
 /// Core of `read_file_versioned`, factored out of the Tauri command so it can
 /// be unit-tested without a `WorkspaceState`.
 fn read_versioned_checked(canonical: &Path) -> Result<VersionedFile, String> {
@@ -77,17 +107,11 @@ fn read_versioned_checked(canonical: &Path) -> Result<VersionedFile, String> {
             return Err(FILE_TOO_LARGE.to_string());
         }
     }
-    let mtime_before = file_mtime_millis(canonical).ok_or("cannot read file mtime")?;
-    let content = std::fs::read_to_string(canonical).map_err(|e| e.to_string())?;
-    let mtime_after = file_mtime_millis(canonical).ok_or("cannot read file mtime")?;
-    // Stable across the read → the token matches the content. Otherwise fall
-    // back to the earlier (now-stale) token so the next save conflicts.
-    let mtime = if mtime_before == mtime_after {
-        mtime_after
-    } else {
-        mtime_before
-    };
-    Ok(VersionedFile { content, mtime })
+    read_stable(
+        || file_mtime_millis(canonical),
+        || std::fs::read_to_string(canonical),
+        VERSIONED_READ_RETRIES,
+    )
 }
 
 #[tauri::command]
@@ -180,8 +204,10 @@ fn write_checked(canonical: &Path, content: &str, expected_mtime: Option<u64>) -
             }
         }
     }
-    write_atomic(canonical, content).map_err(|e| e.to_string())?;
-    Ok(file_mtime_millis(canonical).unwrap_or(0))
+    // write_atomic returns the written content's own mtime (captured pre-rename,
+    // preserved across it), so there's no racy post-rename stat that could pick
+    // up an external replace's mtime.
+    write_atomic(canonical, content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -209,7 +235,7 @@ pub(crate) fn create_file(
     if new_path.exists() {
         return Err("file already exists".to_string());
     }
-    write_atomic(&new_path, &content).map_err(|e| e.to_string())
+    write_atomic(&new_path, &content).map(|_| ()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -338,6 +364,38 @@ mod tests {
     }
 
     #[test]
+    fn read_stable_returns_content_when_mtime_is_stable_across_the_read() {
+        let result = read_stable(|| Some(1000), || Ok("body".to_string()), 5).unwrap();
+        assert_eq!(result.content, "body");
+        assert_eq!(result.mtime, 1000);
+    }
+
+    #[test]
+    fn read_stable_errors_when_the_file_never_stops_changing() {
+        // Every stat returns a different value, so no read is ever consistent.
+        let counter = std::cell::Cell::new(0u64);
+        let stat = || {
+            let n = counter.get();
+            counter.set(n + 1);
+            Some(n)
+        };
+        assert_eq!(
+            read_stable(stat, || Ok("body".to_string()), 5),
+            Err("file changed during read".to_string())
+        );
+    }
+
+    #[test]
+    fn read_stable_succeeds_on_a_later_retry_once_the_file_settles() {
+        // Unstable for the first pair, stable afterward.
+        let seq = std::cell::RefCell::new(vec![1u64, 2, 7, 7, 7, 7]);
+        let stat = || Some(seq.borrow_mut().remove(0));
+        let result = read_stable(stat, || Ok("settled".to_string()), 5).unwrap();
+        assert_eq!(result.content, "settled");
+        assert_eq!(result.mtime, 7);
+    }
+
+    #[test]
     fn read_versioned_checked_rejects_oversized_files() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("huge.md");
@@ -362,6 +420,11 @@ mod tests {
         let new_mtime = write_checked(&path, "v2", Some(current)).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "v2");
         assert!(new_mtime >= current);
+        // The returned token is the written content's own mtime — a save with it
+        // as expected_mtime finds the file unchanged and does not conflict.
+        assert_eq!(new_mtime, file_mtime_millis(&path).unwrap());
+        write_checked(&path, "v3", Some(new_mtime)).unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "v3");
     }
 
     #[test]

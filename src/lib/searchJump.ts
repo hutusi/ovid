@@ -25,20 +25,43 @@ export function frontmatterLineOffset(raw: string): number {
   return count;
 }
 
-/** Among body lines whose trimmed text equals `lineContent`, return the 0-based
- *  occurrence rank closest to `targetBodyLine` (0-based). Returns 0 when there
- *  are no exact matches (the caller then falls back to the first match). */
+/** Strip common leading block markers and inline emphasis/code markers from a
+ *  raw Markdown line, approximating the rendered text so a search jump can
+ *  locate a formatted line in the ProseMirror document (whose text nodes carry
+ *  no `#`, `**`, etc.). Best-effort — it covers headings, blockquotes, list and
+ *  task items, bold/italic/strike, and inline code, not arbitrary inline markup
+ *  like links. Returns the input unchanged when nothing strips. */
+export function stripLineMarkers(line: string): string {
+  let out = line.trim();
+  // Leading block markers, applied once (e.g. "> - [ ] # x" is not realistic).
+  out = out
+    .replace(/^#{1,6}\s+/, "") // ATX heading
+    .replace(/^>\s?/, "") // blockquote
+    .replace(/^(?:[-*+]|\d+\.)\s+(?:\[[ xX]\]\s+)?/, ""); // list / task item
+  // Inline emphasis + code markers anywhere in the line.
+  out = out.replace(/\*\*|__|~~|[*_`]/g, "");
+  return out.trim();
+}
+
+/** Among body lines whose `normalize`d text equals the `normalize`d
+ *  `lineContent`, return the 0-based occurrence rank closest to `targetBodyLine`
+ *  (0-based). Returns 0 when there are no matches (the caller then falls back to
+ *  the first match). `normalize` MUST match the transform used to produce the
+ *  in-document hits being ranked — otherwise the rank counts a different set of
+ *  candidates than the hits it indexes into (e.g. ranking raw `**foo**` lines
+ *  while the hits are every rendered `foo`). Defaults to a plain trim. */
 export function matchOccurrenceRank(
   bodyLines: string[],
   lineContent: string,
-  targetBodyLine: number
+  targetBodyLine: number,
+  normalize: (line: string) => string = (line) => line.trim()
 ): number {
-  const target = lineContent.trim();
+  const target = normalize(lineContent);
   let rank = 0;
   let bestRank = 0;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (let line = 0; line < bodyLines.length; line++) {
-    if (bodyLines[line].trim() !== target) continue;
+    if (normalize(bodyLines[line]) !== target) continue;
     const distance = Math.abs(line - targetBodyLine);
     if (distance < bestDistance) {
       bestDistance = distance;

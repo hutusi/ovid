@@ -12,6 +12,7 @@ import { collectionCandidates } from "./lib/collection";
 import { commands } from "./lib/commands";
 import { corpusReadFile, readCorpus } from "./lib/corpusCache";
 import { getGitBranchTitle } from "./lib/gitUi";
+import { createGenerationGuard } from "./lib/latestOnly";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
@@ -255,15 +256,30 @@ function App() {
     [addCollectionItem, reloadCollectionLinks]
   );
 
+  // Only the latest content selection may apply its (possibly-async) result: a
+  // slow close on a non-markdown sidebar selection must not later set the
+  // FileViewer over a note opened meanwhile from search / a tab / a wiki link.
+  // Every content-selection entry point sets the viewer node through
+  // `selectContentView`, which bumps this generation; the async non-markdown
+  // path checks `isCurrent` before applying.
+  const sidebarSelectGen = useRef(createGenerationGuard());
+  const selectContentView = useCallback(
+    (node: FileNode | null) => {
+      sidebarSelectGen.current.bump();
+      setFileViewerNode(node);
+    },
+    [setFileViewerNode]
+  );
+
   // openByPath / openFile / closeActive live inside useEditorSession; here we
   // only have to clear the FileViewer (a separate, files-mode UI concern) and
   // delegate. Two-line wrappers rather than re-implementing the orchestration.
   const openFileByPath = useCallback(
     (path: string): Promise<boolean> => {
-      setFileViewerNode(null);
+      selectContentView(null);
       return openByPath(path);
     },
-    [openByPath, setFileViewerNode]
+    [openByPath, selectContentView]
   );
 
   // Wiki-link resolution index — refreshed asynchronously whenever the
@@ -307,7 +323,7 @@ function App() {
       if (!workspaceRoot) return;
       const resolved = resolveWikiTarget(target, noteResolverIndexRef.current);
       if (resolved.exists) {
-        setFileViewerNode(null);
+        selectContentView(null);
         void openByPath(`${workspaceRoot}/${resolved.relativePath}`);
         return;
       }
@@ -321,7 +337,7 @@ function App() {
           t,
         });
         await refreshTree();
-        setFileViewerNode(null);
+        selectContentView(null);
         void openByPath(filePath);
       } catch (err) {
         showToast(
@@ -332,13 +348,13 @@ function App() {
         );
       }
     },
-    [workspaceRoot, postsBasePath, refreshTree, openByPath, setFileViewerNode, showToast, t]
+    [workspaceRoot, postsBasePath, refreshTree, openByPath, selectContentView, showToast, t]
   );
 
   async function handleSidebarSelect(node: FileNode) {
     const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
     if (sidebarMode === "content" || isMarkdown) {
-      setFileViewerNode(null);
+      selectContentView(null);
       void openFile(node);
       return;
     }
@@ -347,19 +363,27 @@ function App() {
       showToast(t("file_viewer.cannot_open"));
       return;
     }
+    // Capture the generation *after* the branch decision but before the await,
+    // so a newer content selection (from the sidebar or any other entry point,
+    // each of which bumps via selectContentView) invalidates this one.
+    const gen = sidebarSelectGen.current.bump();
     // Show the (read-only) viewer only after the open Markdown file's save
     // transaction closes — a conflicting/failed close keeps the editor and its
-    // pending edit on screen rather than hiding it behind the viewer.
-    if (await handleCloseFile()) setFileViewerNode(node);
+    // pending edit on screen rather than hiding it behind the viewer. Guard on
+    // the selection generation so a slow close can't set the viewer over a
+    // newer selection made while it was pending.
+    if ((await handleCloseFile()) && sidebarSelectGen.current.isCurrent(gen)) {
+      selectContentView(node);
+    }
   }
 
   const closeActiveTabOrFile = useCallback(() => {
     if (fileViewerNode) {
-      setFileViewerNode(null);
+      selectContentView(null);
       return;
     }
     closeActive();
-  }, [fileViewerNode, setFileViewerNode, closeActive]);
+  }, [fileViewerNode, selectContentView, closeActive]);
 
   const handleEditorViewStateChange = useCallback(
     (viewState: EditorViewState) => {
@@ -604,7 +628,7 @@ function App() {
   }
 
   function handleSelectFromTab(path: string) {
-    setFileViewerNode(null);
+    selectContentView(null);
     void openByPath(path);
   }
 
@@ -686,7 +710,7 @@ function App() {
           assetRoot={assetRoot}
           cdnBase={cdnBase}
           fileViewerNode={fileViewerNode}
-          onCloseFileViewer={() => setFileViewerNode(null)}
+          onCloseFileViewer={() => selectContentView(null)}
           fileContent={fileContent}
           typewriterMode={typewriterMode}
           spellCheck={prefs.spellCheck}

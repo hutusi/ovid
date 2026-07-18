@@ -228,6 +228,9 @@ export function useFileEditor({
     const { frontmatter } = parseFrontmatter(raw);
     frontmatterRef.current = frontmatter;
     setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
+    // Restore the search-jump offset too — otherwise it keeps the failed
+    // edit's frontmatter line count after the panel reverts.
+    setFrontmatterLineOffset(computeFrontmatterLineOffset(raw));
   }, []);
 
   const handleFieldSaveError = useCallback(
