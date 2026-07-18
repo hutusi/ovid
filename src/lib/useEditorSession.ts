@@ -10,9 +10,11 @@ export interface FileEditorHandle {
   selectedPathRef: { current: string | null };
   setSelectedFile: (node: FileNode | null) => void;
   /** Resolves true when the file was read and selected; false when the read
-   *  failed or a newer selection superseded it. */
+   *  failed, the outgoing save aborted the switch, or a newer selection
+   *  superseded it. */
   handleSelectFile: (node: FileNode) => Promise<boolean>;
-  handleCloseFile: () => Promise<void>;
+  /** Saves then closes; `discard: true` skips the save (file was removed). */
+  handleCloseFile: (opts?: { discard?: boolean }) => Promise<void>;
 }
 
 /**
@@ -170,13 +172,14 @@ export function useEditorSession({
 
   /** Called by `useWorkspace.handleDelete` after a successful filesystem
    *  trash. Drops the file from tabs and recents; if it was the active file,
-   *  closes the editor (which also flushes any pending edits in background). */
+   *  closes the editor discarding its state — the file is gone from disk, so
+   *  there is nothing left to save to. */
   const notifyPathRemoved = useCallback(
     async (removedPath: string): Promise<void> => {
       tabs.removeTab(removedPath);
       recents.removeRecent(removedPath);
       if (selectionShouldCloseAfterRemove(fileEditor.selectedFile, removedPath)) {
-        await fileEditor.handleCloseFile();
+        await fileEditor.handleCloseFile({ discard: true });
       }
     },
     [tabs.removeTab, recents.removeRecent, fileEditor.selectedFile, fileEditor.handleCloseFile]

@@ -270,13 +270,87 @@ describe("useFileEditor — save flush semantics", () => {
     expect(showToast).not.toHaveBeenCalled();
   });
 
-  it("background flushes force-write and never open a conflict prompt", async () => {
-    // Background flushes (switch/close/blur) clear pending state optimistically,
-    // so they must bypass the mtime check rather than open a stale prompt.
+  it("a hide-flush conflict restores the edit and prompts on the still-selected file", async () => {
+    // The window-hide flush is the only fire-and-forget flush left, and it
+    // never changes the selection — so it carries the normal mtime token (no
+    // force) and a conflict can be resolved against the file on screen.
     invokeImpl = whenInvoke({
       read_file: () => "hello",
       get_file_mtime: () => 1000,
-      write_file: () => 2000,
+      write_file: () => {
+        throw new Error("EXTERNAL_CHANGE_CONFLICT");
+      },
+    });
+    const showToast = mock((_: string) => {});
+    const onConflict = mock(() => {});
+    const { result } = renderHook(() => useFileEditor({ showToast, onConflict }));
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("edit");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave({ mode: "background" });
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    });
+
+    expect(lastWriteArgs()?.expectedMtime).toBe(1000);
+    expect(onConflict).toHaveBeenCalledTimes(1);
+    expect(result.current.conflictActive).toBe(true);
+    expect(result.current.pendingMarkdownRef.current).toBe("edit");
+    // A conflict is not a save error — no error toast.
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it("switching files aborts when the outgoing save fails, keeping the edit and selection", async () => {
+    const OTHER: FileNode = { name: "other.md", path: "/ws/other.md", isDirectory: false };
+    let failWrites = false;
+    invokeImpl = whenInvoke({
+      read_file: () => "hello",
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        if (failWrites) throw new Error("disk full");
+        return 2000;
+      },
+    });
+    const showToast = mock((_: string) => {});
+    const { result } = renderHook(() => useFileEditor({ showToast }));
+
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("precious edit");
+    });
+
+    failWrites = true;
+    let opened = true;
+    await act(async () => {
+      opened = await result.current.handleSelectFile(OTHER);
+    });
+
+    // The switch aborted: still on the original file, edit intact, failure
+    // surfaced — and the other file was never read.
+    expect(opened).toBe(false);
+    expect(result.current.selectedPathRef.current).toBe(NODE.path);
+    expect(result.current.pendingMarkdownRef.current).toBe("precious edit");
+    expect(result.current.saveStatus).toBe("unsaved");
+    expect(showToast).toHaveBeenCalledTimes(1);
+    expect(invokeCalls.filter((c) => c.name === "read_file")).toHaveLength(1);
+  });
+
+  it("switching files aborts and prompts when the outgoing save conflicts", async () => {
+    const OTHER: FileNode = { name: "other.md", path: "/ws/other.md", isDirectory: false };
+    let conflict = false;
+    invokeImpl = whenInvoke({
+      read_file: () => "hello",
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        if (conflict) throw new Error("EXTERNAL_CHANGE_CONFLICT");
+        return 2000;
+      },
     });
     const onConflict = mock(() => {});
     const { result } = renderHook(() =>
@@ -287,14 +361,22 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("edit");
-    });
-    await act(async () => {
-      await result.current.flushPendingSave({ mode: "background" });
+      result.current.handleEditorChange("local edit");
     });
 
-    expect(lastWriteArgs()?.expectedMtime).toBeNull();
-    expect(onConflict).not.toHaveBeenCalled();
+    conflict = true;
+    let opened = true;
+    await act(async () => {
+      opened = await result.current.handleSelectFile(OTHER);
+    });
+
+    // The conflict fired while the original file was still selected, so the
+    // prompt targets the right file and "overwrite" has its retry payload.
+    expect(opened).toBe(false);
+    expect(result.current.selectedPathRef.current).toBe(NODE.path);
+    expect(onConflict).toHaveBeenCalledTimes(1);
+    expect(result.current.conflictActive).toBe(true);
+    expect(result.current.pendingMarkdownRef.current).toBe("local edit");
   });
 
   it("resolveConflict('reload') discards the local edit and re-reads disk", async () => {

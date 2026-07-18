@@ -164,6 +164,52 @@ describe("useWorkspace", () => {
     expect(result.current.tree[0]?.path).toBe("/ws/content/posts/new-ws.md");
   });
 
+  it("serializes concurrent opens so the second starts only after the first settles", async () => {
+    const order: string[] = [];
+    let resolveA: (r: unknown) => void = () => {};
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: (args) => {
+        const path = (args as { path: string }).path;
+        order.push(`start:${path}`);
+        if (path === "/a") {
+          return new Promise((resolve) => {
+            resolveA = () => {
+              order.push("resolve:/a");
+              resolve(makeWorkspaceResult({ tree: [makeNode("/a/content/a.md")] }));
+            };
+          });
+        }
+        order.push("resolve:/b");
+        return makeWorkspaceResult({ rootPath: "/b", tree: [makeNode("/b/content/b.md")] });
+      },
+    });
+
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    // Fire A (slow) and B back-to-back without awaiting A.
+    let bDone: Promise<unknown> = Promise.resolve();
+    await act(async () => {
+      void result.current.openWorkspaceAtPath("/a");
+      bDone = result.current.openWorkspaceAtPath("/b");
+      // Let A's queued task reach its (pending) invoke.
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    // B must not have started while A is still in flight.
+    expect(order).toEqual(["start:/a"]);
+
+    await act(async () => {
+      resolveA(undefined);
+      await bDone;
+    });
+
+    // B started only after A fully resolved, and B's tree is the final state.
+    expect(order).toEqual(["start:/a", "resolve:/a", "start:/b", "resolve:/b"]);
+    expect(result.current.workspaceRootPath).toBe("/b");
+    expect(result.current.tree[0]?.path).toBe("/b/content/b.md");
+  });
+
   it("openWorkspaceAtPath toasts and leaves state empty when invoke returns null", async () => {
     invokeImpl = whenInvoke({
       open_workspace_at_path: () => null,

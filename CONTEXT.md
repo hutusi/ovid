@@ -209,13 +209,15 @@ on-disk mtime no longer matches, the Rust side refuses the write with
 (keeping the pending edit) and calls `onConflict`, which opens the blocking
 `conflict` overlay; `resolveConflict("reload" | "overwrite" | "dismiss")`
 either reloads the disk version, force-writes (`expectedMtime: null`), or leaves
-the file unsaved for a later retry. Fire-and-forget **background flushes**
-(file switch / close / window blur) force-write instead of conflicting — there
-is nowhere to prompt once the editor has moved on — and restore the pending
-edit on failure; see ADR 0020 for the trade-off. This is the write-time
-complement to the revision poll (`useWorkspaceRevisionPoll`), which handles
-the no-local-edits case by reloading, and treats the `saving` state like
-`unsaved`.
+the file unsaved for a later retry. **File transitions await the outgoing
+save**: a switch or close awaits the full save transaction before the
+selection moves and aborts on failure or conflict, so the prompt always
+targets the file on screen and no edit is dropped mid-transition (removal-
+driven closes pass `discard: true` — nothing on disk left to save to). Only
+the close-guard's window-hide flush stays fire-and-forget, non-forced, with
+restore-on-failure; see ADR 0020. This is the write-time complement to the
+revision poll (`useWorkspaceRevisionPoll`), which handles the no-local-edits
+case by reloading, and treats the `saving` state like `unsaved`.
 
 ---
 

@@ -29,6 +29,7 @@ import { useMarkdownSync } from "../lib/editor/useMarkdownSync";
 import type { FlatFile } from "../lib/fileSearch";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
+import { matchOccurrenceRank } from "../lib/searchJump";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
 import { collectMatches, FindReplace } from "../lib/tiptap/FindReplace";
 import { Footnotes } from "../lib/tiptap/Footnotes";
@@ -102,6 +103,9 @@ interface EditorProps {
   /** One-shot "scroll to this search match" request; consumed once the target
    *  file's content is on screen, then cleared via onSearchJumpHandled. */
   searchJump?: SearchJumpTarget | null;
+  /** Lines the frontmatter occupies, to map the jump's full-file line number
+   *  to a body line. */
+  frontmatterLineOffset?: number;
   onSearchJumpHandled?: () => void;
 }
 
@@ -127,6 +131,7 @@ export function Editor({
   onViewStateChange,
   registerPendingFlush,
   searchJump,
+  frontmatterLineOffset = 0,
   onSearchJumpHandled,
 }: EditorProps) {
   const { t } = useTranslation();
@@ -483,8 +488,20 @@ export function Editor({
     if (!editor || !searchJump || searchJump.path !== filePath) return;
     if (lastAppliedContentRef.current !== content) return;
     const doc = editor.state.doc;
-    const target =
-      collectMatches(doc, searchJump.lineContent)[0] ?? collectMatches(doc, searchJump.query)[0];
+    // Rank identical body lines by proximity to the match's mapped body line,
+    // and select the same-rank in-document hit (collectMatches yields hits in
+    // document order) — so a repeated line jumps to the clicked occurrence,
+    // not the first on the page. Fall back to the query's first occurrence for
+    // styled lines split across text nodes.
+    const lineHits = collectMatches(doc, searchJump.lineContent);
+    let target: { from: number; to: number } | undefined;
+    if (lineHits.length > 0) {
+      const targetBodyLine = searchJump.lineNumber - 1 - frontmatterLineOffset;
+      const rank = matchOccurrenceRank(content.split("\n"), searchJump.lineContent, targetBodyLine);
+      target = lineHits[Math.min(rank, lineHits.length - 1)];
+    } else {
+      target = collectMatches(doc, searchJump.query)[0];
+    }
     if (target) {
       editor
         .chain()
@@ -494,7 +511,7 @@ export function Editor({
         .run();
     }
     onSearchJumpHandled?.();
-  }, [editor, searchJump, filePath, content, onSearchJumpHandled]);
+  }, [editor, searchJump, filePath, content, frontmatterLineOffset, onSearchJumpHandled]);
 
   useEffect(() => {
     const scrollEl = scrollRef.current;

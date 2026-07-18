@@ -14,6 +14,7 @@ import { corpusReadFile, readCorpus } from "./lib/corpusCache";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
+import { frontmatterLineOffset as computeFrontmatterLineOffset } from "./lib/searchJump";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
 import type { CollectionItem, FileNode, SaveStatus, SearchJumpTarget } from "./lib/types";
 import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
@@ -274,6 +275,17 @@ function App() {
   const [searchJump, setSearchJump] = useState<SearchJumpTarget | null>(null);
   const searchJumpGenRef = useRef(0);
   const handleSearchJumpHandled = useCallback(() => setSearchJump(null), []);
+  // Lines the frontmatter block occupies — search line numbers are full-file,
+  // the editor doc is body-only. `lastSavedContentRef` (the raw file) is set
+  // alongside `fileContent` (the body) in applyDiskContent, so recomputing
+  // when fileContent changes reads the matching raw content.
+  const [frontmatterLineOffset, setFrontmatterLineOffset] = useState(0);
+  // fileContent is a trigger-only dep: the body it names changes exactly when
+  // the raw content in the ref does, which is what we actually read.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fileContent triggers the ref re-read.
+  useEffect(() => {
+    setFrontmatterLineOffset(computeFrontmatterLineOffset(lastSavedContentRef.current ?? ""));
+  }, [fileContent, lastSavedContentRef]);
 
   const [noteResolverIndex, setNoteResolverIndex] =
     useState<NoteResolverIndex>(EMPTY_NOTE_RESOLVER_INDEX);
@@ -588,7 +600,10 @@ function App() {
     }
   }
 
-  function handleOpenByPath(path: string, match?: { lineContent: string; query: string }) {
+  function handleOpenByPath(
+    path: string,
+    match?: { lineContent: string; lineNumber: number; query: string }
+  ) {
     openFileByPath(path);
     // A one-shot jump request the editor consumes once the file is open.
     if (match) setSearchJump({ path, ...match, gen: ++searchJumpGenRef.current });
@@ -698,6 +713,7 @@ function App() {
           }
           onOpenSource={openFileByPath}
           searchJump={searchJump}
+          frontmatterLineOffset={frontmatterLineOffset}
           onSearchJumpHandled={handleSearchJumpHandled}
           recentFiles={recentFiles}
           onOpenWorkspace={handleOpenWorkspace}

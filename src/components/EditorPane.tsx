@@ -76,6 +76,9 @@ export interface EditorPaneProps {
 
   // Search-match navigation — one-shot jump request from the search panel.
   searchJump: SearchJumpTarget | null;
+  /** Lines the current file's frontmatter occupies (maps full-file search
+   *  line numbers to body lines). */
+  frontmatterLineOffset: number;
   onSearchJumpHandled: () => void;
 
   // Empty state
@@ -126,6 +129,7 @@ export function EditorPane({
   currentRelativePath,
   onOpenSource,
   searchJump,
+  frontmatterLineOffset,
   onSearchJumpHandled,
   recentFiles,
   onOpenWorkspace,
@@ -245,6 +249,7 @@ export function EditorPane({
                 onViewStateChange={onEditorViewStateChange}
                 registerPendingFlush={registerPendingFlush}
                 searchJump={searchJump}
+                frontmatterLineOffset={frontmatterLineOffset}
                 onSearchJumpHandled={onSearchJumpHandled}
               />
             </Suspense>

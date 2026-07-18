@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "../lib/commands";
+import { createGenerationGuard } from "../lib/latestOnly";
 import { isPerfLoggingEnabled, logPerf, measureAsync, measureSync } from "../lib/perf";
 import type { SearchResult } from "../lib/types";
 import "./SearchPanel.css";
@@ -8,8 +9,12 @@ import { Input } from "./ui/input";
 
 interface SearchPanelProps {
   /** Open a file; when a specific match was chosen, `match` carries its raw
-   *  line + the query so the editor can scroll to it. */
-  onOpenFile: (path: string, match?: { lineContent: string; query: string }) => void;
+   *  line, 1-based file line number, and the query so the editor can scroll
+   *  to the exact occurrence. */
+  onOpenFile: (
+    path: string,
+    match?: { lineContent: string; lineNumber: number; query: string }
+  ) => void;
   onClose: () => void;
 }
 
@@ -29,7 +34,7 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Generation guard: only the latest query may apply its results — a slower
   // older search must not overwrite newer results or clear their spinner.
-  const searchGenRef = useRef(0);
+  const searchGenRef = useRef(createGenerationGuard());
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -43,7 +48,12 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
   }, []);
 
   const runSearch = useCallback(async (q: string) => {
-    const gen = ++searchGenRef.current;
+    // The generation was already bumped in handleChange when this query's
+    // input landed, so an in-flight response for a superseded query is
+    // invalidated the instant the user types — not 300 ms later when this
+    // fires. Capture (don't re-bump) so that guard still holds.
+    const guard = searchGenRef.current;
+    const gen = guard.current();
     if (!q.trim()) {
       setResults([]);
       setError(null);
@@ -58,23 +68,26 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
         () => commands.search.workspace({ query }) as Promise<SearchResult[]>,
         { query }
       );
-      if (gen !== searchGenRef.current) return;
+      if (!guard.isCurrent(gen)) return;
       setResults(res);
       setError(null);
       setActiveIndex(-1);
     } catch (err) {
-      if (gen !== searchGenRef.current) return;
+      if (!guard.isCurrent(gen)) return;
       console.error("Search failed:", err);
       setResults([]);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      if (gen === searchGenRef.current) setSearching(false);
+      if (guard.isCurrent(gen)) setSearching(false);
     }
   }, []);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const q = e.target.value;
     setQuery(q);
+    // Invalidate any in-flight request now, so its late response can't render
+    // under the new input during the debounce window.
+    searchGenRef.current.bump();
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => runSearch(q), DEBOUNCE_MS);
   }
@@ -103,7 +116,11 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
   function openMatch(index: number) {
     const item = flatMatches[index];
     if (!item) return;
-    onOpenFile(item.path, { lineContent: item.match.lineContent, query: query.trim() });
+    onOpenFile(item.path, {
+      lineContent: item.match.lineContent,
+      lineNumber: item.match.lineNumber,
+      query: query.trim(),
+    });
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -225,6 +242,7 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
                     onClick={() =>
                       onOpenFile(result.path, {
                         lineContent: match.lineContent,
+                        lineNumber: match.lineNumber,
                         query: query.trim(),
                       })
                     }

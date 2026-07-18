@@ -236,7 +236,11 @@ export function useFileEditor({
 
   const handleFieldSaveError = useCallback(
     (path: string, err: unknown) => {
-      if (isExternalChangeConflict(err)) {
+      // Prompt only while the failed path is still the selected file — the
+      // conflict overlay's reload/overwrite act on the current selection, so
+      // prompting after a switch would target the wrong file. (Transitions
+      // await the field save, so this guard is defense in depth.)
+      if (isExternalChangeConflict(err) && selectedPathRef.current === path) {
         triggerConflict();
         return;
       }
@@ -308,33 +312,36 @@ export function useFileEditor({
         }
       }
 
-      // Background flushes (file switch / close / window blur) are fire-and-
-      // forget and clear the pending ref optimistically below — by the time the
-      // write could reject we may have already switched files, so there's
-      // nowhere to sanely resolve a conflict.
-      // Force those writes (matching pre-conflict-detection behaviour); conflict
-      // detection stays on the interactive paths (autosave, and blocking flushes
-      // from Cmd+S / the quit close-guard). See ADR 0020.
+      // Background flushes are fire-and-forget with an optimistic clear below.
+      // Only the close-guard's window-hide flush uses this mode, and it never
+      // changes the selection — so the write carries the normal mtime token
+      // (no force), and a rejection can always be resolved against the file
+      // the user is still on: restore the pending edit, then either open the
+      // conflict prompt or toast. File switch and close use the blocking mode
+      // and abort their transition on failure — see handleSelectFile /
+      // handleCloseFile and ADR 0020.
       const pendingWrite =
         path && markdown !== null
-          ? writeMarkdown(path, markdown, "editor.flushPendingWrite", {
-              force: mode === "background",
-            })
+          ? writeMarkdown(path, markdown, "editor.flushPendingWrite")
           : null;
 
       if (pendingWrite) {
         if (mode === "background") {
           pendingWrite.catch((err) => {
-            console.error("Failed to flush pending save:", err);
-            showToast(t("errors.save_failed"));
-            // The optimistic clear below already ran; restore the edit (unless
-            // a newer one superseded it or the file changed) so a later flush
-            // or the quit close-guard retries — a failed fire-and-forget write
-            // must not drop content while the status dot claims "saved".
+            // Restore the edit first (unless a newer one superseded it) so a
+            // later flush or the quit close-guard retries — a failed
+            // fire-and-forget write must not drop content while the status
+            // dot claims "saved".
             if (selectedPathRef.current === path && pendingMarkdownRef.current === null) {
               pendingMarkdownRef.current = markdown;
-              setSaveStatus("unsaved");
             }
+            if (isExternalChangeConflict(err)) {
+              triggerConflict();
+              return;
+            }
+            console.error("Failed to flush pending save:", err);
+            showToast(t("errors.save_failed"));
+            if (selectedPathRef.current === path) setSaveStatus("unsaved");
           });
         } else {
           try {
@@ -408,10 +415,25 @@ export function useFileEditor({
     clearConflict();
   }, [clearConflict, discardFieldSave]);
 
-  const handleCloseFile = useCallback(async () => {
-    await flushPendingSave({ mode: "background" });
-    resetFileState();
-  }, [flushPendingSave, resetFileState]);
+  /** Close the open file. By default this awaits the full outgoing save
+   *  transaction and aborts the close (file stays open, edit intact, error
+   *  already surfaced) when it fails or conflicts. `discard: true` skips the
+   *  save entirely — for closes driven by the file's removal, where there is
+   *  nothing left on disk to save to. */
+  const handleCloseFile = useCallback(
+    async ({ discard = false }: { discard?: boolean } = {}) => {
+      if (!discard) {
+        try {
+          await flushPendingSave();
+        } catch {
+          // flushPendingSave surfaced the failure (toast or conflict prompt).
+          return;
+        }
+      }
+      resetFileState();
+    },
+    [flushPendingSave, resetFileState]
+  );
 
   /** Load a file's content + its mtime token, applying it to editor state.
    *  Shared by first-open and external-reload. Returns false if the selection
@@ -444,7 +466,17 @@ export function useFileEditor({
    *  callers use this to record session side-effects (tabs, recents) only for
    *  opens that actually succeeded. */
   async function handleSelectFile(node: FileNode): Promise<boolean> {
-    await flushPendingSave({ mode: "background" });
+    // Await the outgoing file's complete save transaction (pending body
+    // write, debounced field save, in-flight writes) and abort the switch
+    // when it fails or conflicts — the selection hasn't moved yet, so the
+    // toast or conflict dialog targets the file the user is still on, and no
+    // edit can be dropped mid-transition.
+    try {
+      await flushPendingSave();
+    } catch {
+      // flushPendingSave surfaced the failure (toast or conflict prompt).
+      return false;
+    }
     const prevPath = selectedPathRef.current;
     selectedPathRef.current = node.path;
     pendingMarkdownRef.current = null;

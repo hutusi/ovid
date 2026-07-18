@@ -10,7 +10,7 @@ interface UseWorkspaceRevisionPollOptions {
   workspaceRoot: string | null;
   refreshTree: () => Promise<FileNode[]>;
   reloadSelectedFileFromDisk: (node: FileNode) => Promise<boolean>;
-  handleCloseFile: () => Promise<void>;
+  handleCloseFile: (opts?: { discard?: boolean }) => Promise<void>;
   refreshGitStatus: () => void;
   showToast: (message: string) => void;
   t: (key: string, vars?: Record<string, unknown>) => string;
@@ -118,7 +118,8 @@ export function useWorkspaceRevisionPoll({
                 lastWarnedRevision: externalUnsavedToastRevisionRef.current,
               });
               if (closeAction.type === "close-active-file") {
-                await handleCloseFile();
+                // The file vanished from disk — discard, don't try to save.
+                await handleCloseFile({ discard: true });
                 showToast(t("workspace_refresh.active_file_removed"));
               }
             }

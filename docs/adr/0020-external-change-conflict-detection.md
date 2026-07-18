@@ -31,18 +31,24 @@ time, and a resolution prompt when it fails.
 - `expected_mtime: null` forces the write (used to resolve a conflict by
   overwriting, and for writes outside the editor's tracked model such as the
   collection index).
-- **Fire-and-forget background flushes force-write.** The flushes issued on
-  file switch, file close, and window blur (`flushPendingSave({ mode:
-  "background" })`) pass `expected_mtime: null`: by the time such a write could
-  report a conflict the editor may have moved on, so there is no sane place to
-  prompt, and rejecting instead would drop the pending edit (the original bug:
-  a late conflict discarded the edit and opened the dialog against the wrong
-  file). The trade-off is deliberate — on these paths a concurrent external
-  change loses to the editor's pending edit; conflict detection stays on the
-  interactive paths (autosave, Cmd+S, the quit close-guard's blocking flush).
-  If a background flush fails outright, the pending edit is restored (unless a
-  newer edit superseded it) and the file returns to "unsaved" so a later flush
-  retries — a failed fire-and-forget write never silently drops content.
+- **File transitions await the outgoing save and abort on failure.** A file
+  switch (`handleSelectFile`) or close (`handleCloseFile`) awaits the outgoing
+  file's complete save transaction — pending body write, debounced field
+  save, in-flight writes — *before* the selection moves. On failure or
+  conflict the transition aborts: the user stays on the outgoing file with the
+  edit intact, and the toast or conflict prompt targets the file actually on
+  screen. (An earlier iteration force-wrote these flushes fire-and-forget
+  because a late conflict had nowhere to prompt and dropped the edit; awaiting
+  pre-switch removes that dilemma, so no editor path force-writes anymore.)
+  Closes driven by the file's *removal* (trash, external delete) pass
+  `discard: true` and skip the save — there is nothing left on disk to save
+  to.
+- **The window-hide flush stays fire-and-forget, non-forced.** The
+  close-guard's hide flush (`flushPendingSave({ mode: "background" })`) never
+  changes the selection, so a rejection can always be resolved against the
+  file the user is still on: the pending edit is restored (unless a newer edit
+  superseded it), then a conflict opens the prompt and any other failure
+  toasts and returns the file to "unsaved" for a later retry.
 - On conflict the hook pauses autosave (keeping the pending edit), records the
   `(path, markdown)` to retry, and calls `onConflict`, which opens a **blocking
   `conflict` overlay** (`useOverlayStack`). `resolveConflict` offers three
@@ -53,9 +59,8 @@ time, and a resolution prompt when it fails.
 Why mtime rather than a content hash: it is a single `u64`, cheap to read and
 return, and needs no rehashing of large files on every save. The small
 TOCTOU window between stat and write is acceptable — the revision poll catches
-anything that slips through within ~2s, and on the interactive paths the
-failure mode is a redundant prompt, never a silent clobber (background flushes
-trade that guarantee away deliberately, per above).
+anything that slips through within ~2s, and the failure mode is a redundant
+prompt, never a silent clobber.
 
 This is the **write-time complement** to the revision poll, which keeps
 handling the no-local-edits case by reloading. The poll's decision function

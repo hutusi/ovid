@@ -1,5 +1,9 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Process-wide counter making each atomic-write temp file unique.
+static TMP_WRITE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub(crate) fn is_markdown_path(path: &Path) -> bool {
     matches!(
@@ -132,14 +136,20 @@ pub(crate) fn validate_new_path(workspace_root: &Path, requested: &str) -> Resul
     Ok(new_path)
 }
 
-/// Write content atomically: write to a sibling temp file then rename over the target.
+/// Write content atomically: write to a sibling temp file then rename over the
+/// target. The temp name carries the pid and a process-wide counter so two
+/// concurrent writers to the same target never collide on the temp file — a
+/// safety margin for any caller reached outside the `workspace_root` mutex
+/// that serializes today's editor writes.
 pub(crate) fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
     let dir = path
         .parent()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no parent dir"))?;
     let tmp_name = format!(
-        ".~{}.tmp",
-        path.file_name().unwrap_or_default().to_string_lossy()
+        ".~{}.tmp.{}-{}",
+        path.file_name().unwrap_or_default().to_string_lossy(),
+        std::process::id(),
+        TMP_WRITE_COUNTER.fetch_add(1, Ordering::Relaxed)
     );
     let tmp_path = dir.join(&tmp_name);
 
@@ -203,6 +213,40 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    // ── write_atomic ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn write_atomic_writes_content_and_leaves_no_temp_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+
+        write_atomic(&path, "first").unwrap();
+        write_atomic(&path, "second").unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "second");
+        // No orphaned temp files (`.~note.md.tmp.*`) remain after the renames.
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|name| name.starts_with(".~"))
+            .collect();
+        assert!(leftovers.is_empty(), "unexpected temp files: {leftovers:?}");
+    }
+
+    #[test]
+    fn write_atomic_uses_unique_temp_names_per_call() {
+        // The temp name embeds a monotonic counter, so two calls never target
+        // the same temp path — the property that lets an out-of-mutex caller
+        // write concurrently without colliding.
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+        let before = TMP_WRITE_COUNTER.load(Ordering::Relaxed);
+        write_atomic(&path, "a").unwrap();
+        write_atomic(&path, "b").unwrap();
+        assert!(TMP_WRITE_COUNTER.load(Ordering::Relaxed) >= before + 2);
+    }
 
     // ── normalize_path ───────────────────────────────────────────────────────
 

@@ -93,6 +93,14 @@ export function useWorkspace({
   const [authors, setAuthors] = useState<Author[]>([]);
   const [i18n, setI18n] = useState<I18nConfig>({ locales: [], defaultLocale: null });
   const refreshIdRef = useRef(0);
+  // Tail of the workspace-open queue. Rust publishes the new roots into shared
+  // state at the *start* of its walk, so two overlapping open/create/clone
+  // calls would race: whichever WorkspaceResult resolves last wins the UI,
+  // but Rust is rooted at whichever *started* last — desyncing the frontend
+  // tree from the backend session. Serializing opens so each starts only
+  // after the previous fully settles keeps the two ends in lockstep and makes
+  // the last-initiated open deterministically win.
+  const openChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
   // Cmd+P / openFileByPath operate on the markdown-only projection of the
   // canonical tree. Derived rather than mirrored so it stays in lockstep with
@@ -151,95 +159,111 @@ export function useWorkspace({
     [resetFileState, showToast, t]
   );
 
+  // Run `task` only after every earlier open/create/clone has settled (see
+  // openChainRef). Errors in one open don't block the next; the returned
+  // promise reflects this task alone.
+  const enqueueOpen = useCallback(<T>(task: () => Promise<T>): Promise<T> => {
+    const run = openChainRef.current.then(task, task);
+    openChainRef.current = run.catch(() => {});
+    return run;
+  }, []);
+
   const openWorkspaceAtPath = useCallback(
-    async (path: string) => {
-      await flushPendingSave();
-      try {
-        const result = (await measureAsync(
-          "open_workspace_at_path.invoke",
-          () => commands.workspace.openAtPath({ path }),
-          { path }
-        )) as WorkspaceResult | null;
-        if (result) {
-          applyWorkspaceResult(result);
-        } else showToast(t("errors.workspace_path_invalid"));
-      } catch (err) {
-        console.error("Failed to open workspace:", err);
-        showToast(
-          t("errors.open_workspace_failed", {
-            message: err instanceof Error ? err.message : String(err),
-          })
-        );
-      }
-    },
-    [flushPendingSave, showToast, t, applyWorkspaceResult]
+    (path: string) =>
+      enqueueOpen(async () => {
+        await flushPendingSave();
+        try {
+          const result = (await measureAsync(
+            "open_workspace_at_path.invoke",
+            () => commands.workspace.openAtPath({ path }),
+            { path }
+          )) as WorkspaceResult | null;
+          if (result) {
+            applyWorkspaceResult(result);
+          } else showToast(t("errors.workspace_path_invalid"));
+        } catch (err) {
+          console.error("Failed to open workspace:", err);
+          showToast(
+            t("errors.open_workspace_failed", {
+              message: err instanceof Error ? err.message : String(err),
+            })
+          );
+        }
+      }),
+    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
   );
 
   const handleCreateAmytisWorkspace = useCallback(
-    async (parentDir: string, name: string): Promise<boolean> => {
-      try {
-        await flushPendingSave();
-        const result = (await commands.workspace.createAmytis({
-          parentDir,
-          name,
-        })) as WorkspaceResult;
-        applyWorkspaceResult(result);
-        return true;
-      } catch (err) {
-        console.error("Failed to create workspace:", err);
-        showToast(
-          t("errors.create_workspace_failed", {
-            message: err instanceof Error ? err.message : String(err),
-          })
-        );
-        return false;
-      }
-    },
-    [flushPendingSave, showToast, t, applyWorkspaceResult]
+    (parentDir: string, name: string): Promise<boolean> =>
+      enqueueOpen(async () => {
+        try {
+          await flushPendingSave();
+          const result = (await commands.workspace.createAmytis({
+            parentDir,
+            name,
+          })) as WorkspaceResult;
+          applyWorkspaceResult(result);
+          return true;
+        } catch (err) {
+          console.error("Failed to create workspace:", err);
+          showToast(
+            t("errors.create_workspace_failed", {
+              message: err instanceof Error ? err.message : String(err),
+            })
+          );
+          return false;
+        }
+      }),
+    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
   );
 
   const handleCloneWorkspace = useCallback(
-    async (url: string, parentDir: string, name: string | null): Promise<boolean> => {
-      try {
-        await flushPendingSave();
-        const result = (await commands.workspace.clone({
-          url,
-          parentDir,
-          name,
-        })) as WorkspaceResult;
-        applyWorkspaceResult(result);
-        return true;
-      } catch (err) {
-        console.error("Failed to clone workspace:", err);
-        showToast(
-          t("errors.clone_workspace_failed", {
-            message: err instanceof Error ? err.message : String(err),
-          })
-        );
-        return false;
-      }
-    },
-    [flushPendingSave, showToast, t, applyWorkspaceResult]
+    (url: string, parentDir: string, name: string | null): Promise<boolean> =>
+      enqueueOpen(async () => {
+        try {
+          await flushPendingSave();
+          const result = (await commands.workspace.clone({
+            url,
+            parentDir,
+            name,
+          })) as WorkspaceResult;
+          applyWorkspaceResult(result);
+          return true;
+        } catch (err) {
+          console.error("Failed to clone workspace:", err);
+          showToast(
+            t("errors.clone_workspace_failed", {
+              message: err instanceof Error ? err.message : String(err),
+            })
+          );
+          return false;
+        }
+      }),
+    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
   );
 
-  const handleOpenWorkspace = useCallback(async () => {
-    await flushPendingSave();
-    try {
-      const result = (await measureAsync("open_workspace.invoke", () =>
-        commands.workspace.open()
-      )) as WorkspaceResult | null;
-      if (result) {
-        applyWorkspaceResult(result);
-      }
-    } catch (err) {
-      console.error("Failed to open workspace:", err);
-      showToast(
-        t("errors.open_workspace_failed", {
-          message: err instanceof Error ? err.message : String(err),
-        })
-      );
-    }
-  }, [flushPendingSave, showToast, t, applyWorkspaceResult]);
+  const handleOpenWorkspace = useCallback(
+    () =>
+      enqueueOpen(async () => {
+        await flushPendingSave();
+        try {
+          const result = (await measureAsync("open_workspace.invoke", () =>
+            commands.workspace.open()
+          )) as WorkspaceResult | null;
+          if (result) {
+            applyWorkspaceResult(result);
+          }
+        } catch (err) {
+          console.error("Failed to open workspace:", err);
+          showToast(
+            t("errors.open_workspace_failed", {
+              message: err instanceof Error ? err.message : String(err),
+            })
+          );
+        }
+      }),
+    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
+  );
 
   const handleNewTodayFlow = useCallback(async () => {
     if (!workspaceRoot) return;

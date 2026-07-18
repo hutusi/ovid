@@ -109,6 +109,9 @@ export interface SearchJumpTarget {
   path: string;
   /** Trimmed raw markdown line the match sits on (primary locator). */
   lineContent: string;
+  /** 1-based line number of the match in the whole file (frontmatter
+   *  included) — used to disambiguate repeated lines. */
+  lineNumber: number;
   /** The search query (fallback locator — inline marks split styled lines
    *  across text nodes, where the raw line can't match the rendered doc). */
   query: string;
