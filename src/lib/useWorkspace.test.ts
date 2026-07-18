@@ -129,6 +129,41 @@ describe("useWorkspace", () => {
     expect(opts.showToast).not.toHaveBeenCalled();
   });
 
+  it("a slow refresh from the previous workspace cannot overwrite a newly opened one", async () => {
+    let resolveRefresh: (tree: FileNode[]) => void = () => {};
+    invokeImpl = whenInvoke({
+      list_workspace_tree: () =>
+        new Promise<FileNode[]>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      open_workspace_at_path: () =>
+        makeWorkspaceResult({ tree: [makeNode("/ws/content/posts/new-ws.md")] }),
+    });
+
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    // A refresh (e.g. from the revision poll) is in flight...
+    let refresh: Promise<FileNode[]> = Promise.resolve([]);
+    act(() => {
+      refresh = result.current.refreshTree();
+    });
+
+    // ...when another workspace opens.
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+    expect(result.current.tree[0]?.path).toBe("/ws/content/posts/new-ws.md");
+
+    // The stale refresh then resolves with the old workspace's tree — it must
+    // be discarded, not applied over the new workspace's tree.
+    await act(async () => {
+      resolveRefresh([makeNode("/old-ws/content/stale.md")]);
+      await refresh;
+    });
+    expect(result.current.tree[0]?.path).toBe("/ws/content/posts/new-ws.md");
+  });
+
   it("openWorkspaceAtPath toasts and leaves state empty when invoke returns null", async () => {
     invokeImpl = whenInvoke({
       open_workspace_at_path: () => null,

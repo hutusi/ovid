@@ -127,6 +127,10 @@ export function useWorkspace({
 
   const applyWorkspaceResult = useCallback(
     (result: WorkspaceResult) => {
+      // Invalidate any in-flight refresh: a slow tree refresh started in the
+      // previous workspace must not resolve after this point and overwrite
+      // the new workspace's tree with the old one's.
+      refreshIdRef.current++;
       setTree(result.tree);
       setWorkspaceName(result.name);
       setWorkspaceRoot(result.treeRoot);
