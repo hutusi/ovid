@@ -101,7 +101,8 @@
   transition: background var(--duration-fast) var(--ease-out);
 }
 
-.search-result-match:hover {
+.search-result-match:hover,
+.search-result-match[data-active="true"] {
   background: var(--color-surface-hover);
 }
 

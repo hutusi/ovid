@@ -5,7 +5,7 @@ import type { FlatFile } from "../lib/fileSearch";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
 import { isMac } from "../lib/platform";
-import type { FileNode, RecentFile, SaveStatus } from "../lib/types";
+import type { FileNode, RecentFile, SaveStatus, SearchJumpTarget } from "../lib/types";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -74,6 +74,10 @@ export interface EditorPaneProps {
   currentRelativePath: string | null;
   onOpenSource: (sourcePath: string) => void;
 
+  // Search-match navigation — one-shot jump request from the search panel.
+  searchJump: SearchJumpTarget | null;
+  onSearchJumpHandled: () => void;
+
   // Empty state
   recentFiles: RecentFile[];
   onOpenWorkspace: () => void;
@@ -121,6 +125,8 @@ export function EditorPane({
   noteResolverIndex,
   currentRelativePath,
   onOpenSource,
+  searchJump,
+  onSearchJumpHandled,
   recentFiles,
   onOpenWorkspace,
   onOpenRecent,
@@ -238,6 +244,8 @@ export function EditorPane({
                 initialScrollTop={currentEditorViewState?.scrollTop}
                 onViewStateChange={onEditorViewStateChange}
                 registerPendingFlush={registerPendingFlush}
+                searchJump={searchJump}
+                onSearchJumpHandled={onSearchJumpHandled}
               />
             </Suspense>
           </ErrorBoundary>

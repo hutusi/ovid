@@ -617,6 +617,7 @@
     "close_tooltip": "Close search (Esc)",
     "searching": "Searching…",
     "no_results": "No results for \"{{query}}\"",
+    "error": "Search failed: {{message}}",
     "summary": "{{matches}} in {{files}}",
     "matches_one": "{{count}} match",
     "matches_other": "{{count}} matches",

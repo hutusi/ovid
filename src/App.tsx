@@ -15,7 +15,7 @@ import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
-import type { CollectionItem, FileNode, SaveStatus } from "./lib/types";
+import type { CollectionItem, FileNode, SaveStatus, SearchJumpTarget } from "./lib/types";
 import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCloseGuard } from "./lib/useCloseGuard";
@@ -269,6 +269,12 @@ function App() {
   // workspace's notes-bucket file list changes. Held in a ref so the stable
   // `resolveWikiTargetCallback` always sees the latest snapshot without
   // forcing every wiki link node-view to re-render on each prop change.
+  // Pending "scroll the editor to this search match" request; consumed (and
+  // cleared) by the Editor once the target file's content is on screen.
+  const [searchJump, setSearchJump] = useState<SearchJumpTarget | null>(null);
+  const searchJumpGenRef = useRef(0);
+  const handleSearchJumpHandled = useCallback(() => setSearchJump(null), []);
+
   const [noteResolverIndex, setNoteResolverIndex] =
     useState<NoteResolverIndex>(EMPTY_NOTE_RESOLVER_INDEX);
   const noteResolverGenRef = useRef(0);
@@ -582,8 +588,10 @@ function App() {
     }
   }
 
-  function handleOpenByPath(path: string) {
+  function handleOpenByPath(path: string, match?: { lineContent: string; query: string }) {
     openFileByPath(path);
+    // A one-shot jump request the editor consumes once the file is open.
+    if (match) setSearchJump({ path, ...match, gen: ++searchJumpGenRef.current });
     overlay.close("search");
   }
 
@@ -689,6 +697,8 @@ function App() {
               : null
           }
           onOpenSource={openFileByPath}
+          searchJump={searchJump}
+          onSearchJumpHandled={handleSearchJumpHandled}
           recentFiles={recentFiles}
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}

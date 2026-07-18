@@ -7,7 +7,9 @@ import "./SearchPanel.css";
 import { Input } from "./ui/input";
 
 interface SearchPanelProps {
-  onOpenFile: (path: string) => void;
+  /** Open a file; when a specific match was chosen, `match` carries its raw
+   *  line + the query so the editor can scroll to it. */
+  onOpenFile: (path: string, match?: { lineContent: string; query: string }) => void;
   onClose: () => void;
 }
 
@@ -20,8 +22,14 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Generation guard: only the latest query may apply its results — a slower
+  // older search must not overwrite newer results or clear their spinner.
+  const searchGenRef = useRef(0);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -35,8 +43,10 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
   }, []);
 
   const runSearch = useCallback(async (q: string) => {
+    const gen = ++searchGenRef.current;
     if (!q.trim()) {
       setResults([]);
+      setError(null);
       setSearching(false);
       return;
     }
@@ -48,12 +58,17 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
         () => commands.search.workspace({ query }) as Promise<SearchResult[]>,
         { query }
       );
+      if (gen !== searchGenRef.current) return;
       setResults(res);
+      setError(null);
+      setActiveIndex(-1);
     } catch (err) {
+      if (gen !== searchGenRef.current) return;
       console.error("Search failed:", err);
       setResults([]);
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setSearching(false);
+      if (gen === searchGenRef.current) setSearching(false);
     }
   }, []);
 
@@ -64,8 +79,52 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
     timerRef.current = setTimeout(() => runSearch(q), DEBOUNCE_MS);
   }
 
+  // Flattened match rows for keyboard navigation, and each file's offset into
+  // that flat list so rendered rows can mark themselves active.
+  const flatMatches = useMemo(
+    () => results.flatMap((r) => r.matches.map((match) => ({ path: r.path, match }))),
+    [results]
+  );
+  const matchOffsets = useMemo(() => {
+    const offsets = new Map<string, number>();
+    let acc = 0;
+    for (const r of results) {
+      offsets.set(r.path, acc);
+      acc += r.matches.length;
+    }
+    return offsets;
+  }, [results]);
+
+  useEffect(() => {
+    if (activeIndex < 0) return;
+    resultsRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
+  function openMatch(index: number) {
+    const item = flatMatches[index];
+    if (!item) return;
+    onOpenFile(item.path, { lineContent: item.match.lineContent, query: query.trim() });
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape") {
+      onClose();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(flatMatches.length - 1, i + 1));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(0, i - 1));
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      openMatch(activeIndex === -1 ? 0 : activeIndex);
+    }
   }
 
   const totalMatches = useMemo(
@@ -110,10 +169,16 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
         </button>
       </div>
 
-      <div className="search-results">
+      <div className="search-results" ref={resultsRef}>
         {searching && <p className="search-status">{t("search_panel.searching")}</p>}
 
-        {!searching && query.trim() && results.length === 0 && (
+        {!searching && error && (
+          <p className="search-status search-error" role="alert">
+            {t("search_panel.error", { message: error })}
+          </p>
+        )}
+
+        {!searching && !error && query.trim() && results.length === 0 && (
           <p className="search-status">{t("search_panel.no_results", { query })}</p>
         )}
 
@@ -143,19 +208,28 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
               >
                 {displayName}
               </button>
-              {result.matches.map((match) => (
-                <button
-                  key={match.lineNumber}
-                  type="button"
-                  className="search-result-match"
-                  onClick={() => onOpenFile(result.path)}
-                >
-                  <span className="search-match-line">{match.lineNumber}</span>
-                  <span className="search-match-content">
-                    <HighlightedLine text={match.lineContent} query={query} />
-                  </span>
-                </button>
-              ))}
+              {result.matches.map((match, matchIdx) => {
+                const flatIndex = (matchOffsets.get(result.path) ?? 0) + matchIdx;
+                return (
+                  <button
+                    key={match.lineNumber}
+                    type="button"
+                    className="search-result-match"
+                    data-active={flatIndex === activeIndex ? "true" : undefined}
+                    onClick={() =>
+                      onOpenFile(result.path, {
+                        lineContent: match.lineContent,
+                        query: query.trim(),
+                      })
+                    }
+                  >
+                    <span className="search-match-line">{match.lineNumber}</span>
+                    <span className="search-match-content">
+                      <HighlightedLine text={match.lineContent} query={query} />
+                    </span>
+                  </button>
+                );
+              })}
               {result.hasMoreMatches && (
                 <p className="search-status">
                   {t("search_panel.overflow", {

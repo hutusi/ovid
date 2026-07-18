@@ -30,7 +30,7 @@ import type { FlatFile } from "../lib/fileSearch";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
-import { FindReplace } from "../lib/tiptap/FindReplace";
+import { collectMatches, FindReplace } from "../lib/tiptap/FindReplace";
 import { Footnotes } from "../lib/tiptap/Footnotes";
 import { H1Warning } from "../lib/tiptap/H1Warning";
 import { IMEComposition } from "../lib/tiptap/IMEComposition";
@@ -50,6 +50,7 @@ import {
   normalizeTaskLists,
 } from "../lib/tiptap/taskLists";
 import { WikiLink } from "../lib/tiptap/WikiLink";
+import type { SearchJumpTarget } from "../lib/types";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { BubbleMenu } from "./BubbleMenu";
@@ -98,6 +99,10 @@ interface EditorProps {
   onError?: (msg: string) => void;
   onViewStateChange?: (viewState: { selection: number; scrollTop: number }) => void;
   registerPendingFlush?: (flush: (() => void) | null) => void;
+  /** One-shot "scroll to this search match" request; consumed once the target
+   *  file's content is on screen, then cleared via onSearchJumpHandled. */
+  searchJump?: SearchJumpTarget | null;
+  onSearchJumpHandled?: () => void;
 }
 
 export function Editor({
@@ -121,6 +126,8 @@ export function Editor({
   onTitleChange,
   onViewStateChange,
   registerPendingFlush,
+  searchJump,
+  onSearchJumpHandled,
 }: EditorProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -465,6 +472,29 @@ export function Editor({
     const text = editor.getText();
     onWordCount?.(countWords(text));
   }, [clearPendingRestore, content, editor, onWordCount]);
+
+  // Consume a pending search-match jump once this editor shows the target
+  // file. Locate the match by its raw line text first (exact for plain prose
+  // lines), falling back to the query's first occurrence — inline marks split
+  // styled lines across text nodes, where the full raw line can't match.
+  // Declared after the content-apply effect so the doc is current when it
+  // runs; the lastAppliedContentRef guard makes it wait for that apply.
+  useEffect(() => {
+    if (!editor || !searchJump || searchJump.path !== filePath) return;
+    if (lastAppliedContentRef.current !== content) return;
+    const doc = editor.state.doc;
+    const target =
+      collectMatches(doc, searchJump.lineContent)[0] ?? collectMatches(doc, searchJump.query)[0];
+    if (target) {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: target.from, to: target.to })
+        .scrollIntoView()
+        .run();
+    }
+    onSearchJumpHandled?.();
+  }, [editor, searchJump, filePath, content, onSearchJumpHandled]);
 
   useEffect(() => {
     const scrollEl = scrollRef.current;
