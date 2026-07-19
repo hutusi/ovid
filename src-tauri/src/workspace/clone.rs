@@ -21,13 +21,12 @@ use crate::git::runner::configure_child_process;
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/lib/commands/generated/")]
 pub(crate) struct CloneProgress {
-    /// Free-form phase label such as "Receiving objects" or "Resolving
-    /// deltas". `None` for messages without a "label: rest" structure
-    /// (e.g. `"Cloning into 'foo'..."`).
+    // Free-form phase label such as "Receiving objects". None for messages
+    // without a "label: rest" structure.
     pub(crate) phase: Option<String>,
-    /// Percent complete in 0..=100, parsed from `<n>%` when present.
+    // Percent complete in 0..=100, parsed from `<n>%` when present.
     pub(crate) percent: Option<u8>,
-    /// Raw line as printed by git, trimmed.
+    // Raw line as printed by git, trimmed.
     pub(crate) message: String,
 }
 
@@ -49,9 +48,7 @@ impl CloneError {
             CloneError::InvalidName => {
                 "Folder name is invalid (cannot contain `/`, `\\` or start with `.`).".to_string()
             }
-            CloneError::ParentMissing => {
-                "The chosen parent directory does not exist.".to_string()
-            }
+            CloneError::ParentMissing => "The chosen parent directory does not exist.".to_string(),
             CloneError::TargetExists => {
                 "A folder with that name already exists at the chosen location.".to_string()
             }
@@ -78,7 +75,7 @@ pub(crate) fn derive_clone_target_name(url: &str) -> Option<String> {
         return None;
     }
     // Split on `/` and `:` so scp-style `git@host:org/repo.git` also yields `repo.git`.
-    let segment = stripped.rsplit(|c| c == '/' || c == ':').next()?;
+    let segment = stripped.rsplit(['/', ':']).next()?;
     let segment = segment.trim_end_matches(".git");
     if segment.is_empty() {
         None
@@ -170,8 +167,8 @@ pub(crate) fn clone_blocking(
                 if byte[0] == b'\r' || byte[0] == b'\n' {
                     if !line.is_empty() {
                         let raw = String::from_utf8_lossy(&line).to_string();
-                        let _ = app_clone
-                            .emit("workspace_clone_progress", parse_progress_line(&raw));
+                        let _ =
+                            app_clone.emit("workspace_clone_progress", parse_progress_line(&raw));
                         line.clear();
                     }
                 } else {

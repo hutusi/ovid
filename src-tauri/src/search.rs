@@ -79,7 +79,7 @@ pub(crate) fn score_search_result(result: &SearchResult, query_lower: &str, root
     }) {
         825
     } else if relative_path
-        .split(|c: char| matches!(c, '/' | '\\' | '.' | '_' | '-' | ' '))
+        .split(['/', '\\', '.', '_', '-', ' '])
         .any(|segment| segment == query_lower)
     {
         800
@@ -262,7 +262,7 @@ mod tests {
             for file_index in 0..files_per_dir {
                 let path = section_dir.join(format!("entry-{file_index:03}.md"));
                 let title = format!("Entry {dir_index}-{file_index}");
-                let body = if (dir_index * files_per_dir + file_index) % match_every == 0 {
+                let body = if (dir_index * files_per_dir + file_index).is_multiple_of(match_every) {
                     "alpha needle beta gamma"
                 } else {
                     "ordinary workspace content"
@@ -361,7 +361,10 @@ mod tests {
         results.sort_by(|a, b| a.path.cmp(&b.path));
 
         assert_eq!(results.len(), 2);
-        let draft_result = results.iter().find(|r| r.path.ends_with("draft.md")).unwrap();
+        let draft_result = results
+            .iter()
+            .find(|r| r.path.ends_with("draft.md"))
+            .unwrap();
         let published_result = results
             .iter()
             .find(|r| r.path.ends_with("published.md"))
@@ -430,7 +433,7 @@ mod tests {
     #[test]
     fn search_workspace_sort_prefers_relevance_then_match_count() {
         let root = PathBuf::from("/workspace");
-        let mut results = vec![
+        let mut results = [
             make_search_result("/workspace/archive/rust-notes.md", Some("Notes"), 5),
             make_search_result("/workspace/notes/rust.md", Some("Rust"), 1),
             make_search_result("/workspace/notes/rust-book.md", Some("Rust Book"), 2),

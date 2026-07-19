@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use crate::paths::{should_skip_walk_entry, to_slash};
 use crate::state::CachedFrontmatter;
 
-use super::FileNode;
 use super::cache::read_frontmatter_meta_cached;
+use super::FileNode;
 
 /// Recursive walk producing the canonical workspace tree: every file, every
 /// directory, dotfiles included. Noise directories (`.git`, `node_modules`,
@@ -110,7 +110,7 @@ mod tests {
             for file_index in 0..files_per_dir {
                 let path = section_dir.join(format!("entry-{file_index:03}.md"));
                 let title = format!("Entry {dir_index}-{file_index}");
-                let body = if (dir_index * files_per_dir + file_index) % match_every == 0 {
+                let body = if (dir_index * files_per_dir + file_index).is_multiple_of(match_every) {
                     "alpha needle beta gamma"
                 } else {
                     "ordinary workspace content"
@@ -159,7 +159,10 @@ mod tests {
         let nodes = walk_tree(root, &mut cache);
 
         let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
-        assert!(names.contains(&"config.ts"), "should include non-markdown files");
+        assert!(
+            names.contains(&"config.ts"),
+            "should include non-markdown files"
+        );
         assert!(names.contains(&".gitignore"), "should include dotfiles");
         assert!(names.contains(&"readme.md"), "should include markdown");
     }
@@ -176,7 +179,10 @@ mod tests {
 
         let txt = nodes.iter().find(|n| n.name == "notes.txt").unwrap();
         let md = nodes.iter().find(|n| n.name == "readme.md").unwrap();
-        assert!(txt.title.is_none(), "non-markdown should not load frontmatter");
+        assert!(
+            txt.title.is_none(),
+            "non-markdown should not load frontmatter"
+        );
         assert_eq!(md.title.as_deref(), Some("Readme"));
     }
 
@@ -198,9 +204,15 @@ mod tests {
         let nodes = walk_tree(root, &mut cache);
 
         let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
-        assert!(!names.contains(&"node_modules"), "node_modules must be filtered");
+        assert!(
+            !names.contains(&"node_modules"),
+            "node_modules must be filtered"
+        );
         assert!(!names.contains(&".git"), ".git must be filtered");
-        assert!(names.contains(&".github"), ".github must be kept (not a noise dir)");
+        assert!(
+            names.contains(&".github"),
+            ".github must be kept (not a noise dir)"
+        );
         assert!(names.contains(&"readme.md"));
     }
 

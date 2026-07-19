@@ -114,7 +114,10 @@ mod tests {
         wechat_set_cred(&path, "app_secret", "s").unwrap();
         wechat_del_cred(&path, "app_id").unwrap();
         assert_eq!(wechat_get_cred(&path, "app_id").unwrap(), None);
-        assert_eq!(wechat_get_cred(&path, "app_secret").unwrap(), Some("s".to_string()));
+        assert_eq!(
+            wechat_get_cred(&path, "app_secret").unwrap(),
+            Some("s".to_string())
+        );
         wechat_del_cred(&path, "app_secret").unwrap();
         assert!(!path.exists());
     }
@@ -123,7 +126,11 @@ mod tests {
     fn reads_files_written_by_the_pre_store_code() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("creds.json");
-        std::fs::write(&path, "{\n  \"app_id\": \"wx123\",\n  \"app_secret\": \"s\"\n}").unwrap();
+        std::fs::write(
+            &path,
+            "{\n  \"app_id\": \"wx123\",\n  \"app_secret\": \"s\"\n}",
+        )
+        .unwrap();
         assert_eq!(
             wechat_get_cred(&path, "app_id").unwrap(),
             Some("wx123".to_string())

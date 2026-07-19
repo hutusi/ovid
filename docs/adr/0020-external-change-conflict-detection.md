@@ -6,7 +6,7 @@
 ## Context
 
 Ovid autosaves the open file on a debounce and also reloads it when the
-`useWorkspaceRevisionPoll` loop detects an external change (git pull, another
+workspace change monitor detects an external change (git pull, another
 editor). But detection and reload only ran when the file had **no** local
 edits. With unsaved edits present, the poll merely warned ("changed with
 unsaved") and the next autosave wrote the buffer back with an unconditional
@@ -72,14 +72,14 @@ token**, and a resolution prompt when it fails.
 
 The verify runs against the freshest on-disk content in the same call that
 renames, so the check→commit window is a single syscall; anything slipping
-through it is caught by the next save (the token would differ) and, within
-~2 s, by the revision poll. The failure mode is a redundant prompt, never a
-silent clobber.
+through it is caught by the next save (the token would differ) and by the
+event-driven workspace monitor (with a 30 s fallback revision check). The
+failure mode is a redundant prompt, never a silent clobber.
 
-This is the **write-time complement** to the revision poll, which keeps
-handling the no-local-edits case by reloading. The poll's decision function
-treats the intermediate `saving` state like `unsaved` so an in-flight write is
-never reloaded out from under itself.
+This is the **write-time complement** to `useWorkspaceChangeMonitor` (ADR
+0021), which handles the no-local-edits case by reloading. Its decision
+function treats the intermediate `saving` state like `unsaved` so an in-flight
+write is never reloaded out from under itself.
 
 ## Consequences
 
@@ -101,8 +101,8 @@ never reloaded out from under itself.
   rejection during teardown is dropped silently (the component is gone, there
   is nowhere to prompt). The quit path relies on the close-guard's blocking
   flush, which does prompt.
-- A future filesystem watcher (deferred) could upgrade the prompt from
-  reactive (on save) to proactive (a "changed on disk" banner) but is not
-  required — the handshake needs no watcher.
+- The filesystem watcher makes detection prompt, but remains advisory: the
+  content-version handshake is still the authority that prevents clobbering
+  when an event is delayed, dropped, or unsupported.
 
 See CONTEXT.md "Save coordination & external-change conflicts".

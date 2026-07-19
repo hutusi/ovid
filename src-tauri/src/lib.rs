@@ -29,8 +29,8 @@ use git::commands::{
     git_push_with_credentials, git_rename_branch, git_switch_branch, open_git_remote,
 };
 use menu::{
-    AboutState, ViewToggleState, build_app_menu, initial_menu_labels, set_menu_checked,
-    set_menu_language,
+    build_app_menu, initial_menu_labels, set_menu_checked, set_menu_language, AboutState,
+    ViewToggleState,
 };
 use search::search_workspace;
 use state::{WechatState, WorkspaceState};
@@ -53,6 +53,7 @@ pub fn run() {
             workspace_root: Mutex::new(None),
             frontmatter_cache: Mutex::new(HashMap::new()),
             search_cache: Mutex::new(HashMap::new()),
+            workspace_watcher: Mutex::new(None),
         })
         .manage(AboutState {
             title: Mutex::new("About Ovid".to_string()),

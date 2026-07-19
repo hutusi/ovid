@@ -3,18 +3,4 @@
 /**
  * One progress tick from `git clone --progress`.
  */
-export type CloneProgress = { 
-/**
- * Free-form phase label such as "Receiving objects" or "Resolving
- * deltas". `None` for messages without a "label: rest" structure
- * (e.g. `"Cloning into 'foo'..."`).
- */
-phase: string | null, 
-/**
- * Percent complete in 0..=100, parsed from `<n>%` when present.
- */
-percent: number | null, 
-/**
- * Raw line as printed by git, trimmed.
- */
-message: string, };
+export type CloneProgress = { phase: string | null, percent: number | null, message: string, };

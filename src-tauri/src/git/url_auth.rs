@@ -62,11 +62,15 @@ pub(crate) fn inject_credentials(
     username: &str,
     password: &str,
 ) -> Result<String, String> {
-    let mut parsed = Url::parse(remote_url.trim())
-        .map_err(|e| format!("could not parse remote URL: {e}"))?;
+    let mut parsed =
+        Url::parse(remote_url.trim()).map_err(|e| format!("could not parse remote URL: {e}"))?;
     match parsed.scheme() {
         "http" | "https" => {}
-        other => return Err(format!("unsupported URL scheme for credential injection: {other}")),
+        other => {
+            return Err(format!(
+                "unsupported URL scheme for credential injection: {other}"
+            ))
+        }
     }
     // `url::Url::set_username` / `set_password` percent-encode internally, but
     // their encode set is narrower than what real-world PATs need (it leaves
@@ -130,60 +134,54 @@ mod tests {
 
     #[test]
     fn inject_credentials_basic_https() {
-        let out = inject_credentials("https://github.com/hutusi/ovid.git", "alice", "secret")
-            .unwrap();
+        let out =
+            inject_credentials("https://github.com/hutusi/ovid.git", "alice", "secret").unwrap();
         assert_eq!(out, "https://alice:secret@github.com/hutusi/ovid.git");
     }
 
     #[test]
     fn inject_credentials_basic_http() {
-        let out = inject_credentials("http://internal.example/repo.git", "alice", "secret")
-            .unwrap();
+        let out =
+            inject_credentials("http://internal.example/repo.git", "alice", "secret").unwrap();
         assert_eq!(out, "http://alice:secret@internal.example/repo.git");
     }
 
     #[test]
     fn inject_credentials_encodes_password_with_at_sign() {
-        let out =
-            inject_credentials("https://github.com/foo/bar.git", "alice", "p@ss").unwrap();
+        let out = inject_credentials("https://github.com/foo/bar.git", "alice", "p@ss").unwrap();
         assert_eq!(out, "https://alice:p%40ss@github.com/foo/bar.git");
     }
 
     #[test]
     fn inject_credentials_encodes_password_with_colon_and_slash() {
-        let out = inject_credentials("https://github.com/foo/bar.git", "alice", "a:b/c")
-            .unwrap();
+        let out = inject_credentials("https://github.com/foo/bar.git", "alice", "a:b/c").unwrap();
         assert_eq!(out, "https://alice:a%3Ab%2Fc@github.com/foo/bar.git");
     }
 
     #[test]
     fn inject_credentials_encodes_password_with_hash_and_query() {
         // `#` and `?` would otherwise terminate the URL path early.
-        let out =
-            inject_credentials("https://github.com/foo/bar.git", "alice", "x#y?z").unwrap();
+        let out = inject_credentials("https://github.com/foo/bar.git", "alice", "x#y?z").unwrap();
         assert_eq!(out, "https://alice:x%23y%3Fz@github.com/foo/bar.git");
     }
 
     #[test]
     fn inject_credentials_encodes_percent_sign_in_password() {
         // Avoid double-decoding: literal `%` becomes `%25`.
-        let out = inject_credentials("https://github.com/foo/bar.git", "alice", "50%off")
-            .unwrap();
+        let out = inject_credentials("https://github.com/foo/bar.git", "alice", "50%off").unwrap();
         assert_eq!(out, "https://alice:50%25off@github.com/foo/bar.git");
     }
 
     #[test]
     fn inject_credentials_encodes_plus_in_password() {
-        let out =
-            inject_credentials("https://github.com/foo/bar.git", "alice", "a+b").unwrap();
+        let out = inject_credentials("https://github.com/foo/bar.git", "alice", "a+b").unwrap();
         assert_eq!(out, "https://alice:a%2Bb@github.com/foo/bar.git");
     }
 
     #[test]
     fn inject_credentials_encodes_username_with_at_sign() {
         // Email-style usernames are common on some forges.
-        let out =
-            inject_credentials("https://gitlab.com/foo/bar.git", "alice@host", "pw").unwrap();
+        let out = inject_credentials("https://gitlab.com/foo/bar.git", "alice@host", "pw").unwrap();
         assert_eq!(out, "https://alice%40host:pw@gitlab.com/foo/bar.git");
     }
 
@@ -231,8 +229,7 @@ mod tests {
         // Edge case: empty password is allowed (e.g. token-as-user style).
         // `url` normalises `user:@host` to `user@host` — both are valid HTTP
         // Basic auth syntax that git accepts.
-        let out =
-            inject_credentials("https://github.com/foo/bar.git", "ghs_token", "").unwrap();
+        let out = inject_credentials("https://github.com/foo/bar.git", "ghs_token", "").unwrap();
         assert_eq!(out, "https://ghs_token@github.com/foo/bar.git");
     }
 }

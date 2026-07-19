@@ -78,7 +78,11 @@ fn strip_comments(raw: &str, in_block: &mut bool) -> StrippedLine {
             _ => code.push(ch),
         }
     }
-    StrippedLine { code, opens, closes }
+    StrippedLine {
+        code,
+        opens,
+        closes,
+    }
 }
 
 /// Iterate the code lines of a TS config: strips `//` and `/* … */`
@@ -341,8 +345,10 @@ mod tests {
 
     #[test]
     fn scan_honours_escaped_quotes_inside_strings() {
-        let lines: Vec<_> = scan_code_lines(r#"bio: "He said \"hi\" {",
-"#)
+        let lines: Vec<_> = scan_code_lines(
+            r#"bio: "He said \"hi\" {",
+"#,
+        )
         .collect();
         // The escaped quote must not end the string early — the `{` is
         // still string content and stays uncounted.

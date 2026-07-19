@@ -1,9 +1,10 @@
 import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import type { FlatFile } from "../lib/fileSearch";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
+import { loadKatexRuntime } from "../lib/loadKatexRuntime";
 import { isMac } from "../lib/platform";
 import type { FileNode, RecentFile, SaveStatus, SearchJumpTarget } from "../lib/types";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
@@ -16,14 +17,16 @@ import { TextCover } from "./TextCover";
 
 export type EditorViewState = { selection: number; scrollTop: number };
 
-const loadEditor = async () => import("./Editor");
+const loadEditor = async () => {
+  await loadKatexRuntime();
+  return import("./Editor");
+};
 const Editor = lazy(async () => ({
   default: (await loadEditor()).Editor,
 }));
 
 export interface EditorPaneProps {
   // Workspace context
-  workspaceRootPath: string | null;
   workspaceRoot: string | null;
 
   // Tab bar
@@ -88,12 +91,13 @@ export interface EditorPaneProps {
 
   // Properties panel
   propertiesOpen: boolean;
+  propertiesDrawer: boolean;
   onToggleProperties: () => void;
+  onDismissPropertiesDrawer: () => void;
   onToggleCoverImage: () => void;
 }
 
 export function EditorPane({
-  workspaceRootPath,
   workspaceRoot,
   tabs,
   tree,
@@ -135,18 +139,12 @@ export function EditorPane({
   onOpenWorkspace,
   onOpenRecent,
   propertiesOpen,
+  propertiesDrawer,
   onToggleProperties,
+  onDismissPropertiesDrawer,
   onToggleCoverImage,
 }: EditorPaneProps) {
   const { t } = useTranslation();
-
-  useEffect(() => {
-    if (!workspaceRootPath && !selectedFile) return;
-    const timer = window.setTimeout(() => {
-      void loadEditor();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [workspaceRootPath, selectedFile]);
 
   const editorTitle = parsedFrontmatter.title != null ? String(parsedFrontmatter.title) : "";
 
@@ -179,7 +177,7 @@ export function EditorPane({
               onReorder={onReorderTabs}
             />
           )}
-          {!propertiesOpen && (
+          {selectedFile && !isReadOnlyContent(selectedFile) && !propertiesOpen && (
             <button
               type="button"
               className="editor-expand-btn editor-expand-btn-trailing"
@@ -263,10 +261,20 @@ export function EditorPane({
           />
         )}
       </div>
+      {propertiesDrawer && (
+        <button
+          type="button"
+          className="panel-drawer-backdrop"
+          onClick={onDismissPropertiesDrawer}
+          aria-label={t("properties.collapse")}
+          data-tauri-drag-region="false"
+        />
+      )}
       {selectedFile && !isReadOnlyContent(selectedFile) && (
         <PropertiesPanel
           frontmatter={parsedFrontmatter}
           visible={propertiesOpen}
+          drawer={propertiesDrawer}
           slug={selectedFile.name.replace(/\.mdx?$/, "")}
           contentType={selectedFile.contentType}
           coverImageVisible={coverImageVisible}

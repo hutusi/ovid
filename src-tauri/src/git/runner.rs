@@ -116,7 +116,9 @@ pub(crate) fn resolve_git_root(state: State<'_, WorkspaceState>) -> Result<Optio
     )
 }
 
-pub(crate) fn resolve_workspace_root(state: State<'_, WorkspaceState>) -> Result<Option<PathBuf>, String> {
+pub(crate) fn resolve_workspace_root(
+    state: State<'_, WorkspaceState>,
+) -> Result<Option<PathBuf>, String> {
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     Ok(root_guard.as_ref().cloned())
 }

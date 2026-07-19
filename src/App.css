@@ -9,9 +9,27 @@
 }
 
 .app-body {
+  position: relative;
   display: flex;
   flex: 1;
   overflow: hidden;
+}
+
+.panel-drawer-backdrop {
+  position: absolute;
+  inset: var(--topbar-height) 0 0;
+  z-index: 40;
+  padding: 0;
+  border: 0;
+  background: color-mix(in srgb, var(--color-fg) 14%, transparent);
+  cursor: default;
+  animation: panel-backdrop-in var(--duration-fast) var(--ease-out);
+}
+
+@keyframes panel-backdrop-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .editor-column {
@@ -117,6 +135,10 @@
 }
 
 .app[data-zen] .properties-panel {
+  display: none;
+}
+
+.app[data-zen] .panel-drawer-backdrop {
   display: none;
 }
 

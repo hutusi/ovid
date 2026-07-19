@@ -253,8 +253,8 @@ function RecentPanel({
   // together so pressing Enter immediately afterwards confirms via the
   // existing click-cycle (a focused selected row + click = switch).
   function handleKey(e: React.KeyboardEvent<HTMLUListElement>) {
-    const target = e.target as HTMLElement;
-    const idx = rowRefs.current.findIndex((el) => el === target);
+    const target = e.target as HTMLButtonElement;
+    const idx = rowRefs.current.indexOf(target);
     if (idx < 0) return;
     const len = recentWorkspaces.length;
     let nextIdx = idx;

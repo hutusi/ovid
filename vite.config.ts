@@ -1,7 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,18 +15,8 @@ function manualChunks(id: string): string | undefined {
     return "editor-prosemirror";
   }
 
-  if (
-    id.includes("/node_modules/@tiptap/") &&
-    !id.includes("/node_modules/@tiptap/extension-mathematics/")
-  ) {
+  if (id.includes("/node_modules/@tiptap/")) {
     return "editor-tiptap";
-  }
-
-  if (
-    id.includes("/node_modules/katex/") ||
-    id.includes("/node_modules/@tiptap/extension-mathematics/")
-  ) {
-    return "editor-math";
   }
 
   if (
@@ -76,9 +66,16 @@ export default defineConfig(async () => ({
   plugins: [tailwindcss(), react(), pruneKatexFontFallbacks()],
 
   resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
-    },
+    alias: [
+      {
+        find: "@",
+        replacement: resolve(__dirname, "./src"),
+      },
+      {
+        find: /^katex$/,
+        replacement: resolve(__dirname, "./src/lib/katexGlobal.ts"),
+      },
+    ],
   },
   build: {
     // Vite 8 deprecated the `manualChunks` function form in favour of Rolldown's

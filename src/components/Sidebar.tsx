@@ -28,6 +28,7 @@ interface SidebarProps {
   workspaceKey?: string | null;
   selectedPath: string | null;
   visible: boolean;
+  maxWidth?: number;
   workspaceName: string | null;
   gitStatusMap: Map<string, GitStatus>;
   mode: SidebarMode;
@@ -63,6 +64,7 @@ export function Sidebar({
   workspaceKey,
   selectedPath,
   visible,
+  maxWidth = SIDEBAR_MAX,
   workspaceName,
   gitStatusMap,
   mode,
@@ -133,6 +135,8 @@ export function Sidebar({
     return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, parsed));
   });
   const [isResizing, setIsResizing] = useState(false);
+  const effectiveMaxWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, maxWidth));
+  const displayedWidth = Math.min(sidebarWidth, effectiveMaxWidth);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
   const isMounted = useRef(true);
@@ -190,12 +194,15 @@ export function Sidebar({
     e.preventDefault();
     setIsResizing(true);
     dragStartX.current = e.clientX;
-    dragStartWidth.current = sidebarWidth;
+    dragStartWidth.current = displayedWidth;
 
     const onMouseMove = (ev: MouseEvent) => {
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartWidth.current + delta));
+      const next = Math.min(
+        effectiveMaxWidth,
+        Math.max(SIDEBAR_MIN, dragStartWidth.current + delta)
+      );
       setSidebarWidth(next);
     };
 
@@ -205,7 +212,10 @@ export function Sidebar({
       activeDragListeners.current = null;
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const final = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartWidth.current + delta));
+      const final = Math.min(
+        effectiveMaxWidth,
+        Math.max(SIDEBAR_MIN, dragStartWidth.current + delta)
+      );
       localStorage.setItem(SIDEBAR_WIDTH_KEY, String(final));
       setIsResizing(false);
     };
@@ -218,7 +228,9 @@ export function Sidebar({
   return (
     <div
       className={`sidebar ${visible ? "" : "hidden"}${isResizing ? " resizing" : ""}`}
-      style={visible ? { width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` } : undefined}
+      style={
+        visible ? { width: `${displayedWidth}px`, minWidth: `${displayedWidth}px` } : undefined
+      }
     >
       <div className="sidebar-header" data-tauri-drag-region="deep">
         <div className="sidebar-header-actions">

@@ -48,6 +48,14 @@ Adopt a **"warm editorial paper"** design language.
   optical tracking; the prose canvas uses old-style numerals and hanging
   punctuation (both supported in Tauri's WebKit WebView).
 
+- **Adaptive chrome.** Preserve the writing measure before preserving an
+  always-inline three-column layout. The sidebar remains explicitly
+  user-controlled, but its resize ceiling keeps at least 480 px for the editor.
+  Below 960 px the properties surface becomes a backdrop-dismissable drawer;
+  its desktop open/closed preference is preserved rather than overwritten by
+  the compact layout. Escape dismisses the drawer unless a blocking overlay
+  owns the key.
+
 All new design values are tokens in `global.css` — `--texture-grain*`,
 `--panel-highlight`, and the warm shadow/radius scales sit alongside the
 existing `@theme` colours and `:root` constants, so the whole app recolours
@@ -62,5 +70,8 @@ through the cascade and ADR 0005 still holds.
 - The paper grain relies on `mix-blend-mode` + an SVG data-URI; both render in
   WebKit, so they must be sanity-checked in a packaged `tauri build` (not just
   dev) per the ADR 0013 "looks fine in dev, broken when packaged" caution.
+- Native menu actions, shortcuts, and visible panel buttons all route through
+  `useResponsivePanels`, so they cannot disagree about whether properties are
+  inline or a compact drawer.
 - `TextCover`'s named gradient presets are *content* (cover-design choices the
   user picks), not chrome, and are intentionally left on their own palette.

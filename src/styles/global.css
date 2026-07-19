@@ -177,8 +177,11 @@
   *,
   *::before,
   *::after {
+    /* biome-ignore lint/complexity/noImportantStyles: reduced-motion overrides must win over component animations */
     animation-duration: 0.01ms !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced-motion overrides must win over component animations */
     animation-iteration-count: 1 !important;
+    /* biome-ignore lint/complexity/noImportantStyles: reduced-motion overrides must win over component transitions */
     transition-duration: 0.01ms !important;
   }
 }

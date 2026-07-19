@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
 import type { EditorViewState } from "./components/EditorPane";
 import { EditorPane } from "./components/EditorPane";
-import { getFileViewKind } from "./components/FileViewer";
+import { getFileViewKind, isReadOnlyContent } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import type { AppActionCtx } from "./lib/appActions";
@@ -16,7 +16,7 @@ import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
 import type { CollectionItem, FileNode, SaveStatus, SearchJumpTarget } from "./lib/types";
-import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
+import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCloseGuard } from "./lib/useCloseGuard";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
@@ -34,10 +34,11 @@ import { useKeyboardShortcuts } from "./lib/useKeyboardShortcuts";
 import { useMenuActions } from "./lib/useMenuActions";
 import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
+import { useResponsivePanels } from "./lib/useResponsivePanels";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
-import { useWorkspaceRevisionPoll } from "./lib/useWorkspaceRevisionPoll";
+import { useWorkspaceChangeMonitor } from "./lib/useWorkspaceChangeMonitor";
 import { useWorkspaceSession } from "./lib/useWorkspaceSession";
 import {
   buildNoteResolverIndex,
@@ -65,14 +66,6 @@ function App() {
   const [propertiesOpen, setPropertiesOpen] = useState(
     () => localStorage.getItem(PROPERTIES_OPEN_KEY) !== "false"
   );
-  // Keep the native View menu's check-mark in sync with panel visibility so
-  // the menu reflects the panel state the way Obsidian / VS Code do.
-  useEffect(() => {
-    void commands.menu.setChecked({ id: "toggle-sidebar", checked: sidebarVisible });
-  }, [sidebarVisible]);
-  useEffect(() => {
-    void commands.menu.setChecked({ id: "toggle-properties", checked: propertiesOpen });
-  }, [propertiesOpen]);
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
   const overlay = useOverlayStack();
@@ -114,6 +107,29 @@ function App() {
     handleFieldChange,
     registerEditorFlush,
   } = useFileEditor({ showToast, onConflict: openConflictDialog });
+  const panelLayout = useResponsivePanels({
+    sidebarPreferred: sidebarVisible,
+    setSidebarPreferred: setSidebarVisible,
+    propertiesPreferred: propertiesOpen,
+    setPropertiesPreferred: setPropertiesOpen,
+    propertiesAvailable: selectedFile !== null && !isReadOnlyContent(selectedFile),
+    blockingOverlayOpen: overlay.isBlocking,
+  });
+  // Native View menu checkmarks describe what is actually visible. In compact
+  // mode this means the transient drawer state, not the preserved desktop
+  // preference that will return when the window widens.
+  useEffect(() => {
+    void commands.menu.setChecked({
+      id: "toggle-sidebar",
+      checked: panelLayout.sidebarVisible,
+    });
+  }, [panelLayout.sidebarVisible]);
+  useEffect(() => {
+    void commands.menu.setChecked({
+      id: "toggle-properties",
+      checked: panelLayout.propertiesOpen,
+    });
+  }, [panelLayout.propertiesOpen]);
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
   useCloseGuard(flushPendingSave, showToast);
@@ -514,8 +530,8 @@ function App() {
       fileContent,
       showToast,
       t,
-      setSidebarVisible,
-      setPropertiesOpen,
+      toggleSidebar: panelLayout.toggleSidebar,
+      toggleProperties: panelLayout.toggleProperties,
       setZenMode,
       setTypewriterMode,
       flushPendingSave,
@@ -546,6 +562,8 @@ function App() {
       fileContent,
       showToast,
       t,
+      panelLayout.toggleSidebar,
+      panelLayout.toggleProperties,
       flushPendingSave,
       closeActiveTabOrFile,
       handleOpenWorkspace,
@@ -566,8 +584,8 @@ function App() {
 
   useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus });
 
-  useWorkspaceRevisionPoll({
-    workspaceRoot,
+  useWorkspaceChangeMonitor({
+    workspaceRootPath,
     refreshTree,
     reloadSelectedFileFromDisk,
     handleCloseFile,
@@ -646,7 +664,8 @@ function App() {
             tree={sidebarTree}
             workspaceKey={workspaceRootPath}
             selectedPath={fileViewerNode?.path ?? selectedFile?.path ?? null}
-            visible={sidebarVisible}
+            visible={panelLayout.sidebarVisible}
+            maxWidth={panelLayout.sidebarMaxWidth}
             workspaceName={workspaceName}
             gitStatusMap={gitStatusMap}
             mode={sidebarMode}
@@ -654,7 +673,7 @@ function App() {
             features={features}
             collectionLinks={collectionLinks}
             onToggleMode={handleToggleSidebarMode}
-            onToggleVisible={() => togglePersisted(setSidebarVisible, SIDEBAR_VISIBLE_KEY)}
+            onToggleVisible={panelLayout.toggleSidebar}
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
@@ -677,7 +696,6 @@ function App() {
           />
         )}
         <EditorPane
-          workspaceRootPath={workspaceRootPath}
           workspaceRoot={workspaceRoot}
           tabs={tabs}
           tree={tree}
@@ -686,11 +704,8 @@ function App() {
           onSelectFromTab={handleSelectFromTab}
           onCloseTab={handleCloseTab}
           onReorderTabs={reorderTabs}
-          sidebarVisible={sidebarVisible}
-          onExpandSidebar={() => {
-            setSidebarVisible(true);
-            localStorage.setItem(SIDEBAR_VISIBLE_KEY, "true");
-          }}
+          sidebarVisible={panelLayout.sidebarVisible}
+          onExpandSidebar={panelLayout.showSidebar}
           coverImageVisible={coverImageVisible}
           coverImagePath={coverImagePath}
           assetRoot={assetRoot}
@@ -725,8 +740,10 @@ function App() {
           recentFiles={recentFiles}
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}
-          propertiesOpen={propertiesOpen}
-          onToggleProperties={() => togglePersisted(setPropertiesOpen, PROPERTIES_OPEN_KEY)}
+          propertiesOpen={panelLayout.propertiesOpen}
+          propertiesDrawer={panelLayout.propertiesDrawer}
+          onToggleProperties={panelLayout.toggleProperties}
+          onDismissPropertiesDrawer={panelLayout.dismissPropertiesDrawer}
           onToggleCoverImage={toggleCoverImage}
         />
       </div>

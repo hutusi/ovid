@@ -1,6 +1,7 @@
 import type { FileNode } from "./generated/FileNode";
+import type { WorkspaceFsChange } from "./generated/WorkspaceFsChange";
 import type { WorkspaceResult } from "./generated/WorkspaceResult";
-import { invokeCmd } from "./internal";
+import { invokeCmd, listenEvent } from "./internal";
 
 export interface OpenWorkspaceAtPathArgs {
   path: string;
@@ -26,4 +27,6 @@ export const workspace = {
   clone: (args: CloneWorkspaceArgs) => invokeCmd<WorkspaceResult>("clone_workspace", args),
   tree: () => invokeCmd<FileNode[]>("list_workspace_tree"),
   getRevision: () => invokeCmd<string>("get_workspace_revision"),
+  onFsChange: (handler: (change: WorkspaceFsChange) => void) =>
+    listenEvent<WorkspaceFsChange>("workspace-fs-change", handler),
 };

@@ -4,10 +4,11 @@ import { commands } from "./commands";
 import type { FileNode, SaveStatus } from "./types";
 import { getExternalWorkspaceChangeAction } from "./workspaceRefresh";
 
-const WORKSPACE_REVISION_POLL_MS = 2000;
+export const WORKSPACE_REVISION_FALLBACK_MS = 30_000;
+export const WORKSPACE_EVENT_DEBOUNCE_MS = 250;
 
-interface UseWorkspaceRevisionPollOptions {
-  workspaceRoot: string | null;
+interface UseWorkspaceChangeMonitorOptions {
+  workspaceRootPath: string | null;
   refreshTree: () => Promise<FileNode[]>;
   reloadSelectedFileFromDisk: (node: FileNode) => Promise<boolean>;
   handleCloseFile: (opts?: { discard?: boolean }) => Promise<boolean>;
@@ -20,8 +21,8 @@ interface UseWorkspaceRevisionPollOptions {
   isGitRepoRef: React.RefObject<boolean>;
 }
 
-export function useWorkspaceRevisionPoll({
-  workspaceRoot,
+export function useWorkspaceChangeMonitor({
+  workspaceRootPath,
   refreshTree,
   reloadSelectedFileFromDisk,
   handleCloseFile,
@@ -32,26 +33,61 @@ export function useWorkspaceRevisionPoll({
   selectedFileRef,
   saveStatusRef,
   isGitRepoRef,
-}: UseWorkspaceRevisionPollOptions): void {
+}: UseWorkspaceChangeMonitorOptions): void {
   const workspaceRevisionRef = useRef<string | null>(null);
-  const workspaceRefreshInFlightRef = useRef(false);
   const workspaceRefreshFailureToastRef = useRef<string | null>(null);
   const externalUnsavedToastRevisionRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!workspaceRoot) {
+    if (!workspaceRootPath) {
       workspaceRevisionRef.current = null;
       workspaceRefreshFailureToastRef.current = null;
       return;
     }
 
     let mounted = true;
+    let refreshInFlight = false;
+    let refreshQueued = false;
+    let eventTimer: number | null = null;
+    let pendingEventPaths = new Set<string>();
+    let pendingEventNeedsRescan = false;
 
-    async function refreshForExternalChanges() {
-      if (workspaceRefreshInFlightRef.current) return;
-      workspaceRefreshInFlightRef.current = true;
+    async function refreshForExternalChanges(eventHint?: {
+      paths: string[];
+      needsRescan: boolean;
+    }) {
+      if (refreshInFlight) {
+        refreshQueued = true;
+        return;
+      }
+      refreshInFlight = true;
 
       try {
+        // Atomic saves surface as a native event for the active Markdown file.
+        // If that is the entire event burst and disk already equals the content
+        // we just saved, acknowledge it without hashing/re-walking the whole
+        // workspace. The slow fallback will advance the revision baseline.
+        const activePath = selectedFileRef.current?.path;
+        if (
+          eventHint &&
+          !eventHint.needsRescan &&
+          eventHint.paths.length > 0 &&
+          activePath &&
+          lastSavedContentRef.current !== null &&
+          eventHint.paths.every((path) => path === activePath)
+        ) {
+          try {
+            const diskContent = await commands.files.read({ path: activePath });
+            if (!mounted) return;
+            if (diskContent === lastSavedContentRef.current) {
+              workspaceRefreshFailureToastRef.current = null;
+              return;
+            }
+          } catch {
+            // A vanished or unreadable active file needs normal handling.
+          }
+        }
+
         const revision = await commands.workspace.getRevision();
         if (!mounted) return;
 
@@ -77,15 +113,13 @@ export function useWorkspaceRevisionPoll({
           lastWarnedRevision: externalUnsavedToastRevisionRef.current,
         });
 
-        // If the revision bump was caused by our own auto-save (disk content matches
-        // what we last wrote), skip both the warn toast and the editor reload —
-        // reloading would replace the live document with the markdown-serialized
-        // version, which strips trailing whitespace and trailing empty paragraphs.
+        // Native events also observe Ovid's own atomic save. Avoid replacing
+        // the live document with its serialized Markdown when disk contains
+        // exactly the content we most recently wrote.
         if (
           activeFileAction.type === "warn-unsaved" ||
           activeFileAction.type === "reload-active-file"
         ) {
-          const activePath = selectedFileRef.current?.path;
           if (activePath && lastSavedContentRef.current !== null) {
             try {
               const diskContent = await commands.files.read({ path: activePath });
@@ -96,7 +130,7 @@ export function useWorkspaceRevisionPoll({
                 return;
               }
             } catch {
-              // Can't read file — fall through to the normal action flow
+              // Fall through to normal external-change handling.
             }
           }
         }
@@ -118,7 +152,6 @@ export function useWorkspaceRevisionPoll({
                 lastWarnedRevision: externalUnsavedToastRevisionRef.current,
               });
               if (closeAction.type === "close-active-file") {
-                // The file vanished from disk — discard, don't try to save.
                 await handleCloseFile({ discard: true });
                 showToast(t("workspace_refresh.active_file_removed"));
               }
@@ -130,10 +163,7 @@ export function useWorkspaceRevisionPoll({
             break;
         }
 
-        if (isGitRepoRef.current) {
-          void refreshGitStatus();
-        }
-
+        if (isGitRepoRef.current) void refreshGitStatus();
         workspaceRefreshFailureToastRef.current = null;
         workspaceRevisionRef.current = revision;
       } catch (err) {
@@ -143,33 +173,65 @@ export function useWorkspaceRevisionPoll({
           showToast(t("workspace_refresh.refresh_failed", { message }));
         }
       } finally {
-        workspaceRefreshInFlightRef.current = false;
+        refreshInFlight = false;
+        if (mounted && refreshQueued) {
+          refreshQueued = false;
+          void refreshForExternalChanges();
+        }
       }
     }
 
-    void refreshForExternalChanges();
-    // Each poll walks and stats the whole corpus in Rust — don't burn that
-    // while the window is hidden; the visibility handler below catches up
-    // immediately when the window comes back.
-    const interval = window.setInterval(() => {
+    const scheduleEventRefresh = (change: { paths: string[]; needsRescan: boolean }) => {
       if (document.hidden) return;
-      void refreshForExternalChanges();
-    }, WORKSPACE_REVISION_POLL_MS);
-    const handleVisibilityChange = () => {
+      for (const path of change.paths) pendingEventPaths.add(path);
+      pendingEventNeedsRescan ||= change.needsRescan;
+      if (eventTimer !== null) window.clearTimeout(eventTimer);
+      eventTimer = window.setTimeout(() => {
+        eventTimer = null;
+        const eventHint = {
+          paths: [...pendingEventPaths],
+          needsRescan: pendingEventNeedsRescan,
+        };
+        pendingEventPaths = new Set();
+        pendingEventNeedsRescan = false;
+        void refreshForExternalChanges(eventHint);
+      }, WORKSPACE_EVENT_DEBOUNCE_MS);
+    };
+
+    const unlisten = commands.workspace.onFsChange((change) => {
+      if (change.workspaceRoot !== workspaceRootPath) return;
+      scheduleEventRefresh(change);
+    });
+
+    void refreshForExternalChanges();
+    const interval = window.setInterval(() => {
       if (!document.hidden) void refreshForExternalChanges();
+    }, WORKSPACE_REVISION_FALLBACK_MS);
+    const handleVisibilityChange = () => {
+      if (document.hidden) return;
+      if (eventTimer !== null) {
+        window.clearTimeout(eventTimer);
+        eventTimer = null;
+      }
+      pendingEventPaths.clear();
+      pendingEventNeedsRescan = false;
+      void refreshForExternalChanges();
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       mounted = false;
+      unlisten();
       window.clearInterval(interval);
+      if (eventTimer !== null) window.clearTimeout(eventTimer);
+      pendingEventPaths.clear();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       workspaceRevisionRef.current = null;
       workspaceRefreshFailureToastRef.current = null;
       externalUnsavedToastRevisionRef.current = null;
     };
   }, [
-    workspaceRoot,
+    workspaceRootPath,
     refreshTree,
     reloadSelectedFileFromDisk,
     handleCloseFile,

@@ -15,6 +15,9 @@ pub(crate) struct WorkspaceState {
     // by (mtime, len).
     pub(crate) frontmatter_cache: Mutex<HashMap<PathBuf, CachedFrontmatter>>,
     pub(crate) search_cache: Mutex<HashMap<PathBuf, CachedSearchFile>>,
+    // The watcher must stay alive for notifications to continue. Replaced and
+    // dropped whenever the user opens a different workspace.
+    pub(crate) workspace_watcher: Mutex<Option<notify::RecommendedWatcher>>,
 }
 
 // Caches the WeChat access token so we don't refetch it on every publish.

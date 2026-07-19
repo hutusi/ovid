@@ -4,35 +4,4 @@ import type { FeatureBucket } from "./FeatureBucket";
 import type { FileNode } from "./FileNode";
 import type { I18nConfig } from "./I18nConfig";
 
-export type WorkspaceResult = { name: string, rootPath: string, treeRoot: string, 
-/**
- * Directory to resolve root-relative image paths against.
- * Set to `<workspace>/public` when that directory exists (static-site
- * convention), otherwise falls back to the workspace root.
- */
-assetRoot: string, tree: Array<FileNode>, isAmytisWorkspace: boolean, cdnBase: string | null, 
-/**
- * First entry from `posts.authors.default` in `site.config.ts`, if present.
- */
-defaultAuthor: string | null, 
-/**
- * `posts.basePath` from `site.config.ts` (the configurable posts folder
- * name). `None` falls back to the conventional `posts` folder.
- */
-postsBasePath: string | null, 
-/**
- * Content buckets declared in the `features:` block of `site.config.ts`,
- * each with an `enabled` flag and localized display names. Empty for
- * non-Amytis workspaces or when the block is absent.
- */
-features: Array<FeatureBucket>, 
-/**
- * Author profiles from the top-level `authors:` map in `site.config.ts`
- * (display name → bio / avatar / social). Empty when the block is absent.
- */
-authors: Array<Author>, 
-/**
- * `i18n` locales + default locale, used to group `<slug>.<locale>`
- * translation variants in the sidebar.
- */
-i18n: I18nConfig, };
+export type WorkspaceResult = { name: string, rootPath: string, treeRoot: string, assetRoot: string, tree: Array<FileNode>, isAmytisWorkspace: boolean, cdnBase: string | null, defaultAuthor: string | null, postsBasePath: string | null, features: Array<FeatureBucket>, authors: Array<Author>, i18n: I18nConfig, };

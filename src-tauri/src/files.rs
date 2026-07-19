@@ -1,12 +1,15 @@
 use std::hash::{Hash, Hasher};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 
 use serde::Serialize;
 use tauri::State;
 use ts_rs::TS;
 
-use crate::paths::{validate_new_dir_path, validate_new_path, validate_path, write_atomic};
+use crate::paths::{
+    create_sibling_temp_dir, create_sibling_temp_file, validate_new_dir_path, validate_new_path,
+    validate_path, write_atomic, TempPathGuard,
+};
 use crate::state::WorkspaceState;
 
 /// Marker returned when the on-disk file changed since the client last read or
@@ -23,6 +26,26 @@ pub(crate) const FILE_TOO_LARGE: &str = "FILE_TOO_LARGE";
 /// this guards against accidentally opening a huge or binary file and OOMing
 /// the whole `read_to_string` into memory + across the IPC bridge.
 const MAX_READ_FILE_BYTES: u64 = 25 * 1024 * 1024;
+
+/// Read text without trusting a separate metadata check: even if the file
+/// grows after `open`, `take(MAX + 1)` bounds allocation and lets us detect the
+/// over-limit byte. Exact-limit files remain valid.
+fn read_text_bounded(path: &Path) -> Result<String, String> {
+    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let initial_capacity = file
+        .metadata()
+        .ok()
+        .map(|metadata| metadata.len().min(MAX_READ_FILE_BYTES) as usize)
+        .unwrap_or(0);
+    let mut bytes = Vec::with_capacity(initial_capacity);
+    file.take(MAX_READ_FILE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > MAX_READ_FILE_BYTES {
+        return Err(FILE_TOO_LARGE.to_string());
+    }
+    String::from_utf8(bytes).map_err(|e| e.to_string())
+}
 
 /// The optimistic-concurrency token: a hash of the file's content, as a decimal
 /// string. Unlike an mtime it has no granularity (two writes in the same
@@ -42,7 +65,7 @@ fn content_version(content: &str) -> String {
 /// as UTF-8 text (missing/unreadable/binary). Callers decide how to treat
 /// `None`: `write_checked` conflicts on it when a token was expected.
 fn current_version(path: &Path) -> Option<String> {
-    std::fs::read_to_string(path).ok().map(|c| content_version(&c))
+    read_text_bounded(path).ok().map(|c| content_version(&c))
 }
 
 #[tauri::command]
@@ -50,12 +73,7 @@ pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Resul
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical = validate_path(root, &path)?;
-    if let Ok(meta) = std::fs::metadata(&canonical) {
-        if meta.len() > MAX_READ_FILE_BYTES {
-            return Err(FILE_TOO_LARGE.to_string());
-        }
-    }
-    std::fs::read_to_string(&canonical).map_err(|e| e.to_string())
+    read_text_bounded(&canonical)
 }
 
 /// A file's content together with its content-hash version token. Because the
@@ -66,21 +84,15 @@ pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Resul
 #[ts(export, export_to = "../../src/lib/commands/generated/")]
 pub(crate) struct VersionedFile {
     pub(crate) content: String,
-    /// Opaque content-hash token (decimal string). A string, not a number, so
-    /// it round-trips the JSON bridge byte-exact — the u64 hash overflows JS's
-    /// safe-integer range.
+    // Opaque decimal content-hash token. Kept as a string so the u64 value
+    // round-trips the JSON bridge without losing precision.
     pub(crate) version: String,
 }
 
 /// Core of `read_file_versioned`, factored out of the Tauri command so it can
 /// be unit-tested without a `WorkspaceState`.
 fn read_versioned_checked(canonical: &Path) -> Result<VersionedFile, String> {
-    if let Ok(meta) = std::fs::metadata(canonical) {
-        if meta.len() > MAX_READ_FILE_BYTES {
-            return Err(FILE_TOO_LARGE.to_string());
-        }
-    }
-    let content = std::fs::read_to_string(canonical).map_err(|e| e.to_string())?;
+    let content = read_text_bounded(canonical)?;
     let version = content_version(&content);
     Ok(VersionedFile { content, version })
 }
@@ -127,12 +139,7 @@ pub(crate) async fn read_files_bulk(
             let Ok(canonical) = validate_path(&root, &path) else {
                 continue;
             };
-            if let Ok(meta) = std::fs::metadata(&canonical) {
-                if meta.len() > MAX_READ_FILE_BYTES {
-                    continue;
-                }
-            }
-            let Ok(content) = std::fs::read_to_string(&canonical) else {
+            let Ok(content) = read_text_bounded(&canonical) else {
                 continue;
             };
             files.push(BulkFileContent { path, content });
@@ -194,26 +201,48 @@ pub(crate) fn create_file(
     create_new_checked(&new_path, &content)
 }
 
-/// Create a new file atomically (O_EXCL): fails with "file already exists" if
-/// the target is present, so an external process creating it can't be
-/// clobbered — an `exists()` + write would race. A brand-new file needs no
-/// atomic-rename staging (there is no prior content to protect on a mid-write
-/// crash). Factored out of the command so it's unit-testable.
-fn create_new_checked(new_path: &Path, content: &str) -> Result<(), String> {
-    let mut file = match std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(new_path)
-    {
-        Ok(file) => file,
-        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
-            return Err("file already exists".to_string());
-        }
-        Err(err) => return Err(err.to_string()),
-    };
-    file.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
+fn map_exclusive_install_error(error: std::io::Error, collision_message: &str) -> String {
+    if error.kind() == std::io::ErrorKind::AlreadyExists {
+        collision_message.to_string()
+    } else {
+        error.to_string()
+    }
+}
+
+fn install_exclusive(
+    staging: &Path,
+    destination: &Path,
+    collision_message: &str,
+) -> Result<(), String> {
+    renamore::rename_exclusive(staging, destination)
+        .map_err(|error| map_exclusive_install_error(error, collision_message))
+}
+
+/// Stage a complete file and atomically make it visible only if the final path
+/// is still unused. The injected hook makes destination races deterministic in
+/// tests without weakening the production implementation.
+fn create_new_checked_with(
+    new_path: &Path,
+    write_content: impl FnOnce(&mut std::fs::File) -> std::io::Result<()>,
+    before_commit: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let (mut file, mut guard) = create_sibling_temp_file(new_path, "create")?;
+    write_content(&mut file).map_err(|e| e.to_string())?;
+    file.flush().map_err(|e| e.to_string())?;
     file.sync_all().map_err(|e| e.to_string())?;
+    drop(file);
+    before_commit()?;
+    install_exclusive(guard.path(), new_path, "file already exists")?;
+    guard.disarm();
     Ok(())
+}
+
+fn create_new_checked(new_path: &Path, content: &str) -> Result<(), String> {
+    create_new_checked_with(
+        new_path,
+        |file| file.write_all(content.as_bytes()),
+        || Ok(()),
+    )
 }
 
 #[tauri::command]
@@ -226,13 +255,25 @@ pub(crate) fn rename_file(
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let canonical_old = validate_path(root, &old_path)?;
     let new = validate_new_path(root, &new_path)?;
-    if new.exists() {
-        return Err("a file with that name already exists".to_string());
-    }
-    std::fs::rename(&canonical_old, &new).map_err(|e| e.to_string())
+    install_exclusive(&canonical_old, &new, "a file with that name already exists")
 }
 
-pub(crate) fn copy_entry_recursive(src: &Path, dest: &Path) -> Result<(), String> {
+fn copy_file_exclusive(src: &Path, dest: &Path) -> Result<(), String> {
+    let metadata = std::fs::metadata(src).map_err(|e| e.to_string())?;
+    let mut input = std::fs::File::open(src).map_err(|e| e.to_string())?;
+    let mut output = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(dest)
+        .map_err(|e| e.to_string())?;
+    std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
+    output.flush().map_err(|e| e.to_string())?;
+    output.sync_all().map_err(|e| e.to_string())?;
+    drop(output);
+    std::fs::set_permissions(dest, metadata.permissions()).map_err(|e| e.to_string())
+}
+
+fn copy_entry_recursive(src: &Path, dest: &Path) -> Result<(), String> {
     let metadata = std::fs::symlink_metadata(src).map_err(|e| e.to_string())?;
     let file_type = metadata.file_type();
 
@@ -248,10 +289,54 @@ pub(crate) fn copy_entry_recursive(src: &Path, dest: &Path) -> Result<(), String
             let child_dest = dest.join(entry.file_name());
             copy_entry_recursive(&child_src, &child_dest)?;
         }
+        std::fs::set_permissions(dest, metadata.permissions()).map_err(|e| e.to_string())?;
         return Ok(());
     }
 
-    std::fs::copy(src, dest).map_err(|e| e.to_string())?;
+    copy_file_exclusive(src, dest)
+}
+
+fn copy_directory_contents(src: &Path, dest: &Path) -> Result<(), String> {
+    let metadata = std::fs::symlink_metadata(src).map_err(|e| e.to_string())?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err("source is not a duplicatable directory".to_string());
+    }
+    for entry in std::fs::read_dir(src).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        copy_entry_recursive(&entry.path(), &dest.join(entry.file_name()))?;
+    }
+    std::fs::set_permissions(dest, metadata.permissions()).map_err(|e| e.to_string())
+}
+
+fn duplicate_checked_with(
+    src: &Path,
+    dest: &Path,
+    before_commit: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    let metadata = std::fs::symlink_metadata(src).map_err(|e| e.to_string())?;
+    if metadata.file_type().is_symlink() {
+        return Err("symlinks are not supported when duplicating entries".to_string());
+    }
+
+    let mut guard: TempPathGuard = if metadata.is_dir() {
+        let guard = create_sibling_temp_dir(dest, "duplicate")?;
+        copy_directory_contents(src, guard.path())?;
+        guard
+    } else {
+        let (mut output, guard) = create_sibling_temp_file(dest, "duplicate")?;
+        let mut input = std::fs::File::open(src).map_err(|e| e.to_string())?;
+        std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
+        output.flush().map_err(|e| e.to_string())?;
+        output.sync_all().map_err(|e| e.to_string())?;
+        drop(output);
+        std::fs::set_permissions(guard.path(), metadata.permissions())
+            .map_err(|e| e.to_string())?;
+        guard
+    };
+
+    before_commit()?;
+    install_exclusive(guard.path(), dest, "a file with that name already exists")?;
+    guard.disarm();
     Ok(())
 }
 
@@ -267,10 +352,7 @@ pub(crate) fn duplicate_entry(
     };
     let src = validate_path(&root, &src_path)?;
     let dest = validate_new_path(&root, &dest_path)?;
-    if dest.exists() {
-        return Err("a file with that name already exists".to_string());
-    }
-    copy_entry_recursive(&src, &dest)
+    duplicate_checked_with(&src, &dest, || Ok(()))
 }
 
 #[tauri::command]
@@ -286,10 +368,13 @@ pub(crate) fn create_dir(path: String, state: State<'_, WorkspaceState>) -> Resu
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let new_path = validate_new_path(root, &path)?;
-    if new_path.exists() {
-        return Err("directory already exists".to_string());
-    }
-    std::fs::create_dir_all(&new_path).map_err(|e| e.to_string())
+    std::fs::create_dir(&new_path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            "directory already exists".to_string()
+        } else {
+            error.to_string()
+        }
+    })
 }
 
 /// Create a directory (and all ancestors) inside the workspace, succeeding if
@@ -365,7 +450,11 @@ mod tests {
             write_checked(&path, "v2", Some(&stale)),
             Err(EXTERNAL_CHANGE_CONFLICT.to_string())
         );
-        assert_eq!(fs::read_to_string(&path).unwrap(), "v1", "file must be untouched");
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            "v1",
+            "file must be untouched"
+        );
     }
 
     #[test]
@@ -407,6 +496,36 @@ mod tests {
             read_versioned_checked(&path),
             Err(FILE_TOO_LARGE.to_string())
         );
+        assert_eq!(
+            current_version(&path),
+            None,
+            "version verification must use the same bounded reader"
+        );
+    }
+
+    #[test]
+    fn bounded_reader_accepts_the_exact_limit_and_rejects_the_next_byte() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("boundary.md");
+        fs::write(&path, vec![b'a'; MAX_READ_FILE_BYTES as usize]).unwrap();
+        assert_eq!(
+            read_text_bounded(&path).unwrap().len(),
+            MAX_READ_FILE_BYTES as usize
+        );
+
+        let mut file = fs::OpenOptions::new().append(true).open(&path).unwrap();
+        file.write_all(b"b").unwrap();
+        assert_eq!(read_text_bounded(&path), Err(FILE_TOO_LARGE.to_string()));
+    }
+
+    #[test]
+    fn bounded_reader_rejects_invalid_utf8() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("binary.md");
+        fs::write(&path, [0xff, 0xfe]).unwrap();
+
+        assert!(read_text_bounded(&path).is_err());
+        assert_eq!(current_version(&path), None);
     }
 
     #[test]
@@ -452,7 +571,65 @@ mod tests {
     }
 
     #[test]
-    fn copy_entry_recursive_copies_nested_directories() {
+    fn create_new_checked_removes_partial_staging_after_write_failure() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+
+        let result = create_new_checked_with(
+            &path,
+            |file| {
+                file.write_all(b"partial")?;
+                Err(std::io::Error::other("injected failure"))
+            },
+            || Ok(()),
+        );
+
+        assert_eq!(result, Err("injected failure".to_string()));
+        assert!(!path.exists(), "a partial final file must never be visible");
+        assert!(
+            fs::read_dir(dir.path()).unwrap().next().is_none(),
+            "staging file must be removed"
+        );
+    }
+
+    #[test]
+    fn create_new_checked_does_not_clobber_a_destination_created_before_commit() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+
+        let result = create_new_checked_with(
+            &path,
+            |file| file.write_all(b"ours"),
+            || {
+                fs::write(&path, "external").map_err(|e| e.to_string())?;
+                Ok(())
+            },
+        );
+
+        assert_eq!(result, Err("file already exists".to_string()));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "external");
+        let entries: Vec<_> = fs::read_dir(dir.path()).unwrap().flatten().collect();
+        assert_eq!(entries.len(), 1, "staging file must be cleaned up");
+    }
+
+    #[test]
+    fn exclusive_rename_preserves_source_and_existing_destination() {
+        let dir = TempDir::new().unwrap();
+        let source = dir.path().join("source.md");
+        let destination = dir.path().join("destination.md");
+        fs::write(&source, "source").unwrap();
+        fs::write(&destination, "destination").unwrap();
+
+        assert_eq!(
+            install_exclusive(&source, &destination, "collision"),
+            Err("collision".to_string())
+        );
+        assert_eq!(fs::read_to_string(&source).unwrap(), "source");
+        assert_eq!(fs::read_to_string(&destination).unwrap(), "destination");
+    }
+
+    #[test]
+    fn duplicate_checked_copies_nested_directories() {
         let dir = TempDir::new().unwrap();
         let src = dir.path().join("hello");
         let nested = src.join("images");
@@ -463,9 +640,71 @@ mod tests {
         fs::write(src.join("index.md"), "# Hello").unwrap();
         fs::write(nested.join("cover.png"), "png").unwrap();
 
-        copy_entry_recursive(&src, &dest).unwrap();
+        duplicate_checked_with(&src, &dest, || Ok(())).unwrap();
 
-        assert_eq!(fs::read_to_string(dest.join("index.md")).unwrap(), "# Hello");
-        assert_eq!(fs::read_to_string(dest.join("images").join("cover.png")).unwrap(), "png");
+        assert_eq!(
+            fs::read_to_string(dest.join("index.md")).unwrap(),
+            "# Hello"
+        );
+        assert_eq!(
+            fs::read_to_string(dest.join("images").join("cover.png")).unwrap(),
+            "png"
+        );
+    }
+
+    #[test]
+    fn duplicate_checked_does_not_clobber_a_destination_created_before_commit() {
+        let dir = TempDir::new().unwrap();
+        let src = dir.path().join("source.md");
+        let dest = dir.path().join("copy.md");
+        fs::write(&src, "source").unwrap();
+
+        let result = duplicate_checked_with(&src, &dest, || {
+            fs::write(&dest, "external").map_err(|e| e.to_string())
+        });
+
+        assert_eq!(
+            result,
+            Err("a file with that name already exists".to_string())
+        );
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "external");
+        assert_eq!(fs::read_to_string(&src).unwrap(), "source");
+        let entries: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            entries.iter().all(|name| !name.starts_with(".~")),
+            "staging entry leaked: {entries:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn duplicate_checked_cleans_staged_directory_after_recursive_copy_failure() {
+        use std::os::unix::fs::symlink;
+
+        let dir = TempDir::new().unwrap();
+        let src = dir.path().join("source");
+        let dest = dir.path().join("copy");
+        fs::create_dir(&src).unwrap();
+        fs::write(src.join("note.md"), "note").unwrap();
+        symlink(src.join("note.md"), src.join("link.md")).unwrap();
+
+        assert_eq!(
+            duplicate_checked_with(&src, &dest, || Ok(())),
+            Err("symlinks are not supported when duplicating entries".to_string())
+        );
+        assert!(!dest.exists());
+        let entries: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.file_name().to_string_lossy().to_string())
+            .collect();
+        assert!(
+            entries.iter().all(|name| !name.starts_with(".~")),
+            "staging directory leaked: {entries:?}"
+        );
     }
 }

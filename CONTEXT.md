@@ -198,17 +198,18 @@ encapsulates so `App.tsx` doesn't have to wire it manually.
 `useFileEditor` funnels **every** write through `writeMarkdown` →
 `enqueueWrite`, which serializes writes per file path (a write starts only
 after every earlier write to the same file settles, composing its payload and
-mtime token at start time) and tracks them so `flushPendingSave` can await
+content-version token at start time) and tracks them so `flushPendingSave` can await
 in-flight saves before a switch/close/quit (there is no un-tracked
 `commands.files.write` from the editor — a property edit routes through the
 same path). Saves carry an **optimistic-concurrency
-token**: `write_file` takes the mtime the client last saw (`lastSavedMtimeRef`,
-seeded by `get_file_mtime` on open) and returns the post-write mtime. If the
-on-disk mtime no longer matches, the Rust side refuses the write with
+token**: `write_file` takes the hash of the content the client last saw
+(`lastSavedVersionRef`, seeded by `read_file_versioned` on open) and returns
+the post-write content hash. If the on-disk content no longer matches, the
+Rust side refuses the write with
 `EXTERNAL_CHANGE_CONFLICT` instead of clobbering. The hook then pauses autosave
 (keeping the pending edit) and calls `onConflict`, which opens the blocking
 `conflict` overlay; `resolveConflict("reload" | "overwrite" | "dismiss")`
-either reloads the disk version, force-writes (`expectedMtime: null`), or leaves
+either reloads the disk version, force-writes (`expectedVersion: null`), or leaves
 the file unsaved for a later retry. **File transitions await the outgoing
 save**: a switch or close awaits the full save transaction before the
 selection moves and aborts on failure or conflict, so the prompt always
@@ -216,8 +217,12 @@ targets the file on screen and no edit is dropped mid-transition (removal-
 driven closes pass `discard: true` — nothing on disk left to save to). Only
 the close-guard's window-hide flush stays fire-and-forget, non-forced, with
 restore-on-failure; see ADR 0020. This is the write-time complement to the
-revision poll (`useWorkspaceRevisionPoll`), which handles the no-local-edits
-case by reloading, and treats the `saving` state like `unsaved`.
+external-change monitor (`useWorkspaceChangeMonitor`), which handles the
+no-local-edits case by reloading and treats the `saving` state like `unsaved`.
+The Rust watcher emits filtered `workspace-fs-change` events; the hook
+debounces them and verifies a workspace revision before refreshing. A 30 s
+revision check and a visibility-resume check remain as correctness fallbacks
+for dropped or unsupported native events (ADR 0021).
 
 ---
 
@@ -246,6 +251,24 @@ interface in the wrapper, run `cargo test` to regenerate the TS types,
 verify the generated diff is what you expected.
 
 ADR 0001 captures the design rationale (why typed seam, why hand-typed args).
+
+---
+
+## Adaptive panel layout
+
+`useResponsivePanels` owns the relationship between viewport width, the
+persisted sidebar/properties preferences, and the effective panel layout. The
+sidebar preference remains user-controlled at every width, but its resize
+ceiling is clamped so at least 480 px remains for the editor. Below 960 px the
+properties panel no longer consumes editor width: its persisted desktop
+preference is preserved and the toggle opens a transient, backdrop-dismissable
+drawer instead. Escape closes that drawer unless a blocking overlay currently
+owns Escape. Zen mode still overrides both effective panels without changing
+either preference.
+
+The global action table receives `toggleSidebar` / `toggleProperties` from this
+hook, so native menu actions and keyboard shortcuts follow the same responsive
+rules as the visible buttons.
 
 ---
 

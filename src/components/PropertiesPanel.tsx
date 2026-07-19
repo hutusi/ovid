@@ -29,6 +29,7 @@ const SORT_OPTION_LABEL_KEY: Record<string, string> = {
 interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
   visible: boolean;
+  drawer?: boolean;
   slug?: string;
   /** Bucket-derived content type (post/series/book/note/flow/page) used to
    *  gate context-sensitive addable fields like `sort` (series-only). */
@@ -48,6 +49,7 @@ const PUBLISHING_BOOLEAN_FIELDS = ["draft", "featured", "pinned"];
 export function PropertiesPanel({
   frontmatter,
   visible,
+  drawer = false,
   slug,
   contentType,
   coverImageVisible = false,
@@ -87,7 +89,7 @@ export function PropertiesPanel({
     .sort();
 
   return (
-    <div className={`properties-panel${visible ? "" : " hidden"}`}>
+    <div className={`properties-panel${visible ? "" : " hidden"}${drawer ? " drawer" : ""}`}>
       <div className="prop-header" data-tauri-drag-region="deep">
         {onToggle && (
           <button

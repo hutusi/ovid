@@ -1,5 +1,5 @@
 import { Extension } from "@tiptap/core";
-import type { Node } from "@tiptap/pm/model";
+import type { Mark, Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
@@ -29,15 +29,38 @@ export function collectMatches(doc: Node, term: string): Array<{ from: number; t
   const matches: Array<{ from: number; to: number }> = [];
   const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
   doc.descendants((node, pos) => {
-    if (!node.isText || !node.text) return;
+    if (!node.isTextblock) return;
+
+    // Marks split rendered prose into adjacent text nodes. Search the whole
+    // block so phrases such as "formatted text" still match when only one word
+    // is bold. Inline atoms and hard breaks occupy one document position; use
+    // a one-character sentinel for them so offsets remain position-exact while
+    // preventing a match from crossing or partially replacing an atom.
+    const text = node.textBetween(0, node.content.size, "", "\uFFFC");
     regex.lastIndex = 0;
-    let m = regex.exec(node.text);
+    let m = regex.exec(text);
     while (m !== null) {
-      matches.push({ from: pos + m.index, to: pos + m.index + m[0].length });
-      m = regex.exec(node.text);
+      const from = pos + 1 + m.index;
+      matches.push({ from, to: from + m[0].length });
+      m = regex.exec(text);
     }
+    // A textblock's children are inline content already represented above.
+    return false;
   });
   return matches;
+}
+
+function commonMarksInRange(doc: Node, from: number, to: number): readonly Mark[] {
+  let common: readonly Mark[] | null = null;
+  doc.nodesBetween(from, to, (node) => {
+    if (!node.isText) return;
+    if (common === null) {
+      common = node.marks;
+      return;
+    }
+    common = common.filter((mark) => mark.isInSet(node.marks));
+  });
+  return common ?? [];
 }
 
 function buildDecorations(
@@ -152,7 +175,14 @@ export const FindReplace = Extension.create({
           if (!match) return false;
           if (dispatch) {
             if (replacement) {
-              tr.replaceWith(match.from, match.to, editor.state.schema.text(replacement));
+              tr.replaceWith(
+                match.from,
+                match.to,
+                editor.state.schema.text(
+                  replacement,
+                  commonMarksInRange(editor.state.doc, match.from, match.to)
+                )
+              );
             } else {
               tr.delete(match.from, match.to);
             }
@@ -171,7 +201,14 @@ export const FindReplace = Extension.create({
             for (let i = ps.matches.length - 1; i >= 0; i--) {
               const m = ps.matches[i];
               if (replacement) {
-                tr.replaceWith(m.from, m.to, editor.state.schema.text(replacement));
+                tr.replaceWith(
+                  m.from,
+                  m.to,
+                  editor.state.schema.text(
+                    replacement,
+                    commonMarksInRange(editor.state.doc, m.from, m.to)
+                  )
+                );
               } else {
                 tr.delete(m.from, m.to);
               }

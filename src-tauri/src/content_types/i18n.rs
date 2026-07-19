@@ -87,7 +87,10 @@ mod tests {
     #[test]
     fn parse_i18n_returns_empty_when_absent() {
         let dir = TempDir::new().unwrap();
-        let path = write_config(&dir, "export const siteConfig = { posts: { toc: true } };\n");
+        let path = write_config(
+            &dir,
+            "export const siteConfig = { posts: { toc: true } };\n",
+        );
         let cfg = parse_i18n(&path);
         assert!(cfg.locales.is_empty());
         assert!(cfg.default_locale.is_none());

@@ -167,8 +167,12 @@ Progress landed so far:
 - git status refreshes are coalesced and stale workspace refresh results are discarded
 - file switcher and workspace search now use stronger relevance ordering instead of mostly traversal order
 - startup bundle work now defers overlays and the editor, with the editor stack split into smaller deferred chunks
-- read-only workspace/git commands (full tree walk, the ~2s revision hash, cold-cache search, and git status/branches/remote-info) now run off the main thread via `spawn_blocking` so large workspaces and slow repos don't stutter the UI
-- per-file caches are cleared on workspace open so they can't grow unbounded across a multi-workspace session, and `read_file` is size-guarded against accidentally loading a huge/binary file
+- KaTeX and the WeChat renderer are isolated from startup, and CI enforces per-chunk plus total JavaScript budgets
+- read-only workspace/git commands (full tree walk, revision hash, cold-cache search, and git status/branches/remote-info) now run off the main thread via `spawn_blocking` so large workspaces and slow repos don't stutter the UI
+- native filesystem events trigger a debounced workspace revision check, replacing constant 2 s scans while retaining a 30 s and visibility-resume fallback
+- per-file caches are cleared on workspace open so they can't grow unbounded across a multi-workspace session, and frontend file reads are bounded before allocation
+- create, rename, and duplicate use no-clobber filesystem commits, with staged-tree cleanup and race regressions covered in Rust tests
+- compact windows preserve a 480 px editor floor and present properties as a dismissable drawer instead of compressing the writing surface
 
 ---
 

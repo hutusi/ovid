@@ -180,7 +180,10 @@ mod tests {
     #[test]
     fn parse_features_returns_empty_without_block() {
         let dir = TempDir::new().unwrap();
-        let path = write_config(&dir, "export const siteConfig = { posts: { toc: true } };\n");
+        let path = write_config(
+            &dir,
+            "export const siteConfig = { posts: { toc: true } };\n",
+        );
         assert!(parse_features(&path).is_empty());
     }
 
