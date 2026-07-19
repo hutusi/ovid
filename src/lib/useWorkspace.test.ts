@@ -45,6 +45,15 @@ mock.module("@tauri-apps/plugin-dialog", () => ({
  *  loudly so a test that forgot to mock a call doesn't pass by accident. */
 function whenInvoke(handlers: InvokeHandlers): InvokeImpl {
   return async (name, args) => {
+    // Collection edits read via read_file_versioned; synthesize it from the
+    // simpler read_file + get_file_mtime handlers (the token value is opaque)
+    // unless a test overrides it explicitly.
+    if (name === "read_file_versioned" && !handlers.read_file_versioned) {
+      const content = handlers.read_file?.(args);
+      // Opaque string token; tests describe it via get_file_mtime, stringified.
+      const version = String(handlers.get_file_mtime?.(args) ?? 0);
+      return { content, version };
+    }
     const handler = handlers[name];
     if (!handler) {
       throw new Error(`useWorkspace test issued unmocked invoke: ${name}`);
@@ -127,6 +136,87 @@ describe("useWorkspace", () => {
     expect(result.current.tree).toHaveLength(1);
     expect(opts.resetFileState).toHaveBeenCalledTimes(1);
     expect(opts.showToast).not.toHaveBeenCalled();
+  });
+
+  it("a slow refresh from the previous workspace cannot overwrite a newly opened one", async () => {
+    let resolveRefresh: (tree: FileNode[]) => void = () => {};
+    invokeImpl = whenInvoke({
+      list_workspace_tree: () =>
+        new Promise<FileNode[]>((resolve) => {
+          resolveRefresh = resolve;
+        }),
+      open_workspace_at_path: () =>
+        makeWorkspaceResult({ tree: [makeNode("/ws/content/posts/new-ws.md")] }),
+    });
+
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    // A refresh (e.g. from the revision poll) is in flight...
+    let refresh: Promise<FileNode[]> = Promise.resolve([]);
+    act(() => {
+      refresh = result.current.refreshTree();
+    });
+
+    // ...when another workspace opens.
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+    expect(result.current.tree[0]?.path).toBe("/ws/content/posts/new-ws.md");
+
+    // The stale refresh then resolves with the old workspace's tree — it must
+    // be discarded, not applied over the new workspace's tree.
+    await act(async () => {
+      resolveRefresh([makeNode("/old-ws/content/stale.md")]);
+      await refresh;
+    });
+    expect(result.current.tree[0]?.path).toBe("/ws/content/posts/new-ws.md");
+  });
+
+  it("serializes concurrent opens so the second starts only after the first settles", async () => {
+    const order: string[] = [];
+    let resolveA: (r: unknown) => void = () => {};
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: (args) => {
+        const path = (args as { path: string }).path;
+        order.push(`start:${path}`);
+        if (path === "/a") {
+          return new Promise((resolve) => {
+            resolveA = () => {
+              order.push("resolve:/a");
+              resolve(makeWorkspaceResult({ tree: [makeNode("/a/content/a.md")] }));
+            };
+          });
+        }
+        order.push("resolve:/b");
+        return makeWorkspaceResult({ rootPath: "/b", tree: [makeNode("/b/content/b.md")] });
+      },
+    });
+
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+
+    // Fire A (slow) and B back-to-back without awaiting A.
+    let bDone: Promise<unknown> = Promise.resolve();
+    await act(async () => {
+      void result.current.openWorkspaceAtPath("/a");
+      bDone = result.current.openWorkspaceAtPath("/b");
+      // Let A's queued task reach its (pending) invoke.
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    });
+
+    // B must not have started while A is still in flight.
+    expect(order).toEqual(["start:/a"]);
+
+    await act(async () => {
+      resolveA(undefined);
+      await bDone;
+    });
+
+    // B started only after A fully resolved, and B's tree is the final state.
+    expect(order).toEqual(["start:/a", "resolve:/a", "start:/b", "resolve:/b"]);
+    expect(result.current.workspaceRootPath).toBe("/b");
+    expect(result.current.tree[0]?.path).toBe("/b/content/b.md");
   });
 
   it("openWorkspaceAtPath toasts and leaves state empty when invoke returns null", async () => {
@@ -480,10 +570,11 @@ describe("useWorkspace", () => {
 
     invokeImpl = whenInvoke({
       open_workspace_at_path: () => makeWorkspaceResult({ tree: [indexNode] }),
+      get_file_mtime: () => 1000,
       read_file: () => originalContent,
       write_file: (args) => {
         writtenContent = (args as { path: string; content: string }).content;
-        return undefined;
+        return 2000;
       },
       list_workspace_tree: () => [indexNode],
     });
@@ -500,10 +591,55 @@ describe("useWorkspace", () => {
     });
 
     expect(writtenContent).not.toBeNull();
+    // The write is checked against the index's mtime, not forced.
+    const writeCall = invokeCalls.find((c) => c.name === "write_file");
+    expect((writeCall?.args as { expectedVersion: string | null }).expectedVersion).toBe("1000");
     // The transformed YAML keeps the existing item and appends the new one.
     const out = writtenContent as unknown as string;
     expect(out).toContain("existing-post");
     expect(out).toContain("new-post");
+  });
+
+  it("addCollectionItem re-applies the edit and merges when the index changed on disk", async () => {
+    const indexPath = "/ws/content/series/my-series/index.md";
+    const indexNode = makeNode(indexPath);
+    // First read has one item; after the conflict, disk has an externally-added
+    // item. The retry must merge (keep the external item, add ours).
+    let readCount = 0;
+    const reads = [
+      "---\ntitle: My Series\ntype: collection\nitems:\n  - post: existing-post\n---\n",
+      "---\ntitle: My Series\ntype: collection\nitems:\n  - post: existing-post\n  - post: external-post\n---\n",
+    ];
+    let writeCount = 0;
+    let finalContent: string | null = null;
+
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult({ tree: [indexNode] }),
+      get_file_mtime: () => 1000 + readCount,
+      read_file: () => reads[Math.min(readCount++, reads.length - 1)],
+      write_file: (args) => {
+        writeCount += 1;
+        if (writeCount === 1) throw new Error("EXTERNAL_CHANGE_CONFLICT");
+        finalContent = (args as { content: string }).content;
+        return 3000;
+      },
+      list_workspace_tree: () => [indexNode],
+    });
+
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+    await act(async () => {
+      await result.current.addCollectionItem(indexPath, { post: "new-post" });
+    });
+
+    expect(writeCount).toBe(2);
+    const out = finalContent as unknown as string;
+    expect(out).toContain("external-post");
+    expect(out).toContain("new-post");
+    expect(opts.showToast).not.toHaveBeenCalled();
   });
 
   it("removeCollectionItem strips an item from the index file", async () => {
@@ -515,10 +651,11 @@ describe("useWorkspace", () => {
 
     invokeImpl = whenInvoke({
       open_workspace_at_path: () => makeWorkspaceResult({ tree: [indexNode] }),
+      get_file_mtime: () => 1000,
       read_file: () => originalContent,
       write_file: (args) => {
         writtenContent = (args as { path: string; content: string }).content;
-        return undefined;
+        return 2000;
       },
       list_workspace_tree: () => [indexNode],
     });

@@ -1,11 +1,13 @@
 import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import type { FlatFile } from "../lib/fileSearch";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
+import { loadKatexRuntime } from "../lib/loadKatexRuntime";
 import { isMac } from "../lib/platform";
-import type { FileNode, RecentFile, SaveStatus } from "../lib/types";
+import type { FileNode, RecentFile, SaveStatus, SearchJumpTarget } from "../lib/types";
+import { useNonModalDialogFocus } from "../lib/useNonModalDialogFocus";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -16,14 +18,16 @@ import { TextCover } from "./TextCover";
 
 export type EditorViewState = { selection: number; scrollTop: number };
 
-const loadEditor = async () => import("./Editor");
+const loadEditor = async () => {
+  await loadKatexRuntime();
+  return import("./Editor");
+};
 const Editor = lazy(async () => ({
   default: (await loadEditor()).Editor,
 }));
 
 export interface EditorPaneProps {
   // Workspace context
-  workspaceRootPath: string | null;
   workspaceRoot: string | null;
 
   // Tab bar
@@ -74,6 +78,13 @@ export interface EditorPaneProps {
   currentRelativePath: string | null;
   onOpenSource: (sourcePath: string) => void;
 
+  // Search-match navigation — one-shot jump request from the search panel.
+  searchJump: SearchJumpTarget | null;
+  /** Lines the current file's frontmatter occupies (maps full-file search
+   *  line numbers to body lines). */
+  frontmatterLineOffset: number;
+  onSearchJumpHandled: () => void;
+
   // Empty state
   recentFiles: RecentFile[];
   onOpenWorkspace: () => void;
@@ -81,12 +92,13 @@ export interface EditorPaneProps {
 
   // Properties panel
   propertiesOpen: boolean;
+  propertiesDrawer: boolean;
   onToggleProperties: () => void;
+  onDismissPropertiesDrawer: () => void;
   onToggleCoverImage: () => void;
 }
 
 export function EditorPane({
-  workspaceRootPath,
   workspaceRoot,
   tabs,
   tree,
@@ -121,22 +133,27 @@ export function EditorPane({
   noteResolverIndex,
   currentRelativePath,
   onOpenSource,
+  searchJump,
+  frontmatterLineOffset,
+  onSearchJumpHandled,
   recentFiles,
   onOpenWorkspace,
   onOpenRecent,
   propertiesOpen,
+  propertiesDrawer,
   onToggleProperties,
+  onDismissPropertiesDrawer,
   onToggleCoverImage,
 }: EditorPaneProps) {
   const { t } = useTranslation();
-
-  useEffect(() => {
-    if (!workspaceRootPath && !selectedFile) return;
-    const timer = window.setTimeout(() => {
-      void loadEditor();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [workspaceRootPath, selectedFile]);
+  // Properties-panel focus management. The compact drawer (a non-modal dialog)
+  // grabs focus when it opens so it's announced; the inline panel does not. In
+  // both modes, when the panel hides (drawer dismissed, or inline collapsed, or
+  // the breakpoint crossed) focus is returned to the top-bar expand button if it
+  // was stranded — otherwise it would fall to <body> as the focused collapse
+  // button becomes non-focusable.
+  const { dialogRef: propertiesDrawerRef, triggerRef: expandPropertiesRef } =
+    useNonModalDialogFocus<HTMLDivElement, HTMLButtonElement>(propertiesOpen, propertiesDrawer);
 
   const editorTitle = parsedFrontmatter.title != null ? String(parsedFrontmatter.title) : "";
 
@@ -169,8 +186,9 @@ export function EditorPane({
               onReorder={onReorderTabs}
             />
           )}
-          {!propertiesOpen && (
+          {selectedFile && !isReadOnlyContent(selectedFile) && !propertiesOpen && (
             <button
+              ref={expandPropertiesRef}
               type="button"
               className="editor-expand-btn editor-expand-btn-trailing"
               onClick={onToggleProperties}
@@ -238,6 +256,9 @@ export function EditorPane({
                 initialScrollTop={currentEditorViewState?.scrollTop}
                 onViewStateChange={onEditorViewStateChange}
                 registerPendingFlush={registerPendingFlush}
+                searchJump={searchJump}
+                frontmatterLineOffset={frontmatterLineOffset}
+                onSearchJumpHandled={onSearchJumpHandled}
               />
             </Suspense>
           </ErrorBoundary>
@@ -250,10 +271,21 @@ export function EditorPane({
           />
         )}
       </div>
+      {propertiesDrawer && (
+        <button
+          type="button"
+          className="panel-drawer-backdrop"
+          onClick={onDismissPropertiesDrawer}
+          aria-label={t("properties.collapse")}
+          data-tauri-drag-region="false"
+        />
+      )}
       {selectedFile && !isReadOnlyContent(selectedFile) && (
         <PropertiesPanel
           frontmatter={parsedFrontmatter}
           visible={propertiesOpen}
+          drawer={propertiesDrawer}
+          rootRef={propertiesDrawerRef}
           slug={selectedFile.name.replace(/\.mdx?$/, "")}
           contentType={selectedFile.contentType}
           coverImageVisible={coverImageVisible}

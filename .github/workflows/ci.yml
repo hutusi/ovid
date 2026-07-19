@@ -31,6 +31,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Check whitespace
+        run: bun run check:whitespace
+
       - name: Test with coverage
         run: bun test --coverage --coverage-reporter=text --coverage-reporter=lcov | tee coverage-output.txt
 
@@ -77,8 +80,17 @@ jobs:
 
       - uses: taiki-e/install-action@cargo-llvm-cov
 
+      - name: Check formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: Lint Rust
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
       - name: Test Rust backend with coverage
         run: cargo llvm-cov --manifest-path src-tauri/Cargo.toml --summary-only | tee coverage-rust.txt
+
+      - name: Check generated command types
+        run: git diff --exit-code src/lib/commands/generated
 
       - name: Publish Rust coverage summary
         if: always()

@@ -5,14 +5,19 @@ import StarterKit from "@tiptap/starter-kit";
 import { registerHappyDom, unregisterHappyDom } from "../../../scripts/test-setup";
 import { collectMatches, FIND_REPLACE_KEY, FindReplace } from "./FindReplace";
 
-// Minimal schema: doc > paragraph > text
+// Minimal schema with the inline shapes that matter for position mapping.
 const schema = new Schema({
   nodes: {
     doc: { content: "block+" },
     paragraph: { group: "block", content: "inline*" },
+    atom: { group: "inline", inline: true, atom: true },
+    hardBreak: { group: "inline", inline: true },
     text: { group: "inline" },
   },
-  marks: {},
+  marks: {
+    bold: {},
+    italic: {},
+  },
 });
 
 function doc(...paragraphs: string[]) {
@@ -96,6 +101,40 @@ describe("collectMatches", () => {
       expect(matches[i].from).toBeGreaterThanOrEqual(matches[i - 1].to);
     }
   });
+
+  it("finds a phrase split across adjacent formatting marks", () => {
+    const bold = schema.marks.bold.create();
+    const italic = schema.marks.italic.create();
+    const d = schema.node("doc", null, [
+      schema.node("paragraph", null, [
+        schema.text("format", [bold]),
+        schema.text("ted", [bold, italic]),
+        schema.text(" phrase"),
+      ]),
+    ]);
+
+    const matches = collectMatches(d, "formatted phrase");
+    expect(matches).toHaveLength(1);
+    expect(d.textBetween(matches[0].from, matches[0].to)).toBe("formatted phrase");
+  });
+
+  it("does not match across block, hard-break, or inline-atom boundaries", () => {
+    const acrossBlocks = doc("hello", "world");
+    expect(collectMatches(acrossBlocks, "helloworld")).toEqual([]);
+
+    const withBoundaries = schema.node("doc", null, [
+      schema.node("paragraph", null, [
+        schema.text("hello"),
+        schema.node("hardBreak"),
+        schema.text("world"),
+        schema.node("atom"),
+        schema.text("again"),
+      ]),
+    ]);
+    expect(collectMatches(withBoundaries, "helloworld")).toEqual([]);
+    expect(collectMatches(withBoundaries, "worldagain")).toEqual([]);
+    expect(collectMatches(withBoundaries, "world")).toHaveLength(1);
+  });
 });
 
 // ── FindReplace ProseMirror commands ───────────────────────────────────────
@@ -112,6 +151,13 @@ describe("collectMatches", () => {
 const createdEditors: Editor[] = [];
 
 function createEditor(text: string) {
+  return createEditorWithContent({
+    type: "doc",
+    content: [{ type: "paragraph", content: text ? [{ type: "text", text }] : [] }],
+  });
+}
+
+function createEditorWithContent(content: Record<string, unknown>) {
   // Tiptap doesn't install extension plugins into the EditorState until an
   // EditorView is constructed; constructing the view needs a DOM element.
   // happy-dom (registered in beforeAll) provides document; we attach to a
@@ -120,10 +166,7 @@ function createEditor(text: string) {
   const editor = new Editor({
     element,
     extensions: [StarterKit, FindReplace],
-    content: {
-      type: "doc",
-      content: [{ type: "paragraph", content: text ? [{ type: "text", text }] : [] }],
-    },
+    content,
   });
   createdEditors.push(editor);
   return editor;
@@ -202,6 +245,53 @@ describe("FindReplace commands", () => {
     editor.commands.replaceAll("quux");
 
     expect(editor.getText()).toBe("quux bar quux baz quux");
+  });
+
+  it("finds and replaces a phrase split by formatting marks", () => {
+    const editor = createEditorWithContent({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "formatted", marks: [{ type: "bold" }] },
+            { type: "text", text: " phrase" },
+          ],
+        },
+      ],
+    });
+
+    editor.commands.setFindTerm("formatted phrase");
+    expect(FIND_REPLACE_KEY.getState(editor.state)?.matches).toHaveLength(1);
+    editor.commands.replaceOne("replacement");
+    expect(editor.getText()).toBe("replacement");
+    expect(editor.state.doc.firstChild?.firstChild?.marks).toHaveLength(0);
+  });
+
+  it("preserves marks shared by the entire replaced range", () => {
+    const editor = createEditorWithContent({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "he", marks: [{ type: "bold" }] },
+            {
+              type: "text",
+              text: "llo",
+              marks: [{ type: "bold" }, { type: "italic" }],
+            },
+          ],
+        },
+      ],
+    });
+
+    editor.commands.setFindTerm("hello");
+    editor.commands.replaceOne("hi");
+
+    const inserted = editor.state.doc.firstChild?.firstChild;
+    expect(inserted?.text).toBe("hi");
+    expect(inserted?.marks.map((mark) => mark.type.name)).toEqual(["bold"]);
   });
 
   it("findNext is a no-op when there are no matches", () => {

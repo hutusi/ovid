@@ -16,7 +16,8 @@ use super::clone::{clone_blocking, resolve_target};
 use super::revision::compute_workspace_revision;
 use super::scaffold::scaffold_amytis_workspace;
 use super::tree::walk_tree;
-use super::{FileNode, WorkspaceResult, derive_workspace_meta};
+use super::watch::restart_workspace_watcher;
+use super::{derive_workspace_meta, FileNode, WorkspaceResult};
 
 #[tauri::command]
 pub(crate) async fn open_workspace_at_path(
@@ -165,8 +166,16 @@ fn build_workspace_result(
     // accumulate across a long-running multi-workspace session. Within a single
     // workspace the caches stay bounded by its file set (they are keyed by path
     // and refreshed by mtime/len).
-    state.frontmatter_cache.lock().map_err(|e| e.to_string())?.clear();
-    state.search_cache.lock().map_err(|e| e.to_string())?.clear();
+    state
+        .frontmatter_cache
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clear();
+    state
+        .search_cache
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clear();
 
     let result = {
         let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
@@ -183,14 +192,23 @@ fn build_workspace_result(
     if let Err(e) = app.asset_protocol_scope().allow_directory(root, true) {
         eprintln!("Failed to grant asset protocol access for {root:?}: {e}");
     }
+    if let Err(e) = restart_workspace_watcher(root, app, state) {
+        // Opening the workspace still succeeds: the frontend's slow revision
+        // fallback preserves correctness when native watching is unavailable.
+        eprintln!("Failed to watch workspace {root:?}: {e}");
+        *state
+            .workspace_watcher
+            .lock()
+            .map_err(|error| error.to_string())? = None;
+    }
 
     Ok(result)
 }
 
 /// Re-walk the workspace tree from `workspace_root` and return the full
-/// canonical tree. Called by the frontend after mutations and on the periodic
-/// revision poll. Replaces the previous `list_workspace` (content-only walk)
-/// and `list_workspace_children` (shallow lazy-load).
+/// canonical tree. Called by the frontend after mutations and confirmed
+/// external changes. Replaces the previous `list_workspace` (content-only
+/// walk) and `list_workspace_children` (shallow lazy-load).
 // Async + spawn_blocking so the full recursive tree walk (and its
 // frontmatter-cache access) runs off the main thread. State is reached via the
 // AppHandle inside the blocking closure since `State` can't cross the boundary.
@@ -235,8 +253,7 @@ pub(crate) async fn create_amytis_workspace(
 ) -> Result<WorkspaceResult, String> {
     let started = Instant::now();
     let parent = PathBuf::from(&parent_dir);
-    let target =
-        scaffold_amytis_workspace(&parent, &name).map_err(|err| err.user_message())?;
+    let target = scaffold_amytis_workspace(&parent, &name).map_err(|err| err.user_message())?;
     let result = build_workspace_result(&target, &state, &app)?;
     log_perf(
         "create_amytis_workspace",
@@ -266,8 +283,7 @@ pub(crate) async fn clone_workspace(
 ) -> Result<WorkspaceResult, String> {
     let started = Instant::now();
     let parent = PathBuf::from(&parent_dir);
-    let target =
-        resolve_target(&url, &parent, name.as_deref()).map_err(|e| e.user_message())?;
+    let target = resolve_target(&url, &parent, name.as_deref()).map_err(|e| e.user_message())?;
 
     // Move clone work onto the blocking thread pool so we don't block the
     // tokio reactor for the duration of a network clone. The closure owns
@@ -276,8 +292,7 @@ pub(crate) async fn clone_workspace(
     let target_owned = target.clone();
     let app_for_clone = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        clone_blocking(&url_owned, &target_owned, &app_for_clone)
-            .map_err(|e| e.user_message())
+        clone_blocking(&url_owned, &target_owned, &app_for_clone).map_err(|e| e.user_message())
     })
     .await
     .map_err(|e| e.to_string())??;
@@ -299,10 +314,11 @@ pub(crate) async fn clone_workspace(
 pub(crate) async fn get_workspace_revision(
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
-    // Clone the root out of the mutex, then hash off the main thread — this runs
-    // every couple of seconds from the poll and stats every markdown file.
+    // Clone the root out of the mutex, then hash off the main thread. Native
+    // filesystem events trigger this on real changes; a slow fallback catches
+    // filesystems that don't reliably emit notifications.
     let root = {
-        let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
+        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
         root_guard.as_ref().ok_or("no workspace open")?.clone()
     };
     tauri::async_runtime::spawn_blocking(move || compute_workspace_revision(&root))
@@ -339,7 +355,10 @@ mod tests {
             result.tree_root
         );
         assert_eq!(result.asset_root, result.root_path);
-        assert!(!result.tree.is_empty(), "tree should include workspace files");
+        assert!(
+            !result.tree.is_empty(),
+            "tree should include workspace files"
+        );
     }
 
     #[test]

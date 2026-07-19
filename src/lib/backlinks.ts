@@ -3,8 +3,10 @@
 // reads, the same NoteResolverIndex the editor uses, and returns a flat list
 // of `{ sourcePath, lineNumber, snippet }` rows.
 //
-// Scanning happens lazily (when the panel is first opened for a file) and is
-// memoised at the call site. The regex is deliberately permissive: any
+// Scanning happens lazily (when the panel is first opened for a file); the
+// call site feeds it from the per-tree-generation corpus cache
+// (`corpusCache.ts`), so a scan costs no IPC beyond the one bulk read shared
+// with wiki-link resolution. The regex is deliberately permissive: any
 // `[[…]]` on a single line counts, regardless of whether it's inside a code
 // fence — code blocks rarely contain wiki links by accident, and treating
 // the document as flat text keeps the scanner orders of magnitude simpler

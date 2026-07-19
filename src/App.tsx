@@ -3,19 +3,20 @@ import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
 import type { EditorViewState } from "./components/EditorPane";
 import { EditorPane } from "./components/EditorPane";
-import { getFileViewKind } from "./components/FileViewer";
+import { getFileViewKind, isReadOnlyContent } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import type { AppActionCtx } from "./lib/appActions";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { collectionCandidates } from "./lib/collection";
 import { commands } from "./lib/commands";
+import { corpusReadFile, readCorpus } from "./lib/corpusCache";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
-import type { CollectionItem, FileNode, SaveStatus } from "./lib/types";
-import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./lib/uiVisibility";
+import type { CollectionItem, FileNode, SaveStatus, SearchJumpTarget } from "./lib/types";
+import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCloseGuard } from "./lib/useCloseGuard";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
@@ -33,10 +34,11 @@ import { useKeyboardShortcuts } from "./lib/useKeyboardShortcuts";
 import { useMenuActions } from "./lib/useMenuActions";
 import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
+import { useResponsivePanels } from "./lib/useResponsivePanels";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
-import { useWorkspaceRevisionPoll } from "./lib/useWorkspaceRevisionPoll";
+import { useWorkspaceChangeMonitor } from "./lib/useWorkspaceChangeMonitor";
 import { useWorkspaceSession } from "./lib/useWorkspaceSession";
 import {
   buildNoteResolverIndex,
@@ -64,14 +66,6 @@ function App() {
   const [propertiesOpen, setPropertiesOpen] = useState(
     () => localStorage.getItem(PROPERTIES_OPEN_KEY) !== "false"
   );
-  // Keep the native View menu's check-mark in sync with panel visibility so
-  // the menu reflects the panel state the way Obsidian / VS Code do.
-  useEffect(() => {
-    void commands.menu.setChecked({ id: "toggle-sidebar", checked: sidebarVisible });
-  }, [sidebarVisible]);
-  useEffect(() => {
-    void commands.menu.setChecked({ id: "toggle-properties", checked: propertiesOpen });
-  }, [propertiesOpen]);
   const [zenMode, setZenMode] = useState(false);
   const [typewriterMode, setTypewriterMode] = useState(false);
   const overlay = useOverlayStack();
@@ -94,6 +88,7 @@ function App() {
     selectedFile,
     setSelectedFile,
     fileContent,
+    frontmatterLineOffset,
     wordCount,
     setWordCount,
     parsedFrontmatter,
@@ -112,6 +107,29 @@ function App() {
     handleFieldChange,
     registerEditorFlush,
   } = useFileEditor({ showToast, onConflict: openConflictDialog });
+  const panelLayout = useResponsivePanels({
+    sidebarPreferred: sidebarVisible,
+    setSidebarPreferred: setSidebarVisible,
+    propertiesPreferred: propertiesOpen,
+    setPropertiesPreferred: setPropertiesOpen,
+    propertiesAvailable: selectedFile !== null && !isReadOnlyContent(selectedFile),
+    blockingOverlayOpen: overlay.isBlocking,
+  });
+  // Native View menu checkmarks describe what is actually visible. In compact
+  // mode this means the transient drawer state, not the preserved desktop
+  // preference that will return when the window widens.
+  useEffect(() => {
+    void commands.menu.setChecked({
+      id: "toggle-sidebar",
+      checked: panelLayout.sidebarVisible,
+    });
+  }, [panelLayout.sidebarVisible]);
+  useEffect(() => {
+    void commands.menu.setChecked({
+      id: "toggle-properties",
+      checked: panelLayout.propertiesOpen,
+    });
+  }, [panelLayout.propertiesOpen]);
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
   useCloseGuard(flushPendingSave, showToast);
@@ -173,9 +191,10 @@ function App() {
     },
   });
 
-  const { sidebarMode, fileViewerNode, setFileViewerNode, handleToggleSidebarMode } = useFilesMode({
-    workspaceRootPath,
-  });
+  const { sidebarMode, fileViewerNode, setFileViewerNode, viewerGen, handleToggleSidebarMode } =
+    useFilesMode({
+      workspaceRootPath,
+    });
 
   // Project the canonical workspace tree into the shape the active sidebar
   // mode wants. Both modes derive from the single tree owned by useWorkspace
@@ -255,11 +274,12 @@ function App() {
 
   // openByPath / openFile / closeActive live inside useEditorSession; here we
   // only have to clear the FileViewer (a separate, files-mode UI concern) and
-  // delegate. Two-line wrappers rather than re-implementing the orchestration.
+  // delegate. `setFileViewerNode` bumps the viewer generation (see
+  // useFilesMode), so clearing it here invalidates any pending viewer-set.
   const openFileByPath = useCallback(
-    (path: string) => {
+    (path: string): Promise<boolean> => {
       setFileViewerNode(null);
-      void openByPath(path);
+      return openByPath(path);
     },
     [openByPath, setFileViewerNode]
   );
@@ -268,6 +288,12 @@ function App() {
   // workspace's notes-bucket file list changes. Held in a ref so the stable
   // `resolveWikiTargetCallback` always sees the latest snapshot without
   // forcing every wiki link node-view to re-render on each prop change.
+  // Pending "scroll the editor to this search match" request; consumed (and
+  // cleared) by the Editor once the target file's content is on screen.
+  const [searchJump, setSearchJump] = useState<SearchJumpTarget | null>(null);
+  const searchJumpGenRef = useRef(0);
+  const handleSearchJumpHandled = useCallback(() => setSearchJump(null), []);
+
   const [noteResolverIndex, setNoteResolverIndex] =
     useState<NoteResolverIndex>(EMPTY_NOTE_RESOLVER_INDEX);
   const noteResolverGenRef = useRef(0);
@@ -278,9 +304,11 @@ function App() {
   useEffect(() => {
     const gen = ++noteResolverGenRef.current;
     void (async () => {
-      const index = await buildNoteResolverIndex(flatFiles, (path) =>
-        commands.files.read({ path })
-      );
+      // One bulk IPC read per tree generation, shared with the backlinks
+      // scanner via the corpus cache — not one read_file per note.
+      const contents = await readCorpus(flatFiles).catch(() => new Map<string, string>());
+      if (gen !== noteResolverGenRef.current) return;
+      const index = await buildNoteResolverIndex(flatFiles, corpusReadFile(contents));
       if (gen === noteResolverGenRef.current) {
         setNoteResolverIndex(index);
       }
@@ -325,7 +353,11 @@ function App() {
     [workspaceRoot, postsBasePath, refreshTree, openByPath, setFileViewerNode, showToast, t]
   );
 
-  function handleSidebarSelect(node: FileNode) {
+  async function handleSidebarSelect(node: FileNode) {
+    // Bump first, before any branch or early return, so *every* sidebar click
+    // — including an unsupported-file click that only toasts — supersedes a
+    // pending non-Markdown selection whose slow close is still in flight.
+    const gen = viewerGen.bump();
     const isMarkdown = node.extension === ".md" || node.extension === ".mdx";
     if (sidebarMode === "content" || isMarkdown) {
       setFileViewerNode(null);
@@ -337,8 +369,14 @@ function App() {
       showToast(t("file_viewer.cannot_open"));
       return;
     }
-    void handleCloseFile();
-    setFileViewerNode(node);
+    // Show the (read-only) viewer only after the open Markdown file's save
+    // transaction closes — a conflicting/failed close keeps the editor and its
+    // pending edit on screen rather than hiding it behind the viewer. Guard on
+    // the selection generation so a slow close can't set the viewer over a
+    // newer selection made while it was pending.
+    if ((await handleCloseFile()) && viewerGen.isCurrent(gen)) {
+      setFileViewerNode(node);
+    }
   }
 
   const closeActiveTabOrFile = useCallback(() => {
@@ -492,8 +530,8 @@ function App() {
       fileContent,
       showToast,
       t,
-      setSidebarVisible,
-      setPropertiesOpen,
+      toggleSidebar: panelLayout.toggleSidebar,
+      toggleProperties: panelLayout.toggleProperties,
       setZenMode,
       setTypewriterMode,
       flushPendingSave,
@@ -524,6 +562,8 @@ function App() {
       fileContent,
       showToast,
       t,
+      panelLayout.toggleSidebar,
+      panelLayout.toggleProperties,
       flushPendingSave,
       closeActiveTabOrFile,
       handleOpenWorkspace,
@@ -544,8 +584,8 @@ function App() {
 
   useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus });
 
-  useWorkspaceRevisionPoll({
-    workspaceRoot,
+  useWorkspaceChangeMonitor({
+    workspaceRootPath,
     refreshTree,
     reloadSelectedFileFromDisk,
     handleCloseFile,
@@ -579,9 +619,16 @@ function App() {
     }
   }
 
-  function handleOpenByPath(path: string) {
-    openFileByPath(path);
+  async function handleOpenByPath(
+    path: string,
+    match?: { lineContent: string; lineNumber: number; query: string }
+  ) {
     overlay.close("search");
+    // Await the open (which reloads content + frontmatter offset) before
+    // publishing the jump, so the editor never consumes it against the
+    // outgoing file's state, and an aborted open publishes no jump.
+    const opened = await openFileByPath(path);
+    if (match && opened) setSearchJump({ path, ...match, gen: ++searchJumpGenRef.current });
   }
 
   function handleSelectFromTab(path: string) {
@@ -590,11 +637,15 @@ function App() {
   }
 
   function handleCloseTab(path: string) {
-    const wasActive = selectedFile?.path === path;
-    const { neighbor } = closeTab(path);
-    if (!wasActive) return;
-    if (neighbor) handleSelectFromTab(neighbor);
-    else void handleCloseFile();
+    // Closing the active tab must save/switch first and drop the tab only on
+    // success — closeActive owns that ordering (peek neighbour → transition →
+    // remove tab). A non-active tab has no outgoing save to protect, so remove
+    // it directly.
+    if (selectedFile?.path === path) {
+      void closeActive();
+      return;
+    }
+    closeTab(path);
   }
 
   return (
@@ -613,7 +664,8 @@ function App() {
             tree={sidebarTree}
             workspaceKey={workspaceRootPath}
             selectedPath={fileViewerNode?.path ?? selectedFile?.path ?? null}
-            visible={sidebarVisible}
+            visible={panelLayout.sidebarVisible}
+            maxWidth={panelLayout.sidebarMaxWidth}
             workspaceName={workspaceName}
             gitStatusMap={gitStatusMap}
             mode={sidebarMode}
@@ -621,7 +673,7 @@ function App() {
             features={features}
             collectionLinks={collectionLinks}
             onToggleMode={handleToggleSidebarMode}
-            onToggleVisible={() => togglePersisted(setSidebarVisible, SIDEBAR_VISIBLE_KEY)}
+            onToggleVisible={panelLayout.toggleSidebar}
             onSelect={handleSidebarSelect}
             onOpenWorkspace={handleOpenWorkspace}
             onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
@@ -644,7 +696,6 @@ function App() {
           />
         )}
         <EditorPane
-          workspaceRootPath={workspaceRootPath}
           workspaceRoot={workspaceRoot}
           tabs={tabs}
           tree={tree}
@@ -653,11 +704,8 @@ function App() {
           onSelectFromTab={handleSelectFromTab}
           onCloseTab={handleCloseTab}
           onReorderTabs={reorderTabs}
-          sidebarVisible={sidebarVisible}
-          onExpandSidebar={() => {
-            setSidebarVisible(true);
-            localStorage.setItem(SIDEBAR_VISIBLE_KEY, "true");
-          }}
+          sidebarVisible={panelLayout.sidebarVisible}
+          onExpandSidebar={panelLayout.showSidebar}
           coverImageVisible={coverImageVisible}
           coverImagePath={coverImagePath}
           assetRoot={assetRoot}
@@ -686,11 +734,16 @@ function App() {
               : null
           }
           onOpenSource={openFileByPath}
+          searchJump={searchJump}
+          frontmatterLineOffset={frontmatterLineOffset}
+          onSearchJumpHandled={handleSearchJumpHandled}
           recentFiles={recentFiles}
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}
-          propertiesOpen={propertiesOpen}
-          onToggleProperties={() => togglePersisted(setPropertiesOpen, PROPERTIES_OPEN_KEY)}
+          propertiesOpen={panelLayout.propertiesOpen}
+          propertiesDrawer={panelLayout.propertiesDrawer}
+          onToggleProperties={panelLayout.toggleProperties}
+          onDismissPropertiesDrawer={panelLayout.dismissPropertiesDrawer}
           onToggleCoverImage={toggleCoverImage}
         />
       </div>

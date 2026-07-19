@@ -39,8 +39,15 @@ Specifically:
 - Custom popovers use a conditionally-rendered positioned `<div>` with
   `useEffect` for click-outside and Escape handling (see `FontSettings.tsx`,
   `CodeBlockView.tsx`).
-- Every `role="dialog"` element attaches the `useFocusTrap` hook, which
-  handles initial focus, Tab/Shift+Tab containment, and focus restoration.
+- Every **modal** `role="dialog"` (the shared `<Modal>` primitive, ADR 0017)
+  attaches the `useFocusTrap` hook — initial focus, Tab/Shift+Tab containment,
+  focus restoration — and sets `aria-modal`. **Non-modal** `role="dialog"`
+  surfaces are a deliberate exception: the compact properties drawer
+  (`PropertiesPanel` in drawer mode) and popovers like `FontSettings.tsx`
+  keep the background interactive, so they omit `aria-modal` and do **not**
+  trap focus. The drawer instead uses `useNonModalDialogFocus` (focus placed
+  on the dialog on open, returned to its trigger on close; Tab may leave;
+  Escape dismisses and yields to any nested `[aria-modal="true"]` dialog).
 - `cmdk` is permitted for the file switcher because it doesn't use Portal
   and works correctly in Tauri's WebView.
 

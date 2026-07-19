@@ -115,6 +115,7 @@ export function FileSwitcher({ files, recentFiles, onSelect, onClose }: FileSwit
       <button
         key={file.node.path}
         type="button"
+        id={`fs-option-${index}`}
         role="option"
         aria-selected={isActive}
         className={`fs-item${isActive ? " is-active" : ""}`}
@@ -146,9 +147,23 @@ export function FileSwitcher({ files, recentFiles, onSelect, onClose }: FileSwit
           placeholder={t("file_switcher.search_placeholder")}
           className="fs-search-input"
           aria-label={t("file_switcher.search_label")}
+          role="combobox"
+          aria-expanded={visibleItems.length > 0}
+          aria-controls="fs-listbox"
+          aria-autocomplete="list"
+          aria-activedescendant={
+            activeIndex >= 0 && activeIndex < visibleItems.length
+              ? `fs-option-${activeIndex}`
+              : undefined
+          }
         />
       </div>
-      <div className="fs-list" role="listbox" aria-label={t("file_switcher.matching")}>
+      <div
+        className="fs-list"
+        id="fs-listbox"
+        role="listbox"
+        aria-label={t("file_switcher.matching")}
+      >
         {visibleItems.length === 0 ? (
           <div className="fs-empty">{t("file_switcher.no_match")}</div>
         ) : query.trim() === "" ? (

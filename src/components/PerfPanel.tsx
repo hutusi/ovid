@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   clearPerfEvents,
   formatDetail,
@@ -20,6 +21,7 @@ interface PerfPanelState {
 }
 
 export function PerfPanel() {
+  const { t } = useTranslation();
   const [perfState, setPerfState] = useState<PerfPanelState>(() => ({
     events: getPerfEvents(),
     summaries: getPerfSummaries(),
@@ -68,10 +70,10 @@ export function PerfPanel() {
   return (
     <aside
       className={`perf-panel${collapsed ? " is-collapsed" : ""}`}
-      aria-label="Performance events"
+      aria-label={t("perf_panel.aria_label")}
     >
       <div className="perf-panel-header">
-        <strong>Perf</strong>
+        <strong>{t("perf_panel.title")}</strong>
         <div className="perf-panel-actions">
           <button
             type="button"

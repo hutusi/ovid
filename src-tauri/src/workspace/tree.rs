@@ -1,44 +1,17 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::paths::to_slash;
+use crate::paths::{should_skip_walk_entry, to_slash};
 use crate::state::CachedFrontmatter;
 
-use super::FileNode;
 use super::cache::read_frontmatter_meta_cached;
-
-/// Directories that are universally noise across the developer ecosystem and
-/// should never be walked or surfaced in the workspace tree. Mirrors the TS
-/// `NOISE_DIRS` list previously applied client-side in `sidebarUtils.ts`.
-const NOISE_DIRS: &[&str] = &[
-    ".git",
-    "node_modules",
-    "target",
-    "dist",
-    "build",
-    ".next",
-    ".nuxt",
-    ".svelte-kit",
-    "vendor",
-    ".cache",
-    "__pycache__",
-    ".tox",
-    ".venv",
-    "venv",
-    "out",
-    ".turbo",
-    ".vercel",
-    ".parcel-cache",
-];
-
-fn is_noise_dir(name: &str) -> bool {
-    NOISE_DIRS.iter().any(|n| *n == name)
-}
+use super::FileNode;
 
 /// Recursive walk producing the canonical workspace tree: every file, every
 /// directory, dotfiles included. Noise directories (`.git`, `node_modules`,
-/// build artefacts) are dropped at this layer so callers don't have to. Mode
-/// filtering (markdown-only for content mode, etc.) lives in TS selectors.
+/// build artefacts) are dropped by the shared walker rule in `paths.rs` so
+/// every traversal (tree, revision, search) agrees. Mode filtering
+/// (markdown-only for content mode, etc.) lives in TS selectors.
 pub(crate) fn walk_tree(
     path: &Path,
     cache: &mut HashMap<PathBuf, CachedFrontmatter>,
@@ -56,15 +29,11 @@ pub(crate) fn walk_tree(
         let entry_path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
 
-        if is_noise_dir(&name) {
-            continue;
-        }
-
         let Ok(file_type) = entry.file_type() else {
             continue;
         };
 
-        if file_type.is_symlink() {
+        if should_skip_walk_entry(&name, file_type.is_symlink(), true) {
             continue;
         }
 
@@ -141,7 +110,7 @@ mod tests {
             for file_index in 0..files_per_dir {
                 let path = section_dir.join(format!("entry-{file_index:03}.md"));
                 let title = format!("Entry {dir_index}-{file_index}");
-                let body = if (dir_index * files_per_dir + file_index) % match_every == 0 {
+                let body = if (dir_index * files_per_dir + file_index).is_multiple_of(match_every) {
                     "alpha needle beta gamma"
                 } else {
                     "ordinary workspace content"
@@ -190,7 +159,10 @@ mod tests {
         let nodes = walk_tree(root, &mut cache);
 
         let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
-        assert!(names.contains(&"config.ts"), "should include non-markdown files");
+        assert!(
+            names.contains(&"config.ts"),
+            "should include non-markdown files"
+        );
         assert!(names.contains(&".gitignore"), "should include dotfiles");
         assert!(names.contains(&"readme.md"), "should include markdown");
     }
@@ -207,7 +179,10 @@ mod tests {
 
         let txt = nodes.iter().find(|n| n.name == "notes.txt").unwrap();
         let md = nodes.iter().find(|n| n.name == "readme.md").unwrap();
-        assert!(txt.title.is_none(), "non-markdown should not load frontmatter");
+        assert!(
+            txt.title.is_none(),
+            "non-markdown should not load frontmatter"
+        );
         assert_eq!(md.title.as_deref(), Some("Readme"));
     }
 
@@ -229,9 +204,15 @@ mod tests {
         let nodes = walk_tree(root, &mut cache);
 
         let names: Vec<&str> = nodes.iter().map(|n| n.name.as_str()).collect();
-        assert!(!names.contains(&"node_modules"), "node_modules must be filtered");
+        assert!(
+            !names.contains(&"node_modules"),
+            "node_modules must be filtered"
+        );
         assert!(!names.contains(&".git"), ".git must be filtered");
-        assert!(names.contains(&".github"), ".github must be kept (not a noise dir)");
+        assert!(
+            names.contains(&".github"),
+            ".github must be kept (not a noise dir)"
+        );
         assert!(names.contains(&"readme.md"));
     }
 

@@ -6,8 +6,8 @@ use tauri_plugin_opener::OpenerExt;
 use crate::state::WorkspaceState;
 
 use super::args::{
-    git_checkout_remote_branch_args, git_create_branch_args, git_delete_branch_args,
-    git_push_args, git_rename_branch_args,
+    git_checkout_remote_branch_args, git_create_branch_args, git_delete_branch_args, git_push_args,
+    git_rename_branch_args,
 };
 use super::classify::{
     classify_git_branch_delete_error, classify_git_create_branch_error, classify_git_fetch_error,
@@ -19,9 +19,9 @@ use super::creds::{
     GitHostCredentials,
 };
 use super::parse::{
-    get_current_branch_inner, get_git_remote_info_inner, parse_git_branches, parse_git_status,
-    parse_git_remote_branches, validate_git_branch_delete, validate_git_branch_rename,
-    validate_git_commit_selection,
+    get_current_branch_inner, get_git_remote_info_inner, parse_git_branches,
+    parse_git_remote_branches, parse_git_status, validate_git_branch_delete,
+    validate_git_branch_rename, validate_git_commit_selection,
 };
 use super::runner::{
     resolve_git_root, resolve_workspace_root, run_blocking_git, run_git, run_git_with_credentials,
@@ -334,12 +334,7 @@ pub(crate) async fn git_push_with_credentials(
                 classify_git_push_error(&err, host.as_deref(), resolved_remote.as_deref())
             })?;
         if remember {
-            persist_credentials_after_success(
-                &creds_path,
-                host.as_deref(),
-                &username,
-                &password,
-            )?;
+            persist_credentials_after_success(&creds_path, host.as_deref(), &username, &password)?;
         }
         Ok(())
     })
@@ -370,12 +365,7 @@ pub(crate) async fn git_pull_with_credentials(
                 classify_git_pull_error(&err, host.as_deref(), resolved_remote.as_deref())
             })?;
         if remember {
-            persist_credentials_after_success(
-                &creds_path,
-                host.as_deref(),
-                &username,
-                &password,
-            )?;
+            persist_credentials_after_success(&creds_path, host.as_deref(), &username, &password)?;
         }
         Ok(())
     })
@@ -406,12 +396,7 @@ pub(crate) async fn git_fetch_with_credentials(
                 classify_git_fetch_error(&err, host.as_deref(), resolved_remote.as_deref())
             })?;
         if remember {
-            persist_credentials_after_success(
-                &creds_path,
-                host.as_deref(),
-                &username,
-                &password,
-            )?;
+            persist_credentials_after_success(&creds_path, host.as_deref(), &username, &password)?;
         }
         Ok(())
     })
@@ -433,9 +418,11 @@ pub(crate) fn git_has_credentials_for_host(
     Ok(get_host_credentials(&creds_path, &host)?.is_some())
 }
 
-
 #[tauri::command]
-pub(crate) async fn git_switch_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+pub(crate) async fn git_switch_branch(
+    branch: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
     run_blocking_git(move || {
         run_git(&git_root, &["switch", "--", &branch])
@@ -446,7 +433,10 @@ pub(crate) async fn git_switch_branch(branch: String, state: State<'_, Workspace
 }
 
 #[tauri::command]
-pub(crate) async fn git_create_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+pub(crate) async fn git_create_branch(
+    branch: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
     let name = branch.trim();
     if name.is_empty() {
         return Err("branch name cannot be empty".to_string());
@@ -480,7 +470,10 @@ pub(crate) async fn git_rename_branch(
 }
 
 #[tauri::command]
-pub(crate) async fn git_delete_branch(branch: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
+pub(crate) async fn git_delete_branch(
+    branch: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
     let git_root = resolve_git_root(state)?.ok_or("no git repository open")?;
     run_blocking_git(move || {
         let branches = parse_git_branches(&git_root)?;
@@ -602,7 +595,10 @@ mod tests {
         run_in(&root, &["config", "user.name", "Test"]);
         std::fs::write(root.join("README.md"), "hello").unwrap();
         run_in(&root, &["add", "README.md"]);
-        run_in(&root, &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"]);
+        run_in(
+            &root,
+            &["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"],
+        );
         (dir, root)
     }
 
@@ -627,9 +623,16 @@ mod tests {
         let branches = parse_git_branches(root.to_str().unwrap()).expect("branches lookup");
         let names: Vec<&str> = branches.iter().map(|b| b.name.as_str()).collect();
         assert!(names.contains(&"main"), "main missing from {names:?}");
-        assert!(names.contains(&"feature/x"), "feature/x missing from {names:?}");
         assert!(
-            branches.iter().find(|b| b.name == "main").unwrap().is_current,
+            names.contains(&"feature/x"),
+            "feature/x missing from {names:?}"
+        );
+        assert!(
+            branches
+                .iter()
+                .find(|b| b.name == "main")
+                .unwrap()
+                .is_current,
             "main should be flagged current"
         );
     }

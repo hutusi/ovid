@@ -214,7 +214,10 @@ mod tests {
     #[test]
     fn parse_posts_base_path_returns_none_when_absent() {
         let dir = TempDir::new().unwrap();
-        let path = write_config(&dir, "export const siteConfig = { posts: { toc: true } };\n");
+        let path = write_config(
+            &dir,
+            "export const siteConfig = { posts: { toc: true } };\n",
+        );
         assert_eq!(parse_posts_base_path(&path), None);
     }
 }

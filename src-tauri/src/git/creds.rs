@@ -77,7 +77,10 @@ mod tests {
         let path = dir.path().join("git_creds.json");
         std::fs::write(&path, "{not valid json").unwrap();
         let err = get_host_credentials(&path, "github.com").unwrap_err();
-        assert!(err.starts_with("git credentials file is malformed:"), "{err}");
+        assert!(
+            err.starts_with("git credentials file is malformed:"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -89,7 +92,10 @@ mod tests {
         forget_host_credentials(&path, "github.com").unwrap();
         assert!(get_host_credentials(&path, "github.com").unwrap().is_none());
         assert_eq!(
-            get_host_credentials(&path, "gitlab.com").unwrap().unwrap().username,
+            get_host_credentials(&path, "gitlab.com")
+                .unwrap()
+                .unwrap()
+                .username,
             "b"
         );
     }

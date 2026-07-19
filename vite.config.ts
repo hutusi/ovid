@@ -1,7 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { dirname, resolve } from "path";
-import { fileURLToPath } from "url";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -15,18 +15,8 @@ function manualChunks(id: string): string | undefined {
     return "editor-prosemirror";
   }
 
-  if (
-    id.includes("/node_modules/@tiptap/") &&
-    !id.includes("/node_modules/@tiptap/extension-mathematics/")
-  ) {
+  if (id.includes("/node_modules/@tiptap/")) {
     return "editor-tiptap";
-  }
-
-  if (
-    id.includes("/node_modules/katex/") ||
-    id.includes("/node_modules/@tiptap/extension-mathematics/")
-  ) {
-    return "editor-math";
   }
 
   if (
@@ -53,17 +43,39 @@ function manualChunks(id: string): string | undefined {
   return undefined;
 }
 
+// KaTeX ships every font face as woff2 + woff + ttf (~60 files); Tauri's
+// WebViews (WKWebView / WebView2) always support woff2, so the woff/ttf
+// fallbacks are dead weight in the app bundle. Drop them at emit time — the
+// CSS still lists them as fallback sources, but they are never requested.
+function pruneKatexFontFallbacks() {
+  return {
+    name: "prune-katex-font-fallbacks",
+    generateBundle(_options: unknown, bundle: Record<string, unknown>) {
+      for (const name of Object.keys(bundle)) {
+        if (/KaTeX_.*\.(woff|ttf)$/.test(name)) delete bundle[name];
+      }
+    },
+  };
+}
+
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
-  plugins: [tailwindcss(), react()],
+  plugins: [tailwindcss(), react(), pruneKatexFontFallbacks()],
 
   resolve: {
-    alias: {
-      "@": resolve(__dirname, "./src"),
-    },
+    alias: [
+      {
+        find: "@",
+        replacement: resolve(__dirname, "./src"),
+      },
+      {
+        find: /^katex$/,
+        replacement: resolve(__dirname, "./src/lib/katexGlobal.ts"),
+      },
+    ],
   },
   build: {
     // Vite 8 deprecated the `manualChunks` function form in favour of Rolldown's

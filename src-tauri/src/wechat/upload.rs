@@ -66,7 +66,10 @@ pub(crate) async fn wechat_upload_body_image_with(
 
     if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
         if errcode != 0 {
-            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            let errmsg = resp
+                .get("errmsg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
             return Err(format!("WeChat image upload error {}: {}", errcode, errmsg));
         }
     }
@@ -122,7 +125,10 @@ pub(crate) async fn wechat_upload_thumb_with(
 
     if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
         if errcode != 0 {
-            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            let errmsg = resp
+                .get("errmsg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
             return Err(format!("WeChat cover upload error {}: {}", errcode, errmsg));
         }
     }
@@ -268,12 +274,7 @@ mod tests {
         fs::create_dir_all(img.parent().unwrap()).unwrap();
         fs::write(&img, b"").unwrap();
 
-        let result = resolve_wechat_asset_path(
-            dir.path(),
-            dir.path(),
-            None,
-            "images/cover.jpg",
-        );
+        let result = resolve_wechat_asset_path(dir.path(), dir.path(), None, "images/cover.jpg");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), img.canonicalize().unwrap());
     }
@@ -286,12 +287,8 @@ mod tests {
         fs::create_dir_all(img.parent().unwrap()).unwrap();
         fs::write(&img, b"").unwrap();
 
-        let result = resolve_wechat_asset_path(
-            dir.path(),
-            dir.path(),
-            Some(&public),
-            "/images/hero.jpg",
-        );
+        let result =
+            resolve_wechat_asset_path(dir.path(), dir.path(), Some(&public), "/images/hero.jpg");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), img.canonicalize().unwrap());
     }
@@ -303,12 +300,7 @@ mod tests {
         fs::create_dir_all(img.parent().unwrap()).unwrap();
         fs::write(&img, b"").unwrap();
 
-        let result = resolve_wechat_asset_path(
-            dir.path(),
-            dir.path(),
-            None,
-            "/images/hero.jpg",
-        );
+        let result = resolve_wechat_asset_path(dir.path(), dir.path(), None, "/images/hero.jpg");
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), img.canonicalize().unwrap());
     }
@@ -320,24 +312,16 @@ mod tests {
         let img = outside.path().join("secret.jpg");
         fs::write(&img, b"").unwrap();
 
-        let result = resolve_wechat_asset_path(
-            dir.path(),
-            dir.path(),
-            None,
-            &img.to_string_lossy(),
-        );
+        let result =
+            resolve_wechat_asset_path(dir.path(), dir.path(), None, &img.to_string_lossy());
         assert!(result.is_err());
     }
 
     #[test]
     fn resolve_wechat_asset_path_returns_err_when_file_not_found() {
         let dir = TempDir::new().unwrap();
-        let result = resolve_wechat_asset_path(
-            dir.path(),
-            dir.path(),
-            None,
-            "nonexistent/image.jpg",
-        );
+        let result =
+            resolve_wechat_asset_path(dir.path(), dir.path(), None, "nonexistent/image.jpg");
         assert!(result.is_err());
     }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import {
   bucketLabel,
+  clampSidebarWidth,
   collapseIndexNodes,
   filterTree,
   findCollectionEntries,
@@ -12,6 +13,7 @@ import {
   getSidebarDisplayName,
   isCollectionEntry,
   needsPageDivider,
+  nextSidebarWidth,
   rollupGitStatus,
   sortNodes,
   sortTree,
@@ -970,5 +972,54 @@ describe("forContentMode translation grouping", () => {
       treeRoot: "/ws",
     });
     expect(result.map((n) => n.name).sort()).toEqual(["about.mdx", "about.zh.mdx"]);
+  });
+});
+
+describe("clampSidebarWidth", () => {
+  const MIN = 180;
+  const MAX = 480;
+
+  it("returns the value unchanged when within range", () => {
+    expect(clampSidebarWidth(240, MIN, MAX)).toBe(240);
+  });
+
+  it("clamps to the min and max bounds", () => {
+    expect(clampSidebarWidth(120, MIN, MAX)).toBe(MIN);
+    expect(clampSidebarWidth(999, MIN, MAX)).toBe(MAX);
+  });
+
+  it("respects a dynamic max below the static ceiling (keyboard/mouse parity)", () => {
+    // With a compressed viewport the effective max is 300; growing from the
+    // rendered width must stop there, not at the 480 static ceiling.
+    expect(clampSidebarWidth(300 + 12, MIN, 300)).toBe(300);
+    expect(clampSidebarWidth(288 + 12, MIN, 300)).toBe(300);
+    expect(clampSidebarWidth(276 + 12, MIN, 300)).toBe(288);
+  });
+});
+
+describe("nextSidebarWidth", () => {
+  const MIN = 180;
+
+  it("returns the nudged width when it changes the rendered width", () => {
+    expect(nextSidebarWidth(240, 12, MIN, 480)).toBe(252);
+    expect(nextSidebarWidth(240, -12, MIN, 480)).toBe(228);
+  });
+
+  it("returns null at the dynamic cap so a grow nudge keeps the stored preference", () => {
+    // Rendered width is pinned at the dynamic max (300) while the stored
+    // preference is larger (e.g. 480): a grow nudge must not overwrite it.
+    expect(nextSidebarWidth(300, 12, MIN, 300)).toBeNull();
+  });
+
+  it("returns null for a zero-delta no-op (a plain resize-handle click)", () => {
+    expect(nextSidebarWidth(300, 0, MIN, 300)).toBeNull();
+  });
+
+  it("still allows a visible shrink away from the cap", () => {
+    expect(nextSidebarWidth(300, -12, MIN, 300)).toBe(288);
+  });
+
+  it("returns null at the min bound for a shrink nudge", () => {
+    expect(nextSidebarWidth(MIN, -12, MIN, 480)).toBeNull();
   });
 });

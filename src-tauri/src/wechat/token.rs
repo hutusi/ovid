@@ -66,7 +66,10 @@ pub(crate) async fn wechat_get_or_refresh_token_with(
 
     if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
         if errcode != 0 {
-            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            let errmsg = resp
+                .get("errmsg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
             return Err(format!("WeChat token error {}: {}", errcode, errmsg));
         }
     }
@@ -292,7 +295,10 @@ mod tests {
             .expect_err("should propagate WeChat errcode");
 
         assert!(err.contains("40013"), "expected errcode in message: {err}");
-        assert!(err.contains("invalid appid"), "expected errmsg in message: {err}");
+        assert!(
+            err.contains("invalid appid"),
+            "expected errmsg in message: {err}"
+        );
         // Cache should NOT be populated on error.
         assert!(state.token_cache.lock().unwrap().is_none());
         mock.assert_async().await;

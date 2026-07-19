@@ -1,11 +1,136 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+/// Process-wide counter making each atomic-write temp file unique.
+static TMP_WRITE_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// A sibling staging path removed automatically unless a successful commit
+/// consumes it. It handles both staged files and staged directory trees.
+pub(crate) struct TempPathGuard {
+    path: Option<PathBuf>,
+    recursive: bool,
+}
+
+impl TempPathGuard {
+    pub(crate) fn new(path: PathBuf, recursive: bool) -> Self {
+        Self {
+            path: Some(path),
+            recursive,
+        }
+    }
+
+    pub(crate) fn path(&self) -> &Path {
+        self.path.as_deref().expect("temporary path guard is armed")
+    }
+
+    pub(crate) fn disarm(&mut self) {
+        self.path = None;
+    }
+}
+
+impl Drop for TempPathGuard {
+    fn drop(&mut self) {
+        let Some(path) = self.path.take() else {
+            return;
+        };
+        if self.recursive {
+            let _ = std::fs::remove_dir_all(path);
+        } else {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+/// Generate a process-unique sibling path. Callers still create it with
+/// `create_new` / `create_dir` and retry collisions, because a stale file from
+/// a process that reused our PID must never be truncated.
+pub(crate) fn sibling_temp_path(path: &Path, purpose: &str) -> Result<PathBuf, String> {
+    let dir = path.parent().ok_or("path has no parent directory")?;
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    Ok(dir.join(format!(
+        ".~{name}.{purpose}.{}-{}",
+        std::process::id(),
+        TMP_WRITE_COUNTER.fetch_add(1, Ordering::Relaxed)
+    )))
+}
+
+pub(crate) fn create_sibling_temp_file(
+    path: &Path,
+    purpose: &str,
+) -> Result<(std::fs::File, TempPathGuard), String> {
+    loop {
+        let tmp_path = sibling_temp_path(path, purpose)?;
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp_path)
+        {
+            Ok(file) => return Ok((file, TempPathGuard::new(tmp_path, false))),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(err) => return Err(err.to_string()),
+        }
+    }
+}
+
+pub(crate) fn create_sibling_temp_dir(path: &Path, purpose: &str) -> Result<TempPathGuard, String> {
+    loop {
+        let tmp_path = sibling_temp_path(path, purpose)?;
+        match std::fs::create_dir(&tmp_path) {
+            Ok(()) => return Ok(TempPathGuard::new(tmp_path, true)),
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(err) => return Err(err.to_string()),
+        }
+    }
+}
 
 pub(crate) fn is_markdown_path(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|ext| ext.to_str()),
         Some("md") | Some("mdx")
     )
+}
+
+/// Directories that are universally noise across the developer ecosystem and
+/// should never be traversed by any workspace walker (tree, revision hashing,
+/// search). Mirrors the TS `NOISE_DIRS` list previously applied client-side.
+const NOISE_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    "vendor",
+    ".cache",
+    "__pycache__",
+    ".tox",
+    ".venv",
+    "venv",
+    "out",
+    ".turbo",
+    ".vercel",
+    ".parcel-cache",
+];
+
+fn is_noise_dir(name: &str) -> bool {
+    NOISE_DIRS.contains(&name)
+}
+
+/// The one shared skip rule for every recursive workspace walker. Noise
+/// directories are never traversed and symlinks are never followed, in every
+/// walker. `keep_dot_entries` is the single policy knob: the canonical tree and
+/// the revision keep dot-entries (they are visible in Files mode and can be the
+/// active editor file, so their content must bump the revision), while search
+/// skips them — so `.github/notes.md` appears in the tree and reloads on
+/// external edits without ever matching a search.
+pub(crate) fn should_skip_walk_entry(name: &str, is_symlink: bool, keep_dot_entries: bool) -> bool {
+    if is_symlink || is_noise_dir(name) {
+        return true;
+    }
+    !keep_dot_entries && name.starts_with('.')
 }
 
 /// How `ensure_within` resolves a candidate that may not be on disk yet.
@@ -33,8 +158,7 @@ pub(crate) fn ensure_within(
     mode: ExistenceMode,
     candidate_label: &str,
 ) -> Result<PathBuf, String> {
-    let canonical_root =
-        std::fs::canonicalize(root).map_err(|e| format!("workspace root: {e}"))?;
+    let canonical_root = std::fs::canonicalize(root).map_err(|e| format!("workspace root: {e}"))?;
     let resolved = match mode {
         ExistenceMode::MustExist => {
             std::fs::canonicalize(candidate).map_err(|e| format!("{candidate_label}: {e}"))?
@@ -91,27 +215,48 @@ pub(crate) fn validate_new_path(workspace_root: &Path, requested: &str) -> Resul
     Ok(new_path)
 }
 
-/// Write content atomically: write to a sibling temp file then rename over the target.
-pub(crate) fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
-    let dir = path
-        .parent()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no parent dir"))?;
-    let tmp_name = format!(
-        ".~{}.tmp",
-        path.file_name().unwrap_or_default().to_string_lossy()
-    );
-    let tmp_path = dir.join(&tmp_name);
-
-    let mut file = std::fs::File::create(&tmp_path)?;
-    file.write_all(content.as_bytes())?;
-    file.flush()?;
-    file.sync_all()?;
+/// Write content atomically: stage a sibling temp file, then rename it over the
+/// target. The temp name carries the pid and a process-wide counter so two
+/// concurrent writers to the same target never collide on the temp file — a
+/// safety margin for any caller reached outside the `workspace_root` mutex.
+///
+/// `verify_before_commit` runs on the target path *after* staging but
+/// *immediately before* the rename, so a caller can enforce an
+/// optimistic-concurrency check against the freshest on-disk state, shrinking
+/// the check→commit window to a single syscall. If it returns `Err`, the temp
+/// is discarded and the target is left untouched.
+///
+/// The staged file inherits the target's permissions (when it exists) so an
+/// atomic save never widens a private file's mode.
+pub(crate) fn write_atomic(
+    path: &Path,
+    content: &str,
+    verify_before_commit: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
+    let (mut file, mut guard) = create_sibling_temp_file(path, "tmp")?;
+    let tmp_path = guard.path().to_path_buf();
+    file.write_all(content.as_bytes())
+        .map_err(|e| e.to_string())?;
+    file.flush().map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
     drop(file);
 
-    std::fs::rename(&tmp_path, path).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp_path);
-        e
-    })
+    // Preserve the existing target's permissions on the replacement so a save
+    // never widens a 0600 file to 0644. New files keep the default. Fail closed:
+    // if the mode can't be copied, abort (the guard removes the temp) rather
+    // than committing a wider-permission replacement.
+    if let Ok(meta) = std::fs::metadata(path) {
+        std::fs::set_permissions(&tmp_path, meta.permissions()).map_err(|e| e.to_string())?;
+    }
+
+    // Last chance to reject before we overwrite — runs against the current
+    // on-disk target, so the optimistic-concurrency check sees the freshest
+    // state and the overwrite window is just this call plus the rename.
+    verify_before_commit(path)?;
+
+    std::fs::rename(&tmp_path, path).map_err(|e| e.to_string())?;
+    guard.disarm(); // rename consumed the temp file; nothing to clean up.
+    Ok(())
 }
 
 /// Normalize a path to forward-slash separators for JSON serialization.
@@ -162,6 +307,88 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    // ── write_atomic ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn write_atomic_writes_content_and_leaves_no_temp_file() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+
+        write_atomic(&path, "first", |_| Ok(())).unwrap();
+        write_atomic(&path, "second", |_| Ok(())).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), "second");
+        // No orphaned temp files (`.~note.md.tmp.*`) remain after the renames.
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|name| name.starts_with(".~"))
+            .collect();
+        assert!(leftovers.is_empty(), "unexpected temp files: {leftovers:?}");
+    }
+
+    #[test]
+    fn write_atomic_cleans_up_temp_when_the_write_cannot_complete() {
+        // Target path is an existing directory, so the final rename fails. The
+        // cleanup guard must still remove the temp file (exercises the
+        // early-return-after-temp-creation path, not just rename success).
+        let dir = TempDir::new().unwrap();
+        let target = dir.path().join("collides");
+        fs::create_dir(&target).unwrap();
+
+        assert!(write_atomic(&target, "content", |_| Ok(())).is_err());
+
+        let leftovers: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|name| name.starts_with(".~"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp file leaked: {leftovers:?}");
+    }
+
+    #[test]
+    fn write_atomic_uses_unique_temp_names_per_call() {
+        // The temp name embeds a monotonic counter, so two calls never target
+        // the same temp path — the property that lets an out-of-mutex caller
+        // write concurrently without colliding.
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+        let before = TMP_WRITE_COUNTER.load(Ordering::Relaxed);
+        write_atomic(&path, "a", |_| Ok(())).unwrap();
+        write_atomic(&path, "b", |_| Ok(())).unwrap();
+        assert!(TMP_WRITE_COUNTER.load(Ordering::Relaxed) >= before + 2);
+    }
+
+    #[test]
+    fn write_atomic_runs_verify_before_committing() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+        fs::write(&path, "original").unwrap();
+
+        // A verify that rejects must leave the target untouched.
+        let result = write_atomic(&path, "new", |_| Err("nope".to_string()));
+        assert_eq!(result, Err("nope".to_string()));
+        assert_eq!(fs::read_to_string(&path).unwrap(), "original");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_atomic_preserves_existing_file_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("private.md");
+        fs::write(&path, "secret").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+
+        write_atomic(&path, "updated secret", |_| Ok(())).unwrap();
+
+        let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600, "atomic save must not widen file permissions");
+        assert_eq!(fs::read_to_string(&path).unwrap(), "updated secret");
+    }
 
     // ── normalize_path ───────────────────────────────────────────────────────
 
@@ -254,13 +481,24 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let inside = dir.path().join("note.md");
         fs::write(&inside, "x").unwrap();
-        assert!(ensure_within(dir.path(), &inside, ExistenceMode::MustExist, "invalid path").is_ok());
+        assert!(ensure_within(
+            dir.path(),
+            &inside,
+            ExistenceMode::MustExist,
+            "invalid path"
+        )
+        .is_ok());
 
         let other = TempDir::new().unwrap();
         let outside = other.path().join("escape.md");
         fs::write(&outside, "x").unwrap();
         assert_eq!(
-            ensure_within(dir.path(), &outside, ExistenceMode::MustExist, "invalid path"),
+            ensure_within(
+                dir.path(),
+                &outside,
+                ExistenceMode::MustExist,
+                "invalid path"
+            ),
             Err("path is outside the opened workspace".to_string())
         );
     }
@@ -269,8 +507,13 @@ mod tests {
     fn ensure_within_must_exist_rejects_missing_candidate_with_label() {
         let dir = TempDir::new().unwrap();
         let missing = dir.path().join("missing.md");
-        let err =
-            ensure_within(dir.path(), &missing, ExistenceMode::MustExist, "invalid path").unwrap_err();
+        let err = ensure_within(
+            dir.path(),
+            &missing,
+            ExistenceMode::MustExist,
+            "invalid path",
+        )
+        .unwrap_err();
         assert!(err.starts_with("invalid path:"), "{err}");
     }
 
@@ -283,10 +526,13 @@ mod tests {
         // (macOS tempdirs live behind the /var → /private/var symlink).
         let root = fs::canonicalize(dir.path()).unwrap();
         let inside_missing = root.join("sub").join("..").join("new.md");
-        assert!(
-            ensure_within(&root, &inside_missing, ExistenceMode::MayBeMissing, "invalid path")
-                .is_ok()
-        );
+        assert!(ensure_within(
+            &root,
+            &inside_missing,
+            ExistenceMode::MayBeMissing,
+            "invalid path"
+        )
+        .is_ok());
 
         let escape = root.join("..").join("outside.md");
         assert_eq!(
@@ -308,7 +554,12 @@ mod tests {
         std::os::unix::fs::symlink(&secret, &link).unwrap();
 
         assert_eq!(
-            ensure_within(workspace.path(), &link, ExistenceMode::MustExist, "invalid path"),
+            ensure_within(
+                workspace.path(),
+                &link,
+                ExistenceMode::MustExist,
+                "invalid path"
+            ),
             Err("path is outside the opened workspace".to_string())
         );
     }

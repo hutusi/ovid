@@ -3,6 +3,34 @@ import type { FileNode, GitStatus } from "./types";
 
 export const GIT_PRIORITY: GitStatus[] = ["staged", "modified", "untracked"];
 
+/**
+ * Clamp a sidebar width into `[min, max]`. Shared by the width-restore, mouse
+ * drag, and keyboard-resize paths so they can't diverge — keyboard resize once
+ * clamped to the static ceiling while the drag path used the dynamic max, which
+ * let the keyboard push the panel past its usable width.
+ */
+export function clampSidebarWidth(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * The width to persist for a resize nudge (keyboard arrow or mouse drag) that
+ * starts from `from`, or `null` when the result is unchanged — e.g. the rendered
+ * width is already pinned at the dynamic cap, or a plain click that didn't move.
+ * Returning `null` there is important: the stored width is the user's *preferred*
+ * width, which can exceed the current usable max on a narrow window; a no-op nudge
+ * must not overwrite that preference with the smaller rendered width.
+ */
+export function nextSidebarWidth(
+  from: number,
+  delta: number,
+  min: number,
+  max: number
+): number | null {
+  const next = clampSidebarWidth(from + delta, min, max);
+  return next === from ? null : next;
+}
+
 function isIndexMarkdownFile(node: FileNode): boolean {
   return !node.isDirectory && /^index\.mdx?$/.test(node.name);
 }

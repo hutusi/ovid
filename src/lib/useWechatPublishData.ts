@@ -1,6 +1,6 @@
 import { type ParsedFrontmatter, parseFrontmatter } from "./frontmatter";
 import type { FileNode } from "./types";
-import { countLocalImages, extractExcerpt, hasMathBlocks } from "./wechatHtml";
+import { countLocalImages, extractExcerpt, hasMathBlocks } from "./wechatMarkdownAnalysis";
 
 // Everything the WeChat publish dialog derives from the current file —
 // computed next to the dialog instead of being threaded through App as

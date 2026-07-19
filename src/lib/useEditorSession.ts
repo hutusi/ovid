@@ -2,15 +2,20 @@ import { useCallback, useRef } from "react";
 import { makeFileNodeFromPath } from "./fileNode";
 import type { FlatFile } from "./fileSearch";
 import type { FileNode } from "./types";
-import { useOpenTabs } from "./useOpenTabs";
+import { removeTabPath, useOpenTabs } from "./useOpenTabs";
 import { useRecentFiles } from "./useRecentFiles";
 
 export interface FileEditorHandle {
   selectedFile: FileNode | null;
   selectedPathRef: { current: string | null };
   setSelectedFile: (node: FileNode | null) => void;
-  handleSelectFile: (node: FileNode) => Promise<void>;
-  handleCloseFile: () => Promise<void>;
+  /** Resolves true when the file was read and selected; false when the read
+   *  failed, the outgoing save aborted the switch, or a newer selection
+   *  superseded it. */
+  handleSelectFile: (node: FileNode) => Promise<boolean>;
+  /** Saves then closes; `discard: true` skips the save (file was removed).
+   *  Resolves true when the file was closed, false when the close aborted. */
+  handleCloseFile: (opts?: { discard?: boolean }) => Promise<boolean>;
 }
 
 /**
@@ -64,7 +69,8 @@ interface UseEditorSessionOptions {
  * `onPathRemoved`).
  *
  * The four invariants this hook enforces:
- * - opening a file always selects it, pushes it to recents, and opens its tab
+ * - opening a file selects it and, once the read succeeds, pushes it to
+ *   recents and opens its tab (a failed open records nothing)
  * - renaming a file updates its tab, its recents entry, and the selection
  *   (if it was the active file) in lockstep
  * - removing a file closes its tab, drops its recents entry, and closes the
@@ -94,15 +100,18 @@ export function useEditorSession({
     );
   }, []);
 
-  /** Make the given node the active file: select it, push to recents, open
-   *  a tab. Returns the editor's read-from-disk promise so callers can await
-   *  the file content actually loading. */
+  /** Make the given node the active file: select it, then push it to recents
+   *  and open its tab. Session entries are recorded only after the read
+   *  succeeds — a missing or unreadable file must not leave a phantom tab or
+   *  recents entry behind. Resolves when the file content has loaded. */
   const openFile = useCallback(
-    (node: FileNode): Promise<void> => {
-      if (node.isDirectory) return Promise.resolve();
+    async (node: FileNode): Promise<boolean> => {
+      if (node.isDirectory) return false;
+      const opened = await fileEditor.handleSelectFile(node);
+      if (!opened) return false;
       recents.pushRecent(node);
       tabs.openTab(node.path);
-      return fileEditor.handleSelectFile(node);
+      return true;
     },
     [fileEditor.handleSelectFile, recents.pushRecent, tabs.openTab]
   );
@@ -111,24 +120,30 @@ export function useEditorSession({
    *  falls back to a minimal synthetic node when the path is not in the
    *  index (e.g. a recently-deleted file linked from the tab bar history). */
   const openByPath = useCallback(
-    (path: string): Promise<void> => openFile(lookupNode(path)),
+    (path: string): Promise<boolean> => openFile(lookupNode(path)),
     [openFile, lookupNode]
   );
 
   /** Close the active file. When the file has a tab and there's another tab
    *  to fall back to, advance to the neighbour rather than closing the editor
-   *  entirely — matches the IDE-style "close tab, surface adjacent" affordance. */
-  const closeActive = useCallback(() => {
+   *  entirely — matches the IDE-style "close tab, surface adjacent" affordance.
+   *  The tab is removed only after the transition succeeds, so a conflicting
+   *  or failed outgoing save leaves the file and its tab in place. */
+  const closeActive = useCallback(async () => {
     const sel = fileEditor.selectedFile;
     if (sel && tabs.tabs.includes(sel.path)) {
-      const { neighbor } = tabs.closeTab(sel.path);
+      // Peek the neighbour without mutating the tab list yet.
+      const { neighbor } = removeTabPath(tabs.tabs, sel.path);
       if (neighbor) {
-        void openByPath(neighbor);
+        if (await openByPath(neighbor)) tabs.removeTab(sel.path);
         return;
       }
+      // No neighbour: close the editor, and drop the tab only if it closed.
+      if (await fileEditor.handleCloseFile()) tabs.removeTab(sel.path);
+      return;
     }
     void fileEditor.handleCloseFile();
-  }, [fileEditor.selectedFile, fileEditor.handleCloseFile, tabs.tabs, tabs.closeTab, openByPath]);
+  }, [fileEditor.selectedFile, fileEditor.handleCloseFile, tabs.tabs, tabs.removeTab, openByPath]);
 
   /** Called by `useWorkspace.handleRename` / `handleDuplicate` (when the
    *  duplicate replaces the original) after a successful filesystem rename.
@@ -165,13 +180,14 @@ export function useEditorSession({
 
   /** Called by `useWorkspace.handleDelete` after a successful filesystem
    *  trash. Drops the file from tabs and recents; if it was the active file,
-   *  closes the editor (which also flushes any pending edits in background). */
+   *  closes the editor discarding its state — the file is gone from disk, so
+   *  there is nothing left to save to. */
   const notifyPathRemoved = useCallback(
     async (removedPath: string): Promise<void> => {
       tabs.removeTab(removedPath);
       recents.removeRecent(removedPath);
       if (selectionShouldCloseAfterRemove(fileEditor.selectedFile, removedPath)) {
-        await fileEditor.handleCloseFile();
+        await fileEditor.handleCloseFile({ discard: true });
       }
     },
     [tabs.removeTab, recents.removeRecent, fileEditor.selectedFile, fileEditor.handleCloseFile]

@@ -3,9 +3,7 @@ import type { NewContentKind } from "./amytisScaffold";
 import { parseFrontmatter } from "./frontmatter";
 import type { ShortcutKeys } from "./shortcuts";
 import type { FileNode } from "./types";
-import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY, togglePersisted } from "./uiVisibility";
 import type { OverlayStack } from "./useOverlayStack";
-import { markdownToWechatHtml } from "./wechatHtml";
 
 // ─── Global action dispatch table (ADR 0018) ──────────────────────────────
 //
@@ -40,9 +38,9 @@ export interface AppActionCtx {
   showToast: (message: string) => void;
   t: Translate;
 
-  // State setters that aren't backed by the overlay stack
-  setSidebarVisible: React.Dispatch<React.SetStateAction<boolean>>;
-  setPropertiesOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  // Responsive-aware panel actions
+  toggleSidebar: () => void;
+  toggleProperties: () => void;
   setZenMode: React.Dispatch<React.SetStateAction<boolean>>;
   setTypewriterMode: React.Dispatch<React.SetStateAction<boolean>>;
 
@@ -104,6 +102,7 @@ async function runWechatCopy(ctx: AppActionCtx): Promise<void> {
     ctx.showToast(ctx.t("menu.file_wechat_copy_no_content"));
     return;
   }
+  const { markdownToWechatHtml } = await import("./wechatHtml");
   const { html, hasMath } = markdownToWechatHtml(markdown);
   try {
     await navigator.clipboard.write([
@@ -179,13 +178,13 @@ export const appActions: AppAction[] = [
     id: "toggle-sidebar",
     allowWhenBlocking: true,
     allowInInput: true,
-    run: (ctx) => togglePersisted(ctx.setSidebarVisible, SIDEBAR_VISIBLE_KEY),
+    run: (ctx) => ctx.toggleSidebar(),
   },
   {
     id: "toggle-properties",
     allowWhenBlocking: true,
     allowInInput: true,
-    run: (ctx) => togglePersisted(ctx.setPropertiesOpen, PROPERTIES_OPEN_KEY),
+    run: (ctx) => ctx.toggleProperties(),
   },
   {
     id: "toggle-search",

@@ -50,7 +50,7 @@ Git-aware status bar visible in one writing-focused layout.
 bun install           # Install dependencies
 bun run tauri dev     # Start with hot reload
 bun run tauri build   # Build distributable app
-bun run validate      # Type-check + lint + tests + build + cargo test
+bun run validate      # Full TS/Rust quality, test, bundle-budget, and build gate
 ```
 
 ---
@@ -145,7 +145,7 @@ Press `Cmd+Shift+O` or click the workspace name at the top of the sidebar to ope
 The sidebar shows the full file tree of the current workspace, filtered to `.md` / `.mdx` files.
 
 - **Toggle** — `Cmd+Shift+L` hides/shows the sidebar; state is remembered across sessions
-- **Resize** — drag the right border to resize between 180 px and 480 px; width is persisted across sessions
+- **Resize** — drag the right border to resize from 180 px; Ovid clamps the maximum so the editor keeps at least 480 px, and persists the width across sessions
 - **Directory expand/collapse** — click a directory to toggle; folder icon changes between open/closed state
 - **Filter** — click the 🔍 icon next to the workspace name to reveal the filter input; type to narrow the file list by filename or frontmatter `title` in real time; press `Esc` once to clear, again to collapse the input (or click the 🔍 icon to close and clear in one step)
 - **Titles** — frontmatter `title` is shown instead of the filename where available
@@ -267,7 +267,7 @@ Hover over any link in the editor to see a URL preview tooltip after a short del
 
 ## Properties Panel
 
-The properties panel sits above the editor and displays the frontmatter of the current file.
+The properties panel sits to the right of the editor and displays the frontmatter of the current file. In windows narrower than 960 px it opens as a temporary drawer over the editor instead of squeezing the writing surface; click the backdrop or press `Esc` to close it. Returning to a wider window restores the saved desktop preference.
 
 - **Toggle** — `Cmd+Shift+P` or click the chevron; state is remembered
 - **Content type** — select from the type dropdown (`post`, `flow`, `note`, `series`, `book`, `page`); select **unknown** to remove the `type` field from frontmatter

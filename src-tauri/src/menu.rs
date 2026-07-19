@@ -360,7 +360,10 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
         ("menu_help", "Help"),
         ("about_item", "About Ovid"),
         ("about_title", "About Ovid"),
-        ("about_body", "A minimalist desktop Markdown editor\nfor Amytis workspaces."),
+        (
+            "about_body",
+            "A minimalist desktop Markdown editor\nfor Amytis workspaces.",
+        ),
         ("file_preferences", "Settings\u{2026}"),
         ("file_new_post", "New Post"),
         ("file_new_flow", "New Flow"),
@@ -420,7 +423,10 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
             "file_wechat_copy_math_warning",
             "Copied for WeChat (math blocks removed \u{2014} WeChat cannot render LaTeX)",
         ),
-        ("file_wechat_copy_failed", "Failed to copy for WeChat: {{message}}"),
+        (
+            "file_wechat_copy_failed",
+            "Failed to copy for WeChat: {{message}}",
+        ),
         ("help_check_updates", "Check for Updates\u{2026}"),
         ("help_shortcuts", "Keyboard Shortcuts"),
         ("help_docs", "Ovid Documentation"),
@@ -443,13 +449,22 @@ pub(crate) fn set_menu_language(
         *about_state.title.lock().map_err(|e| e.to_string())? = title.clone();
     }
     if let Some(body) = labels.get("about_body") {
-        *about_state.body_template.lock().map_err(|e| e.to_string())? = body.clone();
+        *about_state
+            .body_template
+            .lock()
+            .map_err(|e| e.to_string())? = body.clone();
     }
 
-    let sidebar_checked = *view_state.sidebar_visible.lock().map_err(|e| e.to_string())?;
-    let properties_checked = *view_state.properties_open.lock().map_err(|e| e.to_string())?;
-    let menu =
-        build_app_menu(&app, &labels, sidebar_checked, properties_checked).map_err(|e| e.to_string())?;
+    let sidebar_checked = *view_state
+        .sidebar_visible
+        .lock()
+        .map_err(|e| e.to_string())?;
+    let properties_checked = *view_state
+        .properties_open
+        .lock()
+        .map_err(|e| e.to_string())?;
+    let menu = build_app_menu(&app, &labels, sidebar_checked, properties_checked)
+        .map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -466,10 +481,16 @@ pub(crate) fn set_menu_checked(
 ) -> Result<(), String> {
     match id.as_str() {
         "toggle-sidebar" => {
-            *view_state.sidebar_visible.lock().map_err(|e| e.to_string())? = checked;
+            *view_state
+                .sidebar_visible
+                .lock()
+                .map_err(|e| e.to_string())? = checked;
         }
         "toggle-properties" => {
-            *view_state.properties_open.lock().map_err(|e| e.to_string())? = checked;
+            *view_state
+                .properties_open
+                .lock()
+                .map_err(|e| e.to_string())? = checked;
         }
         _ => return Err(format!("unknown checkable menu id: {id}")),
     }

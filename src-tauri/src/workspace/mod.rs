@@ -2,7 +2,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use ts_rs::TS;
 
-use crate::content_types::{Author, FeatureBucket, I18nConfig, parse_cdn_base};
+use crate::content_types::{parse_cdn_base, Author, FeatureBucket, I18nConfig};
 
 mod cache;
 pub(crate) mod clone;
@@ -10,6 +10,7 @@ pub(crate) mod commands;
 mod revision;
 pub(crate) mod scaffold;
 mod tree;
+pub(crate) mod watch;
 
 pub(crate) use cache::load_search_file_cached;
 
@@ -35,27 +36,21 @@ pub(crate) struct WorkspaceResult {
     pub(crate) name: String,
     pub(crate) root_path: String,
     pub(crate) tree_root: String,
-    /// Directory to resolve root-relative image paths against.
-    /// Set to `<workspace>/public` when that directory exists (static-site
-    /// convention), otherwise falls back to the workspace root.
+    // Directory for root-relative image paths: <workspace>/public when it
+    // exists, otherwise the workspace root.
     pub(crate) asset_root: String,
     pub(crate) tree: Vec<FileNode>,
     pub(crate) is_amytis_workspace: bool,
     pub(crate) cdn_base: Option<String>,
-    /// First entry from `posts.authors.default` in `site.config.ts`, if present.
+    // First entry from posts.authors.default in site.config.ts.
     pub(crate) default_author: Option<String>,
-    /// `posts.basePath` from `site.config.ts` (the configurable posts folder
-    /// name). `None` falls back to the conventional `posts` folder.
+    // Configurable posts folder from posts.basePath.
     pub(crate) posts_base_path: Option<String>,
-    /// Content buckets declared in the `features:` block of `site.config.ts`,
-    /// each with an `enabled` flag and localized display names. Empty for
-    /// non-Amytis workspaces or when the block is absent.
+    // Content buckets declared in site.config.ts.
     pub(crate) features: Vec<FeatureBucket>,
-    /// Author profiles from the top-level `authors:` map in `site.config.ts`
-    /// (display name → bio / avatar / social). Empty when the block is absent.
+    // Author profiles from the top-level authors map in site.config.ts.
     pub(crate) authors: Vec<Author>,
-    /// `i18n` locales + default locale, used to group `<slug>.<locale>`
-    /// translation variants in the sidebar.
+    // Locales and default locale used to group translated sidebar entries.
     pub(crate) i18n: I18nConfig,
 }
 

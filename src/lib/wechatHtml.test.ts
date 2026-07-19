@@ -1,10 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import {
-  countLocalImages,
-  extractExcerpt,
-  hasMathBlocks,
-  markdownToWechatHtml,
-} from "./wechatHtml";
+import { markdownToWechatHtml } from "./wechatHtml";
+import { countLocalImages, extractExcerpt, hasMathBlocks } from "./wechatMarkdownAnalysis";
 
 describe("extractExcerpt", () => {
   test("returns first non-empty line of plain text", () => {

@@ -10,6 +10,7 @@ import {
   setCollectionItems,
 } from "./collection";
 import { commands } from "./commands";
+import { EXTERNAL_CHANGE_CONFLICT } from "./commands/files";
 import type { Author } from "./commands/generated/Author";
 import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import type { I18nConfig } from "./commands/generated/I18nConfig";
@@ -93,6 +94,14 @@ export function useWorkspace({
   const [authors, setAuthors] = useState<Author[]>([]);
   const [i18n, setI18n] = useState<I18nConfig>({ locales: [], defaultLocale: null });
   const refreshIdRef = useRef(0);
+  // Tail of the workspace-open queue. Rust publishes the new roots into shared
+  // state at the *start* of its walk, so two overlapping open/create/clone
+  // calls would race: whichever WorkspaceResult resolves last wins the UI,
+  // but Rust is rooted at whichever *started* last — desyncing the frontend
+  // tree from the backend session. Serializing opens so each starts only
+  // after the previous fully settles keeps the two ends in lockstep and makes
+  // the last-initiated open deterministically win.
+  const openChainRef = useRef<Promise<unknown>>(Promise.resolve());
 
   // Cmd+P / openFileByPath operate on the markdown-only projection of the
   // canonical tree. Derived rather than mirrored so it stays in lockstep with
@@ -127,6 +136,10 @@ export function useWorkspace({
 
   const applyWorkspaceResult = useCallback(
     (result: WorkspaceResult) => {
+      // Invalidate any in-flight refresh: a slow tree refresh started in the
+      // previous workspace must not resolve after this point and overwrite
+      // the new workspace's tree with the old one's.
+      refreshIdRef.current++;
       setTree(result.tree);
       setWorkspaceName(result.name);
       setWorkspaceRoot(result.treeRoot);
@@ -147,95 +160,111 @@ export function useWorkspace({
     [resetFileState, showToast, t]
   );
 
+  // Run `task` only after every earlier open/create/clone has settled (see
+  // openChainRef). Errors in one open don't block the next; the returned
+  // promise reflects this task alone.
+  const enqueueOpen = useCallback(<T>(task: () => Promise<T>): Promise<T> => {
+    const run = openChainRef.current.then(task, task);
+    openChainRef.current = run.catch(() => {});
+    return run;
+  }, []);
+
   const openWorkspaceAtPath = useCallback(
-    async (path: string) => {
-      await flushPendingSave();
-      try {
-        const result = (await measureAsync(
-          "open_workspace_at_path.invoke",
-          () => commands.workspace.openAtPath({ path }),
-          { path }
-        )) as WorkspaceResult | null;
-        if (result) {
-          applyWorkspaceResult(result);
-        } else showToast(t("errors.workspace_path_invalid"));
-      } catch (err) {
-        console.error("Failed to open workspace:", err);
-        showToast(
-          t("errors.open_workspace_failed", {
-            message: err instanceof Error ? err.message : String(err),
-          })
-        );
-      }
-    },
-    [flushPendingSave, showToast, t, applyWorkspaceResult]
+    (path: string) =>
+      enqueueOpen(async () => {
+        await flushPendingSave();
+        try {
+          const result = (await measureAsync(
+            "open_workspace_at_path.invoke",
+            () => commands.workspace.openAtPath({ path }),
+            { path }
+          )) as WorkspaceResult | null;
+          if (result) {
+            applyWorkspaceResult(result);
+          } else showToast(t("errors.workspace_path_invalid"));
+        } catch (err) {
+          console.error("Failed to open workspace:", err);
+          showToast(
+            t("errors.open_workspace_failed", {
+              message: err instanceof Error ? err.message : String(err),
+            })
+          );
+        }
+      }),
+    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
   );
 
   const handleCreateAmytisWorkspace = useCallback(
-    async (parentDir: string, name: string): Promise<boolean> => {
-      try {
-        await flushPendingSave();
-        const result = (await commands.workspace.createAmytis({
-          parentDir,
-          name,
-        })) as WorkspaceResult;
-        applyWorkspaceResult(result);
-        return true;
-      } catch (err) {
-        console.error("Failed to create workspace:", err);
-        showToast(
-          t("errors.create_workspace_failed", {
-            message: err instanceof Error ? err.message : String(err),
-          })
-        );
-        return false;
-      }
-    },
-    [flushPendingSave, showToast, t, applyWorkspaceResult]
+    (parentDir: string, name: string): Promise<boolean> =>
+      enqueueOpen(async () => {
+        try {
+          await flushPendingSave();
+          const result = (await commands.workspace.createAmytis({
+            parentDir,
+            name,
+          })) as WorkspaceResult;
+          applyWorkspaceResult(result);
+          return true;
+        } catch (err) {
+          console.error("Failed to create workspace:", err);
+          showToast(
+            t("errors.create_workspace_failed", {
+              message: err instanceof Error ? err.message : String(err),
+            })
+          );
+          return false;
+        }
+      }),
+    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
   );
 
   const handleCloneWorkspace = useCallback(
-    async (url: string, parentDir: string, name: string | null): Promise<boolean> => {
-      try {
-        await flushPendingSave();
-        const result = (await commands.workspace.clone({
-          url,
-          parentDir,
-          name,
-        })) as WorkspaceResult;
-        applyWorkspaceResult(result);
-        return true;
-      } catch (err) {
-        console.error("Failed to clone workspace:", err);
-        showToast(
-          t("errors.clone_workspace_failed", {
-            message: err instanceof Error ? err.message : String(err),
-          })
-        );
-        return false;
-      }
-    },
-    [flushPendingSave, showToast, t, applyWorkspaceResult]
+    (url: string, parentDir: string, name: string | null): Promise<boolean> =>
+      enqueueOpen(async () => {
+        try {
+          await flushPendingSave();
+          const result = (await commands.workspace.clone({
+            url,
+            parentDir,
+            name,
+          })) as WorkspaceResult;
+          applyWorkspaceResult(result);
+          return true;
+        } catch (err) {
+          console.error("Failed to clone workspace:", err);
+          showToast(
+            t("errors.clone_workspace_failed", {
+              message: err instanceof Error ? err.message : String(err),
+            })
+          );
+          return false;
+        }
+      }),
+    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
   );
 
-  const handleOpenWorkspace = useCallback(async () => {
-    await flushPendingSave();
-    try {
-      const result = (await measureAsync("open_workspace.invoke", () =>
-        commands.workspace.open()
-      )) as WorkspaceResult | null;
-      if (result) {
-        applyWorkspaceResult(result);
-      }
-    } catch (err) {
-      console.error("Failed to open workspace:", err);
-      showToast(
-        t("errors.open_workspace_failed", {
-          message: err instanceof Error ? err.message : String(err),
-        })
-      );
-    }
-  }, [flushPendingSave, showToast, t, applyWorkspaceResult]);
+  const handleOpenWorkspace = useCallback(
+    () =>
+      enqueueOpen(async () => {
+        await flushPendingSave();
+        try {
+          const result = (await measureAsync("open_workspace.invoke", () =>
+            commands.workspace.open()
+          )) as WorkspaceResult | null;
+          if (result) {
+            applyWorkspaceResult(result);
+          }
+        } catch (err) {
+          console.error("Failed to open workspace:", err);
+          showToast(
+            t("errors.open_workspace_failed", {
+              message: err instanceof Error ? err.message : String(err),
+            })
+          );
+        }
+      }),
+    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
+  );
 
   const handleNewTodayFlow = useCallback(async () => {
     if (!workspaceRoot) return;
@@ -418,18 +447,37 @@ export function useWorkspace({
 
   // Edit a collection index's `items:` list. Flush first so we don't lose
   // unsaved editor work; the revision poll reloads the editor if the index is
-  // the open file. Read-modify-write the whole file via the collection helpers.
+  // the open file. Read-modify-write the whole file via the collection helpers,
+  // guarded by the same optimistic-mtime check editor/frontmatter saves use:
+  // an external edit between our read and write is detected, and because the
+  // transform (add/remove item) is well-defined against any content, we
+  // re-read and re-apply it once to auto-merge rather than clobbering.
   async function mutateCollection(
     indexPath: string,
     transform: (items: CollectionItem[]) => CollectionItem[]
   ) {
     await flushPendingSave();
-    try {
-      const raw = await commands.files.read({ path: indexPath });
+    const attempt = async (): Promise<number | "conflict"> => {
+      // Read content + its version token as one snapshot, then write against
+      // that token so an external edit between read and write is caught.
+      const { content: raw, version } = await commands.files.readVersioned({ path: indexPath });
       const next = setCollectionItems(raw, transform(parseCollectionItems(raw)));
-      // Read-modify-write of a collection index (not the open editor file); it
-      // has no tracked mtime, so force the write.
-      await commands.files.write({ path: indexPath, content: next, expectedMtime: null });
+      try {
+        await commands.files.write({ path: indexPath, content: next, expectedVersion: version });
+        return 0;
+      } catch (err) {
+        if (err instanceof Error && err.message === EXTERNAL_CHANGE_CONFLICT) return "conflict";
+        throw err;
+      }
+    };
+    try {
+      // One retry: re-read the externally-changed index and re-apply the same
+      // add/remove, merging our edit with theirs.
+      if ((await attempt()) === "conflict" && (await attempt()) === "conflict") {
+        showToast(t("errors.collection_changed"));
+        await refreshTree();
+        return;
+      }
       await refreshTree();
     } catch (err) {
       console.error("Failed to update collection:", err);

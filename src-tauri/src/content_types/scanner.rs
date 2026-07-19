@@ -78,7 +78,11 @@ fn strip_comments(raw: &str, in_block: &mut bool) -> StrippedLine {
             _ => code.push(ch),
         }
     }
-    StrippedLine { code, opens, closes }
+    StrippedLine {
+        code,
+        opens,
+        closes,
+    }
 }
 
 /// Iterate the code lines of a TS config: strips `//` and `/* … */`
@@ -180,10 +184,7 @@ pub(super) fn extract_locale_pair(part: &str) -> Option<(String, String)> {
 pub(super) fn extract_string_array(s: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut rest = s;
-    loop {
-        let Some(qpos) = rest.find(['\'', '"', '`']) else {
-            break;
-        };
+    while let Some(qpos) = rest.find(['\'', '"', '`']) {
         let sub = &rest[qpos..];
         let Some(value) = extract_quoted_string(sub) else {
             break;
@@ -341,8 +342,10 @@ mod tests {
 
     #[test]
     fn scan_honours_escaped_quotes_inside_strings() {
-        let lines: Vec<_> = scan_code_lines(r#"bio: "He said \"hi\" {",
-"#)
+        let lines: Vec<_> = scan_code_lines(
+            r#"bio: "He said \"hi\" {",
+"#,
+        )
         .collect();
         // The escaped quote must not end the string early — the `{` is
         // still string content and stays uncounted.

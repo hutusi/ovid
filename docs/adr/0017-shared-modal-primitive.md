@@ -52,3 +52,10 @@ tree, same DOM as the hand-rolled shells it replaces.
   uses the shared `modal-*` classes.
 - A genuinely bespoke overlay can still opt out by not using `<Modal>`,
   but the default path is the primitive — new dialogs should start there.
+- The invariants above (`useFocusTrap`, `aria-modal`, dialog-level Escape
+  with `stopPropagation`) describe the **modal** primitive. The compact
+  properties drawer (`PropertiesPanel` in drawer mode) is a documented
+  **non-modal** `role="dialog"` exception outside `<Modal>`: it keeps the
+  background interactive, so it omits `aria-modal` and trades the focus trap
+  for non-trapping focus management (`useNonModalDialogFocus`) with an Escape
+  handler that yields to any nested modal. See ADR 0004.

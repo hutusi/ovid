@@ -64,6 +64,7 @@
     "rename_path": "Rename path",
     "session_goal": "{{added}} / {{goal}} words (session goal)",
     "session_words_title": "Words added this session",
+    "current_branch": "Current branch: {{branch}}",
     "session_display": "+{{added}}{{goalDisplay}}",
     "word_count": "{{count}} words",
     "typewriter_disable": "Disable typewriter mode",
@@ -617,6 +618,7 @@
     "close_tooltip": "Close search (Esc)",
     "searching": "Searching…",
     "no_results": "No results for \"{{query}}\"",
+    "error": "Search failed: {{message}}",
     "summary": "{{matches}} in {{files}}",
     "matches_one": "{{count}} match",
     "matches_other": "{{count}} matches",
@@ -644,7 +646,25 @@
     "h1_warning": "⚠ This document already has a title. Consider changing this heading to ##.",
     "paste_image_error": "Failed to paste image: {{reason}}",
     "drop_image_error": "Failed to drop image: {{reason}}",
-    "loading": "Loading editor…"
+    "loading": "Loading editor…",
+    "placeholder": "Start writing…"
+  },
+  "table_controls": {
+    "toolbar_label": "Table controls",
+    "add_row": "Add row below",
+    "delete_row": "Delete row",
+    "add_col": "Add column after",
+    "delete_col": "Delete column",
+    "delete_table": "Delete table",
+    "add_row_text": "+row",
+    "delete_row_text": "−row",
+    "add_col_text": "+col",
+    "delete_col_text": "−col",
+    "delete_table_text": "✕ table"
+  },
+  "perf_panel": {
+    "aria_label": "Performance events",
+    "title": "Perf"
   },
   "wechat": {
     "title": "Save to WeChat Drafts",
@@ -712,6 +732,7 @@
     "new_from_existing_failed": "Failed to create post from existing: {{message}}",
     "delete_failed": "Failed to delete: {{message}}",
     "update_collection_failed": "Failed to update collection: {{message}}",
+    "collection_changed": "The collection changed on disk. Please try again.",
     "git_no_changes": "No git changes to commit",
     "git_load_changes_failed": "Failed to load git changes",
     "git_no_local_branches": "No local branches found",

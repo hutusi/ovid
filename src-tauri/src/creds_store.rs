@@ -144,7 +144,10 @@ mod tests {
         let path = dir.path().join("creds.json");
         std::fs::write(&path, "{not valid json").unwrap();
         let err = store(&path).get("k").unwrap_err();
-        assert!(err.starts_with("test credentials file is malformed:"), "{err}");
+        assert!(
+            err.starts_with("test credentials file is malformed:"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -172,7 +175,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("creds.json");
         store(&path).set("app_id", "wx123".to_string()).unwrap();
-        assert_eq!(store(&path).get("app_id").unwrap(), Some("wx123".to_string()));
+        assert_eq!(
+            store(&path).get("app_id").unwrap(),
+            Some("wx123".to_string())
+        );
     }
 
     #[cfg(unix)]
@@ -181,7 +187,9 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("creds.json");
-        store(&path).set("app_secret", "very-secret".to_string()).unwrap();
+        store(&path)
+            .set("app_secret", "very-secret".to_string())
+            .unwrap();
         let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);
     }
@@ -257,8 +265,18 @@ mod tests {
         // the store reads today. Lock the format in.
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("creds.json");
-        std::fs::write(&path, "{\n  \"app_id\": \"wx123\",\n  \"app_secret\": \"s\"\n}").unwrap();
-        assert_eq!(store(&path).get("app_id").unwrap(), Some("wx123".to_string()));
-        assert_eq!(store(&path).get("app_secret").unwrap(), Some("s".to_string()));
+        std::fs::write(
+            &path,
+            "{\n  \"app_id\": \"wx123\",\n  \"app_secret\": \"s\"\n}",
+        )
+        .unwrap();
+        assert_eq!(
+            store(&path).get("app_id").unwrap(),
+            Some("wx123".to_string())
+        );
+        assert_eq!(
+            store(&path).get("app_secret").unwrap(),
+            Some("s".to_string())
+        );
     }
 }

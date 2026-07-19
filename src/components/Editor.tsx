@@ -29,8 +29,9 @@ import { useMarkdownSync } from "../lib/editor/useMarkdownSync";
 import type { FlatFile } from "../lib/fileSearch";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
+import { matchOccurrenceRank, stripLineMarkers } from "../lib/searchJump";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
-import { FindReplace } from "../lib/tiptap/FindReplace";
+import { collectMatches, FindReplace } from "../lib/tiptap/FindReplace";
 import { Footnotes } from "../lib/tiptap/Footnotes";
 import { H1Warning } from "../lib/tiptap/H1Warning";
 import { IMEComposition } from "../lib/tiptap/IMEComposition";
@@ -44,8 +45,13 @@ import {
   StrikeWithMarkdownShortcut,
 } from "../lib/tiptap/markdownInputRules";
 import { TextFolding } from "../lib/tiptap/TextFolding";
-import { getTaskListTypingNormalization, normalizeTaskLists } from "../lib/tiptap/taskLists";
+import {
+  getTaskListTypingNormalization,
+  getTypedTaskPrefixLength,
+  normalizeTaskLists,
+} from "../lib/tiptap/taskLists";
 import { WikiLink } from "../lib/tiptap/WikiLink";
+import type { SearchJumpTarget } from "../lib/types";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { BubbleMenu } from "./BubbleMenu";
@@ -59,6 +65,10 @@ import "katex/dist/katex.min.css";
 import "../styles/editor.css";
 
 const lowlight = createLowlight(common);
+
+// Word counting walks the whole document via getText(); coalesce keystrokes
+// so long documents don't pay that cost per character typed.
+const WORD_COUNT_DEBOUNCE_MS = 300;
 
 interface EditorProps {
   content?: string;
@@ -90,6 +100,13 @@ interface EditorProps {
   onError?: (msg: string) => void;
   onViewStateChange?: (viewState: { selection: number; scrollTop: number }) => void;
   registerPendingFlush?: (flush: (() => void) | null) => void;
+  /** One-shot "scroll to this search match" request; consumed once the target
+   *  file's content is on screen, then cleared via onSearchJumpHandled. */
+  searchJump?: SearchJumpTarget | null;
+  /** Lines the frontmatter occupies, to map the jump's full-file line number
+   *  to a body line. */
+  frontmatterLineOffset?: number;
+  onSearchJumpHandled?: () => void;
 }
 
 export function Editor({
@@ -113,9 +130,13 @@ export function Editor({
   onTitleChange,
   onViewStateChange,
   registerPendingFlush,
+  searchJump,
+  frontmatterLineOffset = 0,
+  onSearchJumpHandled,
 }: EditorProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const wordCountTimerRef = useRef<number | null>(null);
   const typewriterRef = useRef(typewriterMode);
   const updateStartedAtRef = useRef(0);
   const pendingRestoreTimersRef = useRef<number[]>([]);
@@ -219,7 +240,7 @@ export function Editor({
         transformCopiedText: true,
       }),
       Placeholder.configure({
-        placeholder: "Start writing…",
+        placeholder: t("editor.placeholder"),
       }),
       Typography,
       Link.extend({
@@ -346,20 +367,31 @@ export function Editor({
         ancestorNodeNames.push(selection.$from.node(depth).type.name);
       }
 
-      const typingNormalization = measureSync(
-        "editor.taskListNormalization",
-        () =>
-          getTaskListTypingNormalization(
-            editor.getJSON(),
-            currentBlock?.parent.toJSON(),
-            selection.from,
-            ancestorNodeNames
-          ),
-        {
-          selectionDepth: selection.$from.depth,
-          docSize: editor.state.doc.content.size,
-        }
-      );
+      // Cheap guards first: only the caret's own block is serialized per
+      // keystroke; the full-document getJSON() (measurable in long documents)
+      // runs only when the block actually carries a typed task prefix inside
+      // a bullet list — the case normalization can act on.
+      const currentBlockJson =
+        currentBlock !== null && ancestorNodeNames.includes("bulletList")
+          ? currentBlock.parent.toJSON()
+          : undefined;
+      const typingNormalization =
+        currentBlockJson !== undefined && getTypedTaskPrefixLength(currentBlockJson) !== null
+          ? measureSync(
+              "editor.taskListNormalization",
+              () =>
+                getTaskListTypingNormalization(
+                  editor.getJSON(),
+                  currentBlockJson,
+                  selection.from,
+                  ancestorNodeNames
+                ),
+              {
+                selectionDepth: selection.$from.depth,
+                docSize: editor.state.doc.content.size,
+              }
+            )
+          : null;
 
       if (typingNormalization) {
         editor.commands.setContent(typingNormalization.normalized, { emitUpdate: false });
@@ -374,17 +406,21 @@ export function Editor({
       }
 
       if (onWordCount) {
-        const text = measureSync("editor.wordCountText", () => editor.getText(), {
-          docSize: editor.state.doc.content.size,
-        });
-        const count = countWords(text);
-        // `useEditor` constructs the Tiptap editor synchronously in its
-        // `useState` initializer, and ProseMirror dispatches an initial
-        // transaction during that construction — so onUpdate can fire while
-        // Editor is still rendering. Calling `onWordCount` synchronously
-        // would setState in App mid-render. The microtask lands after the
-        // current render commits.
-        queueMicrotask(() => onWordCount(count));
+        // Debounced: getText() walks the whole document — don't pay that per
+        // keystroke. The timeout also lands after the current render commits,
+        // which matters because ProseMirror dispatches an initial transaction
+        // while `useEditor` is still constructing (a synchronous onWordCount
+        // would setState in App mid-render). The immediate count on file load
+        // comes from the content-change effect below, not this path.
+        if (wordCountTimerRef.current !== null) window.clearTimeout(wordCountTimerRef.current);
+        wordCountTimerRef.current = window.setTimeout(() => {
+          wordCountTimerRef.current = null;
+          if (editor.isDestroyed) return;
+          const text = measureSync("editor.wordCountText", () => editor.getText(), {
+            docSize: editor.state.doc.content.size,
+          });
+          onWordCount(countWords(text));
+        }, WORD_COUNT_DEBOUNCE_MS);
       }
 
       if (isPerfLoggingEnabled()) {
@@ -425,6 +461,13 @@ export function Editor({
   useEffect(() => {
     setCurrentEditor(editor);
   }, [editor, setCurrentEditor]);
+
+  useEffect(
+    () => () => {
+      if (wordCountTimerRef.current !== null) window.clearTimeout(wordCountTimerRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!editor || content === lastAppliedContentRef.current) return;
@@ -477,6 +520,69 @@ export function Editor({
       clearPendingRestore();
     };
   }, [clearPendingRestore, editor, initialScrollTop, initialSelection]);
+
+  // Consume a pending search-match jump once this editor shows the target
+  // file. Declared *after* the view-state-restoration effect so it can cancel
+  // that effect's scheduled restore (RAF + timers up to 320 ms) via
+  // clearPendingRestore — otherwise a delayed restore would reset selection
+  // and scroll back to the saved position, undoing the jump on a
+  // previously-visited file. The lastAppliedContentRef guard makes it wait
+  // for the content-apply effect above.
+  useEffect(() => {
+    if (!editor || !searchJump || searchJump.path !== filePath) return;
+    if (lastAppliedContentRef.current !== content) return;
+    const doc = editor.state.doc;
+    // Rank identical body lines by proximity to the match's mapped body line,
+    // and select the same-rank in-document hit (collectMatches yields hits in
+    // document order) — so a repeated line jumps to the clicked occurrence,
+    // not the first on the page. The raw line often carries Markdown syntax
+    // (`# Heading`, `**bold**`) the rendered doc text lacks, so fall back to a
+    // marker-stripped line, then to the query's first occurrence.
+    let lineHits = collectMatches(doc, searchJump.lineContent);
+    // Rank candidates with the same transform that produced the hits, so the
+    // occurrence count matches the hit set being indexed.
+    let normalize: (line: string) => string = (line) => line.trim();
+    if (lineHits.length === 0) {
+      const stripped = stripLineMarkers(searchJump.lineContent);
+      if (stripped && stripped !== searchJump.lineContent.trim()) {
+        lineHits = collectMatches(doc, stripped);
+        normalize = stripLineMarkers;
+      }
+    }
+    let target: { from: number; to: number } | undefined;
+    if (lineHits.length > 0) {
+      const targetBodyLine = searchJump.lineNumber - 1 - frontmatterLineOffset;
+      const rank = matchOccurrenceRank(
+        content.split("\n"),
+        searchJump.lineContent,
+        targetBodyLine,
+        normalize
+      );
+      target = lineHits[Math.min(rank, lineHits.length - 1)];
+    } else {
+      target = collectMatches(doc, searchJump.query)[0];
+    }
+    if (target) {
+      // Cancel any pending view-state restore first, so it can't fire later
+      // and clobber the jump we're about to apply.
+      clearPendingRestore();
+      editor
+        .chain()
+        .focus()
+        .setTextSelection({ from: target.from, to: target.to })
+        .scrollIntoView()
+        .run();
+    }
+    onSearchJumpHandled?.();
+  }, [
+    editor,
+    searchJump,
+    filePath,
+    content,
+    frontmatterLineOffset,
+    clearPendingRestore,
+    onSearchJumpHandled,
+  ]);
 
   // Update spellcheck live — set directly on the DOM to avoid replacing editorProps
   useEffect(() => {

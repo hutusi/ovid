@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 
 use crate::state::{CachedFrontmatter, CachedSearchFile};
 
-pub(crate) fn read_frontmatter_meta_from_str(content: &str) -> (Option<String>, Option<bool>, Option<String>) {
+pub(crate) fn read_frontmatter_meta_from_str(
+    content: &str,
+) -> (Option<String>, Option<bool>, Option<String>) {
     let mut lines = content.lines();
     if lines.next().map(str::trim) != Some("---") {
         return (None, None, None);

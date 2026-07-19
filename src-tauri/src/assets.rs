@@ -273,7 +273,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         fs::write(dir.path().join("image.png"), b"").unwrap();
         let name = reserve_unique_name(dir.path(), "image.png").unwrap();
-        assert!(name.ends_with("_image.png"), "expected timestamp prefix, got: {name}");
+        assert!(
+            name.ends_with("_image.png"),
+            "expected timestamp prefix, got: {name}"
+        );
         assert!(dir.path().join(&name).exists());
     }
 

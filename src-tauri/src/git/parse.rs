@@ -339,7 +339,10 @@ pub(crate) fn validate_git_branch_rename(
     Ok((old_branch.to_string(), new_branch.to_string()))
 }
 
-pub(crate) fn validate_git_branch_delete(branches: &[GitBranch], branch_name: &str) -> Result<String, String> {
+pub(crate) fn validate_git_branch_delete(
+    branches: &[GitBranch],
+    branch_name: &str,
+) -> Result<String, String> {
     let branch_name = branch_name.trim();
     if branch_name.is_empty() {
         return Err("branch name cannot be empty".to_string());

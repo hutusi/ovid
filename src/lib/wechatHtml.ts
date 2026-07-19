@@ -3,6 +3,7 @@ import MarkdownIt from "markdown-it";
 // `(md: MarkdownIt) => void`, which is all we need.
 // @ts-expect-error -- no types published; treat as plain plugin function
 import taskLists from "markdown-it-task-lists";
+import { hasMathBlocks } from "./wechatMarkdownAnalysis";
 
 // Inline styles applied to each HTML tag for WeChat compatibility.
 // WeChat Official Account articles must use inline styles; external CSS is stripped.
@@ -155,61 +156,6 @@ function convertTaskCheckboxes(html: string): string {
     if (!/type="checkbox"/.test(attrs)) return match;
     return /\bchecked\b/.test(attrs) ? "☑ " : "☐ ";
   });
-}
-
-/**
- * Extract a short plain-text excerpt from a markdown body for use as the
- * WeChat article digest (max 54 characters per WeChat API limit).
- * Strips markdown syntax and returns the first non-empty line of content.
- */
-export function extractExcerpt(markdown: string, maxLen = 54): string {
-  const text = markdown
-    .replace(/```[\s\S]*?```/g, "") // fenced code blocks
-    .replace(/`[^`\n]+`/g, "") // inline code
-    .replace(/^\s*#{1,6}\s+/gm, "") // ATX headings
-    .replace(/^>\s*/gm, "") // blockquote markers
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, "") // images
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // links → label text
-    .replace(/[*_~]{1,2}([^*_~\n]+)[*_~]{1,2}/g, "$1") // bold/italic/strike
-    .replace(/^\s*[-*+]\s+/gm, "") // unordered list markers
-    .replace(/^\s*\d+\.\s+/gm, "") // ordered list markers
-    .replace(/\n{2,}/g, "\n")
-    .trim();
-
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.length > 0) return trimmed.slice(0, maxLen);
-  }
-  return "";
-}
-
-/**
- * Returns true if the markdown contains any LaTeX math blocks ($$...$$  or $...$).
- * DOM-free — safe to call outside a browser context.
- */
-export function hasMathBlocks(markdown: string): boolean {
-  return /\$\$[\s\S]*?\$\$|\$(?!\d)[^$\n]+\$/.test(markdown);
-}
-
-/**
- * Counts markdown images whose source is a local path (not http/https/data:).
- * Used to warn the user how many images will be uploaded to WeChat CDN.
- * DOM-free — safe to call outside a browser context.
- */
-export function countLocalImages(markdown: string): number {
-  let count = 0;
-  for (const [, src] of markdown.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)) {
-    const url = src.trim().split(/\s+/)[0];
-    if (
-      !url.startsWith("http://") &&
-      !url.startsWith("https://") &&
-      !url.startsWith("data:") &&
-      !url.startsWith("asset://") &&
-      !url.startsWith("blob:")
-    )
-      count++;
-  }
-  return count;
 }
 
 /**

@@ -11,10 +11,10 @@ const FOCUSABLE_SELECTORS = [
 
 /**
  * Returns a ref to attach to a dialog/modal container.
- * On mount: saves the previously focused element and focuses the first
- *           focusable child (unless the container already contains focus).
+ * On mount: saves the previously focused element and focuses the first focusable
+ *           child (unless the container already contains focus).
  * On Tab: cycles focus within the container.
- * On unmount: restores focus to the element that had it before the dialog opened.
+ * On unmount: restores focus to the element focused before it opened.
  */
 export function useFocusTrap<T extends HTMLElement = HTMLDivElement>() {
   const ref = useRef<T>(null);

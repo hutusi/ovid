@@ -172,7 +172,8 @@ mod tests {
 
     #[test]
     fn classify_git_push_error_returns_auth_marker_when_username_missing() {
-        let stderr = "fatal: could not read Username for 'https://github.com': terminal prompts disabled";
+        let stderr =
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled";
         assert_eq!(
             classify_git_push_error(stderr, Some("github.com"), Some("origin")),
             "AUTH_REQUIRED|github.com|origin"
@@ -236,7 +237,8 @@ mod tests {
 
     #[test]
     fn classify_git_fetch_error_keeps_transport_message_for_network_failures() {
-        let stderr = "fatal: unable to access 'https://github.com/foo/bar.git/': Could not resolve host";
+        let stderr =
+            "fatal: unable to access 'https://github.com/foo/bar.git/': Could not resolve host";
         assert_eq!(
             classify_git_fetch_error(stderr, Some("github.com"), Some("origin")),
             "Fetch failed because the remote could not be reached."

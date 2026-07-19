@@ -15,7 +15,13 @@ import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
 import type { FeatureBucket } from "../lib/commands/generated/FeatureBucket";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
-import { filterTree, getBucketContentType, needsPageDivider } from "../lib/sidebarUtils";
+import {
+  clampSidebarWidth,
+  filterTree,
+  getBucketContentType,
+  needsPageDivider,
+  nextSidebarWidth,
+} from "../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../lib/types";
 import { useSidebarExpansion } from "../lib/useSidebarExpansion";
 import { FileItem } from "./sidebar/FileItem";
@@ -28,6 +34,7 @@ interface SidebarProps {
   workspaceKey?: string | null;
   selectedPath: string | null;
   visible: boolean;
+  maxWidth?: number;
   workspaceName: string | null;
   gitStatusMap: Map<string, GitStatus>;
   mode: SidebarMode;
@@ -63,6 +70,7 @@ export function Sidebar({
   workspaceKey,
   selectedPath,
   visible,
+  maxWidth = SIDEBAR_MAX,
   workspaceName,
   gitStatusMap,
   mode,
@@ -130,9 +138,15 @@ export function Sidebar({
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     const parsed = stored ? Number(stored) : SIDEBAR_DEFAULT;
     if (!Number.isFinite(parsed)) return SIDEBAR_DEFAULT;
-    return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, parsed));
+    return clampSidebarWidth(parsed, SIDEBAR_MIN, SIDEBAR_MAX);
   });
-  const [isResizing, setIsResizing] = useState(false);
+  // Transient width while a mouse drag is live — tracks the cursor independently
+  // of the persisted preference, so a drag that returns to its start (or a no-op
+  // click) renders correctly without clobbering `sidebarWidth`.
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const isResizing = dragWidth !== null;
+  const effectiveMaxWidth = clampSidebarWidth(maxWidth, SIDEBAR_MIN, SIDEBAR_MAX);
+  const displayedWidth = dragWidth ?? Math.min(sidebarWidth, effectiveMaxWidth);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
   const isMounted = useRef(true);
@@ -188,15 +202,18 @@ export function Sidebar({
 
   function handleResizeMouseDown(e: React.MouseEvent) {
     e.preventDefault();
-    setIsResizing(true);
     dragStartX.current = e.clientX;
-    dragStartWidth.current = sidebarWidth;
+    dragStartWidth.current = displayedWidth;
+    setDragWidth(displayedWidth);
 
     const onMouseMove = (ev: MouseEvent) => {
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartWidth.current + delta));
-      setSidebarWidth(next);
+      // Follow the cursor live (incl. back to the start); the persist decision
+      // happens only on mouse-up so a return-to-start renders correctly.
+      setDragWidth(
+        clampSidebarWidth(dragStartWidth.current + delta, SIDEBAR_MIN, effectiveMaxWidth)
+      );
     };
 
     const onMouseUp = (ev: MouseEvent) => {
@@ -205,9 +222,15 @@ export function Sidebar({
       activeDragListeners.current = null;
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const final = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartWidth.current + delta));
-      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(final));
-      setIsResizing(false);
+      // Persist only a real resize. A no-op click, a return-to-start, or an
+      // at-cap drag returns null, leaving the stored preferred width (which can
+      // exceed the current usable max) untouched.
+      const next = nextSidebarWidth(dragStartWidth.current, delta, SIDEBAR_MIN, effectiveMaxWidth);
+      if (next !== null) {
+        setSidebarWidth(next);
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
+      }
+      setDragWidth(null);
     };
 
     activeDragListeners.current = { onMouseMove, onMouseUp };
@@ -218,7 +241,9 @@ export function Sidebar({
   return (
     <div
       className={`sidebar ${visible ? "" : "hidden"}${isResizing ? " resizing" : ""}`}
-      style={visible ? { width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` } : undefined}
+      style={
+        visible ? { width: `${displayedWidth}px`, minWidth: `${displayedWidth}px` } : undefined
+      }
     >
       <div className="sidebar-header" data-tauri-drag-region="deep">
         <div className="sidebar-header-actions">
@@ -405,10 +430,11 @@ export function Sidebar({
       {/* biome-ignore lint/a11y/useSemanticElements: resize splitter widget requires div, not <hr> */}
       <div
         role="separator"
+        aria-orientation="vertical"
         aria-label={t("sidebar.resize")}
-        aria-valuenow={sidebarWidth}
+        aria-valuenow={displayedWidth}
         aria-valuemin={SIDEBAR_MIN}
-        aria-valuemax={SIDEBAR_MAX}
+        aria-valuemax={effectiveMaxWidth}
         tabIndex={0}
         className="sidebar-resize-handle"
         onMouseDown={handleResizeMouseDown}
@@ -417,7 +443,11 @@ export function Sidebar({
           e.preventDefault();
           const step = e.shiftKey ? 24 : 12;
           const delta = e.key === "ArrowRight" ? step : -step;
-          const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, sidebarWidth + delta));
+          // Grow from the rendered width and clamp to the dynamic max. A no-op at
+          // the cap returns null so we don't overwrite the stored *preferred*
+          // width (which may exceed the current usable max on a narrow window).
+          const next = nextSidebarWidth(displayedWidth, delta, SIDEBAR_MIN, effectiveMaxWidth);
+          if (next === null) return;
           setSidebarWidth(next);
           localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
         }}

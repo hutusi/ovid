@@ -43,8 +43,14 @@ pub(crate) async fn create_wechat_draft(
 
     if let Some(errcode) = resp.get("errcode").and_then(|v| v.as_i64()) {
         if errcode != 0 {
-            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
-            return Err(format!("WeChat draft creation error {}: {}", errcode, errmsg));
+            let errmsg = resp
+                .get("errmsg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            return Err(format!(
+                "WeChat draft creation error {}: {}",
+                errcode, errmsg
+            ));
         }
     }
 
@@ -89,7 +95,10 @@ pub(crate) async fn update_wechat_draft(
         Some(0) => Ok(DraftUpdateOutcome::Updated),
         Some(40007) => Ok(DraftUpdateOutcome::Invalid),
         Some(errcode) => {
-            let errmsg = resp.get("errmsg").and_then(|v| v.as_str()).unwrap_or("unknown");
+            let errmsg = resp
+                .get("errmsg")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
             Err(format!("WeChat draft update error {}: {}", errcode, errmsg))
         }
         None => Err(format!(
@@ -103,10 +112,17 @@ pub(crate) async fn update_wechat_draft(
 /// occurrence at once, so re-iterating duplicates would waste API quota and discard URLs.
 fn dedupe_preserving_order(input: Vec<String>) -> Vec<String> {
     let mut seen = std::collections::HashSet::new();
-    input.into_iter().filter(|s| seen.insert(s.clone())).collect()
+    input
+        .into_iter()
+        .filter(|s| seen.insert(s.clone()))
+        .collect()
 }
 
 #[tauri::command]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Tauri exposes these as a stable flat IPC payload consumed by the typed frontend wrapper"
+)]
 pub(crate) async fn wechat_publish_draft(
     app: tauri::AppHandle,
     title: String,
@@ -260,8 +276,7 @@ pub(crate) async fn wechat_publish_draft(
         }
     }
 
-    let media_id =
-        create_wechat_draft(&client, DEFAULT_WECHAT_API_BASE, &token, article).await?;
+    let media_id = create_wechat_draft(&client, DEFAULT_WECHAT_API_BASE, &token, article).await?;
 
     Ok(WechatPublishResult {
         media_id,
@@ -291,7 +306,10 @@ mod tests {
 
     #[test]
     fn dedupe_preserving_order_handles_empty_input() {
-        assert_eq!(dedupe_preserving_order(Vec::<String>::new()), Vec::<String>::new());
+        assert_eq!(
+            dedupe_preserving_order(Vec::<String>::new()),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
@@ -299,7 +317,8 @@ mod tests {
         // End-to-end check: the publish loop's input pipeline (extract_img_srcs
         // → dedupe) must yield each unique src exactly once, otherwise a single
         // local file would be uploaded multiple times to WeChat.
-        let html = r#"<p><img src="images/a.png"/><img src="images/b.png"/><img src="images/a.png"/></p>"#;
+        let html =
+            r#"<p><img src="images/a.png"/><img src="images/b.png"/><img src="images/a.png"/></p>"#;
         let result = dedupe_preserving_order(extract_img_srcs(html));
         assert_eq!(result, s(&["images/a.png", "images/b.png"]));
     }
@@ -369,10 +388,15 @@ mod tests {
             .create_async()
             .await;
 
-        let outcome =
-            update_wechat_draft(&no_proxy_client(), &server.url(), "TOKEN", "MEDIA_ID", article())
-                .await
-                .expect("update draft");
+        let outcome = update_wechat_draft(
+            &no_proxy_client(),
+            &server.url(),
+            "TOKEN",
+            "MEDIA_ID",
+            article(),
+        )
+        .await
+        .expect("update draft");
 
         assert!(matches!(outcome, DraftUpdateOutcome::Updated));
         mock.assert_async().await;
@@ -426,6 +450,9 @@ mod tests {
         .await
         .expect_err("missing errcode treated as malformed");
 
-        assert!(err.contains("no errcode") || err.contains("Malformed"), "unexpected error: {err}");
+        assert!(
+            err.contains("no errcode") || err.contains("Malformed"),
+            "unexpected error: {err}"
+        );
     }
 }
