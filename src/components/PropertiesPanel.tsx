@@ -1,4 +1,5 @@
 import { PanelRightClose } from "lucide-react";
+import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import {
@@ -30,6 +31,9 @@ interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
   visible: boolean;
   drawer?: boolean;
+  /** Focus target for the compact drawer (a non-modal dialog): the root is
+   *  focused on open so the dialog is announced. Not a focus trap. */
+  rootRef?: Ref<HTMLDivElement>;
   slug?: string;
   /** Bucket-derived content type (post/series/book/note/flow/page) used to
    *  gate context-sensitive addable fields like `sort` (series-only). */
@@ -50,6 +54,7 @@ export function PropertiesPanel({
   frontmatter,
   visible,
   drawer = false,
+  rootRef,
   slug,
   contentType,
   coverImageVisible = false,
@@ -88,18 +93,21 @@ export function PropertiesPanel({
     .filter((k) => frontmatter[k] != null && !isKnownFrontmatterField(k))
     .sort();
 
-  // As a compact drawer this panel is a non-modal dialog: labeled for AT, but the
-  // backdrop deliberately leaves the top strip (tabs) live and the editor
+  // As a compact drawer this panel is a non-modal dialog: labeled for AT and
+  // focusable (tabindex -1) so focus can be *placed* on it when it opens — but
+  // the backdrop deliberately leaves the top strip (tabs) live and the editor
   // interactive behind it, so it is intentionally not `aria-modal` and not
-  // focus-trapped. Inline it's a plain side panel with neither. Role and label are
-  // spread as one unit so they stay paired (Biome can't verify a ternary role).
+  // focus-trapped (focus may Tab out; see useNonModalDialogFocus). Inline it's a
+  // plain side panel with none of these. Role, label and tabindex are spread as
+  // one unit so they stay paired (Biome can't verify a ternary role).
   const dialogProps = drawer
-    ? { role: "dialog" as const, "aria-label": t("properties.frontmatter") }
+    ? { role: "dialog" as const, "aria-label": t("properties.frontmatter"), tabIndex: -1 }
     : {};
 
   return (
     <div
       {...dialogProps}
+      ref={rootRef}
       className={`properties-panel${visible ? "" : " hidden"}${drawer ? " drawer" : ""}`}
     >
       <div className="prop-header" data-tauri-drag-region="deep">

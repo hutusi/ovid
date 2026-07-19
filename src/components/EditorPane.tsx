@@ -7,6 +7,7 @@ import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
 import { loadKatexRuntime } from "../lib/loadKatexRuntime";
 import { isMac } from "../lib/platform";
 import type { FileNode, RecentFile, SaveStatus, SearchJumpTarget } from "../lib/types";
+import { useNonModalDialogFocus } from "../lib/useNonModalDialogFocus";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -145,6 +146,12 @@ export function EditorPane({
   onToggleCoverImage,
 }: EditorPaneProps) {
   const { t } = useTranslation();
+  // The compact properties drawer is a non-modal dialog: place focus on it when
+  // it opens (it's announced, and Tab starts inside it) and return focus to the
+  // top-bar expand button when it closes — otherwise focus strands on <body>
+  // because that button unmounts as soon as the panel opens.
+  const { dialogRef: propertiesDrawerRef, triggerRef: expandPropertiesRef } =
+    useNonModalDialogFocus<HTMLDivElement, HTMLButtonElement>(propertiesDrawer);
 
   const editorTitle = parsedFrontmatter.title != null ? String(parsedFrontmatter.title) : "";
 
@@ -179,6 +186,7 @@ export function EditorPane({
           )}
           {selectedFile && !isReadOnlyContent(selectedFile) && !propertiesOpen && (
             <button
+              ref={expandPropertiesRef}
               type="button"
               className="editor-expand-btn editor-expand-btn-trailing"
               onClick={onToggleProperties}
@@ -275,6 +283,7 @@ export function EditorPane({
           frontmatter={parsedFrontmatter}
           visible={propertiesOpen}
           drawer={propertiesDrawer}
+          rootRef={propertiesDrawerRef}
           slug={selectedFile.name.replace(/\.mdx?$/, "")}
           contentType={selectedFile.contentType}
           coverImageVisible={coverImageVisible}
