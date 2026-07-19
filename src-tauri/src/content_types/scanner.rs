@@ -184,10 +184,7 @@ pub(super) fn extract_locale_pair(part: &str) -> Option<(String, String)> {
 pub(super) fn extract_string_array(s: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut rest = s;
-    loop {
-        let Some(qpos) = rest.find(['\'', '"', '`']) else {
-            break;
-        };
+    while let Some(qpos) = rest.find(['\'', '"', '`']) {
         let sub = &rest[qpos..];
         let Some(value) = extract_quoted_string(sub) else {
             break;
