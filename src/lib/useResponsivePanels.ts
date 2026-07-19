@@ -120,6 +120,11 @@ export function useResponsivePanels({
     if (!layout.propertiesDrawer || blockingOverlayOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // A nested modal (e.g. the add-custom-field dialog) owns Escape while open;
+      // don't steal it and close the drawer underneath. The drawer isn't
+      // aria-modal, so any [aria-modal="true"] node is a real Modal whose own
+      // (bubble-phase) Escape handler should run instead.
+      if (document.querySelector('[aria-modal="true"]')) return;
       event.preventDefault();
       event.stopPropagation();
       setCompactPropertiesOpen(false);

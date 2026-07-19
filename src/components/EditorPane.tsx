@@ -7,7 +7,6 @@ import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
 import { loadKatexRuntime } from "../lib/loadKatexRuntime";
 import { isMac } from "../lib/platform";
 import type { FileNode, RecentFile, SaveStatus, SearchJumpTarget } from "../lib/types";
-import { useFocusTrap } from "../lib/useFocusTrap";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { EmptyState } from "./EmptyState";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -146,9 +145,6 @@ export function EditorPane({
   onToggleCoverImage,
 }: EditorPaneProps) {
   const { t } = useTranslation();
-  // Trap focus in the properties panel only when it's a compact drawer (a modal
-  // overlay); inline it's a plain side panel and the trap stays inert.
-  const propertiesTrapRef = useFocusTrap<HTMLDivElement>(propertiesDrawer);
 
   const editorTitle = parsedFrontmatter.title != null ? String(parsedFrontmatter.title) : "";
 
@@ -279,7 +275,6 @@ export function EditorPane({
           frontmatter={parsedFrontmatter}
           visible={propertiesOpen}
           drawer={propertiesDrawer}
-          containerRef={propertiesTrapRef}
           slug={selectedFile.name.replace(/\.mdx?$/, "")}
           contentType={selectedFile.contentType}
           coverImageVisible={coverImageVisible}

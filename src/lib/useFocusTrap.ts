@@ -11,22 +11,18 @@ const FOCUSABLE_SELECTORS = [
 
 /**
  * Returns a ref to attach to a dialog/modal container.
- * When `active` (default true):
- *   On activate: saves the previously focused element and focuses the first
- *                focusable child (unless the container already contains focus).
- *   On Tab: cycles focus within the container.
- *   On deactivate: restores focus to the element focused before it opened.
- * When `active` is false the ref is inert (no focus move, no Tab trap) — for a
- * container that is only sometimes an overlay, e.g. a panel that becomes a
- * drawer at narrow widths.
+ * On mount: saves the previously focused element and focuses the first focusable
+ *           child (unless the container already contains focus).
+ * On Tab: cycles focus within the container.
+ * On unmount: restores focus to the element focused before it opened.
  */
-export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(active = true) {
+export function useFocusTrap<T extends HTMLElement = HTMLDivElement>() {
   const ref = useRef<T>(null);
 
   useEffect(() => {
     // Capture as a non-optional local so closures below don't need `!` assertions.
     const container: T = ref.current as T;
-    if (!active || !container) return;
+    if (!container) return;
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
@@ -59,7 +55,7 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>(active = tr
       document.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus();
     };
-  }, [active]);
+  }, []);
 
   return ref;
 }

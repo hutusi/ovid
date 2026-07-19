@@ -9,9 +9,34 @@ import {
   useResponsivePanels,
 } from "./useResponsivePanels";
 
-function setViewportWidth(width: number) {
+// A queued requestAnimationFrame mock: store callbacks, hand back non-zero ids,
+// and only run them when flushRaf() is called. This lets tests observe the
+// frame-coalescing gate (many resize events → one queued frame) and the
+// cancel-on-unmount path that a synchronous stub would paper over.
+const rafCallbacks = new Map<number, FrameRequestCallback>();
+let rafId = 0;
+
+function flushRaf() {
+  const pending = Array.from(rafCallbacks.values());
+  rafCallbacks.clear();
+  for (const cb of pending) cb(0);
+}
+
+function resetRaf() {
+  rafCallbacks.clear();
+  rafId = 0;
+}
+
+function dispatchResize(width: number) {
   Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
   window.dispatchEvent(new window.Event("resize"));
+}
+
+// Set the viewport and run the queued frame so the panel state settles
+// synchronously — keeps the width-driven assertions below straightforward.
+function setViewportWidth(width: number) {
+  dispatchResize(width);
+  flushRaf();
 }
 
 describe("resolvePanelLayout", () => {
@@ -69,15 +94,18 @@ describe("useResponsivePanels", () => {
 
   beforeAll(() => {
     registerHappyDom();
-    // The resize handler coalesces updates through requestAnimationFrame; run
-    // frames synchronously so the existing synchronous assertions still hold.
+    // The resize handler coalesces updates through requestAnimationFrame; use a
+    // queued mock so tests can drive the frame explicitly (see flushRaf).
     realRaf = window.requestAnimationFrame;
     realCancelRaf = window.cancelAnimationFrame;
     window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
-      cb(0);
-      return 0;
+      rafId += 1;
+      rafCallbacks.set(rafId, cb);
+      return rafId;
     }) as typeof window.requestAnimationFrame;
-    window.cancelAnimationFrame = (() => {}) as typeof window.cancelAnimationFrame;
+    window.cancelAnimationFrame = ((id: number) => {
+      rafCallbacks.delete(id);
+    }) as typeof window.cancelAnimationFrame;
   });
   afterEach(() => {
     unmountHook?.();
@@ -90,6 +118,7 @@ describe("useResponsivePanels", () => {
   });
 
   beforeEach(() => {
+    resetRaf();
     localStorage.clear();
     setViewportWidth(700);
   });
@@ -149,6 +178,53 @@ describe("useResponsivePanels", () => {
     act(() => result.current.panels.toggleProperties());
     expect(result.current.panels.propertiesDrawer).toBe(true);
 
+    act(() => window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape" })));
+    expect(result.current.panels.propertiesOpen).toBe(false);
+  });
+
+  it("coalesces multiple resize events into a single frame", () => {
+    const { result } = renderPanels();
+    expect(result.current.panels.compact).toBe(true); // initial 700 < 960
+
+    act(() => {
+      dispatchResize(1_200);
+      dispatchResize(1_100);
+      dispatchResize(1_000);
+    });
+    // The frame gate queues exactly one callback for the whole burst, and no
+    // state update lands until that frame runs.
+    expect(rafCallbacks.size).toBe(1);
+    expect(result.current.panels.compact).toBe(true);
+
+    act(() => flushRaf());
+    // The single coalesced update reflects the latest width (1000 ≥ 960).
+    expect(result.current.panels.compact).toBe(false);
+  });
+
+  it("cancels the pending frame on unmount", () => {
+    const rendered = renderPanels();
+    act(() => dispatchResize(1_200));
+    expect(rafCallbacks.size).toBe(1);
+
+    act(() => rendered.unmount());
+    unmountHook = null; // already unmounted — don't let afterEach double-unmount
+    // The effect cleanup cancelled the queued frame, so nothing runs later.
+    expect(rafCallbacks.size).toBe(0);
+  });
+
+  it("leaves Escape to an open nested modal", () => {
+    const { result } = renderPanels();
+    act(() => result.current.panels.toggleProperties());
+    expect(result.current.panels.propertiesDrawer).toBe(true);
+
+    const modal = document.createElement("div");
+    modal.setAttribute("aria-modal", "true");
+    document.body.appendChild(modal);
+    act(() => window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape" })));
+    // A real modal is open → the drawer must not steal Escape and close itself.
+    expect(result.current.panels.propertiesOpen).toBe(true);
+
+    modal.remove();
     act(() => window.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape" })));
     expect(result.current.panels.propertiesOpen).toBe(false);
   });
