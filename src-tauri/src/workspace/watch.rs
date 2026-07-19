@@ -40,6 +40,13 @@ fn event_can_change_markdown_tree(event: &Event, path: &Path) -> bool {
         EventKind::Access(_) => false,
         EventKind::Modify(ModifyKind::Data(_) | ModifyKind::Metadata(_)) => is_markdown_path(path),
         EventKind::Modify(ModifyKind::Name(RenameMode::Any | RenameMode::Both)) => true,
+        // Creating/removing a concrete *file* only affects the markdown tree
+        // when that file is markdown — a non-markdown asset or an editor swap
+        // file shouldn't force a full revision recompute. Directory and
+        // ambiguous kinds (macOS often reports `Create(Any)`) stay unconditional
+        // candidates so a new/removed folder still triggers a walk.
+        EventKind::Create(notify::event::CreateKind::File)
+        | EventKind::Remove(notify::event::RemoveKind::File) => is_markdown_path(path),
         EventKind::Modify(ModifyKind::Name(_))
         | EventKind::Modify(ModifyKind::Any | ModifyKind::Other)
         | EventKind::Create(_)
@@ -198,6 +205,32 @@ mod tests {
                 EventKind::Modify(ModifyKind::Name(RenameMode::Both)),
                 vec![renamed],
             ),
+        )
+        .is_some());
+    }
+
+    #[test]
+    fn ignores_non_markdown_file_create_remove_but_keeps_markdown() {
+        let dir = TempDir::new().unwrap();
+        let asset = dir.path().join("photo.png");
+        let note = dir.path().join("notes").join("hello.md");
+
+        // A concrete non-markdown file create/remove must not force a recompute.
+        assert!(workspace_change_for_event(
+            dir.path(),
+            &event(EventKind::Create(CreateKind::File), vec![asset.clone()]),
+        )
+        .is_none());
+        assert!(workspace_change_for_event(
+            dir.path(),
+            &event(EventKind::Remove(RemoveKind::File), vec![asset]),
+        )
+        .is_none());
+
+        // A markdown file create still counts.
+        assert!(workspace_change_for_event(
+            dir.path(),
+            &event(EventKind::Create(CreateKind::File), vec![note]),
         )
         .is_some());
     }
