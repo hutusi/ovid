@@ -15,7 +15,12 @@ import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
 import type { FeatureBucket } from "../lib/commands/generated/FeatureBucket";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
-import { filterTree, getBucketContentType, needsPageDivider } from "../lib/sidebarUtils";
+import {
+  clampSidebarWidth,
+  filterTree,
+  getBucketContentType,
+  needsPageDivider,
+} from "../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../lib/types";
 import { useSidebarExpansion } from "../lib/useSidebarExpansion";
 import { FileItem } from "./sidebar/FileItem";
@@ -132,10 +137,10 @@ export function Sidebar({
     const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     const parsed = stored ? Number(stored) : SIDEBAR_DEFAULT;
     if (!Number.isFinite(parsed)) return SIDEBAR_DEFAULT;
-    return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, parsed));
+    return clampSidebarWidth(parsed, SIDEBAR_MIN, SIDEBAR_MAX);
   });
   const [isResizing, setIsResizing] = useState(false);
-  const effectiveMaxWidth = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, maxWidth));
+  const effectiveMaxWidth = clampSidebarWidth(maxWidth, SIDEBAR_MIN, SIDEBAR_MAX);
   const displayedWidth = Math.min(sidebarWidth, effectiveMaxWidth);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
@@ -199,9 +204,10 @@ export function Sidebar({
     const onMouseMove = (ev: MouseEvent) => {
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const next = Math.min(
-        effectiveMaxWidth,
-        Math.max(SIDEBAR_MIN, dragStartWidth.current + delta)
+      const next = clampSidebarWidth(
+        dragStartWidth.current + delta,
+        SIDEBAR_MIN,
+        effectiveMaxWidth
       );
       setSidebarWidth(next);
     };
@@ -212,9 +218,10 @@ export function Sidebar({
       activeDragListeners.current = null;
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const final = Math.min(
-        effectiveMaxWidth,
-        Math.max(SIDEBAR_MIN, dragStartWidth.current + delta)
+      const final = clampSidebarWidth(
+        dragStartWidth.current + delta,
+        SIDEBAR_MIN,
+        effectiveMaxWidth
       );
       localStorage.setItem(SIDEBAR_WIDTH_KEY, String(final));
       setIsResizing(false);
@@ -418,9 +425,9 @@ export function Sidebar({
       <div
         role="separator"
         aria-label={t("sidebar.resize")}
-        aria-valuenow={sidebarWidth}
+        aria-valuenow={displayedWidth}
         aria-valuemin={SIDEBAR_MIN}
-        aria-valuemax={SIDEBAR_MAX}
+        aria-valuemax={effectiveMaxWidth}
         tabIndex={0}
         className="sidebar-resize-handle"
         onMouseDown={handleResizeMouseDown}
@@ -429,7 +436,9 @@ export function Sidebar({
           e.preventDefault();
           const step = e.shiftKey ? 24 : 12;
           const delta = e.key === "ArrowRight" ? step : -step;
-          const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, sidebarWidth + delta));
+          // Mirror the mouse-drag path: grow from the rendered width and clamp to
+          // the dynamic max, so keyboard resize can't exceed the usable width.
+          const next = clampSidebarWidth(displayedWidth + delta, SIDEBAR_MIN, effectiveMaxWidth);
           setSidebarWidth(next);
           localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
         }}

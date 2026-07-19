@@ -3,6 +3,16 @@ import type { FileNode, GitStatus } from "./types";
 
 export const GIT_PRIORITY: GitStatus[] = ["staged", "modified", "untracked"];
 
+/**
+ * Clamp a sidebar width into `[min, max]`. Shared by the width-restore, mouse
+ * drag, and keyboard-resize paths so they can't diverge — keyboard resize once
+ * clamped to the static ceiling while the drag path used the dynamic max, which
+ * let the keyboard push the panel past its usable width.
+ */
+export function clampSidebarWidth(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 function isIndexMarkdownFile(node: FileNode): boolean {
   return !node.isDirectory && /^index\.mdx?$/.test(node.name);
 }

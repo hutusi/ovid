@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import {
   bucketLabel,
+  clampSidebarWidth,
   collapseIndexNodes,
   filterTree,
   findCollectionEntries,
@@ -970,5 +971,27 @@ describe("forContentMode translation grouping", () => {
       treeRoot: "/ws",
     });
     expect(result.map((n) => n.name).sort()).toEqual(["about.mdx", "about.zh.mdx"]);
+  });
+});
+
+describe("clampSidebarWidth", () => {
+  const MIN = 180;
+  const MAX = 480;
+
+  it("returns the value unchanged when within range", () => {
+    expect(clampSidebarWidth(240, MIN, MAX)).toBe(240);
+  });
+
+  it("clamps to the min and max bounds", () => {
+    expect(clampSidebarWidth(120, MIN, MAX)).toBe(MIN);
+    expect(clampSidebarWidth(999, MIN, MAX)).toBe(MAX);
+  });
+
+  it("respects a dynamic max below the static ceiling (keyboard/mouse parity)", () => {
+    // With a compressed viewport the effective max is 300; growing from the
+    // rendered width must stop there, not at the 480 static ceiling.
+    expect(clampSidebarWidth(300 + 12, MIN, 300)).toBe(300);
+    expect(clampSidebarWidth(288 + 12, MIN, 300)).toBe(300);
+    expect(clampSidebarWidth(276 + 12, MIN, 300)).toBe(288);
   });
 });
