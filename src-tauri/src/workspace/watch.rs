@@ -21,14 +21,20 @@ pub(crate) struct WorkspaceFsChange {
     pub(crate) needs_rescan: bool,
 }
 
-fn path_is_visible_to_revision(root: &Path, path: &Path) -> bool {
+/// A watcher event refreshes the canonical *tree* (both Content and Files mode),
+/// so it must use the tree's visibility policy — which keeps dot entries
+/// (`keep_dot_entries = true`, matching `workspace::tree`). Only genuine noise
+/// dirs (`.git`, `node_modules`, …) and symlinks are skipped. Using the revision
+/// policy here (skip dot entries) would silently drop dotfile changes that Files
+/// mode displays.
+fn path_is_visible_in_tree(root: &Path, path: &Path) -> bool {
     let Ok(relative) = path.strip_prefix(root) else {
         return false;
     };
     relative.components().all(|component| match component {
         Component::Normal(name) => {
             let name = name.to_string_lossy();
-            !should_skip_walk_entry(&name, false, false)
+            !should_skip_walk_entry(&name, false, true)
         }
         Component::CurDir => true,
         Component::ParentDir | Component::RootDir | Component::Prefix(_) => false,
@@ -75,7 +81,7 @@ pub(crate) fn workspace_change_for_event(
     let needs_rescan = event.need_rescan();
     let mut paths = BTreeSet::new();
     for path in &event.paths {
-        if !path_is_visible_to_revision(workspace_root, path)
+        if !path_is_visible_in_tree(workspace_root, path)
             || !event_can_change_markdown_tree(event, path)
         {
             continue;
@@ -164,8 +170,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let image = dir.path().join("image.png");
         let generated = dir.path().join("node_modules").join("README.md");
-        let hidden = dir.path().join(".hidden").join("note.md");
 
+        // A non-markdown content write is not a tree change.
         assert!(workspace_change_for_event(
             dir.path(),
             &event(
@@ -174,11 +180,27 @@ mod tests {
             ),
         )
         .is_none());
+        // Noise directories (node_modules, .git, …) are never candidates.
         assert!(workspace_change_for_event(
             dir.path(),
-            &event(EventKind::Create(CreateKind::Any), vec![generated, hidden]),
+            &event(EventKind::Create(CreateKind::Any), vec![generated]),
         )
         .is_none());
+    }
+
+    #[test]
+    fn emits_for_dot_entry_structural_changes() {
+        // Dotfiles/dot-dirs (that aren't noise dirs) are visible in Files mode —
+        // the canonical tree keeps them — so a create/remove under one must still
+        // refresh, even though the markdown-only revision ignores them.
+        let dir = TempDir::new().unwrap();
+        let hidden = dir.path().join(".hidden").join("note.md");
+
+        assert!(workspace_change_for_event(
+            dir.path(),
+            &event(EventKind::Create(CreateKind::Any), vec![hidden]),
+        )
+        .is_some());
     }
 
     #[test]

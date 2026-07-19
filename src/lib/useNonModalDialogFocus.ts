@@ -30,8 +30,13 @@ export function useNonModalDialogFocus<
     if (visible && !wasVisible.current) {
       if (autoFocus) dialogRef.current?.focus();
     } else if (!visible && wasVisible.current) {
+      // Reclaim focus only if it was stranded by the hide: either it fell to
+      // <body> (some browsers blur the focused descendant) or it's still on a
+      // now-hidden descendant of the panel (others don't blur). If it moved
+      // elsewhere — the user clicked into the editor — leave it alone.
       const active = document.activeElement;
-      if (!active || active === document.body) {
+      const insidePanel = active != null && dialogRef.current?.contains(active) === true;
+      if (!active || active === document.body || insidePanel) {
         triggerRef.current?.focus();
       }
     }

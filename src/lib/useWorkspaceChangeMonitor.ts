@@ -98,6 +98,15 @@ export function useWorkspaceChangeMonitor({
         }
 
         if (revision === workspaceRevisionRef.current) {
+          // The revision is Markdown-only, but a native event can still report a
+          // non-Markdown or dotfile structural change that Files mode must
+          // reflect. The active Markdown file can't have changed (its content is
+          // part of the revision), so just refresh the tree — no reload/warn.
+          if (eventHint && (eventHint.needsRescan || eventHint.paths.length > 0)) {
+            await refreshTree();
+            if (!mounted) return;
+            if (isGitRepoRef.current) void refreshGitStatus();
+          }
           workspaceRefreshFailureToastRef.current = null;
           return;
         }

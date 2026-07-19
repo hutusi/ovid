@@ -20,7 +20,7 @@ import {
   filterTree,
   getBucketContentType,
   needsPageDivider,
-  nextKeyboardSidebarWidth,
+  nextSidebarWidth,
 } from "../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../lib/types";
 import { useSidebarExpansion } from "../lib/useSidebarExpansion";
@@ -205,12 +205,8 @@ export function Sidebar({
     const onMouseMove = (ev: MouseEvent) => {
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const next = clampSidebarWidth(
-        dragStartWidth.current + delta,
-        SIDEBAR_MIN,
-        effectiveMaxWidth
-      );
-      setSidebarWidth(next);
+      const next = nextSidebarWidth(dragStartWidth.current, delta, SIDEBAR_MIN, effectiveMaxWidth);
+      if (next !== null) setSidebarWidth(next);
     };
 
     const onMouseUp = (ev: MouseEvent) => {
@@ -219,12 +215,13 @@ export function Sidebar({
       activeDragListeners.current = null;
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const final = clampSidebarWidth(
-        dragStartWidth.current + delta,
-        SIDEBAR_MIN,
-        effectiveMaxWidth
-      );
-      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(final));
+      // A no-op click / at-cap drag returns null so we don't overwrite the stored
+      // preferred width (which can exceed the current usable max) with the cap.
+      const next = nextSidebarWidth(dragStartWidth.current, delta, SIDEBAR_MIN, effectiveMaxWidth);
+      if (next !== null) {
+        setSidebarWidth(next);
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
+      }
       setIsResizing(false);
     };
 
@@ -441,12 +438,7 @@ export function Sidebar({
           // Grow from the rendered width and clamp to the dynamic max. A no-op at
           // the cap returns null so we don't overwrite the stored *preferred*
           // width (which may exceed the current usable max on a narrow window).
-          const next = nextKeyboardSidebarWidth(
-            displayedWidth,
-            delta,
-            SIDEBAR_MIN,
-            effectiveMaxWidth
-          );
+          const next = nextSidebarWidth(displayedWidth, delta, SIDEBAR_MIN, effectiveMaxWidth);
           if (next === null) return;
           setSidebarWidth(next);
           localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));

@@ -137,6 +137,52 @@ describe("useWorkspaceChangeMonitor", () => {
     expect(opts.reloadSelectedFileFromDisk).not.toHaveBeenCalled();
   });
 
+  it("refreshes the tree for a native structural event even when the revision is unchanged", async () => {
+    // A non-Markdown asset (or dotfile) create/remove doesn't move the
+    // Markdown-only revision, but the native event must still refresh Files mode.
+    invokeImpl = async (name) => {
+      if (name === "get_workspace_revision") return "r1";
+      throw new Error(`unexpected command: ${name}`);
+    };
+    const opts = options();
+    renderMonitor(opts);
+    await waitFor(() => expect(fsChangeHandler).not.toBeNull());
+    await waitFor(() =>
+      expect(invokeCalls.filter((name) => name === "get_workspace_revision")).toHaveLength(1)
+    );
+
+    fsChangeHandler?.({
+      payload: {
+        workspaceRoot: "/workspace",
+        paths: ["/workspace/assets/photo.png"],
+        needsRescan: false,
+      },
+    });
+
+    await waitFor(() => expect(opts.refreshTree).toHaveBeenCalledTimes(1), {
+      timeout: WORKSPACE_EVENT_DEBOUNCE_MS + 1_000,
+    });
+    // Active Markdown file can't have changed (its content is in the revision).
+    expect(opts.reloadSelectedFileFromDisk).not.toHaveBeenCalled();
+  });
+
+  it("does not refresh on a fallback poll when the revision is unchanged", async () => {
+    // Without a native event hint, an unchanged revision must stay a no-op.
+    invokeImpl = async () => "r1";
+    const opts = options();
+    renderMonitor(opts);
+    await waitFor(() => expect(fsChangeHandler).not.toBeNull());
+    await waitFor(() =>
+      expect(invokeCalls.filter((name) => name === "get_workspace_revision")).toHaveLength(1)
+    );
+
+    document.dispatchEvent(new window.Event("visibilitychange"));
+    await waitFor(() =>
+      expect(invokeCalls.filter((name) => name === "get_workspace_revision")).toHaveLength(2)
+    );
+    expect(opts.refreshTree).not.toHaveBeenCalled();
+  });
+
   it("ignores stale-workspace events and catches up when visibility returns", async () => {
     const revisions = ["r1", "r2"];
     invokeImpl = async () => revisions.shift() ?? "r2";

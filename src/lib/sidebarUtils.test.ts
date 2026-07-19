@@ -13,7 +13,7 @@ import {
   getSidebarDisplayName,
   isCollectionEntry,
   needsPageDivider,
-  nextKeyboardSidebarWidth,
+  nextSidebarWidth,
   rollupGitStatus,
   sortNodes,
   sortTree,
@@ -997,25 +997,29 @@ describe("clampSidebarWidth", () => {
   });
 });
 
-describe("nextKeyboardSidebarWidth", () => {
+describe("nextSidebarWidth", () => {
   const MIN = 180;
 
   it("returns the nudged width when it changes the rendered width", () => {
-    expect(nextKeyboardSidebarWidth(240, 12, MIN, 480)).toBe(252);
-    expect(nextKeyboardSidebarWidth(240, -12, MIN, 480)).toBe(228);
+    expect(nextSidebarWidth(240, 12, MIN, 480)).toBe(252);
+    expect(nextSidebarWidth(240, -12, MIN, 480)).toBe(228);
   });
 
   it("returns null at the dynamic cap so a grow nudge keeps the stored preference", () => {
     // Rendered width is pinned at the dynamic max (300) while the stored
-    // preference is larger (e.g. 480): ArrowRight must not overwrite it.
-    expect(nextKeyboardSidebarWidth(300, 12, MIN, 300)).toBeNull();
+    // preference is larger (e.g. 480): a grow nudge must not overwrite it.
+    expect(nextSidebarWidth(300, 12, MIN, 300)).toBeNull();
+  });
+
+  it("returns null for a zero-delta no-op (a plain resize-handle click)", () => {
+    expect(nextSidebarWidth(300, 0, MIN, 300)).toBeNull();
   });
 
   it("still allows a visible shrink away from the cap", () => {
-    expect(nextKeyboardSidebarWidth(300, -12, MIN, 300)).toBe(288);
+    expect(nextSidebarWidth(300, -12, MIN, 300)).toBe(288);
   });
 
   it("returns null at the min bound for a shrink nudge", () => {
-    expect(nextKeyboardSidebarWidth(MIN, -12, MIN, 480)).toBeNull();
+    expect(nextSidebarWidth(MIN, -12, MIN, 480)).toBeNull();
   });
 });

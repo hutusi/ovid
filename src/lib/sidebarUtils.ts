@@ -14,20 +14,21 @@ export function clampSidebarWidth(value: number, min: number, max: number): numb
 }
 
 /**
- * The width to persist for an arrow-key nudge of the resize splitter, or `null`
- * when the rendered width is already pinned at the dynamic cap. Returning `null`
- * there is important: the stored width is the user's *preferred* width, which can
- * exceed the current usable max when the window is narrow; nudging against the cap
+ * The width to persist for a resize nudge (keyboard arrow or mouse drag) that
+ * starts from `from`, or `null` when the result is unchanged — e.g. the rendered
+ * width is already pinned at the dynamic cap, or a plain click that didn't move.
+ * Returning `null` there is important: the stored width is the user's *preferred*
+ * width, which can exceed the current usable max on a narrow window; a no-op nudge
  * must not overwrite that preference with the smaller rendered width.
  */
-export function nextKeyboardSidebarWidth(
-  displayed: number,
+export function nextSidebarWidth(
+  from: number,
   delta: number,
   min: number,
   max: number
 ): number | null {
-  const next = clampSidebarWidth(displayed + delta, min, max);
-  return next === displayed ? null : next;
+  const next = clampSidebarWidth(from + delta, min, max);
+  return next === from ? null : next;
 }
 
 function isIndexMarkdownFile(node: FileNode): boolean {
