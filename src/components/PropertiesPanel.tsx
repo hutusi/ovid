@@ -1,4 +1,5 @@
 import { PanelRightClose } from "lucide-react";
+import type { Ref } from "react";
 import { useTranslation } from "react-i18next";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import {
@@ -30,6 +31,8 @@ interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
   visible: boolean;
   drawer?: boolean;
+  /** Attached to the panel root so the compact drawer can be focus-trapped. */
+  containerRef?: Ref<HTMLDivElement>;
   slug?: string;
   /** Bucket-derived content type (post/series/book/note/flow/page) used to
    *  gate context-sensitive addable fields like `sort` (series-only). */
@@ -50,6 +53,7 @@ export function PropertiesPanel({
   frontmatter,
   visible,
   drawer = false,
+  containerRef,
   slug,
   contentType,
   coverImageVisible = false,
@@ -89,7 +93,18 @@ export function PropertiesPanel({
     .sort();
 
   return (
-    <div className={`properties-panel${visible ? "" : " hidden"}${drawer ? " drawer" : ""}`}>
+    // As a compact drawer this panel is a modal overlay: announced as a dialog
+    // and focus-trapped via containerRef; inline it's a plain side panel with
+    // none of these. role and aria-modal are always set together (both keyed on
+    // `drawer`), which Biome can't verify statically.
+    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: aria-modal is paired with role="dialog" whenever drawer is true.
+    <div
+      ref={containerRef}
+      className={`properties-panel${visible ? "" : " hidden"}${drawer ? " drawer" : ""}`}
+      role={drawer ? "dialog" : undefined}
+      aria-modal={drawer ? true : undefined}
+      aria-label={drawer ? t("properties.frontmatter") : undefined}
+    >
       <div className="prop-header" data-tauri-drag-region="deep">
         {onToggle && (
           <button

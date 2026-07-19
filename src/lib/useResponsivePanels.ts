@@ -74,9 +74,24 @@ export function useResponsivePanels({
   const [compactPropertiesOpen, setCompactPropertiesOpen] = useState(false);
 
   useEffect(() => {
-    const handleResize = () => setViewportWidth(window.innerWidth);
+    // Coalesce resize events to one state update per animation frame — a raw
+    // per-event handler re-renders the whole App (including the mounted editor)
+    // continuously during a live window drag. viewportWidth still tracks the
+    // width (the sidebar max-width clamp needs it); the frame gate just bounds
+    // the update rate, and the equality check skips no-op updates.
+    let frame = 0;
+    const handleResize = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        setViewportWidth((prev) => (prev === window.innerWidth ? prev : window.innerWidth));
+      });
+    };
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
   }, []);
 
   const layout = useMemo(

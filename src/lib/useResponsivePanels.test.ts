@@ -64,13 +64,30 @@ describe("resolvePanelLayout", () => {
 
 describe("useResponsivePanels", () => {
   let unmountHook: (() => void) | null = null;
+  let realRaf: typeof window.requestAnimationFrame;
+  let realCancelRaf: typeof window.cancelAnimationFrame;
 
-  beforeAll(registerHappyDom);
+  beforeAll(() => {
+    registerHappyDom();
+    // The resize handler coalesces updates through requestAnimationFrame; run
+    // frames synchronously so the existing synchronous assertions still hold.
+    realRaf = window.requestAnimationFrame;
+    realCancelRaf = window.cancelAnimationFrame;
+    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = (() => {}) as typeof window.cancelAnimationFrame;
+  });
   afterEach(() => {
     unmountHook?.();
     unmountHook = null;
   });
-  afterAll(unregisterHappyDom);
+  afterAll(() => {
+    window.requestAnimationFrame = realRaf;
+    window.cancelAnimationFrame = realCancelRaf;
+    unregisterHappyDom();
+  });
 
   beforeEach(() => {
     localStorage.clear();
