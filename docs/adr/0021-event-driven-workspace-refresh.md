@@ -20,19 +20,26 @@ suspended while hidden.
 Watch the open workspace recursively with `notify::recommended_watcher` and
 emit a typed `workspace-fs-change` Tauri event.
 
-- Rust filters paths outside the canonical workspace, hidden/build noise, and
-  non-Markdown data/metadata changes before crossing the IPC seam. Directory
-  creates, removals, and renames remain candidates because they can alter the
-  visible tree. Event paths are rebased to the path the user opened (important
-  when that path traverses a symlink), and the watcher is replaced whenever a
-  workspace opens.
+- Rust filters paths outside the canonical workspace, build/noise directories
+  (`.git`, `node_modules`, …) and symlinks, and non-Markdown data/metadata
+  changes before crossing the IPC seam. It uses the canonical **tree**
+  visibility (dot entries are kept — Files mode shows them), not the stricter
+  revision policy. Structural changes — create, remove, or rename of any visible
+  path, including dotfiles — remain candidates because they can alter the visible
+  tree. Event paths are rebased to the path the user opened (important when that
+  path traverses a symlink), and the watcher is replaced whenever a workspace
+  opens.
 - Watcher startup failure is non-fatal. The frontend retains an independent
   revision fallback, so an unsupported backend does not make external changes
   invisible.
 - `useWorkspaceChangeMonitor` debounces native events for 250 ms, then computes
-  the authoritative workspace revision. It only refreshes the tree and active
-  file when that revision changed. Events arriving during a refresh coalesce
-  into one queued pass.
+  the authoritative workspace revision (which hashes every Markdown file,
+  including dot-path ones, so an active file opened via Files mode reloads on
+  external edits). It refreshes the tree and active file when the revision
+  changed, and also refreshes the tree when a native event reports a structural
+  change the Markdown-only revision can't see (a non-Markdown asset or dotfile).
+  Events arriving during a refresh coalesce into one queued pass that preserves
+  the merged event hint (paths / needs-rescan).
 - The monitor ignores events while the document is hidden, checks immediately
   when visibility returns, and performs a slow 30-second revision check while
   visible. These cover dropped/coalesced events without restoring constant

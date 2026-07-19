@@ -166,6 +166,43 @@ describe("useWorkspaceChangeMonitor", () => {
     expect(opts.reloadSelectedFileFromDisk).not.toHaveBeenCalled();
   });
 
+  it("carries a queued event hint through an in-flight refresh", async () => {
+    // Hold the first revision check pending so the initial refresh stays in
+    // flight while an event arrives. The deferred (trailing) pass must keep the
+    // event hint and refresh the tree even though the revision is unchanged.
+    let resolveFirst: (value: string) => void = () => {};
+    const firstRevision = new Promise<string>((resolve) => {
+      resolveFirst = resolve;
+    });
+    let revisionCalls = 0;
+    invokeImpl = async (name) => {
+      if (name !== "get_workspace_revision") throw new Error(`unexpected command: ${name}`);
+      revisionCalls += 1;
+      return revisionCalls === 1 ? firstRevision : "r1";
+    };
+    const opts = options();
+    renderMonitor(opts);
+
+    await waitFor(() => expect(fsChangeHandler).not.toBeNull());
+    await waitFor(() => expect(revisionCalls).toBe(1));
+
+    // Structural event fires while the initial refresh is still in flight; after
+    // the debounce it queues behind that refresh (hint preserved).
+    fsChangeHandler?.({
+      payload: {
+        workspaceRoot: "/workspace",
+        paths: ["/workspace/assets/photo.png"],
+        needsRescan: false,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, WORKSPACE_EVENT_DEBOUNCE_MS + 50));
+
+    // Release the initial refresh → the trailing pass runs with the merged hint.
+    resolveFirst("r1");
+
+    await waitFor(() => expect(opts.refreshTree).toHaveBeenCalledTimes(1), { timeout: 2_000 });
+  });
+
   it("does not refresh on a fallback poll when the revision is unchanged", async () => {
     // Without a native event hint, an unchanged revision must stay a no-op.
     invokeImpl = async () => "r1";

@@ -32,7 +32,12 @@ pub(crate) fn hash_workspace_dir(path: &Path, root: &Path, hasher: &mut DefaultH
             continue;
         };
 
-        if should_skip_walk_entry(&name, file_type.is_symlink(), false) {
+        // Keep dot entries, matching the canonical tree (`workspace::tree`): a
+        // dot-path Markdown file (e.g. `.hidden/note.md`) can be opened as the
+        // active editor via Files mode, so its content must be part of the
+        // revision or an external edit to it would go undetected. Noise dirs
+        // (`.git`, `node_modules`, …) are still skipped by `is_noise_dir`.
+        if should_skip_walk_entry(&name, file_type.is_symlink(), true) {
             continue;
         }
 
@@ -102,6 +107,22 @@ mod tests {
         fs::write(noise.join("README.md"), "# Generated").unwrap();
 
         assert_eq!(compute_workspace_revision(dir.path()), before);
+    }
+
+    #[test]
+    fn compute_workspace_revision_changes_for_dot_directory_markdown_edits() {
+        // A dot-path markdown file is visible in Files mode and can be the active
+        // editor, so an external edit must bump the revision (unlike noise dirs).
+        let dir = TempDir::new().unwrap();
+        let hidden = dir.path().join(".hidden");
+        fs::create_dir_all(&hidden).unwrap();
+        let file = hidden.join("note.md");
+        fs::write(&file, "# Hidden").unwrap();
+        let before = compute_workspace_revision(dir.path());
+
+        fs::write(&file, "# Hidden\n\nUpdated").unwrap();
+
+        assert_ne!(compute_workspace_revision(dir.path()), before);
     }
 
     #[test]

@@ -121,10 +121,11 @@ fn is_noise_dir(name: &str) -> bool {
 
 /// The one shared skip rule for every recursive workspace walker. Noise
 /// directories are never traversed and symlinks are never followed, in every
-/// walker. `keep_dot_entries` is the single policy knob: the canonical tree
-/// keeps dot-entries (they are visible in Files mode), while revision hashing
-/// and search skip them — so `.github/notes.md` can appear in the tree
-/// without ever bumping the revision or matching a search.
+/// walker. `keep_dot_entries` is the single policy knob: the canonical tree and
+/// the revision keep dot-entries (they are visible in Files mode and can be the
+/// active editor file, so their content must bump the revision), while search
+/// skips them — so `.github/notes.md` appears in the tree and reloads on
+/// external edits without ever matching a search.
 pub(crate) fn should_skip_walk_entry(name: &str, is_symlink: bool, keep_dot_entries: bool) -> bool {
     if is_symlink || is_noise_dir(name) {
         return true;

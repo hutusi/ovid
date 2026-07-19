@@ -140,9 +140,13 @@ export function Sidebar({
     if (!Number.isFinite(parsed)) return SIDEBAR_DEFAULT;
     return clampSidebarWidth(parsed, SIDEBAR_MIN, SIDEBAR_MAX);
   });
-  const [isResizing, setIsResizing] = useState(false);
+  // Transient width while a mouse drag is live — tracks the cursor independently
+  // of the persisted preference, so a drag that returns to its start (or a no-op
+  // click) renders correctly without clobbering `sidebarWidth`.
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  const isResizing = dragWidth !== null;
   const effectiveMaxWidth = clampSidebarWidth(maxWidth, SIDEBAR_MIN, SIDEBAR_MAX);
-  const displayedWidth = Math.min(sidebarWidth, effectiveMaxWidth);
+  const displayedWidth = dragWidth ?? Math.min(sidebarWidth, effectiveMaxWidth);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
   const isMounted = useRef(true);
@@ -198,15 +202,18 @@ export function Sidebar({
 
   function handleResizeMouseDown(e: React.MouseEvent) {
     e.preventDefault();
-    setIsResizing(true);
     dragStartX.current = e.clientX;
     dragStartWidth.current = displayedWidth;
+    setDragWidth(displayedWidth);
 
     const onMouseMove = (ev: MouseEvent) => {
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      const next = nextSidebarWidth(dragStartWidth.current, delta, SIDEBAR_MIN, effectiveMaxWidth);
-      if (next !== null) setSidebarWidth(next);
+      // Follow the cursor live (incl. back to the start); the persist decision
+      // happens only on mouse-up so a return-to-start renders correctly.
+      setDragWidth(
+        clampSidebarWidth(dragStartWidth.current + delta, SIDEBAR_MIN, effectiveMaxWidth)
+      );
     };
 
     const onMouseUp = (ev: MouseEvent) => {
@@ -215,14 +222,15 @@ export function Sidebar({
       activeDragListeners.current = null;
       if (!isMounted.current) return;
       const delta = ev.clientX - dragStartX.current;
-      // A no-op click / at-cap drag returns null so we don't overwrite the stored
-      // preferred width (which can exceed the current usable max) with the cap.
+      // Persist only a real resize. A no-op click, a return-to-start, or an
+      // at-cap drag returns null, leaving the stored preferred width (which can
+      // exceed the current usable max) untouched.
       const next = nextSidebarWidth(dragStartWidth.current, delta, SIDEBAR_MIN, effectiveMaxWidth);
       if (next !== null) {
         setSidebarWidth(next);
         localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
       }
-      setIsResizing(false);
+      setDragWidth(null);
     };
 
     activeDragListeners.current = { onMouseMove, onMouseUp };

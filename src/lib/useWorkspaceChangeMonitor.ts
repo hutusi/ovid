@@ -48,6 +48,11 @@ export function useWorkspaceChangeMonitor({
     let mounted = true;
     let refreshInFlight = false;
     let refreshQueued = false;
+    // A refresh deferred because one is in flight keeps the deferred event's
+    // hint (paths/needsRescan), so a same-revision structural refresh isn't
+    // dropped when it becomes the trailing pass.
+    let queuedEventPaths = new Set<string>();
+    let queuedEventNeedsRescan = false;
     let eventTimer: number | null = null;
     let pendingEventPaths = new Set<string>();
     let pendingEventNeedsRescan = false;
@@ -58,6 +63,10 @@ export function useWorkspaceChangeMonitor({
     }) {
       if (refreshInFlight) {
         refreshQueued = true;
+        if (eventHint) {
+          for (const path of eventHint.paths) queuedEventPaths.add(path);
+          queuedEventNeedsRescan ||= eventHint.needsRescan;
+        }
         return;
       }
       refreshInFlight = true;
@@ -98,10 +107,11 @@ export function useWorkspaceChangeMonitor({
         }
 
         if (revision === workspaceRevisionRef.current) {
-          // The revision is Markdown-only, but a native event can still report a
-          // non-Markdown or dotfile structural change that Files mode must
-          // reflect. The active Markdown file can't have changed (its content is
-          // part of the revision), so just refresh the tree — no reload/warn.
+          // The revision hashes every Markdown file (including dot-path ones), so
+          // an unchanged revision means the active Markdown file didn't change — no
+          // reload/warn needed. But a native event can still report a non-Markdown
+          // structural change (asset, non-Markdown dotfile) the revision can't see,
+          // which Files mode must reflect, so just refresh the tree.
           if (eventHint && (eventHint.needsRescan || eventHint.paths.length > 0)) {
             await refreshTree();
             if (!mounted) return;
@@ -185,7 +195,13 @@ export function useWorkspaceChangeMonitor({
         refreshInFlight = false;
         if (mounted && refreshQueued) {
           refreshQueued = false;
-          void refreshForExternalChanges();
+          const mergedHint =
+            queuedEventPaths.size > 0 || queuedEventNeedsRescan
+              ? { paths: [...queuedEventPaths], needsRescan: queuedEventNeedsRescan }
+              : undefined;
+          queuedEventPaths = new Set();
+          queuedEventNeedsRescan = false;
+          void refreshForExternalChanges(mergedHint);
         }
       }
     }
