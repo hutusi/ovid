@@ -20,6 +20,7 @@ import {
   filterTree,
   getBucketContentType,
   needsPageDivider,
+  nextKeyboardSidebarWidth,
 } from "../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../lib/types";
 import { useSidebarExpansion } from "../lib/useSidebarExpansion";
@@ -424,6 +425,7 @@ export function Sidebar({
       {/* biome-ignore lint/a11y/useSemanticElements: resize splitter widget requires div, not <hr> */}
       <div
         role="separator"
+        aria-orientation="vertical"
         aria-label={t("sidebar.resize")}
         aria-valuenow={displayedWidth}
         aria-valuemin={SIDEBAR_MIN}
@@ -436,9 +438,16 @@ export function Sidebar({
           e.preventDefault();
           const step = e.shiftKey ? 24 : 12;
           const delta = e.key === "ArrowRight" ? step : -step;
-          // Mirror the mouse-drag path: grow from the rendered width and clamp to
-          // the dynamic max, so keyboard resize can't exceed the usable width.
-          const next = clampSidebarWidth(displayedWidth + delta, SIDEBAR_MIN, effectiveMaxWidth);
+          // Grow from the rendered width and clamp to the dynamic max. A no-op at
+          // the cap returns null so we don't overwrite the stored *preferred*
+          // width (which may exceed the current usable max on a narrow window).
+          const next = nextKeyboardSidebarWidth(
+            displayedWidth,
+            delta,
+            SIDEBAR_MIN,
+            effectiveMaxWidth
+          );
+          if (next === null) return;
           setSidebarWidth(next);
           localStorage.setItem(SIDEBAR_WIDTH_KEY, String(next));
         }}

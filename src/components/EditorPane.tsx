@@ -146,12 +146,14 @@ export function EditorPane({
   onToggleCoverImage,
 }: EditorPaneProps) {
   const { t } = useTranslation();
-  // The compact properties drawer is a non-modal dialog: place focus on it when
-  // it opens (it's announced, and Tab starts inside it) and return focus to the
-  // top-bar expand button when it closes — otherwise focus strands on <body>
-  // because that button unmounts as soon as the panel opens.
+  // Properties-panel focus management. The compact drawer (a non-modal dialog)
+  // grabs focus when it opens so it's announced; the inline panel does not. In
+  // both modes, when the panel hides (drawer dismissed, or inline collapsed, or
+  // the breakpoint crossed) focus is returned to the top-bar expand button if it
+  // was stranded — otherwise it would fall to <body> as the focused collapse
+  // button becomes non-focusable.
   const { dialogRef: propertiesDrawerRef, triggerRef: expandPropertiesRef } =
-    useNonModalDialogFocus<HTMLDivElement, HTMLButtonElement>(propertiesDrawer);
+    useNonModalDialogFocus<HTMLDivElement, HTMLButtonElement>(propertiesOpen, propertiesDrawer);
 
   const editorTitle = parsedFrontmatter.title != null ? String(parsedFrontmatter.title) : "";
 

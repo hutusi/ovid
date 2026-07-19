@@ -15,41 +15,69 @@ describe("useNonModalDialogFocus", () => {
     trigger?.remove();
   });
 
-  function setup() {
+  function setup(autoFocus = true) {
     dialog = document.createElement("div");
     dialog.tabIndex = -1;
     document.body.appendChild(dialog);
     trigger = document.createElement("button");
     document.body.appendChild(trigger);
 
-    const rendered = renderHook(({ open }) => useNonModalDialogFocus(open), {
-      initialProps: { open: false },
-    });
+    const rendered = renderHook(
+      ({ visible, autoFocus }) => useNonModalDialogFocus(visible, autoFocus),
+      { initialProps: { visible: false, autoFocus } }
+    );
     rendered.result.current.dialogRef.current = dialog;
     rendered.result.current.triggerRef.current = trigger;
     return rendered;
   }
 
-  it("focuses the dialog root on open and returns focus to the trigger on close", () => {
-    const { rerender } = setup();
+  it("focuses the dialog on open (autoFocus) and returns focus to the trigger when it hides stranded", () => {
+    const { rerender } = setup(true);
 
-    act(() => rerender({ open: true }));
+    act(() => rerender({ visible: true, autoFocus: true }));
     expect(document.activeElement).toBe(dialog);
 
-    act(() => rerender({ open: false }));
+    // Hiding the panel makes the focused root non-focusable → focus falls to
+    // <body>; the hook should reclaim it to the trigger.
+    act(() => dialog.blur());
+    act(() => rerender({ visible: false, autoFocus: true }));
     expect(document.activeElement).toBe(trigger);
   });
 
-  it("does not move focus when the trigger is absent on close", () => {
-    const { result, rerender } = setup();
+  it("does not grab focus on open when autoFocus is false (inline panel)", () => {
+    const { rerender } = setup(false);
 
-    act(() => rerender({ open: true }));
-    expect(document.activeElement).toBe(dialog);
+    act(() => rerender({ visible: true, autoFocus: false }));
+    expect(document.activeElement).not.toBe(dialog);
 
-    // Simulate the trigger not being rendered (e.g. the panel became inline
-    // rather than being dismissed): focus must be left untouched, not thrown.
+    // But it still returns stranded focus when the inline panel collapses.
+    act(() => dialog.focus());
+    act(() => dialog.blur());
+    act(() => rerender({ visible: false, autoFocus: false }));
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("leaves focus alone when it moved elsewhere before hiding", () => {
+    const { rerender } = setup(true);
+    const other = document.createElement("button");
+    document.body.appendChild(other);
+
+    act(() => rerender({ visible: true, autoFocus: true }));
+    act(() => other.focus());
+    act(() => rerender({ visible: false, autoFocus: true }));
+    expect(document.activeElement).toBe(other);
+
+    other.remove();
+  });
+
+  it("does not throw when the trigger is absent on close", () => {
+    const { result, rerender } = setup(true);
+
+    act(() => rerender({ visible: true, autoFocus: true }));
+    act(() => dialog.blur());
+    // Trigger not rendered (e.g. panel became inline rather than dismissed).
     result.current.triggerRef.current = null;
-    act(() => rerender({ open: false }));
-    expect(document.activeElement).toBe(dialog);
+    act(() => rerender({ visible: false, autoFocus: true }));
+    expect(document.activeElement).toBe(document.body);
   });
 });

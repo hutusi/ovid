@@ -38,15 +38,14 @@ fn path_is_visible_to_revision(root: &Path, path: &Path) -> bool {
 fn event_can_change_markdown_tree(event: &Event, path: &Path) -> bool {
     match event.kind {
         EventKind::Access(_) => false,
+        // Content/metadata writes only matter when the file is markdown (a
+        // non-markdown asset write doesn't change the sidebar). Structural
+        // events — create, remove, rename of *any* path — must stay unconditional
+        // candidates: Files mode shows every file, and the revision fallback is
+        // deliberately markdown-only, so the watcher is the only thing that
+        // refreshes Files mode when a non-markdown file/dir appears or vanishes.
         EventKind::Modify(ModifyKind::Data(_) | ModifyKind::Metadata(_)) => is_markdown_path(path),
         EventKind::Modify(ModifyKind::Name(RenameMode::Any | RenameMode::Both)) => true,
-        // Creating/removing a concrete *file* only affects the markdown tree
-        // when that file is markdown — a non-markdown asset or an editor swap
-        // file shouldn't force a full revision recompute. Directory and
-        // ambiguous kinds (macOS often reports `Create(Any)`) stay unconditional
-        // candidates so a new/removed folder still triggers a walk.
-        EventKind::Create(notify::event::CreateKind::File)
-        | EventKind::Remove(notify::event::RemoveKind::File) => is_markdown_path(path),
         EventKind::Modify(ModifyKind::Name(_))
         | EventKind::Modify(ModifyKind::Any | ModifyKind::Other)
         | EventKind::Create(_)
@@ -210,27 +209,21 @@ mod tests {
     }
 
     #[test]
-    fn ignores_non_markdown_file_create_remove_but_keeps_markdown() {
+    fn emits_for_non_markdown_file_create_remove() {
+        // Files mode shows every file, and the revision fallback is deliberately
+        // markdown-only, so a non-markdown file appearing or vanishing must still
+        // refresh via the watcher.
         let dir = TempDir::new().unwrap();
         let asset = dir.path().join("photo.png");
-        let note = dir.path().join("notes").join("hello.md");
 
-        // A concrete non-markdown file create/remove must not force a recompute.
         assert!(workspace_change_for_event(
             dir.path(),
             &event(EventKind::Create(CreateKind::File), vec![asset.clone()]),
         )
-        .is_none());
+        .is_some());
         assert!(workspace_change_for_event(
             dir.path(),
             &event(EventKind::Remove(RemoveKind::File), vec![asset]),
-        )
-        .is_none());
-
-        // A markdown file create still counts.
-        assert!(workspace_change_for_event(
-            dir.path(),
-            &event(EventKind::Create(CreateKind::File), vec![note]),
         )
         .is_some());
     }

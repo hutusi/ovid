@@ -1,34 +1,42 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Non-trapping focus management for a non-modal dialog (e.g. the compact
- * properties drawer). Unlike `useFocusTrap` it does not contain Tab — the
- * background stays interactive — it only moves focus *into* the dialog on open
- * and *returns* it to a trigger on close, so the dialog is announced and
- * keyboard focus is never stranded on `<body>` when the trigger unmounts.
+ * Non-trapping focus management for a panel that can hide (the properties panel,
+ * inline or as the compact drawer). Unlike `useFocusTrap` it does not contain
+ * Tab — the background stays interactive.
  *
- * Attach `dialogRef` to the dialog's focusable root (give it `tabindex={-1}`)
- * and `triggerRef` to the control focus should return to when it closes. Both
- * are optional at call time: if a ref is unset (e.g. the trigger isn't rendered
- * because the panel became inline rather than being dismissed) focus is left
- * untouched.
+ * - `visible` — whether the panel is currently shown. When it becomes visible
+ *   and `autoFocus` is true (the drawer, a non-modal dialog), focus moves onto
+ *   `dialogRef` so the dialog is announced. Inline the panel shouldn't grab
+ *   focus, so pass `autoFocus={false}` there.
+ * - When the panel hides, focus is returned to `triggerRef` *only if* it was
+ *   stranded on `<body>` — i.e. the focused control (collapse button, drawer
+ *   content) was inside the panel that just hid. If focus already moved
+ *   elsewhere (the user clicked into the editor), it's left alone.
+ *
+ * Attach `dialogRef` to the panel's focusable root (give it `tabindex={-1}` when
+ * it's the drawer) and `triggerRef` to the control focus should return to. Both
+ * refs are optional at call time; an unset ref just no-ops.
  */
 export function useNonModalDialogFocus<
   D extends HTMLElement = HTMLDivElement,
   Tr extends HTMLElement = HTMLButtonElement,
->(open: boolean) {
+>(visible: boolean, autoFocus: boolean) {
   const dialogRef = useRef<D>(null);
   const triggerRef = useRef<Tr>(null);
-  const wasOpen = useRef(false);
+  const wasVisible = useRef(false);
 
   useEffect(() => {
-    if (open && !wasOpen.current) {
-      dialogRef.current?.focus();
-    } else if (!open && wasOpen.current) {
-      triggerRef.current?.focus();
+    if (visible && !wasVisible.current) {
+      if (autoFocus) dialogRef.current?.focus();
+    } else if (!visible && wasVisible.current) {
+      const active = document.activeElement;
+      if (!active || active === document.body) {
+        triggerRef.current?.focus();
+      }
     }
-    wasOpen.current = open;
-  }, [open]);
+    wasVisible.current = visible;
+  }, [visible, autoFocus]);
 
   return { dialogRef, triggerRef };
 }
