@@ -94,12 +94,12 @@ interface EditorProps {
   onTitleChange?: (value: string) => void;
   initialSelection?: number;
   initialScrollTop?: number;
-  onWordCount?: (count: number) => void;
-  /** Fired synchronously once per loaded document (mount, and content swaps
-   *  such as an external reload) with that document's count. Unlike the
-   *  debounced onWordCount typing path this is safe to baseline against —
-   *  the session word-count delta is captured from it. */
-  onInitialWordCount?: (count: number) => void;
+  /** Reports the document's word count with the file it belongs to. Fired
+   *  synchronously once per loaded document (mount, and content swaps such
+   *  as an external reload) and debounced while typing; the synchronous
+   *  emission always comes first, so the session word-count baseline for a
+   *  path is its loaded size, never a mid-typing snapshot. */
+  onWordCount?: (count: number, filePath?: string) => void;
   onDirty?: () => void;
   onChange?: (markdown: string) => void;
   onError?: (msg: string) => void;
@@ -127,7 +127,6 @@ export function Editor({
   initialSelection,
   initialScrollTop,
   onWordCount,
-  onInitialWordCount,
   onDirty,
   onChange,
   onError,
@@ -417,7 +416,7 @@ export function Editor({
         // which matters because ProseMirror dispatches an initial transaction
         // while `useEditor` is still constructing (a synchronous onWordCount
         // would setState in App mid-render). The immediate count on file load
-        // comes from the content-change effect below, not this path.
+        // comes from the mount/content-change effects below, not this path.
         if (wordCountTimerRef.current !== null) window.clearTimeout(wordCountTimerRef.current);
         wordCountTimerRef.current = window.setTimeout(() => {
           wordCountTimerRef.current = null;
@@ -425,7 +424,7 @@ export function Editor({
           const text = measureSync("editor.wordCountText", () => editor.getText(), {
             docSize: editor.state.doc.content.size,
           });
-          onWordCount(countWords(text));
+          onWordCount(countWords(text), filePath);
         }, WORD_COUNT_DEBOUNCE_MS);
       }
 
@@ -485,20 +484,16 @@ export function Editor({
   useEffect(() => {
     if (!editor || initialCountEmittedRef.current) return;
     initialCountEmittedRef.current = true;
-    const count = countWords(editor.getText());
-    onWordCount?.(count);
-    onInitialWordCount?.(count);
-  }, [editor, onWordCount, onInitialWordCount]);
+    onWordCount?.(countWords(editor.getText()), filePath);
+  }, [editor, filePath, onWordCount]);
 
   useEffect(() => {
     if (!editor || content === lastAppliedContentRef.current) return;
     lastAppliedContentRef.current = content;
     clearPendingRestore();
     editor.commands.setContent(content, { emitUpdate: false });
-    const count = countWords(editor.getText());
-    onWordCount?.(count);
-    onInitialWordCount?.(count);
-  }, [clearPendingRestore, content, editor, onWordCount, onInitialWordCount]);
+    onWordCount?.(countWords(editor.getText()), filePath);
+  }, [clearPendingRestore, content, editor, filePath, onWordCount]);
 
   useEffect(() => {
     const scrollEl = scrollRef.current;

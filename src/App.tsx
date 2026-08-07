@@ -21,9 +21,9 @@ import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCloseGuard } from "./lib/useCloseGuard";
 import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useContentPreferences } from "./lib/useContentPreferences";
+import { useCoverImage } from "./lib/useCoverImage";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
 import { useFileEditor } from "./lib/useFileEditor";
-import { useFileResetState } from "./lib/useFileResetState";
 import { useFilesMode } from "./lib/useFilesMode";
 import { useGit } from "./lib/useGit";
 import { useGitFocusFetch } from "./lib/useGitFocusFetch";
@@ -35,6 +35,7 @@ import { useMenuActions } from "./lib/useMenuActions";
 import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useResponsivePanels } from "./lib/useResponsivePanels";
+import { useSessionWords } from "./lib/useSessionWords";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
@@ -133,14 +134,14 @@ function App() {
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
   useCloseGuard(flushPendingSave, showToast);
-  const { sessionWordsAdded, captureSessionBaseline, coverImageVisible, toggleCoverImage } =
-    useFileResetState(selectedFile, wordCount);
-  const handleInitialWordCount = useCallback(
-    (count: number) => {
+  const { sessionWordsAdded, noteWordCount } = useSessionWords();
+  const { coverImageVisible, toggleCoverImage } = useCoverImage(selectedFile);
+  const handleWordCount = useCallback(
+    (count: number, path?: string) => {
       setWordCount(count);
-      captureSessionBaseline(count);
+      if (path) noteWordCount(path, count);
     },
-    [setWordCount, captureSessionBaseline]
+    [setWordCount, noteWordCount]
   );
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
   const saveStatusRef = useRef<SaveStatus>(saveStatus);
@@ -722,8 +723,7 @@ function App() {
           spellCheck={prefs.spellCheck}
           parsedFrontmatter={parsedFrontmatter}
           onFieldChange={handlePublishAwareFieldChange}
-          onWordCount={setWordCount}
-          onInitialWordCount={handleInitialWordCount}
+          onWordCount={handleWordCount}
           onDirty={handleEditorDirty}
           onChange={handleEditorChange}
           onError={showToast}

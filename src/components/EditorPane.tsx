@@ -59,8 +59,7 @@ export interface EditorPaneProps {
   spellCheck: boolean;
   parsedFrontmatter: ParsedFrontmatter;
   onFieldChange: (key: string, value: FrontmatterValue) => void | Promise<void>;
-  onWordCount: (count: number) => void;
-  onInitialWordCount: (count: number) => void;
+  onWordCount: (count: number, filePath?: string) => void;
   onDirty: () => void;
   onChange: (markdown: string) => void;
   onError: (message: string) => void;
@@ -122,7 +121,6 @@ export function EditorPane({
   parsedFrontmatter,
   onFieldChange,
   onWordCount,
-  onInitialWordCount,
   onDirty,
   onChange,
   onError,
@@ -251,7 +249,6 @@ export function EditorPane({
                 title={editorTitle}
                 onTitleChange={(value) => void onFieldChange("title", value)}
                 onWordCount={onWordCount}
-                onInitialWordCount={onInitialWordCount}
                 onDirty={onDirty}
                 onChange={onChange}
                 onError={onError}
