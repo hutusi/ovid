@@ -63,7 +63,7 @@
     "saved": "Saved",
     "rename_path": "Rename path",
     "session_goal": "{{added}} / {{goal}} words (session goal)",
-    "session_words_title": "Words added this session",
+    "session_words_title": "Words added to this file this session",
     "current_branch": "Current branch: {{branch}}",
     "word_count_one": "{{count}} word",
     "word_count_other": "{{count}} words",

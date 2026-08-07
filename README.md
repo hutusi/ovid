@@ -302,7 +302,7 @@ The status bar (bottom of the window) shows:
 - **Path control** — click the current file path to rename it; folder-backed posts show paths like `hello/index.md`, but only the folder name is editable
 - **Save indicator** — grey dot = saved, amber dot = unsaved changes
 - **Word count** — total words in the current file
-- **Session words** — `+N` words added since the file was opened; resets on file switch
+- **Session words** — `+N` words added to the current file this session; each file keeps its own progress across switches, and everything resets when Ovid quits
 - **Aa** — editor settings (font, size, spell check, word-count goal)
 - **⌨** — typewriter mode toggle
 - **◎** — zen mode toggle

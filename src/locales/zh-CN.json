@@ -63,7 +63,7 @@
     "saved": "已保存",
     "rename_path": "重命名路径",
     "session_goal": "{{added}} / {{goal}} 字（本次目标）",
-    "session_words_title": "本次新增字数",
+    "session_words_title": "本文件本次新增字数",
     "current_branch": "当前分支：{{branch}}",
     "word_count_one": "{{count}} 字",
     "word_count_other": "{{count}} 字",
