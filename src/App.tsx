@@ -133,9 +133,14 @@ function App() {
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
   useCloseGuard(flushPendingSave, showToast);
-  const { sessionWordsAdded, coverImageVisible, toggleCoverImage } = useFileResetState(
-    selectedFile,
-    wordCount
+  const { sessionWordsAdded, captureSessionBaseline, coverImageVisible, toggleCoverImage } =
+    useFileResetState(selectedFile, wordCount);
+  const handleInitialWordCount = useCallback(
+    (count: number) => {
+      setWordCount(count);
+      captureSessionBaseline(count);
+    },
+    [setWordCount, captureSessionBaseline]
   );
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
   const saveStatusRef = useRef<SaveStatus>(saveStatus);
@@ -718,6 +723,7 @@ function App() {
           parsedFrontmatter={parsedFrontmatter}
           onFieldChange={handlePublishAwareFieldChange}
           onWordCount={setWordCount}
+          onInitialWordCount={handleInitialWordCount}
           onDirty={handleEditorDirty}
           onChange={handleEditorChange}
           onError={showToast}

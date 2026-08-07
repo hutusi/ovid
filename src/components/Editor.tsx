@@ -95,6 +95,11 @@ interface EditorProps {
   initialSelection?: number;
   initialScrollTop?: number;
   onWordCount?: (count: number) => void;
+  /** Fired synchronously once per loaded document (mount, and content swaps
+   *  such as an external reload) with that document's count. Unlike the
+   *  debounced onWordCount typing path this is safe to baseline against —
+   *  the session word-count delta is captured from it. */
+  onInitialWordCount?: (count: number) => void;
   onDirty?: () => void;
   onChange?: (markdown: string) => void;
   onError?: (msg: string) => void;
@@ -122,6 +127,7 @@ export function Editor({
   initialSelection,
   initialScrollTop,
   onWordCount,
+  onInitialWordCount,
   onDirty,
   onChange,
   onError,
@@ -469,14 +475,30 @@ export function Editor({
     []
   );
 
+  // The keyed remount initialises lastAppliedContentRef to the already-loaded
+  // content, so the content-swap effect below never fires for the mount
+  // document — and the debounced onWordCount path from the construction
+  // transaction lands ~300ms later, far too late to baseline the session
+  // word-count against. Emit the mounted document's count synchronously,
+  // once per editor instance.
+  const initialCountEmittedRef = useRef(false);
+  useEffect(() => {
+    if (!editor || initialCountEmittedRef.current) return;
+    initialCountEmittedRef.current = true;
+    const count = countWords(editor.getText());
+    onWordCount?.(count);
+    onInitialWordCount?.(count);
+  }, [editor, onWordCount, onInitialWordCount]);
+
   useEffect(() => {
     if (!editor || content === lastAppliedContentRef.current) return;
     lastAppliedContentRef.current = content;
     clearPendingRestore();
     editor.commands.setContent(content, { emitUpdate: false });
-    const text = editor.getText();
-    onWordCount?.(countWords(text));
-  }, [clearPendingRestore, content, editor, onWordCount]);
+    const count = countWords(editor.getText());
+    onWordCount?.(count);
+    onInitialWordCount?.(count);
+  }, [clearPendingRestore, content, editor, onWordCount, onInitialWordCount]);
 
   useEffect(() => {
     const scrollEl = scrollRef.current;
