@@ -254,6 +254,26 @@ ADR 0001 captures the design rationale (why typed seam, why hand-typed args).
 
 ---
 
+## The KaTeX runtime seam
+
+KaTeX is not bundled as a module. Its pre-minified browser build ships as an
+opaque asset, script-injected by `loadKatexRuntime()` just before `EditorPane`
+dynamically imports the editor; bare `katex` imports (from
+`@tiptap/extension-mathematics`) are aliased in `vite.config.ts` to
+`src/lib/katexGlobal.ts`, a lazy proxy over `globalThis.katex`.
+
+The seam's one invariant: **`katexGlobal.ts` must stay free of module-scope
+side effects.** Chunking merges the math extension into the eagerly-loaded
+Tiptap chunk (the shortcut command table imports @tiptap extensions at
+startup), so the module evaluates long before the runtime script has loaded —
+an eager throw there once shipped as a production build that launched to a
+black window while dev, serving unbundled ESM, stayed green.
+`scripts/check-entry-evaluates.ts` (run by `bun run build`) evaluates the
+built entry chunk under happy-dom and fails on any startup crash of this
+class.
+
+---
+
 ## Adaptive panel layout
 
 `useResponsivePanels` owns the relationship between viewport width, the
