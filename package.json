@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && bun run check:bundle",
+    "build": "tsc && vite build && bun run check:bundle && bun run check:entry",
     "check:bundle": "bun scripts/check-bundle-size.ts",
+    "check:entry": "bun scripts/check-entry-evaluates.ts",
     "check:whitespace": "bun scripts/check-whitespace.ts",
     "preview": "vite preview",
     "tauri": "tauri",

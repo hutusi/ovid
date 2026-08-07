@@ -15,6 +15,14 @@ function manualChunks(id: string): string | undefined {
     return "editor-prosemirror";
   }
 
+  // The shortcut command table eagerly imports @tiptap extensions, so this
+  // chunk evaluates at startup — including extension-mathematics, whose
+  // aliased `katex` import (src/lib/katexGlobal.ts) must therefore stay free
+  // of module-scope side effects. Don't try to split mathematics into its own
+  // lazy chunk: Rolldown's group capture drags shared prosemirror/tiptap
+  // modules along and the chunk ends up eagerly reachable anyway.
+  // scripts/check-entry-evaluates.ts smoke-tests the built entry against
+  // exactly this class of startup crash.
   if (id.includes("/node_modules/@tiptap/")) {
     return "editor-tiptap";
   }
