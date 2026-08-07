@@ -27,8 +27,12 @@ if (!entryName) {
   process.exit(1);
 }
 
-process.on("unhandledRejection", () => {
-  // Expected outside the Tauri shell (invoke/listen have no backend).
+process.on("unhandledRejection", (reason) => {
+  // Expected outside the Tauri shell (invoke/listen have no backend), so
+  // rejections don't fail the check — but log them so a genuinely broken
+  // fire-and-forget import in the entry graph is visible in build output
+  // instead of silently swallowed.
+  console.warn("entry smoke test: tolerated unhandled rejection:", reason);
 });
 
 registerHappyDom();
