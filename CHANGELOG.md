@@ -7,6 +7,68 @@ release cadence and Conventional Commit history.
 
 ## Unreleased
 
+## 0.17.0 - 2026-08-08
+
+### Added
+- **External-change conflict detection**: saving no longer clobbers a file that
+  changed on disk since it was read. Reads carry an opaque content-hash version
+  token; a mismatched save opens a conflict dialog (keep mine / take disk)
+  instead of silently overwriting, file creation is atomic, and existing file
+  permissions are preserved on write. See ADR 0020.
+- **Save-before-close flush**: pending autosaves (the last ~1 s of typing held
+  by the debounce) are flushed before the window closes, so quitting mid-thought
+  no longer drops the tail of your edit. A visible "Saving…" save-state joins
+  the saved/unsaved dot, and generated commit messages are localized.
+- **Warm editorial theme**: a full visual refresh — warm token palette with a
+  copper accent, paper-grain texture and material panel depth, editorial prose
+  typography, and matching chrome/sidebar/status-bar/modal polish. See ADR 0019.
+- **Keyboard replace**: the find & replace bar can now replace one / replace all
+  entirely from the keyboard.
+
+### Changed
+- **Per-file session word progress**: the status-bar `+N` badge now shows words
+  added to the *current file* this session. Each file keeps its own baseline for
+  the whole app run — switching files shows the other file's progress and
+  switching back restores this one's; renames migrate the baseline, deletions
+  drop it, and externally-reloaded content rebaselines instead of counting
+  foreign words. The badge tooltip and README were updated to match.
+- **Search hardening**: workspace search gained a stale-response guard, an
+  explicit error state, and better match navigation.
+- **Compact properties drawer**: on narrow windows the properties panel is a
+  cleanly non-modal drawer with correct dialog semantics and focus management.
+  See ADR 0004/0017 updates.
+
+### Fixed
+- **CJK word count**: Chinese / Japanese / Korean text now counts correctly —
+  each CJK character counts as one word instead of a whole paragraph counting
+  as one. The English count also uses proper singular/plural forms.
+- **Production-build startup crash**: a bundling interaction between the KaTeX
+  lazy-load scheme and chunk merging could make a packaged build launch to a
+  dead black window while dev stayed green. The KaTeX global is now resolved
+  lazily, and every build runs a smoke test that evaluates the bundled entry
+  chunk so this whole class of failure fails the build instead of shipping.
+- **Session badge accuracy**: `+N` no longer always equals the document total
+  (the baseline raced the file-load path), and it survives renames, deletions,
+  and external reloads without inventing or losing progress.
+- **Data-safety hardening**: editor writes are ordered per file and pending
+  edits survive failed flushes; frontmatter writes are debounced and tracked in
+  the save-coordination model; tabs/recents update only after a successful
+  open; workspace tree refreshes are invalidated on workspace switch; path
+  validation for file writes checks the workspace root (not the tree root);
+  `save_asset` gained an extension allowlist.
+- **Assorted fixes**: sidebar keyboard resize mirrors the rendered width with
+  correct ARIA; git `branch -m`/`-d` argument injection guarded with a `--`
+  separator; branch-operation errors classified for clearer messages; the two
+  remaining raw-English error toasts translated; Files-mode refresh and
+  sidebar-drag edge cases closed.
+
+### Performance
+- **Calmer editing and navigation**: reduced per-keystroke editor work; corpus
+  reads for wiki links and backlinks are batched; read-only workspace/git
+  commands run off the main thread; per-file caches are bounded and huge files
+  guarded on read; workspace revision polling pauses while the window is
+  hidden and skips non-markdown file events.
+
 ## 0.16.0 - 2026-06-08
 
 ### Added
