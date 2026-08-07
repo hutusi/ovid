@@ -15,7 +15,13 @@ import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
 import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
-import type { CollectionItem, FileNode, SaveStatus, SearchJumpTarget } from "./lib/types";
+import type {
+  CollectionItem,
+  FileNode,
+  SaveStatus,
+  SearchJumpTarget,
+  WordCountKind,
+} from "./lib/types";
 import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCloseGuard } from "./lib/useCloseGuard";
@@ -134,14 +140,22 @@ function App() {
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
   useCloseGuard(flushPendingSave, showToast);
-  const { sessionWordsAdded, noteWordCount } = useSessionWords(selectedFile?.path ?? null);
+  const {
+    sessionWordsAdded,
+    noteWordCount,
+    rebaselineWordCount,
+    notePathRenamed,
+    notePathRemoved,
+  } = useSessionWords(selectedFile?.path ?? null);
   const { coverImageVisible, toggleCoverImage } = useCoverImage(selectedFile);
   const handleWordCount = useCallback(
-    (count: number, path?: string) => {
+    (count: number, path?: string, kind?: WordCountKind) => {
       setWordCount(count);
-      if (path) noteWordCount(path, count);
+      if (!path) return;
+      if (kind === "reload") rebaselineWordCount(path, count);
+      else noteWordCount(path, count);
     },
-    [setWordCount, noteWordCount]
+    [setWordCount, noteWordCount, rebaselineWordCount]
   );
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
   const saveStatusRef = useRef<SaveStatus>(saveStatus);
@@ -188,6 +202,8 @@ function App() {
     flushPendingSave,
     resetFileState,
     contentPrefs,
+    onSessionPathRenamed: notePathRenamed,
+    onSessionPathRemoved: notePathRemoved,
     fileEditor: {
       selectedFile,
       selectedPathRef,

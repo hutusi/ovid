@@ -51,7 +51,7 @@ import {
   normalizeTaskLists,
 } from "../lib/tiptap/taskLists";
 import { WikiLink } from "../lib/tiptap/WikiLink";
-import type { SearchJumpTarget } from "../lib/types";
+import type { SearchJumpTarget, WordCountKind } from "../lib/types";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { BubbleMenu } from "./BubbleMenu";
@@ -94,12 +94,13 @@ interface EditorProps {
   onTitleChange?: (value: string) => void;
   initialSelection?: number;
   initialScrollTop?: number;
-  /** Reports the document's word count with the file it belongs to. Fired
-   *  synchronously once per loaded document (mount, and content swaps such
-   *  as an external reload) and debounced while typing; the synchronous
-   *  emission always comes first, so the session word-count baseline for a
-   *  path is its loaded size, never a mid-typing snapshot. */
-  onWordCount?: (count: number, filePath?: string) => void;
+  /** Reports the document's word count with the file it belongs to and the
+   *  report's provenance: a synchronous "open" once per mount, a synchronous
+   *  "reload" on content swaps under the same mount, and debounced "typing"
+   *  while editing. The synchronous emissions always precede the debounce,
+   *  so the session word-count baseline for a path is its loaded size,
+   *  never a mid-typing snapshot. */
+  onWordCount?: (count: number, filePath?: string, kind?: WordCountKind) => void;
   onDirty?: () => void;
   onChange?: (markdown: string) => void;
   onError?: (msg: string) => void;
@@ -424,7 +425,7 @@ export function Editor({
           const text = measureSync("editor.wordCountText", () => editor.getText(), {
             docSize: editor.state.doc.content.size,
           });
-          onWordCount(countWords(text), filePath);
+          onWordCount(countWords(text), filePath, "typing");
         }, WORD_COUNT_DEBOUNCE_MS);
       }
 
@@ -474,25 +475,12 @@ export function Editor({
     []
   );
 
-  // The keyed remount initialises lastAppliedContentRef to the already-loaded
-  // content, so the content-swap effect below never fires for the mount
-  // document — and the debounced onWordCount path from the construction
-  // transaction lands ~300ms later, far too late to baseline the session
-  // word-count against. Emit the mounted document's count synchronously,
-  // once per editor instance.
-  const initialCountEmittedRef = useRef(false);
-  useEffect(() => {
-    if (!editor || initialCountEmittedRef.current) return;
-    initialCountEmittedRef.current = true;
-    onWordCount?.(countWords(editor.getText()), filePath);
-  }, [editor, filePath, onWordCount]);
-
   useEffect(() => {
     if (!editor || content === lastAppliedContentRef.current) return;
     lastAppliedContentRef.current = content;
     clearPendingRestore();
     editor.commands.setContent(content, { emitUpdate: false });
-    onWordCount?.(countWords(editor.getText()), filePath);
+    onWordCount?.(countWords(editor.getText()), filePath, "reload");
   }, [clearPendingRestore, content, editor, filePath, onWordCount]);
 
   useEffect(() => {
@@ -623,6 +611,21 @@ export function Editor({
     if (normalizedStr === originalStr) return;
     editor.commands.setContent(normalized, { emitUpdate: false });
   }, [editor]);
+
+  // The keyed remount initialises lastAppliedContentRef to the already-loaded
+  // content, so the content-swap effect above never fires for the mount
+  // document — and the debounced onWordCount path from the construction
+  // transaction lands ~300ms later, far too late to baseline the session
+  // word-count against. Emit the mounted document's count synchronously,
+  // once per editor instance. Declared after the task-list normalization
+  // effect (effects run in declaration order) so legacy "[x]" text tokens
+  // are gone before the baseline is measured.
+  const initialCountEmittedRef = useRef(false);
+  useEffect(() => {
+    if (!editor || initialCountEmittedRef.current) return;
+    initialCountEmittedRef.current = true;
+    onWordCount?.(countWords(editor.getText()), filePath, "open");
+  }, [editor, filePath, onWordCount]);
 
   // Click on the ](url) hint from InlineEditMode → open link dialog
   // Use scrollRef instead of editor.view.dom to avoid accessing the view before it's mounted

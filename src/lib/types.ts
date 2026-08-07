@@ -117,3 +117,12 @@ export interface SearchJumpTarget {
   query: string;
   gen: number;
 }
+
+/** Provenance of an editor word-count report. "open" is the synchronous
+ *  emission for a freshly-mounted document, "reload" a content swap under
+ *  the same mount (external change / revert), "typing" the debounced
+ *  keystroke path. The session word counter baselines on first sight of a
+ *  path and rebaselines on "reload" — externally-arrived words are not
+ *  session progress. Lives here (not Editor.tsx) so App can import the
+ *  type without creating an eager edge into the lazily-loaded editor. */
+export type WordCountKind = "open" | "reload" | "typing";

@@ -6,7 +6,13 @@ import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
 import { parseCoverImage, resolveImageSrc } from "../lib/imageUtils";
 import { loadKatexRuntime } from "../lib/loadKatexRuntime";
 import { isMac } from "../lib/platform";
-import type { FileNode, RecentFile, SaveStatus, SearchJumpTarget } from "../lib/types";
+import type {
+  FileNode,
+  RecentFile,
+  SaveStatus,
+  SearchJumpTarget,
+  WordCountKind,
+} from "../lib/types";
 import { useNonModalDialogFocus } from "../lib/useNonModalDialogFocus";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { EmptyState } from "./EmptyState";
@@ -59,7 +65,7 @@ export interface EditorPaneProps {
   spellCheck: boolean;
   parsedFrontmatter: ParsedFrontmatter;
   onFieldChange: (key: string, value: FrontmatterValue) => void | Promise<void>;
-  onWordCount: (count: number, filePath?: string) => void;
+  onWordCount: (count: number, filePath?: string, kind?: WordCountKind) => void;
   onDirty: () => void;
   onChange: (markdown: string) => void;
   onError: (message: string) => void;
