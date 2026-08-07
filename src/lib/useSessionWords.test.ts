@@ -6,54 +6,64 @@ import { useSessionWords } from "./useSessionWords";
 beforeAll(registerHappyDom);
 afterAll(unregisterHappyDom);
 
+function render(initialPath: string | null) {
+  return renderHook(({ path }: { path: string | null }) => useSessionWords(path), {
+    initialProps: { path: initialPath },
+  });
+}
+
 describe("useSessionWords", () => {
   it("baselines a file at its first reported count", () => {
-    const { result } = renderHook(() => useSessionWords());
+    const { result } = render("a.md");
     expect(result.current.sessionWordsAdded).toBe(0);
     act(() => result.current.noteWordCount("a.md", 500));
     expect(result.current.sessionWordsAdded).toBe(0);
   });
 
-  it("counts words added to a file", () => {
-    const { result } = renderHook(() => useSessionWords());
+  it("counts words added to the current file", () => {
+    const { result } = render("a.md");
     act(() => result.current.noteWordCount("a.md", 500));
     act(() => result.current.noteWordCount("a.md", 520));
     expect(result.current.sessionWordsAdded).toBe(20);
   });
 
-  it("accumulates across files and survives switching", () => {
-    const { result } = renderHook(() => useSessionWords());
+  it("scopes the badge to the current file", () => {
+    const { result, rerender } = render("a.md");
     act(() => result.current.noteWordCount("a.md", 500));
     act(() => result.current.noteWordCount("a.md", 520));
-    // Opening another file (its initial emission) must not erase progress.
+    // The freshly-opened file shows its own (empty) progress, not a.md's.
+    rerender({ path: "b.md" });
     act(() => result.current.noteWordCount("b.md", 300));
-    expect(result.current.sessionWordsAdded).toBe(20);
+    expect(result.current.sessionWordsAdded).toBe(0);
     act(() => result.current.noteWordCount("b.md", 304));
-    expect(result.current.sessionWordsAdded).toBe(24);
+    expect(result.current.sessionWordsAdded).toBe(4);
   });
 
-  it("keeps a file's baseline when it is re-opened", () => {
-    const { result } = renderHook(() => useSessionWords());
+  it("restores a file's progress when switching back to it", () => {
+    const { result, rerender } = render("a.md");
     act(() => result.current.noteWordCount("a.md", 500));
     act(() => result.current.noteWordCount("a.md", 520));
-    // Re-open: the remounted editor re-emits the current total.
-    act(() => result.current.noteWordCount("a.md", 520));
-    expect(result.current.sessionWordsAdded).toBe(20);
-  });
-
-  it("lets deletions in one file offset additions in another", () => {
-    const { result } = renderHook(() => useSessionWords());
-    act(() => result.current.noteWordCount("a.md", 500));
+    rerender({ path: "b.md" });
     act(() => result.current.noteWordCount("b.md", 300));
-    act(() => result.current.noteWordCount("a.md", 530));
-    act(() => result.current.noteWordCount("b.md", 290));
+    // Re-open: the remounted editor re-emits the current total; the
+    // session baseline must survive both the switch and the re-emission.
+    rerender({ path: "a.md" });
+    act(() => result.current.noteWordCount("a.md", 520));
     expect(result.current.sessionWordsAdded).toBe(20);
   });
 
-  it("clamps a net-negative session at zero", () => {
-    const { result } = renderHook(() => useSessionWords());
+  it("clamps net deletions at zero", () => {
+    const { result } = render("a.md");
     act(() => result.current.noteWordCount("a.md", 500));
     act(() => result.current.noteWordCount("a.md", 400));
+    expect(result.current.sessionWordsAdded).toBe(0);
+  });
+
+  it("shows nothing when no file is open", () => {
+    const { result, rerender } = render("a.md");
+    act(() => result.current.noteWordCount("a.md", 500));
+    act(() => result.current.noteWordCount("a.md", 520));
+    rerender({ path: null });
     expect(result.current.sessionWordsAdded).toBe(0);
   });
 });
