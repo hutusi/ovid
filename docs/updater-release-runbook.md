@@ -20,7 +20,17 @@ Generate one persistent Tauri updater signing keypair outside the repository.
 Keep:
 
 - the public key for app configuration
-- the private key for CI signing only
+- the private key for CI signing *and* for the local macOS release build — the
+  `release:macos-local` step builds updater artifacts locally, and that build
+  fails without `TAURI_SIGNING_PRIVATE_KEY`. On the release Mac, keep the key
+  outside the repo (e.g. `~/.tauri/`) and run the automation with the variable
+  pointing at the key file:
+
+  ```bash
+  TAURI_SIGNING_PRIVATE_KEY="$HOME/.tauri/<key-file>" \
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
+  bun run release:macos-local -- --version <version>
+  ```
 
 Do not rotate this key casually. Existing installs rely on the same public key to verify
 future releases.
