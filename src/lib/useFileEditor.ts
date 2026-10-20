@@ -349,6 +349,14 @@ export function useFileEditor({
     }
   }, []);
 
+  /** Whether the open file has edits that aren't on disk yet. A keystroke
+   *  still inside the editor's serialize debounce is flushed out first, so it
+   *  counts too. */
+  const hasLocalEdits = useCallback((): boolean => {
+    editorFlushRef.current?.();
+    return pendingMarkdownRef.current !== null || pendingFieldSaveRef.current !== null;
+  }, []);
+
   /** Write the debounced field edit now. Returns the write promise (rejection
    *  already surfaced via handleFieldSaveError) or null when nothing pends. */
   const flushFieldSave = useCallback((): Promise<void> | null => {
@@ -603,13 +611,20 @@ export function useFileEditor({
    *  Returns false if the selection changed underneath us. Throws if the read
    *  fails (caller toasts). */
   const applyDiskContent = useCallback(
-    async (node: FileNode, { newSession }: { newSession: boolean }): Promise<boolean> => {
+    async (
+      node: FileNode,
+      { newSession, keepLocalEdits = false }: { newSession: boolean; keepLocalEdits?: boolean }
+    ): Promise<boolean> => {
       // One consistent snapshot: content paired with the content-hash version
       // it's valid against (the token is intrinsic to the bytes, so there's no
       // read-time race). Throws (→ caller toasts) if the file is unreadable or
       // too large.
       const { content: raw, version } = await commands.files.readVersioned({ path: node.path });
       if (selectedPathRef.current !== node.path) return false;
+      // Edits typed while the read was in flight win over the disk version:
+      // the reload is abandoned, and their save then meets the external change
+      // as a conflict the user resolves — never a silent overwrite of either.
+      if (keepLocalEdits && hasLocalEdits()) return false;
       const { frontmatter, body } = parseFrontmatter(raw);
       frontmatterRef.current = frontmatter;
       lastSavedContentRef.current = raw;
@@ -640,7 +655,13 @@ export function useFileEditor({
       setSelectedFile(node);
       return true;
     },
-    [applyFrontmatterProjection, clearConflict, discardFieldSave, publishEditorDocument]
+    [
+      applyFrontmatterProjection,
+      clearConflict,
+      discardFieldSave,
+      hasLocalEdits,
+      publishEditorDocument,
+    ]
   );
 
   /** Returns true when the file was read and is now the active selection —
@@ -679,18 +700,29 @@ export function useFileEditor({
     }
   }
 
+  /** Replace the open file's content with what is on disk. By default this
+   *  refuses (returns false) when there are local edits — including one typed
+   *  after the caller decided to reload — since a reload would discard them;
+   *  `discardLocalEdits` is for the user's explicit "discard & reload". */
   const reloadSelectedFileFromDisk = useCallback(
-    async (node: FileNode): Promise<boolean> => {
+    async (
+      node: FileNode,
+      { discardLocalEdits = false }: { discardLocalEdits?: boolean } = {}
+    ): Promise<boolean> => {
       if (selectedPathRef.current !== node.path) return false;
+      if (!discardLocalEdits && hasLocalEdits()) return false;
       try {
-        return await applyDiskContent(node, { newSession: false });
+        return await applyDiskContent(node, {
+          newSession: false,
+          keepLocalEdits: !discardLocalEdits,
+        });
       } catch (err) {
         console.error("Failed to reload file:", err);
         showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.reload_file_failed"));
         return false;
       }
     },
-    [applyDiskContent, showToast, t]
+    [applyDiskContent, hasLocalEdits, showToast, t]
   );
 
   /** Receive serialized markdown from the editor that shows document `docId`.
@@ -866,7 +898,7 @@ export function useFileEditor({
 
       if (resolution === "reload") {
         const node = selectedFileRef.current;
-        if (node) await reloadSelectedFileFromDisk(node);
+        if (node) await reloadSelectedFileFromDisk(node, { discardLocalEdits: true });
         return;
       }
       if (resolution === "overwrite") {

@@ -670,7 +670,7 @@ describe("useFileEditor — save flush semantics", () => {
     expect(result.current.saveStatus).toBe("saved");
   });
 
-  it("reloading from disk cancels a pending field write so it can't overwrite the reload", async () => {
+  it("an automatic reload is refused while a property edit is pending", async () => {
     let diskTitle = "Old";
     invokeImpl = whenInvoke({
       read_file: () => `---\ntitle: ${diskTitle}\n---\nbody`,
@@ -681,17 +681,46 @@ describe("useFileEditor — save flush semantics", () => {
     await act(async () => {
       await result.current.handleSelectFile(NODE);
     });
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "Local");
+    });
 
-    // A property edit is pending in the debounce window...
+    // An external change arrives while the edit sits in its debounce window.
+    // Reloading would silently drop the edit; instead the reload is refused,
+    // and the edit's own save will meet the external change as a conflict.
+    diskTitle = "External";
+    let reloaded = true;
+    await act(async () => {
+      reloaded = await result.current.reloadSelectedFileFromDisk(NODE);
+    });
+    expect(reloaded).toBe(false);
+    expect(result.current.parsedFrontmatter.title).toBe("Local");
+    expect(invokeCalls.filter((c) => c.name === "read_file_versioned")).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+  });
+
+  it("an explicit discard-and-reload cancels a pending field write", async () => {
+    let diskTitle = "Old";
+    invokeImpl = whenInvoke({
+      read_file: () => `---\ntitle: ${diskTitle}\n---\nbody`,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
     act(() => {
       void result.current.handleFieldChange(NODE.path, "title", "Local");
     });
     const writesBefore = invokeCalls.filter((c) => c.name === "write_file").length;
 
-    // ...when an external change triggers a reload of the file.
     diskTitle = "External";
     await act(async () => {
-      await result.current.reloadSelectedFileFromDisk(NODE);
+      await result.current.reloadSelectedFileFromDisk(NODE, { discardLocalEdits: true });
       for (let i = 0; i < 10; i++) await Promise.resolve();
     });
 
@@ -699,6 +728,50 @@ describe("useFileEditor — save flush semantics", () => {
     // so the external frontmatter change survives.
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(writesBefore);
     expect(result.current.parsedFrontmatter.title).toBe("External");
+  });
+
+  it("an edit typed while a reload is reading keeps the reload from replacing it", async () => {
+    let releaseRead: () => void = () => {};
+    let disk = "original";
+    invokeImpl = async (name, args) => {
+      if (name === "read_file_versioned" && disk === "external") {
+        await new Promise<void>((resolve) => {
+          releaseRead = resolve;
+        });
+      }
+      return whenInvoke({
+        read_file: () => disk,
+        get_file_mtime: () => 1000,
+        write_file: () => 2000,
+      })(name, args);
+    };
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const before = result.current.editorDocument;
+
+    disk = "external";
+    let reload: Promise<boolean> = Promise.resolve(true);
+    act(() => {
+      reload = result.current.reloadSelectedFileFromDisk(NODE);
+    });
+    // The user types after the reload was decided, before its read returns.
+    act(() => {
+      result.current.handleEditorChange("typed meanwhile", before.docId);
+    });
+    let reloaded = true;
+    await act(async () => {
+      releaseRead();
+      reloaded = await reload;
+    });
+    expect(reloaded).toBe(false);
+    expect(result.current.editorDocument).toEqual(before);
+    expect(result.current.pendingMarkdownRef.current).toBe("typed meanwhile");
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
   });
 
   it("opens via a versioned read, seeding a real mtime the next save carries", async () => {

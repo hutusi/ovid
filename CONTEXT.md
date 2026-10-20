@@ -269,6 +269,10 @@ the close-guard's window-hide flush stays fire-and-forget, non-forced, with
 restore-on-failure; see ADR 0020. This is the write-time complement to the
 external-change monitor (`useWorkspaceChangeMonitor`), which handles the
 no-local-edits case by reloading and treats the `saving` state like `unsaved`.
+Because that decision is made from render-time state, `reloadSelectedFileFromDisk`
+re-checks for local edits itself — flushing the editor's serialize debounce
+first, and again after its read — and stands down (returns false) if any
+exist; only the user's explicit "discard & reload" passes `discardLocalEdits`.
 The Rust watcher emits filtered `workspace-fs-change` events; the hook
 debounces them and verifies a workspace revision before refreshing. A 30 s
 revision check and a visibility-resume check remain as correctness fallbacks

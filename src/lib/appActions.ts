@@ -45,7 +45,8 @@ export interface AppActionCtx {
   // Action handlers
   /** Flush pending saves, then exit (see useCloseGuard). */
   requestQuit: () => Promise<void>;
-  flushPendingSave: () => void;
+  /** Rejects after surfacing its own failure (toast or conflict prompt). */
+  flushPendingSave: () => Promise<void>;
   closeActiveTabOrFile: () => void;
   handleOpenWorkspace: () => void;
   handleNewTodayFlow: () => void;
@@ -168,7 +169,9 @@ export const appActions: AppAction[] = [
   {
     id: "save",
     allowWhenBlocking: true,
-    run: (ctx) => void ctx.flushPendingSave(),
+    // A failed save already told the user (toast or conflict prompt); swallow
+    // the rejection so it doesn't also surface as an "unexpected error".
+    run: (ctx) => ctx.flushPendingSave().catch(() => {}),
   },
   {
     id: "close-file",

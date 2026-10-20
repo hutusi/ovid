@@ -57,6 +57,15 @@ release cadence and Conventional Commit history.
   refused until restart. Ovid now explains that the file is gone and offers to
   recreate it with your text, discard your changes and close it, or keep
   editing (autosave then waits for your decision).
+- **No more doubled error toasts after a failed save**: when saving the open
+  file failed before a rename, delete, duplicate, collection edit, workspace
+  switch or Cmd+S, the operation now simply stops after the save error —
+  instead of also raising a generic "something went wrong" toast.
+- **An external change can't wipe what you just typed**: if a file changed on
+  disk while you were typing, the automatic reload could replace text typed
+  in the moment between noticing the change and reading the file. The reload
+  now stands down whenever there are unsaved edits; saving them then raises
+  the usual "changed on disk" prompt.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 
