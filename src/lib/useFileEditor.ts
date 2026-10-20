@@ -27,6 +27,9 @@ const SAVE_DELAY_MS = 750;
 // shorter debounce than body autosave so the panel still feels immediate.
 const FIELD_SAVE_DELAY_MS = 300;
 type FlushMode = "blocking" | "background";
+/** A debounced property-panel/title edit: the (path, body, frontmatter) it
+ *  was made against, and its generation (see fieldGenRef). */
+type PendingFieldSave = { path: string; body: string; frontmatter: string; gen: number };
 type WritePerfName = "editor.writeFile" | "editor.flushPendingWrite" | "editor.writeFrontmatter";
 
 /** The document the editor shows, as one atomically-updated value.
@@ -150,10 +153,16 @@ export function useFileEditor({
   const missingPausedRef = useRef(false);
   // Debounced property-panel/title edit awaiting its write, captured as a
   // (path, body, frontmatter) snapshot at edit time so a file switch can't
-  // bleed the next file's state into the write.
-  const pendingFieldSaveRef = useRef<{ path: string; body: string; frontmatter: string } | null>(
-    null
-  );
+  // bleed the next file's state into the write. A write refused by a conflict
+  // or a missing file puts it back, so it stays pending until it is saved or
+  // explicitly discarded.
+  const pendingFieldSaveRef = useRef<PendingFieldSave | null>(null);
+  // Generation of the newest property edit, bumped by every edit and every
+  // drop of a pending one. A field write that fails while it is no longer the
+  // newest was superseded — by a later edit, whose frontmatter carries it, or
+  // by a write or discard that settled it — and must not be put back or
+  // reverted: either would bring its older frontmatter back over the newer.
+  const fieldGenRef = useRef(0);
   const fieldSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -324,26 +333,29 @@ export function useFileEditor({
   }, [applyFrontmatterProjection]);
 
   const handleFieldSaveError = useCallback(
-    (path: string, err: unknown) => {
+    (pending: PendingFieldSave, err: unknown) => {
+      const { path } = pending;
+      const superseded = pending.gen !== fieldGenRef.current;
       // Prompt only while the failed path is still the selected file — the
       // conflict overlay's reload/overwrite act on the current selection, so
       // prompting after a switch would target the wrong file. (Transitions
       // await the field save, so this guard is defense in depth.)
       const block = classifySaveError(err);
       if (block !== null && selectedPathRef.current === path) {
+        // Keep the edit pending, as a refused body write keeps its markdown:
+        // after "keep editing", a switch, close or quit must still find
+        // something to save — and so flush and prompt again — rather than
+        // leave as if nothing were unsaved.
+        if (!superseded) pendingFieldSaveRef.current = pending;
         triggerConflict(block);
         return;
       }
       console.error("Failed to save frontmatter:", err);
       showToast(t("errors.save_failed"));
       if (selectedPathRef.current !== path) return;
-      if (pendingFieldSaveRef.current !== null) {
-        // A newer property edit is already queued — its displayed value is
-        // live and its own flush will persist it. Reverting here would strand
-        // that edit (panel shows old, disk later shows new). Just keep unsaved.
-        setSaveStatus("unsaved");
-        return;
-      }
+      // A newer edit's own write decides the panel and the status dot;
+      // reverting here would strand it (panel shows old, disk later new).
+      if (superseded) return;
       // Revert the panel to the last-saved frontmatter (the failed edit is
       // discarded, with the toast as notice). The dot then reflects whatever
       // body edit is still pending, not the abandoned field write — and never
@@ -354,13 +366,20 @@ export function useFileEditor({
     [triggerConflict, showToast, t, revertFrontmatterToLastSaved]
   );
 
-  const discardFieldSave = useCallback(() => {
-    pendingFieldSaveRef.current = null;
+  const cancelFieldSaveTimer = useCallback(() => {
     if (fieldSaveTimerRef.current) {
       clearTimeout(fieldSaveTimerRef.current);
       fieldSaveTimerRef.current = null;
     }
   }, []);
+
+  /** Drop the pending property edit — another write saved it, or the user
+   *  discarded it — and supersede any write of it still in flight. */
+  const discardFieldSave = useCallback(() => {
+    pendingFieldSaveRef.current = null;
+    fieldGenRef.current += 1;
+    cancelFieldSaveTimer();
+  }, [cancelFieldSaveTimer]);
 
   /** Whether the open file has edits that aren't on disk yet. A keystroke
    *  still inside the editor's serialize debounce is flushed out first, so it
@@ -374,7 +393,8 @@ export function useFileEditor({
    *  already surfaced via handleFieldSaveError) or null when nothing pends. */
   const flushFieldSave = useCallback((): Promise<void> | null => {
     const pending = pendingFieldSaveRef.current;
-    discardFieldSave();
+    pendingFieldSaveRef.current = null;
+    cancelFieldSaveTimer();
     if (!pending) return null;
     // The body resolves when the write starts (after any queued predecessor
     // lands): prefer the live pending markdown, then the last content written
@@ -408,9 +428,9 @@ export function useFileEditor({
           setSaveStatus("saved");
         }
       })
-      .catch((err) => handleFieldSaveError(pending.path, err));
+      .catch((err) => handleFieldSaveError(pending, err));
     return save;
-  }, [discardFieldSave, writeMarkdown, handleFieldSaveError]);
+  }, [cancelFieldSaveTimer, writeMarkdown, handleFieldSaveError]);
 
   const flushPendingSave = useCallback(
     async ({ mode = "blocking" }: { mode?: FlushMode } = {}) => {
@@ -419,6 +439,11 @@ export function useFileEditor({
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
+      // The file is gone and the user chose to keep editing: the blur/hide
+      // flush holds the edits like autosave does — retrying would re-open the
+      // prompt every time the user switched apps. A blocking flush (switch,
+      // close, quit) still writes, and so prompts again.
+      if (mode === "background" && missingPausedRef.current) return;
 
       const path = selectedPathRef.current;
       const markdown = pendingMarkdownRef.current;
@@ -891,7 +916,13 @@ export function useFileEditor({
       // per-path ordered) so flushPendingSave's awaitInFlightWrites still covers
       // it, and flushPendingSave itself flushes or supersedes the debounce on
       // switch/close/quit. See flushFieldSave.
-      pendingFieldSaveRef.current = { path, body, frontmatter: newFrontmatter };
+      fieldGenRef.current += 1;
+      pendingFieldSaveRef.current = {
+        path,
+        body,
+        frontmatter: newFrontmatter,
+        gen: fieldGenRef.current,
+      };
       if (fieldSaveTimerRef.current) clearTimeout(fieldSaveTimerRef.current);
       fieldSaveTimerRef.current = setTimeout(() => {
         fieldSaveTimerRef.current = null;
@@ -918,11 +949,17 @@ export function useFileEditor({
       }
       if (resolution === "overwrite") {
         if (!retry) return;
+        // The forced write carries the live frontmatter, so it also saves a
+        // property edit held pending since the conflict.
+        const heldField = pendingFieldSaveRef.current;
         setSaveStatus("saving");
         try {
           await writeMarkdown(retry.path, retry.markdown, "editor.writeFile", { force: true });
           if (selectedPathRef.current === retry.path) {
             if (pendingMarkdownRef.current !== null) pendingMarkdownRef.current = null;
+            if (heldField?.path === retry.path && pendingFieldSaveRef.current === heldField) {
+              discardFieldSave();
+            }
             setSaveStatus("saved");
           }
         } catch (err) {
@@ -936,15 +973,23 @@ export function useFileEditor({
         const path = loadedPathRef.current;
         if (!path || path !== selectedPathRef.current) return;
         missingPausedRef.current = false;
-        // A debounced property edit is already in frontmatterRef, which the
-        // recreating write carries — its own write would only hit the gap.
-        discardFieldSave();
+        // A pending property edit is already in frontmatterRef, which the
+        // recreating write carries: hold its own write meanwhile (it would
+        // only hit the gap) and drop it once the file exists again. If the
+        // recreate fails it stays pending, so leaving still saves or prompts.
+        const heldField = pendingFieldSaveRef.current;
+        cancelFieldSaveTimer();
         const body = getCurrentBody();
         setSaveStatus("saving");
         try {
           await writeMarkdown(path, body, "editor.writeFile", { create: true });
           if (pendingMarkdownRef.current === body) pendingMarkdownRef.current = null;
-          setSaveStatus(pendingMarkdownRef.current === null ? "saved" : "unsaved");
+          if (heldField !== null && pendingFieldSaveRef.current === heldField) discardFieldSave();
+          setSaveStatus(
+            pendingMarkdownRef.current === null && pendingFieldSaveRef.current === null
+              ? "saved"
+              : "unsaved"
+          );
         } catch (err) {
           console.error("Failed to recreate file:", err);
           showToast(t("errors.save_failed"));
@@ -965,12 +1010,26 @@ export function useFileEditor({
         setSaveStatus("saved");
         return;
       }
-      // "dismiss": leave the file unsaved. A changed file re-prompts on the
-      // next save; a missing one holds its autosave until a decision.
+      // "dismiss": leave the edits pending. A changed file re-prompts on the
+      // next save; a missing one holds its autosave until a decision. (The
+      // write that prompted may have been superseded by one that landed, and
+      // then nothing is left unsaved.)
       if (reason === "missing") missingPausedRef.current = true;
-      setSaveStatus("unsaved");
+      setSaveStatus(
+        pendingMarkdownRef.current !== null || pendingFieldSaveRef.current !== null
+          ? "unsaved"
+          : "saved"
+      );
     },
-    [discardFieldSave, getCurrentBody, reloadSelectedFileFromDisk, writeMarkdown, showToast, t]
+    [
+      cancelFieldSaveTimer,
+      discardFieldSave,
+      getCurrentBody,
+      reloadSelectedFileFromDisk,
+      writeMarkdown,
+      showToast,
+      t,
+    ]
   );
 
   return {

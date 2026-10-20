@@ -260,7 +260,10 @@ the file unsaved for a later retry. A save to a file that no longer exists is
 refused with `FILE_MISSING` and opens the same overlay as `onConflict("missing")`,
 resolved by `"recreate"` (write the current text back via `create_file`),
 `"discard"` (drop the edits; the host closes the file like an in-app delete),
-or `"dismiss"` (autosave holds until a decision). **File transitions await the outgoing
+or `"dismiss"` (autosave holds until a decision). A refused write keeps its
+edit pending until it is saved or discarded — a property edit included,
+unless a newer one has superseded it (each carries a generation, so an older
+failure can never put its frontmatter back over a newer save). **File transitions await the outgoing
 save**: a switch or close awaits the full save transaction before the
 selection moves and aborts on failure or conflict, so the prompt always
 targets the file on screen and no edit is dropped mid-transition (removal-

@@ -46,8 +46,8 @@ token**, and a resolution prompt when it fails.
   the current text back with `create_file`, after `ensure_dir`; `create_file`
   returns the version token so saving continues normally), **Discard changes &
   close**, or **Keep editing**, which holds autosave for that file instead of
-  re-prompting on every pause — a switch, close or quit still flushes and so
-  re-prompts. (The original text said a missing target was "no-conflict";
+  re-prompting on every pause or app switch (the window-blur flush holds too)
+  — a switch, close or quit still flushes and so re-prompts. (The original text said a missing target was "no-conflict";
   in practice validation rejected it first with a generic error, so every
   autosave, switch and close failed until restart.)
 - **Why a content hash, not mtime.** The earlier mtime token had millisecond
