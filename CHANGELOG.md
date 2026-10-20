@@ -138,6 +138,10 @@ release cadence and Conventional Commit history.
   from the filter box enters the tree. The tree is one Tab stop, landing on
   the open file, so Tab moves past it instead of through every row, and the
   focused row shows a ring distinct from the hover and selection colours.
+- **Sidebar file actions from the keyboard**: on a focused row, Shift+F10
+  or the Menu key opens its context menu under the row, F2 renames (now on
+  folders too), and Cmd+Backspace asks to move it to the Trash. Content
+  buckets stay protected from rename and delete, as in the menu.
 - **Popovers work from the keyboard**: the editor settings popover, the
   code-block language picker and the Workspace Manager's row menu now take
   focus when they open and hand it back when closed with Escape. Escape in

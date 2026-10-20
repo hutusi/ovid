@@ -299,6 +299,30 @@ const SIDEBAR_ENTRIES: ShortcutEntry[] = [
     source: "sidebar",
     note: "in_sidebar",
   },
+  {
+    id: "sidebar-context-menu",
+    keys: { mod: false, shift: true, key: "F10" },
+    descriptionKey: "sidebar_context_menu",
+    category: "files",
+    source: "sidebar",
+    note: "in_sidebar",
+  },
+  {
+    id: "sidebar-rename",
+    keys: { mod: false, key: "F2" },
+    descriptionKey: "sidebar_rename",
+    category: "files",
+    source: "sidebar",
+    note: "in_sidebar",
+  },
+  {
+    id: "sidebar-trash",
+    keys: { mod: true, key: "Backspace" },
+    descriptionKey: "sidebar_trash",
+    category: "files",
+    source: "sidebar",
+    note: "in_sidebar",
+  },
 ];
 
 // ─── Editor command table (src/lib/editor/commands.ts) ────────────────────

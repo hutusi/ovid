@@ -24,6 +24,9 @@ On macOS, `Cmd` is the ⌘ key and `Alt` is the ⌥ (Option) key. On Windows and
 | `Cmd+Shift+O` | Switch workspace |
 | `Cmd+S` | Save (force, bypass debounce) |
 | `Cmd+W` | Close file or tab |
+| `Shift+F10` / Menu key | Open the row's context menu (in the sidebar) |
+| `F2` | Rename (in the sidebar) |
+| `Cmd+Backspace` | Move to Trash, after confirming (in the sidebar) |
 
 ## Editing
 

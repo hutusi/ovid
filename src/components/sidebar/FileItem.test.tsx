@@ -66,4 +66,42 @@ describe("FileItem", () => {
     expect(view.container.querySelector(".sidebar-file-row.selected")).not.toBeNull();
     act(() => view.unmount());
   });
+
+  it("renames on F2 and asks to trash on Cmd+Backspace from a focused row", () => {
+    const onRename = mock((_: FileNode) => {});
+    const onDelete = mock((_: FileNode) => {});
+    const view = render(<FileItem {...stableProps} onRename={onRename} onDelete={onDelete} />);
+    const button = view.container.querySelector<HTMLElement>('[data-tree-row="true"]');
+    act(() => {
+      button?.dispatchEvent(new KeyboardEvent("keydown", { key: "F2", bubbles: true }));
+      button?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Backspace", metaKey: true, bubbles: true })
+      );
+      // A bare Backspace does nothing.
+      button?.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
+    });
+    expect(onRename).toHaveBeenCalledWith(node);
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(onDelete).toHaveBeenCalledWith(node);
+    act(() => view.unmount());
+  });
+
+  it("does not rename or trash a protected content bucket", () => {
+    const onRename = mock((_: FileNode) => {});
+    const onDelete = mock((_: FileNode) => {});
+    const bucket: FileNode = { name: "posts", path: "/ws/content/posts", isDirectory: true };
+    const view = render(
+      <FileItem {...stableProps} node={bucket} onRename={onRename} onDelete={onDelete} />
+    );
+    const button = view.container.querySelector<HTMLElement>('[data-tree-row="true"]');
+    act(() => {
+      button?.dispatchEvent(new KeyboardEvent("keydown", { key: "F2", bubbles: true }));
+      button?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Backspace", metaKey: true, bubbles: true })
+      );
+    });
+    expect(onRename).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+    act(() => view.unmount());
+  });
 });
