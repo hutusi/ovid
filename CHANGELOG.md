@@ -70,6 +70,21 @@ release cadence and Conventional Commit history.
   byte-order mark had its frontmatter shown as body text (and broken by the
   first edit), and editing a CRLF file left it with a CRLF frontmatter over an
   LF body. Saves now keep the file's BOM and line endings throughout.
+- **Git can no longer hang Ovid**: git commands had no time limit, so a
+  stalled fetch or push left its spinner (and background auto-fetch) stuck for
+  the rest of the session. Local git commands now stop after a minute, network
+  ones after ten, and a stalled HTTP transfer is abandoned after a minute
+  without progress.
+- **Clones can be cancelled**: the Workspace Manager shows a Cancel button
+  while cloning; cancelling stops git and removes the partial folder.
+  Previously a stuck clone also blocked opening any other workspace until
+  restart.
+- **Case-only renames work**: renaming `Notes.md` to `notes.md` on macOS (a
+  case-insensitive filesystem) failed with "a file with that name already
+  exists".
+- **Saved git credentials are written more safely**: the credentials file is
+  created private from the start (never briefly readable by others), with a
+  unique temporary name, and flushed to disk before it replaces the old one.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 

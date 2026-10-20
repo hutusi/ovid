@@ -307,6 +307,22 @@ describe("useWorkspace", () => {
     expect(created[0]?.path).toBe(capturedNewPath as unknown as string);
   });
 
+  it("a cancelled clone resolves false without reporting a failure", async () => {
+    invokeImpl = whenInvoke({
+      clone_workspace: () => {
+        throw new Error("CLONE_CANCELLED");
+      },
+    });
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.handleCloneWorkspace("https://example.com/r.git", "/tmp", null);
+    });
+    expect(ok).toBe(false);
+    expect(opts.showToast).not.toHaveBeenCalled();
+  });
+
   it("a rename whose outgoing save fails is abandoned without escaping as an error", async () => {
     const oldNode = makeNode("/ws/content/posts/old.md");
     invokeImpl = whenInvoke({

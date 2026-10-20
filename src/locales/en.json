@@ -381,6 +381,7 @@
     "clone_url_placeholder": "https://github.com/user/repo.git",
     "clone_folder_label": "Folder name",
     "clone_folder_placeholder": "(derived from URL)",
+    "clone_cancel": "Cancel",
     "clone_submit": "Clone",
     "clone_working": "Cloning…",
     "progress_starting": "Preparing clone…",

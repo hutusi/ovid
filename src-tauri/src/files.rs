@@ -306,9 +306,60 @@ pub(crate) async fn rename_file(
     run_blocking(move || {
         let canonical_old = validate_path(&root, &old_path)?;
         let new = validate_new_path(&root, &new_path)?;
-        install_exclusive(&canonical_old, &new, "a file with that name already exists")
+        rename_checked(&canonical_old, &new)
     })
     .await
+}
+
+/// Rename `old` to `new`, refusing to replace an existing entry — except the
+/// entry itself: on a case-insensitive filesystem (the macOS and Windows
+/// defaults) `Notes.md` → `notes.md` finds the "destination" already present,
+/// because it *is* the source, so the exclusive rename refused every
+/// case-only rename. Those go through a unique temporary name instead.
+fn rename_checked(old: &Path, new: &Path) -> Result<(), String> {
+    const COLLISION: &str = "a file with that name already exists";
+    if is_same_entry_by_another_case(old, new) {
+        let staging = crate::paths::sibling_temp_path(old, "rename")?;
+        std::fs::rename(old, &staging).map_err(|e| e.to_string())?;
+        return install_exclusive(&staging, new, COLLISION).inspect_err(|_| {
+            // Put the entry back under its original name.
+            let _ = std::fs::rename(&staging, old);
+        });
+    }
+    install_exclusive(old, new, COLLISION)
+}
+
+fn is_same_entry_by_another_case(old: &Path, new: &Path) -> bool {
+    let (Some(old_name), Some(new_name)) = (old.file_name(), new.file_name()) else {
+        return false;
+    };
+    let old_name = old_name.to_string_lossy();
+    let new_name = new_name.to_string_lossy();
+    if old_name == new_name || old_name.to_lowercase() != new_name.to_lowercase() {
+        return false;
+    }
+    let same_parent = match (old.parent(), new.parent()) {
+        (Some(a), Some(b)) => std::fs::canonicalize(a).ok() == std::fs::canonicalize(b).ok(),
+        _ => false,
+    };
+    same_parent && same_file(old, new)
+}
+
+#[cfg(unix)]
+fn same_file(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (std::fs::symlink_metadata(a), std::fs::symlink_metadata(b)) {
+        (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
+        _ => false,
+    }
+}
+
+#[cfg(not(unix))]
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 fn copy_file_exclusive(src: &Path, dest: &Path) -> Result<(), String> {
@@ -503,6 +554,35 @@ mod tests {
         assert_eq!(token, hasher.finish().to_string());
         // Sanity: this hash is indeed outside JS safe-integer range.
         assert!(token.parse::<u64>().unwrap() > (1u64 << 53));
+    }
+
+    #[test]
+    fn rename_checked_handles_a_case_only_rename() {
+        let dir = TempDir::new().unwrap();
+        let old = dir.path().join("Notes.md");
+        fs::write(&old, "hello").unwrap();
+        let new = dir.path().join("notes.md");
+
+        rename_checked(&old, &new).unwrap();
+
+        let names: Vec<String> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, vec!["notes.md".to_string()]);
+        assert_eq!(fs::read_to_string(&new).unwrap(), "hello");
+    }
+
+    #[test]
+    fn rename_checked_still_refuses_to_replace_another_file() {
+        let dir = TempDir::new().unwrap();
+        let old = dir.path().join("a.md");
+        let other = dir.path().join("b.md");
+        fs::write(&old, "a").unwrap();
+        fs::write(&other, "b").unwrap();
+        assert!(rename_checked(&old, &other).is_err());
+        assert_eq!(fs::read_to_string(&other).unwrap(), "b");
+        assert_eq!(fs::read_to_string(&old).unwrap(), "a");
     }
 
     #[test]

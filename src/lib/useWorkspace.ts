@@ -15,6 +15,7 @@ import type { Author } from "./commands/generated/Author";
 import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import type { I18nConfig } from "./commands/generated/I18nConfig";
 import type { WorkspaceResult as GeneratedWorkspaceResult } from "./commands/generated/WorkspaceResult";
+import { CLONE_CANCELLED } from "./commands/workspace";
 import { detectDiskFormat, encodeDiskText } from "./diskText";
 import { type FlatFile, flattenTree } from "./fileSearch";
 import { createTodayFlowFrontmatter } from "./frontmatter";
@@ -246,6 +247,8 @@ export function useWorkspace({
           applyWorkspaceResult(result);
           return true;
         } catch (err) {
+          // A cancelled clone is the user's choice, not a failure.
+          if (err instanceof Error && err.message === CLONE_CANCELLED) return false;
           console.error("Failed to clone workspace:", err);
           showToast(
             t("errors.clone_workspace_failed", {
