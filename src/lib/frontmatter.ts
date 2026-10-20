@@ -1,4 +1,5 @@
 import { DEFAULT_SCHEMA, dump, load, Type } from "js-yaml";
+import { stripBom } from "./diskText";
 import { getFrontmatterFieldSchema, resolveKnownFrontmatterFieldKey } from "./frontmatterSchema";
 
 // The fenced block at the very top of a file. The YAML between the fences may
@@ -14,15 +15,19 @@ export type ParsedFrontmatter = Record<string, FrontmatterValue>;
 /** A frontmatter mapping exactly as loaded, every value kept. */
 export type FrontmatterData = Record<string, unknown>;
 
+/** Split a file into its frontmatter block and body. A leading byte-order
+ *  mark is not part of either (it would hide the opening fence); writers
+ *  restore it from the file's DiskTextFormat. */
 export function parseFrontmatter(raw: string): {
   frontmatter: string;
   body: string;
 } {
-  const match = FRONTMATTER_RE.exec(raw);
+  const text = stripBom(raw);
+  const match = FRONTMATTER_RE.exec(text);
   if (match) {
-    return { frontmatter: match[0], body: raw.slice(match[0].length) };
+    return { frontmatter: match[0], body: text.slice(match[0].length) };
   }
-  return { frontmatter: "", body: raw };
+  return { frontmatter: "", body: text };
 }
 
 export function joinFrontmatter(frontmatter: string, body: string): string {

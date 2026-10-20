@@ -3,6 +3,12 @@ import { useTranslation } from "react-i18next";
 import { commands } from "./commands";
 import { EXTERNAL_CHANGE_CONFLICT, FILE_MISSING, FILE_TOO_LARGE } from "./commands/files";
 import {
+  DEFAULT_DISK_FORMAT,
+  type DiskTextFormat,
+  detectDiskFormat,
+  encodeDiskText,
+} from "./diskText";
+import {
   editFrontmatterField,
   type FrontmatterValue,
   joinFrontmatter,
@@ -128,6 +134,9 @@ export function useFileEditor({
   // read/written. Passed to write_file so it can refuse a save that would
   // clobber an external change.
   const lastSavedVersionRef = useRef<string | null>(null);
+  // The open file's on-disk format (BOM, line endings), re-applied on every
+  // save so the editor's LF output doesn't turn a CRLF file into a mixed one.
+  const diskFormatRef = useRef<DiskTextFormat>(DEFAULT_DISK_FORMAT);
   // The (path, markdown) of the write that hit a conflict, so an "overwrite"
   // resolution can force exactly that content back through writeMarkdown.
   const conflictRetryRef = useRef<{ path: string; markdown: string } | null>(null);
@@ -198,6 +207,7 @@ export function useFileEditor({
       // falls back to what the chain last wrote (or these snapshots).
       const queuedFrontmatter = opts?.frontmatter ?? frontmatterRef.current;
       const queuedVersion = lastSavedVersionRef.current;
+      const queuedFormat = diskFormatRef.current;
       return enqueueWrite(path, () => {
         const stillSelected = selectedPathRef.current === path;
         // A thunk body (debounced field save) resolves once predecessors have
@@ -208,7 +218,10 @@ export function useFileEditor({
           stillSelected && opts?.frontmatter === undefined
             ? frontmatterRef.current
             : queuedFrontmatter;
-        const diskContent = joinFrontmatter(frontmatter, body);
+        const diskContent = encodeDiskText(
+          joinFrontmatter(frontmatter, body),
+          stillSelected ? diskFormatRef.current : queuedFormat
+        );
         const lastWritten = lastWrittenByPathRef.current.get(path);
         const expectedVersion = opts?.force
           ? null
@@ -578,6 +591,7 @@ export function useFileEditor({
     pendingMarkdownRef.current = null;
     lastSavedContentRef.current = null;
     lastSavedVersionRef.current = null;
+    diskFormatRef.current = DEFAULT_DISK_FORMAT;
     discardFieldSave();
     clearConflict();
   }, [clearConflict, discardFieldSave, publishEditorDocument]);
@@ -629,6 +643,7 @@ export function useFileEditor({
       frontmatterRef.current = frontmatter;
       lastSavedContentRef.current = raw;
       lastSavedVersionRef.current = version;
+      diskFormatRef.current = detectDiskFormat(raw);
       pendingMarkdownRef.current = null;
       // Cancel any debounced field write — its content is now stale against
       // the freshly-read version, so letting it fire would clobber the reloaded
@@ -809,7 +824,7 @@ export function useFileEditor({
         try {
           await commands.files.write({
             path,
-            content: joinFrontmatter(edit.block, body),
+            content: encodeDiskText(joinFrontmatter(edit.block, body), detectDiskFormat(content)),
             expectedVersion: version,
           });
           return "done";

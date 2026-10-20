@@ -15,6 +15,7 @@ import type { Author } from "./commands/generated/Author";
 import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import type { I18nConfig } from "./commands/generated/I18nConfig";
 import type { WorkspaceResult as GeneratedWorkspaceResult } from "./commands/generated/WorkspaceResult";
+import { detectDiskFormat, encodeDiskText } from "./diskText";
 import { type FlatFile, flattenTree } from "./fileSearch";
 import { createTodayFlowFrontmatter } from "./frontmatter";
 import { measureAsync } from "./perf";
@@ -475,8 +476,9 @@ export function useWorkspace({
       // Read content + its version token as one snapshot, then write against
       // that token so an external edit between read and write is caught.
       const { content: raw, version } = await commands.files.readVersioned({ path: indexPath });
-      const next = setCollectionItems(raw, transform(parseCollectionItems(raw)));
-      if (next === null) return "invalid";
+      const edited = setCollectionItems(raw, transform(parseCollectionItems(raw)));
+      if (edited === null) return "invalid";
+      const next = encodeDiskText(edited, detectDiskFormat(raw));
       try {
         await commands.files.write({ path: indexPath, content: next, expectedVersion: version });
         return 0;

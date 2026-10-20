@@ -66,6 +66,10 @@ release cadence and Conventional Commit history.
   in the moment between noticing the change and reading the file. The reload
   now stands down whenever there are unsaved edits; saving them then raises
   the usual "changed on disk" prompt.
+- **Windows-style files keep their format**: a file starting with a
+  byte-order mark had its frontmatter shown as body text (and broken by the
+  first edit), and editing a CRLF file left it with a CRLF frontmatter over an
+  LF body. Saves now keep the file's BOM and line endings throughout.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 

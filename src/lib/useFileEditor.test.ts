@@ -1352,3 +1352,69 @@ describe("useFileEditor — the open file vanished", () => {
     expect(result.current.saveStatus).toBe("unsaved");
   });
 });
+
+describe("useFileEditor — on-disk format", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  beforeEach(() => {
+    invokeCalls.length = 0;
+  });
+
+  const WINDOWS_FILE =
+    "\uFEFF---\r\ntitle: T\r\ndate: 2024-01-01\r\n---\r\nFirst line\r\n\r\nSecond line\r\n";
+
+  it("reads the frontmatter of a file that starts with a byte-order mark", async () => {
+    invokeImpl = whenInvoke({ read_file: () => WINDOWS_FILE, get_file_mtime: () => 1000 });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    expect(result.current.parsedFrontmatter).toEqual({ title: "T", date: "2024-01-01" });
+    expect(result.current.editorDocument.body.startsWith("First line")).toBe(true);
+  });
+
+  it("saves body edits with the file's BOM and CRLF line endings throughout", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => WINDOWS_FILE,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      // The editor serializes with LF.
+      result.current.handleEditorChange(
+        "First line\n\nEdited\n",
+        result.current.editorDocument.docId
+      );
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(lastWriteArgs()?.content).toBe(
+      "\uFEFF---\r\ntitle: T\r\ndate: 2024-01-01\r\n---\r\nFirst line\r\n\r\nEdited\r\n"
+    );
+  });
+
+  it("a property edit changes only its own line of a BOM + CRLF file", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => WINDOWS_FILE,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "New");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(lastWriteArgs()?.content).toBe(WINDOWS_FILE.replace("title: T", "title: New"));
+  });
+});
