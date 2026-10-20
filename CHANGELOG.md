@@ -28,6 +28,10 @@ release cadence and Conventional Commit history.
   editor kept showing the edited version and the next save silently undid the
   revert. Every reload from disk now replaces the editor's content, and Undo
   can no longer bring back text from before a reload.
+- **Edits can't leak into another file**: a keystroke serialized by the
+  editor you were leaving (during a tab switch) could be saved into the file
+  you switched to. Edits are now tied to the document they were made in, and
+  an autosave that straddles a rename lands on the new path.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 

@@ -70,7 +70,8 @@ export interface EditorPaneProps {
   onFieldChange: (key: string, value: FrontmatterValue) => void | Promise<void>;
   onWordCount: (count: number, filePath?: string, kind?: WordCountKind) => void;
   onDirty: () => void;
-  onChange: (markdown: string) => void;
+  /** Serialized markdown from the editor showing session `docId`. */
+  onChange: (markdown: string, docId: number) => void;
   onError: (message: string) => void;
   currentEditorViewState: EditorViewState | undefined;
   onEditorViewStateChange: (state: EditorViewState) => void;
@@ -266,7 +267,7 @@ export function EditorPane({
                 onTitleChange={(value) => void onFieldChange("title", value)}
                 onWordCount={onWordCount}
                 onDirty={onDirty}
-                onChange={onChange}
+                onChange={(markdown) => onChange(markdown, editorDocument.docId)}
                 onError={onError}
                 initialSelection={currentEditorViewState?.selection}
                 initialScrollTop={currentEditorViewState?.scrollTop}

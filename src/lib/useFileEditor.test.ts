@@ -93,9 +93,9 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("draft 1");
-      result.current.handleEditorChange("draft 2");
-      result.current.handleEditorChange("draft 3");
+      result.current.handleEditorChange("draft 1", result.current.editorDocument.docId);
+      result.current.handleEditorChange("draft 2", result.current.editorDocument.docId);
+      result.current.handleEditorChange("draft 3", result.current.editorDocument.docId);
     });
 
     // None of the three edits should have written yet — each call resets the
@@ -155,7 +155,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("urgent edit");
+      result.current.handleEditorChange("urgent edit", result.current.editorDocument.docId);
     });
     expect(result.current.saveStatus).toBe("unsaved");
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(0);
@@ -190,7 +190,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("in flight content");
+      result.current.handleEditorChange("in flight content", result.current.editorDocument.docId);
     });
 
     // Background flush kicks off the write but doesn't await it — it clears
@@ -296,7 +296,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("my local edit");
+      result.current.handleEditorChange("my local edit", result.current.editorDocument.docId);
     });
 
     // A forced flush attempts the write, which conflicts. The hook must surface
@@ -330,7 +330,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("edit");
+      result.current.handleEditorChange("edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave({ mode: "background" });
@@ -363,7 +363,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("precious edit");
+      result.current.handleEditorChange("precious edit", result.current.editorDocument.docId);
     });
 
     failWrites = true;
@@ -403,7 +403,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("local edit");
+      result.current.handleEditorChange("local edit", result.current.editorDocument.docId);
     });
 
     conflict = true;
@@ -438,7 +438,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("my local edit");
+      result.current.handleEditorChange("my local edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave().catch(() => {});
@@ -473,7 +473,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("my local edit");
+      result.current.handleEditorChange("my local edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave().catch(() => {});
@@ -508,7 +508,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("my local edit");
+      result.current.handleEditorChange("my local edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave().catch(() => {});
@@ -546,7 +546,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("edit one");
+      result.current.handleEditorChange("edit one", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave({ mode: "background" });
@@ -715,7 +715,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("edited");
+      result.current.handleEditorChange("edited", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave();
@@ -780,7 +780,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("precious edit");
+      result.current.handleEditorChange("precious edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave({ mode: "background" });
@@ -830,7 +830,7 @@ describe("useFileEditor — the open document's identity", () => {
     expect(opened.body).toBe("original");
 
     act(() => {
-      result.current.handleEditorChange("edited");
+      result.current.handleEditorChange("edited", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave();
@@ -892,7 +892,7 @@ describe("useFileEditor — the open document's identity", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("autosaved since");
+      result.current.handleEditorChange("autosaved since", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave();
@@ -950,7 +950,10 @@ describe("useFileEditor — the open document's identity", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("typed before the move");
+      result.current.handleEditorChange(
+        "typed before the move",
+        result.current.editorDocument.docId
+      );
     });
     const before = result.current.editorDocument;
     const moved: FileNode = { name: "index.md", path: "/ws/slug/index.md", isDirectory: false };
@@ -966,5 +969,57 @@ describe("useFileEditor — the open document's identity", () => {
       await result.current.flushPendingSave();
     });
     expect((lastWriteArgs() as { path: string }).path).toBe("/ws/slug/index.md");
+  });
+
+  it("an edit from a superseded editor is dropped, not written into the new file", async () => {
+    invokeImpl = whenInvoke({
+      read_file: (args) => `content of ${(args as { path: string }).path}`,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const outgoingDocId = result.current.editorDocument.docId;
+    await act(async () => {
+      await result.current.handleSelectFile({ name: "b.md", path: "/ws/b.md", isDirectory: false });
+    });
+
+    // The outgoing editor's unmount flush arrives after the switch landed.
+    act(() => {
+      result.current.handleEditorChange("tail of draft.md", outgoingDocId);
+    });
+    expect(result.current.pendingMarkdownRef.current).toBeNull();
+    expect(result.current.saveStatus).toBe("saved");
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(0);
+  });
+
+  it("an autosave scheduled before a rename lands on the new path", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "body",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("typed during rename", result.current.editorDocument.docId);
+    });
+    const renamed: FileNode = { name: "renamed.md", path: "/ws/renamed.md", isDirectory: false };
+    act(() => {
+      result.current.renameSelection(NODE.path, renamed.path, renamed);
+    });
+    // Let the 750 ms autosave debounce fire on its own.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    const writes = invokeCalls.filter((c) => c.name === "write_file");
+    expect(writes).toHaveLength(1);
+    expect((writes[0]?.args as { path: string; content: string }).path).toBe("/ws/renamed.md");
+    expect(result.current.saveStatus).toBe("saved");
   });
 });

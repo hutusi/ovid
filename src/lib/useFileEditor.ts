@@ -649,39 +649,55 @@ export function useFileEditor({
     [applyDiskContent, showToast, t]
   );
 
-  function handleEditorChange(markdown: string) {
-    if (!selectedFile) return;
-    const pathToSave = selectedFile.path;
-    setSaveStatus("unsaved");
-    pendingMarkdownRef.current = markdown;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      saveTimerRef.current = null;
-      const snapshot = pendingMarkdownRef.current;
-      if (snapshot === null) return;
-      setSaveStatus("saving");
-      try {
-        await writeMarkdown(pathToSave, snapshot, "editor.writeFile");
-        if (pendingMarkdownRef.current === snapshot) {
-          pendingMarkdownRef.current = null;
-          setSaveStatus("saved");
-        }
-      } catch (err) {
-        if (isExternalChangeConflict(err)) {
-          // Pause autosave and prompt; the pending markdown is retained so
-          // "overwrite" can force it and "dismiss" retries on the next save.
+  /** Receive serialized markdown from the editor that shows document `docId`.
+   *
+   *  Stable, and scoped to its document: an edit from an editor whose session
+   *  is no longer the open one — the outgoing editor's unmount flush after a
+   *  switch, a serialize that lands late — is dropped instead of being written
+   *  into the newly-opened file's pending state (from where the next flush
+   *  would have saved it into the wrong file). Edits typed while a switch is
+   *  reading the next file are dropped for the same reason. */
+  const handleEditorChange = useCallback(
+    (markdown: string, docId: number) => {
+      const path = loadedPathRef.current;
+      if (docId !== editorDocumentRef.current.docId || path === null) return;
+      if (selectedPathRef.current !== path) return;
+      setSaveStatus("unsaved");
+      pendingMarkdownRef.current = markdown;
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(async () => {
+        saveTimerRef.current = null;
+        // Resolve the target when the timer fires, not when it was set: a
+        // rename in between moved the document, and a switch made it stale.
+        if (editorDocumentRef.current.docId !== docId) return;
+        const pathToSave = loadedPathRef.current;
+        const snapshot = pendingMarkdownRef.current;
+        if (snapshot === null || pathToSave === null) return;
+        setSaveStatus("saving");
+        try {
+          await writeMarkdown(pathToSave, snapshot, "editor.writeFile");
+          if (pendingMarkdownRef.current === snapshot) {
+            pendingMarkdownRef.current = null;
+            setSaveStatus("saved");
+          }
+        } catch (err) {
+          if (isExternalChangeConflict(err)) {
+            // Pause autosave and prompt; the pending markdown is retained so
+            // "overwrite" can force it and "dismiss" retries on the next save.
+            if (pendingMarkdownRef.current === snapshot) setSaveStatus("unsaved");
+            triggerConflict();
+            return;
+          }
+          console.error("Failed to save file:", err);
+          showToast(t("errors.save_failed"));
+          // Roll back to unsaved so the dot doesn't sit on "saving" forever after
+          // a failed write; the pending markdown is retained for the next attempt.
           if (pendingMarkdownRef.current === snapshot) setSaveStatus("unsaved");
-          triggerConflict();
-          return;
         }
-        console.error("Failed to save file:", err);
-        showToast(t("errors.save_failed"));
-        // Roll back to unsaved so the dot doesn't sit on "saving" forever after
-        // a failed write; the pending markdown is retained for the next attempt.
-        if (pendingMarkdownRef.current === snapshot) setSaveStatus("unsaved");
-      }
-    }, SAVE_DELAY_MS);
-  }
+      }, SAVE_DELAY_MS);
+    },
+    [writeMarkdown, triggerConflict, showToast, t]
+  );
 
   const handleEditorDirty = useCallback(() => {
     setSaveStatus("unsaved");
