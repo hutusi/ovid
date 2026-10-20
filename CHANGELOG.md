@@ -18,6 +18,18 @@ release cadence and Conventional Commit history.
   were never marked unsaved or written to disk. Whether a change is saved is
   now decided by the transaction itself, not by editor focus, and merely
   opening a document no longer risks an automatic rewrite.
+- **Renaming the open file no longer reverts it**: renaming (or moving) the
+  file you are editing reloaded the editor with the text from when the file
+  was opened, and the next keystroke saved that stale text over everything
+  written since. The editor now stays mounted across renames. The
+  error-boundary Retry likewise restores the current text.
+- **External reverts show up**: when a file was changed on disk back to
+  exactly the text it was opened with (e.g. `git restore` after edits), the
+  editor kept showing the edited version and the next save silently undid the
+  revert. Every reload from disk now replaces the editor's content, and Undo
+  can no longer bring back text from before a reload.
+- **WeChat copy uses the current text**, including edits autosaved since the
+  file was opened.
 
 ## 0.17.0 - 2026-08-08
 

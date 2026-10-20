@@ -22,6 +22,30 @@ const FIELD_SAVE_DELAY_MS = 300;
 type FlushMode = "blocking" | "background";
 type WritePerfName = "editor.writeFile" | "editor.flushPendingWrite" | "editor.writeFrontmatter";
 
+/** The document the editor shows, as one atomically-updated value.
+ *
+ *  - `docId` identifies one open-file *session*: it changes when a different
+ *    file is opened and survives renames, so the editor (keyed by it) is not
+ *    remounted — with stale content — when its file moves.
+ *  - `loadId` changes on every load or reload from disk. The editor re-applies
+ *    `body` when it changes, not when the string differs, so an external
+ *    revert back to the originally-loaded text still lands.
+ *  - `mountGen` changes when the editor must be remounted under the same
+ *    session (error-boundary retry, the file's folder moved) — `body` then
+ *    carries the current text, never the text from when the file was opened.
+ */
+export interface EditorDocument {
+  docId: number;
+  loadId: number;
+  mountGen: number;
+  body: string;
+}
+
+function dirname(path: string): string {
+  const slash = path.lastIndexOf("/");
+  return slash === -1 ? "" : path.slice(0, slash);
+}
+
 /** How the user chose to resolve an external-change conflict. */
 export type ConflictResolution = "reload" | "overwrite" | "dismiss";
 
@@ -44,10 +68,24 @@ export function useFileEditor({
 }) {
   const { t } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
-  const [fileContent, setFileContent] = useState("");
-  // Lines the current file's frontmatter occupies. Set atomically with
-  // fileContent in applyDiskContent so a search jump maps its full-file line
-  // number to a body line using this file's offset, never the previous one.
+  const [editorDocument, setEditorDocument] = useState<EditorDocument>({
+    docId: 0,
+    loadId: 0,
+    mountGen: 0,
+    body: "",
+  });
+  // Monotonic id sources plus a mirror of the live document, so async handlers
+  // can derive the next value without a functional state update (whose
+  // updater must stay side-effect free).
+  const editorDocumentRef = useRef(editorDocument);
+  // The path whose content the current editor document holds (null when no
+  // file is loaded). Unlike selectedPathRef it only moves once a read lands.
+  const loadedPathRef = useRef<string | null>(null);
+  const nextDocIdRef = useRef(1);
+  const nextLoadIdRef = useRef(1);
+  // Lines the current file's frontmatter occupies. Set atomically with the
+  // editor document in applyDiskContent so a search jump maps its full-file
+  // line number to a body line using this file's offset, never the previous one.
   const [frontmatterLineOffset, setFrontmatterLineOffset] = useState(0);
   const [wordCount, setWordCount] = useState(0);
   const [parsedFrontmatter, setParsedFrontmatter] = useState<ParsedFrontmatter>({});
@@ -427,9 +465,58 @@ export function useFileEditor({
     setConflictActive(false);
   }, []);
 
+  const publishEditorDocument = useCallback((next: EditorDocument) => {
+    editorDocumentRef.current = next;
+    setEditorDocument(next);
+  }, []);
+
+  /** The body as it stands right now: the unsaved edit if there is one, else
+   *  the last content written to or read from disk. Unlike the document's
+   *  load-time `body`, this includes everything autosaved since the open. */
+  const getCurrentBody = useCallback((): string => {
+    if (pendingMarkdownRef.current !== null) return pendingMarkdownRef.current;
+    const raw = lastSavedContentRef.current;
+    return raw === null ? editorDocumentRef.current.body : parseFrontmatter(raw).body;
+  }, []);
+
+  /** Remount the editor under the same session with the current body — the
+   *  error-boundary retry and folder-moving renames use it. */
+  const remountEditor = useCallback(() => {
+    const prev = editorDocumentRef.current;
+    publishEditorDocument({ ...prev, mountGen: prev.mountGen + 1, body: getCurrentBody() });
+  }, [getCurrentBody, publishEditorDocument]);
+
+  /** Follow a rename of the open file (or of a folder containing it). The
+   *  session — and with it the mounted editor, its undo history and any
+   *  pending edit — carries over to the new path; pending writes that were
+   *  queued under the old path move with it. */
+  const renameSelection = useCallback(
+    (oldPath: string, newPath: string, node: FileNode) => {
+      selectedPathRef.current = newPath;
+      if (loadedPathRef.current === oldPath) loadedPathRef.current = newPath;
+      setSelectedFile(node);
+      if (pendingFieldSaveRef.current?.path === oldPath) {
+        pendingFieldSaveRef.current = { ...pendingFieldSaveRef.current, path: newPath };
+      }
+      if (conflictRetryRef.current?.path === oldPath) {
+        conflictRetryRef.current = { ...conflictRetryRef.current, path: newPath };
+      }
+      // Relative image paths resolve against the file's folder, which the
+      // mounted image views captured at creation; remount when it moved.
+      if (dirname(oldPath) !== dirname(newPath)) remountEditor();
+    },
+    [remountEditor]
+  );
+
   const resetFileState = useCallback(() => {
     setSelectedFile(null);
-    setFileContent("");
+    loadedPathRef.current = null;
+    publishEditorDocument({
+      docId: nextDocIdRef.current++,
+      loadId: nextLoadIdRef.current++,
+      mountGen: 0,
+      body: "",
+    });
     setFrontmatterLineOffset(0);
     setWordCount(0);
     setParsedFrontmatter({});
@@ -441,7 +528,7 @@ export function useFileEditor({
     lastSavedVersionRef.current = null;
     discardFieldSave();
     clearConflict();
-  }, [clearConflict, discardFieldSave]);
+  }, [clearConflict, discardFieldSave, publishEditorDocument]);
 
   /** Close the open file. By default this awaits the full outgoing save
    *  transaction and aborts the close (file stays open, edit intact, error
@@ -466,11 +553,13 @@ export function useFileEditor({
     [flushPendingSave, resetFileState]
   );
 
-  /** Load a file's content + its mtime token, applying it to editor state.
-   *  Shared by first-open and external-reload. Returns false if the selection
-   *  changed underneath us. Throws if the read fails (caller toasts). */
+  /** Load a file's content + its version token, applying it to editor state.
+   *  Shared by first-open (`newSession`: a new docId, so a fresh editor) and
+   *  external-reload (same docId: the mounted editor swaps content in place).
+   *  Returns false if the selection changed underneath us. Throws if the read
+   *  fails (caller toasts). */
   const applyDiskContent = useCallback(
-    async (node: FileNode): Promise<boolean> => {
+    async (node: FileNode, { newSession }: { newSession: boolean }): Promise<boolean> => {
       // One consistent snapshot: content paired with the content-hash version
       // it's valid against (the token is intrinsic to the bytes, so there's no
       // read-time race). Throws (→ caller toasts) if the file is unreadable or
@@ -492,7 +581,14 @@ export function useFileEditor({
       setWordCount(0);
       setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
       setSaveStatus("saved");
-      setFileContent(body);
+      const prev = editorDocumentRef.current;
+      loadedPathRef.current = node.path;
+      publishEditorDocument({
+        docId: newSession ? nextDocIdRef.current++ : prev.docId,
+        loadId: nextLoadIdRef.current++,
+        mountGen: newSession ? 0 : prev.mountGen,
+        body,
+      });
       // Commit the frontmatter line offset atomically with the body so a
       // search jump can't map its file-line number using the previous file's
       // offset. `raw` is `frontmatter + body`.
@@ -500,13 +596,20 @@ export function useFileEditor({
       setSelectedFile(node);
       return true;
     },
-    [clearConflict, discardFieldSave]
+    [clearConflict, discardFieldSave, publishEditorDocument]
   );
 
   /** Returns true when the file was read and is now the active selection —
    *  callers use this to record session side-effects (tabs, recents) only for
    *  opens that actually succeeded. */
   async function handleSelectFile(node: FileNode): Promise<boolean> {
+    // Re-selecting the open file (clicking its tab or sidebar row again) is
+    // not a reload: re-reading would reset the cursor and undo history and
+    // re-baseline the session word count for no change.
+    if (node.path === loadedPathRef.current && node.path === selectedPathRef.current) {
+      setSelectedFile(node);
+      return true;
+    }
     // Await the outgoing file's complete save transaction (pending body
     // write, debounced field save, in-flight writes) and abort the switch
     // when it fails or conflicts — the selection hasn't moved yet, so the
@@ -523,7 +626,7 @@ export function useFileEditor({
     pendingMarkdownRef.current = null;
 
     try {
-      return await applyDiskContent(node);
+      return await applyDiskContent(node, { newSession: true });
     } catch (err) {
       console.error("Failed to read file:", err);
       showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.open_file_failed"));
@@ -536,7 +639,7 @@ export function useFileEditor({
     async (node: FileNode): Promise<boolean> => {
       if (selectedPathRef.current !== node.path) return false;
       try {
-        return await applyDiskContent(node);
+        return await applyDiskContent(node, { newSession: false });
       } catch (err) {
         console.error("Failed to reload file:", err);
         showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.reload_file_failed"));
@@ -664,7 +767,10 @@ export function useFileEditor({
   return {
     selectedFile,
     setSelectedFile,
-    fileContent,
+    editorDocument,
+    getCurrentBody,
+    remountEditor,
+    renameSelection,
     frontmatterLineOffset,
     wordCount,
     setWordCount,

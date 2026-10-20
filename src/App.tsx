@@ -93,15 +93,16 @@ function App() {
 
   const {
     selectedFile,
-    setSelectedFile,
-    fileContent,
+    editorDocument,
+    getCurrentBody,
+    remountEditor,
+    renameSelection,
     frontmatterLineOffset,
     wordCount,
     setWordCount,
     parsedFrontmatter,
     saveStatus,
     resolveConflict,
-    selectedPathRef,
     pendingMarkdownRef,
     lastSavedContentRef,
     flushPendingSave,
@@ -206,8 +207,7 @@ function App() {
     onSessionPathRemoved: notePathRemoved,
     fileEditor: {
       selectedFile,
-      selectedPathRef,
-      setSelectedFile,
+      renameSelection,
       handleSelectFile,
       handleCloseFile,
     },
@@ -548,8 +548,7 @@ function App() {
       prefs,
       pushSuccessMessage,
       defaultCommitMessage,
-      pendingMarkdownRef,
-      fileContent,
+      getCurrentBody,
       showToast,
       t,
       toggleSidebar: panelLayout.toggleSidebar,
@@ -581,8 +580,7 @@ function App() {
       prefs,
       pushSuccessMessage,
       defaultCommitMessage,
-      pendingMarkdownRef,
-      fileContent,
+      getCurrentBody,
       showToast,
       t,
       panelLayout.toggleSidebar,
@@ -736,7 +734,8 @@ function App() {
           cdnBase={cdnBase}
           fileViewerNode={fileViewerNode}
           onCloseFileViewer={() => setFileViewerNode(null)}
-          fileContent={fileContent}
+          editorDocument={editorDocument}
+          onEditorRetry={remountEditor}
           typewriterMode={typewriterMode}
           spellCheck={prefs.spellCheck}
           parsedFrontmatter={parsedFrontmatter}
@@ -857,7 +856,7 @@ function App() {
           defaultAuthor: defaultAuthor ?? null,
           pendingMarkdownRef,
           lastSavedContentRef,
-          fileContent,
+          fileContent: editorDocument.body,
           authors,
           assetRoot,
           onSuccess: (mediaId) => {

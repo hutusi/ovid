@@ -13,6 +13,7 @@ import type {
   SearchJumpTarget,
   WordCountKind,
 } from "../lib/types";
+import type { EditorDocument } from "../lib/useFileEditor";
 import { useNonModalDialogFocus } from "../lib/useNonModalDialogFocus";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { EmptyState } from "./EmptyState";
@@ -60,7 +61,9 @@ export interface EditorPaneProps {
   onCloseFileViewer: () => void;
 
   // Editor
-  fileContent: string;
+  editorDocument: EditorDocument;
+  /** Error-boundary retry: remount the editor with the current body. */
+  onEditorRetry: () => void;
   typewriterMode: boolean;
   spellCheck: boolean;
   parsedFrontmatter: ParsedFrontmatter;
@@ -121,7 +124,8 @@ export function EditorPane({
   cdnBase,
   fileViewerNode,
   onCloseFileViewer,
-  fileContent,
+  editorDocument,
+  onEditorRetry,
   typewriterMode,
   spellCheck,
   parsedFrontmatter,
@@ -233,11 +237,17 @@ export function EditorPane({
         ) : selectedFile && isReadOnlyContent(selectedFile) ? (
           <FileViewer node={selectedFile} onClose={() => onCloseTab(selectedFile.path)} />
         ) : selectedFile ? (
-          <ErrorBoundary key={selectedFile.path}>
+          // Keyed by the open-file session, not the path: a rename keeps the
+          // mounted editor (and its live content) instead of remounting it
+          // with the body from when the file was opened.
+          <ErrorBoundary
+            key={`${editorDocument.docId}:${editorDocument.mountGen}`}
+            onReset={onEditorRetry}
+          >
             <Suspense fallback={<div className="editor-loading">{t("editor.loading")}</div>}>
               <Editor
-                key={selectedFile.path}
-                content={fileContent}
+                content={editorDocument.body}
+                loadId={editorDocument.loadId}
                 filePath={selectedFile.path}
                 assetRoot={assetRoot}
                 cdnBase={cdnBase}

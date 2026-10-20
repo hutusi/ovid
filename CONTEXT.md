@@ -187,6 +187,31 @@ The session is the seam every other piece of UI talks to:
 - `notifyPathRenamed(old, new, lookup?)` / `notifyPathRemoved(path)` — keep
   tabs + recents + selection in lockstep on filesystem mutations.
 
+### The open document: session id and load id
+
+What the editor shows is one value, `EditorDocument { docId, loadId, mountGen,
+body }`, owned by `useFileEditor`:
+
+- **`docId`** names one *open-file session*. It changes when a different file
+  is opened and **survives renames**. `EditorPane` keys the `Editor` (and its
+  error boundary) by it, so renaming or moving the open file keeps the mounted
+  editor — its live text, cursor and undo history — rather than remounting it
+  with the body from when the file was opened. `renameSelection` moves the
+  selection and any write queued under the old path to the new one.
+- **`loadId`** changes on **every** read from disk (open, external reload,
+  conflict "take disk"). The editor re-applies `body` when `loadId` changes —
+  never by comparing strings — so an external revert back to the
+  originally-loaded text (`git restore`) still replaces what's on screen. A
+  reload cancels any pending serialize and stays out of undo history.
+- **`mountGen`** forces a remount within the same session (error-boundary
+  Retry, or a rename that moved the file to another folder — image views
+  resolve relative paths against the folder they were created in); `body` is
+  then the *current* text (`getCurrentBody`), never the load-time body.
+
+`body` is only what to load: the live text is the editor's. Anything that
+needs "the document as it stands now" (WeChat copy, remounts) calls
+`getCurrentBody()` — the pending edit, else the last content written or read.
+
 `useWorkspace` never reaches into editor state directly. It owns the **tree
 and the file-mutation handlers**; when a mutation lands, it fires
 `onPathCreated` / `onPathRenamed` / `onPathRemoved` callbacks for the session

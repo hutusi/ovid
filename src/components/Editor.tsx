@@ -67,12 +67,27 @@ import "../styles/editor.css";
 
 const lowlight = createLowlight(common);
 
+/** Some Markdown inputs still parse task syntax as plain bullet items with a
+ *  leading "[ ]" / "[x]" text token. Normalize a freshly loaded document so it
+ *  renders real task lists with interactive checkboxes. Not an edit: no update
+ *  is emitted and the change stays out of undo history. */
+function normalizeLoadedTaskLists(editor: NonNullable<ReturnType<typeof useEditor>>): void {
+  const original = editor.getJSON();
+  const normalized = normalizeTaskLists(original);
+  if (JSON.stringify(normalized) === JSON.stringify(original)) return;
+  editor.chain().setMeta("addToHistory", false).setContent(normalized, { emitUpdate: false }).run();
+}
+
 // Word counting walks the whole document via getText(); coalesce keystrokes
 // so long documents don't pay that cost per character typed.
 const WORD_COUNT_DEBOUNCE_MS = 300;
 
 interface EditorProps {
   content?: string;
+  /** Identifies the load `content` came from. The editor re-applies `content`
+   *  whenever this changes — even to an identical string, so an external
+   *  revert to the originally-loaded text still replaces the edited view. */
+  loadId?: number;
   filePath?: string;
   assetRoot?: string;
   cdnBase?: string;
@@ -118,6 +133,7 @@ interface EditorProps {
 
 export function Editor({
   content = "",
+  loadId = 0,
   filePath,
   assetRoot,
   cdnBase,
@@ -148,7 +164,7 @@ export function Editor({
   const updateStartedAtRef = useRef(0);
   const pendingRestoreTimersRef = useRef<number[]>([]);
   const pendingRestoreFramesRef = useRef<number[]>([]);
-  const lastAppliedContentRef = useRef(content);
+  const lastAppliedLoadIdRef = useRef(loadId);
   useEffect(() => {
     typewriterRef.current = typewriterMode;
   }, [typewriterMode]);
@@ -475,13 +491,23 @@ export function Editor({
     []
   );
 
+  // Swap in a reloaded document (external change, conflict "take disk") under
+  // the same mount. Keyed on loadId, not on string inequality: a reload whose
+  // text equals the previous load (e.g. `git restore` back to it after edits)
+  // must still replace what the editor shows.
   useEffect(() => {
-    if (!editor || content === lastAppliedContentRef.current) return;
-    lastAppliedContentRef.current = content;
+    if (!editor || loadId === lastAppliedLoadIdRef.current) return;
+    lastAppliedLoadIdRef.current = loadId;
+    // A serialize scheduled before the reload would otherwise fire afterwards
+    // and report the freshly loaded document as a new edit.
+    cancelPendingSerialize();
     clearPendingRestore();
-    editor.commands.setContent(content, { emitUpdate: false });
+    // Kept out of undo history: Cmd+Z after a reload must not bring back the
+    // pre-reload text (the next save would then overwrite the external change).
+    editor.chain().setMeta("addToHistory", false).setContent(content, { emitUpdate: false }).run();
+    normalizeLoadedTaskLists(editor);
     onWordCount?.(countWords(editor.getText()), filePath, "reload");
-  }, [clearPendingRestore, content, editor, filePath, onWordCount]);
+  }, [cancelPendingSerialize, clearPendingRestore, content, editor, filePath, loadId, onWordCount]);
 
   useEffect(() => {
     const scrollEl = scrollRef.current;
@@ -531,11 +557,11 @@ export function Editor({
   // that effect's scheduled restore (RAF + timers up to 320 ms) via
   // clearPendingRestore — otherwise a delayed restore would reset selection
   // and scroll back to the saved position, undoing the jump on a
-  // previously-visited file. The lastAppliedContentRef guard makes it wait
+  // previously-visited file. The lastAppliedLoadIdRef guard makes it wait
   // for the content-apply effect above.
   useEffect(() => {
     if (!editor || !searchJump || searchJump.path !== filePath) return;
-    if (lastAppliedContentRef.current !== content) return;
+    if (lastAppliedLoadIdRef.current !== loadId) return;
     const doc = editor.state.doc;
     // Rank identical body lines by proximity to the match's mapped body line,
     // and select the same-rank in-document hit (collectMatches yields hits in
@@ -584,6 +610,7 @@ export function Editor({
     searchJump,
     filePath,
     content,
+    loadId,
     frontmatterLineOffset,
     clearPendingRestore,
     onSearchJumpHandled,
@@ -604,16 +631,11 @@ export function Editor({
   // so opened files render as real task lists with interactive checkboxes.
   useEffect(() => {
     if (!editor) return;
-    const original = editor.getJSON();
-    const originalStr = JSON.stringify(original);
-    const normalized = normalizeTaskLists(original);
-    const normalizedStr = JSON.stringify(normalized);
-    if (normalizedStr === originalStr) return;
-    editor.commands.setContent(normalized, { emitUpdate: false });
+    normalizeLoadedTaskLists(editor);
   }, [editor]);
 
-  // The keyed remount initialises lastAppliedContentRef to the already-loaded
-  // content, so the content-swap effect above never fires for the mount
+  // A (re)mount initialises lastAppliedLoadIdRef to the already-loaded
+  // document, so the content-swap effect above never fires for the mount
   // document — and the debounced onWordCount path from the construction
   // transaction lands ~300ms later, far too late to baseline the session
   // word-count against. Emit the mounted document's count synchronously,

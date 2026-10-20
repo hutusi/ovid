@@ -451,7 +451,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     expect(result.current.conflictActive).toBe(false);
-    expect(result.current.fileContent).toBe("external version");
+    expect(result.current.editorDocument.body).toBe("external version");
     expect(result.current.saveStatus).toBe("saved");
   });
 
@@ -801,5 +801,170 @@ describe("useFileEditor — save flush semantics", () => {
     expect(writes).toHaveLength(2);
     expect((writes[1]?.args as { content: string }).content).toBe("precious edit");
     expect(result.current.saveStatus).toBe("saved");
+  });
+});
+
+describe("useFileEditor — the open document's identity", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  beforeEach(() => {
+    invokeCalls.length = 0;
+  });
+
+  it("an external revert to the loaded text is a new load, not a no-op", async () => {
+    let disk = "original";
+    invokeImpl = whenInvoke({
+      read_file: () => disk,
+      get_file_mtime: () => 1000,
+      write_file: (args) => {
+        disk = (args as { content: string }).content;
+        return 2000;
+      },
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const opened = result.current.editorDocument;
+    expect(opened.body).toBe("original");
+
+    act(() => {
+      result.current.handleEditorChange("edited");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    // e.g. `git restore` puts the file back exactly as it was opened.
+    disk = "original";
+    await act(async () => {
+      await result.current.reloadSelectedFileFromDisk(NODE);
+    });
+
+    const reloaded = result.current.editorDocument;
+    expect(reloaded.body).toBe("original");
+    expect(reloaded.loadId).not.toBe(opened.loadId);
+    // Same session: the mounted editor swaps content instead of remounting.
+    expect(reloaded.docId).toBe(opened.docId);
+  });
+
+  it("opening a different file starts a new session", async () => {
+    invokeImpl = whenInvoke({
+      read_file: (args) => `content of ${(args as { path: string }).path}`,
+      get_file_mtime: () => 1000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const first = result.current.editorDocument;
+    await act(async () => {
+      await result.current.handleSelectFile({ name: "b.md", path: "/ws/b.md", isDirectory: false });
+    });
+    expect(result.current.editorDocument.docId).not.toBe(first.docId);
+    expect(result.current.editorDocument.body).toBe("content of /ws/b.md");
+  });
+
+  it("re-selecting the open file does not re-read it", async () => {
+    invokeImpl = whenInvoke({ read_file: () => "body", get_file_mtime: () => 1000 });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const opened = result.current.editorDocument;
+    let reselected = false;
+    await act(async () => {
+      reselected = await result.current.handleSelectFile(NODE);
+    });
+    expect(reselected).toBe(true);
+    expect(invokeCalls.filter((c) => c.name === "read_file_versioned")).toHaveLength(1);
+    expect(result.current.editorDocument).toEqual(opened);
+  });
+
+  it("getCurrentBody and remountEditor carry autosaved text, not the load-time body", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "as opened",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("autosaved since");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(result.current.editorDocument.body).toBe("as opened");
+    expect(result.current.getCurrentBody()).toBe("autosaved since");
+
+    const before = result.current.editorDocument;
+    act(() => {
+      result.current.remountEditor();
+    });
+    expect(result.current.editorDocument.body).toBe("autosaved since");
+    expect(result.current.editorDocument.mountGen).toBe(before.mountGen + 1);
+    expect(result.current.editorDocument.docId).toBe(before.docId);
+  });
+
+  it("a rename keeps the session and moves a pending property write to the new path", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: Old\n---\nbody",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const before = result.current.editorDocument;
+    act(() => {
+      void result.current.handleFieldChange("title", "New");
+    });
+    const renamed: FileNode = { name: "renamed.md", path: "/ws/renamed.md", isDirectory: false };
+    act(() => {
+      result.current.renameSelection(NODE.path, renamed.path, renamed);
+    });
+    // Same folder: no remount, same session.
+    expect(result.current.editorDocument).toEqual(before);
+    expect(result.current.selectedFile?.path).toBe("/ws/renamed.md");
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    const writes = invokeCalls.filter((c) => c.name === "write_file");
+    expect(writes).toHaveLength(1);
+    expect((writes[0]?.args as { path: string }).path).toBe("/ws/renamed.md");
+  });
+
+  it("a rename into another folder remounts with the current body", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "as opened",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("typed before the move");
+    });
+    const before = result.current.editorDocument;
+    const moved: FileNode = { name: "index.md", path: "/ws/slug/index.md", isDirectory: false };
+    act(() => {
+      result.current.renameSelection(NODE.path, moved.path, moved);
+    });
+    expect(result.current.editorDocument.docId).toBe(before.docId);
+    expect(result.current.editorDocument.mountGen).toBe(before.mountGen + 1);
+    expect(result.current.editorDocument.body).toBe("typed before the move");
+
+    // Settle the pending autosave inside this test (it targets the new path).
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect((lastWriteArgs() as { path: string }).path).toBe("/ws/slug/index.md");
   });
 });

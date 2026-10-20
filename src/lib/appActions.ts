@@ -1,6 +1,5 @@
 import type React from "react";
 import type { NewContentKind } from "./amytisScaffold";
-import { parseFrontmatter } from "./frontmatter";
 import type { ShortcutKeys } from "./shortcuts";
 import type { FileNode } from "./types";
 import type { OverlayStack } from "./useOverlayStack";
@@ -32,9 +31,8 @@ export interface AppActionCtx {
   pushSuccessMessage: string;
   defaultCommitMessage: string;
 
-  // For wechat-copy
-  pendingMarkdownRef: React.RefObject<string | null>;
-  fileContent: string;
+  // For wechat-copy: the current body, including unsaved and autosaved edits.
+  getCurrentBody: () => string;
   showToast: (message: string) => void;
   t: Translate;
 
@@ -99,7 +97,7 @@ const NEW_CONTENT_ACTIONS: Array<[string, NewContentKind]> = [
 ];
 
 async function runWechatCopy(ctx: AppActionCtx): Promise<void> {
-  const markdown = ctx.pendingMarkdownRef.current ?? parseFrontmatter(ctx.fileContent).body;
+  const markdown = ctx.getCurrentBody();
   if (!markdown.trim()) {
     ctx.showToast(ctx.t("menu.file_wechat_copy_no_content"));
     return;

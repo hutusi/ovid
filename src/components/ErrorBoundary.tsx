@@ -7,6 +7,10 @@ interface Props {
   resetKey?: string;
   /** Optional heading; falls back to a generic localized "Something went wrong". */
   title?: string;
+  /** Called by Retry instead of simply re-rendering the same children — for
+   *  hosts that must rebuild them from fresh state (the editor remounts with
+   *  its current body, not the props it crashed with). */
+  onReset?: () => void;
 }
 
 interface State {
@@ -63,7 +67,10 @@ export class ErrorBoundary extends Component<Props, State> {
         <ErrorFallback
           error={this.state.error}
           title={this.props.title}
-          onRetry={() => this.setState({ error: null })}
+          onRetry={() => {
+            this.setState({ error: null });
+            this.props.onReset?.();
+          }}
         />
       );
     }
