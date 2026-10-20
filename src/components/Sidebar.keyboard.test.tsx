@@ -9,6 +9,7 @@ mock.module("react-i18next", () => ({
 }));
 
 const { Sidebar } = await import("./Sidebar");
+const { focusSidebarTree } = await import("../lib/useSidebarTreeFocus");
 
 beforeAll(registerHappyDom);
 afterAll(unregisterHappyDom);
@@ -132,6 +133,18 @@ describe("Sidebar keyboard", () => {
     await press("ArrowLeft");
     expect(row(view.container, "/ws/docs/sub").dataset.expanded).toBe("false");
     expect(view.container.querySelector('[data-path="/ws/docs/sub/c.md"]')).toBeNull();
+    view.unmount();
+  });
+
+  it("Cmd+0's focusSidebarTree lands on the open file's row", async () => {
+    const view = renderSidebar("/ws/docs/a.md");
+    await act(async () => {});
+    let focused = false;
+    await act(async () => {
+      focused = focusSidebarTree();
+    });
+    expect(focused).toBe(true);
+    expect((document.activeElement as HTMLElement).dataset.path).toBe("/ws/docs/a.md");
     view.unmount();
   });
 });

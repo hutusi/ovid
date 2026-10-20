@@ -179,6 +179,13 @@ const GLOBAL_ENTRIES: ShortcutEntry[] = [
     source: "global",
   },
   {
+    id: "focus-sidebar",
+    keys: { mod: true, key: "0" },
+    descriptionKey: "focus_sidebar",
+    category: "navigation",
+    source: "global",
+  },
+  {
     id: "toggle-properties",
     keys: { mod: true, shift: true, key: "p" },
     descriptionKey: "toggle_properties",

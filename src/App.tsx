@@ -37,6 +37,7 @@ import { useNoteIndex } from "./lib/useNoteIndex";
 import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useResponsivePanels } from "./lib/useResponsivePanels";
+import { focusSidebarTree } from "./lib/useSidebarTreeFocus";
 import { useStableCallback } from "./lib/useStableCallback";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
@@ -545,6 +546,11 @@ function App() {
       showToast,
       t,
       toggleSidebar: panelLayout.toggleSidebar,
+      focusSidebar: () => {
+        panelLayout.showSidebar();
+        // After the sidebar has rendered visible.
+        requestAnimationFrame(() => focusSidebarTree());
+      },
       toggleProperties: panelLayout.toggleProperties,
       setZenMode,
       setTypewriterMode,
@@ -577,6 +583,7 @@ function App() {
       showToast,
       t,
       panelLayout.toggleSidebar,
+      panelLayout.showSidebar,
       panelLayout.toggleProperties,
       requestQuit,
       flushPendingSave,

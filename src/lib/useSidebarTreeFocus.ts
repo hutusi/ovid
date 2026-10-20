@@ -68,3 +68,17 @@ export function useSidebarTreeFocus(treeRef: RefObject<HTMLElement | null>) {
     };
   }, [treeRef]);
 }
+
+/** Move keyboard focus to the sidebar tree's tabbable row (the open file's,
+ *  by default). Returns false when no tree is rendered (no workspace, or the
+ *  search panel is showing). */
+export function focusSidebarTree(): boolean {
+  const rows = sidebarTreeRows(document.querySelector<HTMLElement>(".sidebar-tree"));
+  const target =
+    rows.find((row) => row.tabIndex === 0) ??
+    rows.find((row) => row.getAttribute("aria-current") === "true") ??
+    rows[0];
+  if (!target) return false;
+  target.focus();
+  return true;
+}

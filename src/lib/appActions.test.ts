@@ -51,7 +51,7 @@ const MENU_PAYLOAD_IDS = [
 ];
 
 // Actions reachable only from the keyboard (no native menu item).
-const KEYBOARD_ONLY_IDS = ["new-file"];
+const KEYBOARD_ONLY_IDS = ["new-file", "focus-sidebar"];
 
 function makeOverlay(isBlocking: boolean): OverlayStack {
   return {
@@ -78,6 +78,7 @@ function makeCtx(overrides: Partial<AppActionCtx> = {}): AppActionCtx {
     showToast: () => {},
     t: (key) => key,
     toggleSidebar: () => {},
+    focusSidebar: () => {},
     toggleProperties: () => {},
     setZenMode: () => {},
     setTypewriterMode: () => {},
@@ -165,6 +166,23 @@ describe("dispatchAppAction guards", () => {
     expect(dispatchAppAction(gated.action, makeCtx({ isGitRepo: true }), { inInput: false })).toBe(
       true
     );
+  });
+
+  it("focus-sidebar fires from the editor but not in zen mode or without a workspace", () => {
+    let focused = 0;
+    const focusSidebar = () => {
+      focused += 1;
+    };
+    const action = getAppAction("focus-sidebar");
+    if (!action) throw new Error("focus-sidebar row missing");
+    expect(dispatchAppAction(action, makeCtx({ focusSidebar }), { inInput: true })).toBe(true);
+    expect(
+      dispatchAppAction(action, makeCtx({ focusSidebar, zenMode: true }), { inInput: true })
+    ).toBe(false);
+    expect(
+      dispatchAppAction(action, makeCtx({ focusSidebar, workspaceRoot: null }), { inInput: true })
+    ).toBe(false);
+    expect(focused).toBe(1);
   });
 
   it("quit fires through a blocking overlay and from inside an input", () => {

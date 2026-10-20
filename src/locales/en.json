@@ -829,6 +829,7 @@
       "in_sidebar": "in the sidebar"
     },
     "toggle_sidebar": "Toggle sidebar",
+    "focus_sidebar": "Focus the file tree",
     "toggle_properties": "Toggle properties panel",
     "toggle_search": "Full-text search",
     "zen_mode": "Toggle zen mode",

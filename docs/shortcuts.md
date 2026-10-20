@@ -9,6 +9,7 @@ On macOS, `Cmd` is the ⌘ key and `Alt` is the ⌥ (Option) key. On Windows and
 | Shortcut | Action |
 |---|---|
 | `Cmd+P` | Quick file switcher |
+| `Cmd+0` | Focus the file tree (shows the sidebar if hidden) |
 | `Cmd+Shift+F` | Full-text search |
 | `↓` / `↑` / `Home` / `End` | Move between rows (in the sidebar) |
 | `→` | Expand a folder, or step into it (in the sidebar) |

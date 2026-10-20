@@ -39,6 +39,8 @@ export interface AppActionCtx {
 
   // Responsive-aware panel actions
   toggleSidebar: () => void;
+  /** Show the sidebar if hidden and move focus into its file tree. */
+  focusSidebar: () => void;
   toggleProperties: () => void;
   setZenMode: React.Dispatch<React.SetStateAction<boolean>>;
   setTypewriterMode: React.Dispatch<React.SetStateAction<boolean>>;
@@ -191,6 +193,12 @@ export const appActions: AppAction[] = [
     allowWhenBlocking: true,
     allowInInput: true,
     run: (ctx) => ctx.toggleSidebar(),
+  },
+  {
+    id: "focus-sidebar", // keyboard-only (Cmd+0)
+    allowInInput: true,
+    when: (ctx) => hasWorkspace(ctx) && !ctx.zenMode,
+    run: (ctx) => ctx.focusSidebar(),
   },
   {
     id: "toggle-properties",

@@ -829,6 +829,7 @@
       "in_sidebar": "在侧边栏中"
     },
     "toggle_sidebar": "切换侧栏",
+    "focus_sidebar": "聚焦文件树",
     "toggle_properties": "切换属性面板",
     "toggle_search": "全文搜索",
     "zen_mode": "切换专注模式",
