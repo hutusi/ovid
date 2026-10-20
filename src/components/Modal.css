@@ -351,3 +351,9 @@
   line-height: 1.4;
   color: var(--color-fg-muted);
 }
+
+/* The panel takes focus only from a click on its padding (tabIndex -1);
+   that is not a keyboard focus, so no ring. */
+.modal-overlay [role="dialog"]:focus {
+  outline: none;
+}

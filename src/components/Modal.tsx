@@ -71,6 +71,10 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
+        // Focusable (not tabbable) so a click on the panel's own padding or
+        // text keeps focus inside the dialog, where Escape and the focus trap
+        // see it, instead of dropping it to <body>.
+        tabIndex={-1}
         className={panelClass}
         style={width !== undefined ? { width, maxWidth: "calc(100vw - 48px)" } : undefined}
         onKeyDown={handleKeyDown}

@@ -59,17 +59,6 @@ export function PreferencesDialog({
     setGoalInput(wordCountGoal !== null ? String(wordCountGoal) : "");
   }, [wordCountGoal]);
 
-  // Document-level Escape handler — catches the key regardless of which
-  // control inside the dialog has focus, so native form-element quirks (e.g.
-  // a `<select>` swallowing the bubble) can't strand the user in the dialog.
-  useEffect(() => {
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
-
   const currentLanguage = i18n.language === "zh-CN" ? "zh-CN" : "en";
 
   async function changeLanguage(lng: string) {

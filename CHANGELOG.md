@@ -128,6 +128,10 @@ release cadence and Conventional Commit history.
   of open dialogs, and toasts stay readable above them.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
+- **Dialogs keep keyboard focus after a click inside them**: clicking a
+  dialog's text or empty space dropped focus to the window behind it, so
+  Escape stopped closing the dialog and Tab wandered into the sidebar. Focus
+  now stays in the dialog, and Tab returns to its first control.
 
 ### Performance
 - **Faster startup**: the editor's libraries (ProseMirror, Tiptap and code
