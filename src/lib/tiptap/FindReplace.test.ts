@@ -179,6 +179,14 @@ describe("FindReplace commands", () => {
     while (createdEditors.length) createdEditors.pop()?.destroy();
   });
 
+  it("keeps its state on a selection-only transaction", () => {
+    const editor = createEditor("foo bar foo");
+    editor.commands.setFindTerm("foo");
+    const before = FIND_REPLACE_KEY.getState(editor.state);
+    editor.commands.setTextSelection(3);
+    expect(FIND_REPLACE_KEY.getState(editor.state)).toBe(before);
+  });
+
   it("setFindTerm populates plugin state with the match positions", () => {
     const editor = createEditor("hello hello world");
     editor.commands.setFindTerm("hello");

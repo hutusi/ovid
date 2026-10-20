@@ -132,6 +132,11 @@ release cadence and Conventional Commit history.
   resolve `[[links]]` now happens once the app is idle after opening a
   workspace (or after the file tree changes), instead of competing with the
   first file load; collection indexes are read in parallel.
+- **Smoother typing in long documents**: footnote highlighting rescanned
+  the entire document on every keystroke (quadratically in heavily formatted
+  paragraphs); it now rescans only the paragraph being edited. Section
+  folding and find-highlighting no longer rebuild on every cursor move, and
+  fold chevrons are no longer re-created for every heading on each change.
 - **File operations no longer block the window**: reading, saving, creating,
   renaming, duplicating and trashing files, and saving pasted or dropped
   images, now run off the UI thread. A save's fsync, a slow or network volume,
