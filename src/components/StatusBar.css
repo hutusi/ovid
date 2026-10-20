@@ -344,6 +344,9 @@
 }
 
 .git-sync-popover-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
   background: transparent;
   color: var(--color-fg-subtle);

@@ -166,6 +166,9 @@ release cadence and Conventional Commit history.
   focus when they open and hand it back when closed with Escape. Escape in
   a row menu closes just the menu, not the whole Workspace Manager, and the
   menu's items can be reached with the arrow keys, Home and End.
+- **Git sync popover and shortcuts help behave like other dialogs**: both
+  now use the shared dialog shell, so a click inside keeps keyboard focus
+  there, and the sync popover's close button uses the standard icon.
 - **Typewriter mode respects Reduce Motion**: with the system's Reduce
   Motion setting on, typewriter mode keeps the current line centred by
   jumping instead of animating a scroll on every keystroke.
