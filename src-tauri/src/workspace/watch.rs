@@ -4,7 +4,7 @@ use std::path::{Component, Path};
 use notify::event::{ModifyKind, RenameMode};
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use serde::Serialize;
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 use ts_rs::TS;
 
 use crate::paths::{is_markdown_path, should_skip_walk_entry, to_slash};
@@ -114,6 +114,14 @@ pub(crate) fn restart_workspace_watcher(
         notify::recommended_watcher(move |result: notify::Result<Event>| match result {
             Ok(event) => {
                 if let Some(mut change) = workspace_change_for_event(&callback_root, &event) {
+                    // Ovid's own saves need no refresh (see SelfWrites).
+                    let self_writes = &callback_app.state::<WorkspaceState>().self_writes;
+                    change
+                        .paths
+                        .retain(|path| !self_writes.is_own_write(Path::new(path)));
+                    if change.paths.is_empty() && !change.needs_rescan {
+                        return;
+                    }
                     rebase_change_paths(&mut change, &callback_root, &opened_root);
                     change.workspace_root.clone_from(&payload_root);
                     if let Err(error) = callback_app.emit(WORKSPACE_FS_CHANGE_EVENT, change) {

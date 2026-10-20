@@ -1,8 +1,8 @@
 use serde::Serialize;
 use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Mutex;
-use std::time::{Instant, SystemTime};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime};
 use ts_rs::TS;
 
 // Holds workspace paths so file commands can validate against them.
@@ -18,6 +18,68 @@ pub(crate) struct WorkspaceState {
     // The watcher must stay alive for notifications to continue. Replaced and
     // dropped whenever the user opens a different workspace.
     pub(crate) workspace_watcher: Mutex<Option<notify::RecommendedWatcher>>,
+    // The git repository root found for a tree root, as (tree root, git root).
+    // Every git command needs it; resolving it spawns `git rev-parse
+    // --show-toplevel`, which a full status refresh used to pay ~5 times.
+    // Keyed by the tree root, so opening another workspace misses the cache;
+    // only positive answers are cached (a `git init` later is still seen).
+    pub(crate) git_root_cache: Mutex<Option<(PathBuf, String)>>,
+    // Files Ovid itself just saved, so the watcher can drop their events.
+    pub(crate) self_writes: Arc<SelfWrites>,
+}
+
+/// What a file looked like right after a write: enough to tell, cheaply and
+/// without reading it, whether a later watcher event is still about that
+/// write. Any other write changes the length or (nanosecond) mtime.
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct FileStamp {
+    len: u64,
+    modified: Option<SystemTime>,
+}
+
+fn file_stamp(path: &Path) -> Option<FileStamp> {
+    let metadata = std::fs::metadata(path).ok()?;
+    Some(FileStamp {
+        len: metadata.len(),
+        modified: metadata.modified().ok(),
+    })
+}
+
+/// Registry of Ovid's own recent saves.
+///
+/// Every autosave is a filesystem change the watcher reports; without this,
+/// each one reached the frontend, which then had to read the file back to
+/// recognise its own write. A save is recorded with its file's stamp, and an
+/// event for that path is dropped while the file still carries exactly that
+/// stamp — so an external edit landing right after (a different stamp) still
+/// gets through. Entries expire after a few seconds.
+#[derive(Default)]
+pub(crate) struct SelfWrites {
+    entries: Mutex<std::collections::HashMap<PathBuf, (FileStamp, Instant)>>,
+}
+
+const SELF_WRITE_TTL: Duration = Duration::from_secs(5);
+
+impl SelfWrites {
+    pub(crate) fn record(&self, path: &Path) {
+        let Some(stamp) = file_stamp(path) else {
+            return;
+        };
+        if let Ok(mut entries) = self.entries.lock() {
+            entries.retain(|_, (_, at)| at.elapsed() < SELF_WRITE_TTL);
+            entries.insert(path.to_path_buf(), (stamp, Instant::now()));
+        }
+    }
+
+    pub(crate) fn is_own_write(&self, path: &Path) -> bool {
+        let Ok(entries) = self.entries.lock() else {
+            return false;
+        };
+        match entries.get(path) {
+            Some((stamp, at)) if at.elapsed() < SELF_WRITE_TTL => file_stamp(path) == Some(*stamp),
+            _ => false,
+        }
+    }
 }
 
 impl WorkspaceState {
@@ -104,4 +166,37 @@ pub(crate) struct CachedSearchFile {
     pub(crate) title: Option<String>,
     pub(crate) draft: bool,
     pub(crate) lines: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SelfWrites;
+
+    #[test]
+    fn a_recorded_write_is_recognised_until_the_file_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("note.md");
+        std::fs::write(&path, "saved by ovid").unwrap();
+        let writes = SelfWrites::default();
+        assert!(!writes.is_own_write(&path), "nothing recorded yet");
+
+        writes.record(&path);
+        assert!(writes.is_own_write(&path));
+
+        // An external edit right after (different size) must get through.
+        std::fs::write(&path, "edited elsewhere, longer").unwrap();
+        assert!(!writes.is_own_write(&path));
+    }
+
+    #[test]
+    fn other_paths_are_not_own_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let ours = dir.path().join("a.md");
+        let theirs = dir.path().join("b.md");
+        std::fs::write(&ours, "a").unwrap();
+        std::fs::write(&theirs, "b").unwrap();
+        let writes = SelfWrites::default();
+        writes.record(&ours);
+        assert!(!writes.is_own_write(&theirs));
+    }
 }

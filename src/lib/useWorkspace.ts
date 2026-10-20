@@ -17,6 +17,7 @@ import type { I18nConfig } from "./commands/generated/I18nConfig";
 import type { WorkspaceResult as GeneratedWorkspaceResult } from "./commands/generated/WorkspaceResult";
 import { CLONE_CANCELLED } from "./commands/workspace";
 import { detectDiskFormat, encodeDiskText } from "./diskText";
+import { sameTree } from "./fileNode";
 import { type FlatFile, flattenTree } from "./fileSearch";
 import { createTodayFlowFrontmatter } from "./frontmatter";
 import { measureAsync } from "./perf";
@@ -126,7 +127,9 @@ export function useWorkspace({
         commands.workspace.tree()
       )) as FileNode[];
       if (requestId !== refreshIdRef.current) return updated;
-      setTree(updated);
+      // Keep the previous tree when nothing changed (e.g. a content-only edit
+      // to a file whose title didn't move) — see sameTree.
+      setTree((prev) => (sameTree(prev, updated) ? prev : updated));
       return updated;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

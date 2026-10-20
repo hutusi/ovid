@@ -10,7 +10,9 @@ interface UseGitRefreshOnSaveOptions {
 }
 
 /** Debounce a git status refresh whenever a save settles into "saved" (from
- *  "unsaved" or the intermediate "saving" state). */
+ *  "unsaved" or the intermediate "saving" state). The caller passes a
+ *  status-only refresh: a save changes file status, never branches or
+ *  remotes. */
 export function useGitRefreshOnSave({
   saveStatus,
   isGitRepo,

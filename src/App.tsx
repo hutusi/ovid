@@ -434,6 +434,7 @@ function App() {
     currentBranch,
     remoteInfo,
     refreshGitStatus,
+    refreshFileStatus,
     handleCommit,
     handlePush,
     handlePull,
@@ -612,7 +613,7 @@ function App() {
 
   useKeyboardShortcuts(appActionCtx);
 
-  useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus });
+  useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus: refreshFileStatus });
 
   useWorkspaceChangeMonitor({
     workspaceRootPath,

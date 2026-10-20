@@ -55,6 +55,8 @@ pub fn run() {
             frontmatter_cache: Mutex::new(HashMap::new()),
             search_cache: Mutex::new(HashMap::new()),
             workspace_watcher: Mutex::new(None),
+            git_root_cache: Mutex::new(None),
+            self_writes: Default::default(),
         })
         .manage(AboutState {
             title: Mutex::new("About Ovid".to_string()),

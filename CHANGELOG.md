@@ -110,6 +110,13 @@ release cadence and Conventional Commit history.
   tree, re-read every note for wiki links and backlinks, and refreshed git
   twice. Ovid's own staging files are now ignored by the watcher and hidden
   from the sidebar (including any left behind by a crash).
+- **Lighter saves**: Ovid recognises its own saves at the source, so an
+  autosave no longer sends a file-change event back to the app. The git
+  refresh after a save asks only for file status instead of re-reading
+  branches and remotes (about one git process instead of ten), and the
+  repository root is looked up once instead of per git command. A refresh
+  that finds the file tree unchanged no longer rebuilds the sidebar, the
+  file index or the wiki-link data.
 - **File operations no longer block the window**: reading, saving, creating,
   renaming, duplicating and trashing files, and saving pasted or dropped
   images, now run off the UI thread. A save's fsync, a slow or network volume,
