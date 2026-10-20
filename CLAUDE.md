@@ -169,7 +169,7 @@ These rules encode hard-won lessons about what works in Tauri's WebView. Violati
 - **No new `@radix-ui/*` packages** — the entire Radix UI family is removed; do not reintroduce any part of it
 - **No shadcn/ui components** — `class-variance-authority` and the shadcn component pattern are removed; write plain TSX with CSS classes
 - **No new portal-rendering libraries** — any UI library that renders to `document.body` outside the React tree will break in Tauri's WebView
-- **Prefer native HTML elements** — `<select>`, `<input>`, `<button>`, `<details>` over third-party wrappers; only reach for a library when the native element genuinely cannot do the job (e.g. `cmdk` for keyboard-navigable fuzzy search)
+- **Prefer native HTML elements** — `<select>`, `<input>`, `<button>`, `<details>` over third-party wrappers; only reach for a library when the native element genuinely cannot do the job (the file switcher and pickers use a hand-rolled listbox inside `<Modal>`, not a command-palette library)
 
 ## Amytis Workspace
 

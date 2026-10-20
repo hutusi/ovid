@@ -119,8 +119,6 @@
   --shadow-sm: 0 2px 8px rgba(54, 44, 28, 0.1);
   --shadow-md: 0 8px 24px rgba(54, 44, 28, 0.14), 0 2px 6px rgba(54, 44, 28, 0.08);
   --shadow-lg: 0 16px 40px rgba(54, 44, 28, 0.18), 0 4px 12px rgba(54, 44, 28, 0.1);
-  /* Legacy alias — kept while consumers migrate (see C2). */
-  --shadow-tooltip: rgba(54, 44, 28, 0.14);
 
   /* Radii — gently softened for a bookish geometry */
   --radius-xs: 3px;
@@ -161,7 +159,6 @@
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.45);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-tooltip: rgba(0, 0, 0, 0.28);
 
   /* On charcoal the grain reads as a faint light tooth (screen), and the panel
      edge highlight is a barely-there warm-white. */
