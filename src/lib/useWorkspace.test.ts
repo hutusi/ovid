@@ -36,11 +36,6 @@ mock.module("@tauri-apps/api/event", () => ({
   listen: () => Promise.resolve(() => {}),
 }));
 
-let confirmReturn = true;
-mock.module("@tauri-apps/plugin-dialog", () => ({
-  confirm: () => Promise.resolve(confirmReturn),
-}));
-
 /** Build an invokeImpl that dispatches by command name. Unknown names reject
  *  loudly so a test that forgot to mock a call doesn't pass by accident. */
 function whenInvoke(handlers: InvokeHandlers): InvokeImpl {
@@ -114,7 +109,6 @@ describe("useWorkspace", () => {
   beforeEach(() => {
     invokeImpl = () => Promise.reject(new Error("unmocked"));
     invokeCalls.length = 0;
-    confirmReturn = true;
   });
 
   it("openWorkspaceAtPath populates state from the returned WorkspaceResult", async () => {
@@ -426,7 +420,7 @@ describe("useWorkspace", () => {
     expect(renameCalls[0]?.resolved?.path).toBe(newPath);
   });
 
-  it("handleDelete trashes the path, fires onPathRemoved, and refreshes the tree", async () => {
+  it("handleDelete trashes the path without asking again, fires onPathRemoved, and refreshes the tree", async () => {
     const node = makeNode("/ws/content/posts/hello.md");
     const trashCalls: Array<{ path: string }> = [];
     const removed: string[] = [];
@@ -461,29 +455,6 @@ describe("useWorkspace", () => {
     // open_workspace_at_path returns the tree inline; the only list_workspace_tree
     // call is the post-delete refresh.
     expect(invokeCalls.filter((c) => c.name === "list_workspace_tree")).toHaveLength(1);
-  });
-
-  it("handleDelete is a no-op when the user cancels the confirm dialog", async () => {
-    confirmReturn = false;
-    const node = makeNode("/ws/content/posts/hello.md");
-
-    invokeImpl = whenInvoke({
-      open_workspace_at_path: () => makeWorkspaceResult({ tree: [node] }),
-    });
-
-    const opts = makeOptions({ onPathRemoved: mock(() => {}) });
-    const { result } = renderHook(() => useWorkspace(opts));
-
-    await act(async () => {
-      await result.current.openWorkspaceAtPath("/ws");
-    });
-
-    await act(async () => {
-      await result.current.handleDelete(node);
-    });
-
-    expect(invokeCalls.filter((c) => c.name === "trash_file")).toHaveLength(0);
-    expect(opts.onPathRemoved).not.toHaveBeenCalled();
   });
 
   it("handleNewTodayFlow ensures the flows directory and creates today's file", async () => {

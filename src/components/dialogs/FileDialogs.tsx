@@ -36,15 +36,19 @@ const AddToCollectionDialog = lazy(async () => ({
 const RenamePathDialog = lazy(async () => ({
   default: (await import("../RenamePathDialog")).RenamePathDialog,
 }));
+const DeletePathDialog = lazy(async () => ({
+  default: (await import("../DeletePathDialog")).DeletePathDialog,
+}));
 
 export interface FileDialogsProps {
   overlay: OverlayStack;
-  // modal-kind dialogs (new-file, rename, duplicate, new-from-existing,
-  // add-to-collection)
+  // modal-kind dialogs (new-file, rename, delete, duplicate,
+  // new-from-existing, add-to-collection)
   handleNewFile: (dirPath: string, title: string, kind: NewContentKind) => void;
   handleDuplicate: (node: FileNode, name: string) => void;
   handleNewFromExisting: (node: FileNode, name: string) => void;
   handleRename: (node: FileNode, name: string) => void;
+  handleDelete: (node: FileNode) => void;
   collectionCandidatesFor: (
     existing: CollectionItem[],
     selfIndexPath: string
@@ -57,7 +61,7 @@ export interface FileDialogsProps {
 }
 
 /** File-lifecycle overlays: the Cmd+P switcher plus every `modal`-kind
- * dialog (new file, rename, duplicate, new-from-existing,
+ * dialog (new file, rename, delete, duplicate, new-from-existing,
  * add-to-collection). */
 export function FileDialogs({
   overlay,
@@ -65,6 +69,7 @@ export function FileDialogs({
   handleDuplicate,
   handleNewFromExisting,
   handleRename,
+  handleDelete,
   collectionCandidatesFor,
   onAddCollectionItem,
   flatFiles,
@@ -99,6 +104,20 @@ export function FileDialogs({
             onConfirm={(name) => {
               void handleRename(modal.node, name);
               closeModal();
+            }}
+            onCancel={closeModal}
+          />
+        </Suspense>
+      )}
+      {modal?.type === "delete-path" && (
+        <Suspense fallback={null}>
+          <DeletePathDialog
+            name={modal.node.name}
+            onConfirm={() => {
+              // Close first so focus returns to the sidebar row before the
+              // tree refresh removes it.
+              closeModal();
+              void handleDelete(modal.node);
             }}
             onCancel={closeModal}
           />

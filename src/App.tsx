@@ -340,7 +340,10 @@ function App() {
   const sidebarHandlers = {
     onSelect: useStableCallback((node: FileNode) => handleSidebarSelect(node)),
     onToggleMode: useStableCallback(() => handleToggleSidebarMode()),
-    onDelete: useStableCallback((node: FileNode) => handleDelete(node)),
+    onDelete: useCallback(
+      (node: FileNode) => openModal({ kind: "modal", state: { type: "delete-path", node } }),
+      [openModal]
+    ),
     onOpenSwitcher: useCallback(() => openModal({ kind: "workspaceSwitcher" }), [openModal]),
     onNewFile: useCallback(
       (dirPath: string, kind: NewContentKind) =>
@@ -849,6 +852,7 @@ function App() {
             handleDuplicate,
             handleNewFromExisting,
             handleRename,
+            handleDelete,
             collectionCandidatesFor,
             onAddCollectionItem: handleAddCollectionItem,
             flatFiles,

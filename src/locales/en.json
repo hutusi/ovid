@@ -776,7 +776,10 @@
   },
   "confirm": {
     "delete_title": "Delete",
-    "move_to_trash": "Move \"{{name}}\" to Trash?"
+    "move_to_trash": "Move \"{{name}}\" to Trash?",
+    "move_to_trash_hint": "You can restore it from the Trash.",
+    "move_to_trash_action": "Move to Trash",
+    "cancel": "Cancel"
   },
   "scaffold": {
     "post_body": "Write your content here...",

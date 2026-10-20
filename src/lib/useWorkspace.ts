@@ -1,4 +1,3 @@
-import { confirm } from "@tauri-apps/plugin-dialog";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { buildNewContent, type NewContentKind } from "./amytisScaffold";
@@ -461,13 +460,10 @@ export function useWorkspace({
     }
   }
 
+  // Moves the node to the Trash. The caller has already confirmed with the
+  // user (the in-app DeletePathDialog), so this does not ask again.
   async function handleDelete(node: FileNode) {
     const targetPath = node.containerDirPath ?? node.path;
-    const confirmed = await confirm(t("confirm.move_to_trash", { name: node.name }), {
-      title: t("confirm.delete_title"),
-      kind: "warning",
-    });
-    if (!confirmed) return;
     // Always flush — the editor session decides whether the deleted file is
     // the active one and closes it via onPathRemoved. flushPendingSave is a
     // no-op when nothing is pending, so unconditional is safe.

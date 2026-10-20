@@ -24,6 +24,9 @@ release cadence and Conventional Commit history.
   failing) refreshes the one on screen instead of stacking copies.
   Removing a workspace from the recent list can be undone from the
   notification.
+- **Deleting a file asks in the app's own dialog**: "Move to Trash?" now
+  appears as an Ovid dialog in the current theme, with a red Move to Trash
+  button and focus on Cancel, instead of a system alert box.
 - **Git sync shows progress**: while a push, pull or fetch runs, the status
   bar shows a spinner and what is running instead of the sync button, and a
   second trigger (a double click, or the menu while the popover action runs)

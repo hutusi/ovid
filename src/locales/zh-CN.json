@@ -776,7 +776,10 @@
   },
   "confirm": {
     "delete_title": "删除",
-    "move_to_trash": "将「{{name}}」移到废纸篓？"
+    "move_to_trash": "将「{{name}}」移到废纸篓？",
+    "move_to_trash_hint": "可以从废纸篓中恢复。",
+    "move_to_trash_action": "移到废纸篓",
+    "cancel": "取消"
   },
   "scaffold": {
     "post_body": "在此处编写内容……",
