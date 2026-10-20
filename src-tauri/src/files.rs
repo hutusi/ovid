@@ -7,8 +7,8 @@ use tauri::State;
 use ts_rs::TS;
 
 use crate::paths::{
-    create_sibling_temp_dir, create_sibling_temp_file, validate_new_dir_path, validate_new_path,
-    validate_path, write_atomic, TempPathGuard,
+    create_sibling_temp_dir, create_sibling_temp_file, ensure_within, validate_new_dir_path,
+    validate_new_path, validate_path, write_atomic, ExistenceMode, TempPathGuard,
 };
 use crate::state::WorkspaceState;
 
@@ -16,6 +16,13 @@ use crate::state::WorkspaceState;
 /// wrote it. The frontend matches on this exact string to open the
 /// external-change conflict prompt instead of silently clobbering the change.
 pub(crate) const EXTERNAL_CHANGE_CONFLICT: &str = "EXTERNAL_CHANGE_CONFLICT";
+
+/// Marker returned when a versioned save targets a file that no longer exists —
+/// deleted, or renamed/moved by another program while it was open. The
+/// frontend matches on this to offer "recreate it / discard my edits" instead
+/// of failing every autosave (and every switch, close and quit) with a
+/// generic error.
+pub(crate) const FILE_MISSING: &str = "FILE_MISSING";
 
 /// Marker returned when a file is too large to load into the editor. The
 /// frontend matches on this to show a "file too large" message instead of the
@@ -155,9 +162,10 @@ pub(crate) async fn read_files_bulk(
 /// the check runs against the *current on-disk* content immediately before the
 /// rename (via `write_atomic`'s verify hook), refusing with
 /// `EXTERNAL_CHANGE_CONFLICT` if the content's hash no longer matches — so an
-/// external edit during staging is caught, not clobbered. A missing target is
-/// treated as no-conflict. Returns the written content's token. `None` forces
-/// the write (conflict resolution / untracked writes).
+/// external edit during staging is caught, not clobbered. A target that
+/// vanished refuses with `FILE_MISSING` instead of being silently recreated.
+/// Returns the written content's token. `None` forces the write (conflict
+/// resolution / untracked writes).
 fn write_checked(
     canonical: &Path,
     content: &str,
@@ -165,15 +173,44 @@ fn write_checked(
 ) -> Result<String, String> {
     write_atomic(canonical, content, |target| match expected_version {
         // Proceed only when the current on-disk content is readable AND its
-        // token matches. A target that was deleted, made unreadable, or
-        // replaced with non-UTF-8 during staging yields `None` → conflict,
-        // rather than silently recreating/overwriting it.
-        Some(expected) if current_version(target).as_deref() == Some(expected) => Ok(()),
-        Some(_) => Err(EXTERNAL_CHANGE_CONFLICT.to_string()),
+        // token matches. A target made unreadable or replaced with non-UTF-8
+        // during staging conflicts; one that was deleted is reported as such.
+        Some(expected) => match current_version(target) {
+            Some(current) if current == expected => Ok(()),
+            None if is_missing(target) => Err(FILE_MISSING.to_string()),
+            _ => Err(EXTERNAL_CHANGE_CONFLICT.to_string()),
+        },
         // No expected token forces the write (conflict resolution / new files).
         None => Ok(()),
     })?;
     Ok(content_version(content))
+}
+
+fn is_missing(path: &Path) -> bool {
+    matches!(
+        std::fs::symlink_metadata(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    )
+}
+
+/// The write target, or `FILE_MISSING` when it is a workspace path that simply
+/// doesn't exist any more (its folder may be gone too). Anything else that
+/// fails validation — a path outside the workspace — keeps its own error.
+fn resolve_write_target(root: &Path, requested: &str) -> Result<std::path::PathBuf, String> {
+    validate_path(root, requested).map_err(|error| {
+        let inside = ensure_within(
+            root,
+            Path::new(requested),
+            ExistenceMode::AncestorMayBeMissing,
+            "invalid path",
+        )
+        .is_ok();
+        if inside && is_missing(Path::new(requested)) {
+            FILE_MISSING.to_string()
+        } else {
+            error
+        }
+    })
 }
 
 #[tauri::command]
@@ -185,20 +222,24 @@ pub(crate) fn write_file(
 ) -> Result<String, String> {
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = validate_path(root, &path)?;
+    let canonical = resolve_write_target(root, &path)?;
     write_checked(&canonical, &content, expected_version.as_deref())
 }
 
+/// Create a new file; fails if it already exists. Returns the content's
+/// version token, so an editor that recreates its vanished file can keep
+/// saving with the usual optimistic-concurrency check.
 #[tauri::command]
 pub(crate) fn create_file(
     path: String,
     content: String,
     state: State<'_, WorkspaceState>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
     let root = root_guard.as_ref().ok_or("no workspace open")?;
     let new_path = validate_new_path(root, &path)?;
-    create_new_checked(&new_path, &content)
+    create_new_checked(&new_path, &content)?;
+    Ok(content_version(&content))
 }
 
 fn map_exclusive_install_error(error: std::io::Error, collision_message: &str) -> String {
@@ -458,18 +499,49 @@ mod tests {
     }
 
     #[test]
-    fn write_checked_conflicts_when_the_target_is_deleted_mid_save() {
-        // With an expected token, a target that becomes unreadable (here:
-        // deleted before the write) must conflict, not silently recreate it.
+    fn write_checked_reports_a_target_deleted_mid_save_as_missing() {
+        // With an expected token, a target deleted before the write must be
+        // reported (not silently recreated) — as missing, not as a conflict.
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("gone.md");
         let expected = content_version("original");
-        // File does not exist → current_version is None → conflict.
         assert_eq!(
             write_checked(&path, "recreated", Some(&expected)),
+            Err(FILE_MISSING.to_string())
+        );
+        assert!(!path.exists(), "target must not be recreated");
+    }
+
+    #[test]
+    fn write_checked_conflicts_when_the_target_became_unreadable() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("binary.md");
+        fs::write(&path, [0xff_u8, 0xfe, 0x00]).unwrap();
+        assert_eq!(
+            write_checked(&path, "text", Some(&content_version("original"))),
             Err(EXTERNAL_CHANGE_CONFLICT.to_string())
         );
-        assert!(!path.exists(), "target must not be recreated on conflict");
+    }
+
+    #[test]
+    fn resolve_write_target_reports_a_vanished_workspace_file_as_missing() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let gone = root.join("notes").join("gone.md");
+        assert_eq!(
+            resolve_write_target(root, gone.to_str().unwrap()),
+            Err(FILE_MISSING.to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_write_target_keeps_the_error_for_paths_outside_the_workspace() {
+        let workspace = TempDir::new().unwrap();
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("gone.md");
+        let result = resolve_write_target(workspace.path(), outside.to_str().unwrap());
+        assert!(result.is_err());
+        assert_ne!(result, Err(FILE_MISSING.to_string()));
     }
 
     #[test]

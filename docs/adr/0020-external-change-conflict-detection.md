@@ -36,8 +36,20 @@ token**, and a resolution prompt when it fails.
   `EXTERNAL_CHANGE_CONFLICT` marker and discards the temp. On success it renames
   and returns `hash(written content)`, which the client stores.
 - `expected_version: null` forces the write (used to resolve a conflict by
-  overwriting, and for writes outside the editor's tracked model). A missing
-  target is treated as no-conflict.
+  overwriting, and for writes outside the editor's tracked model).
+- **A missing target is its own outcome** (amended 2026-10). A versioned save
+  to a file that no longer exists — deleted, or moved by another program while
+  open — is refused with `FILE_MISSING`, both when validation finds the path
+  gone and when it vanishes during staging (a target that is present but
+  unreadable still conflicts). It is never silently recreated. The frontend
+  shows the conflict dialog's missing-file variant: **Recreate file** (write
+  the current text back with `create_file`, after `ensure_dir`; `create_file`
+  returns the version token so saving continues normally), **Discard changes &
+  close**, or **Keep editing**, which holds autosave for that file instead of
+  re-prompting on every pause — a switch, close or quit still flushes and so
+  re-prompts. (The original text said a missing target was "no-conflict";
+  in practice validation rejected it first with a generic error, so every
+  autosave, switch and close failed until restart.)
 - **Why a content hash, not mtime.** The earlier mtime token had millisecond
   granularity, so two writes in the same millisecond (autosave racing an
   external formatter) could collide on the same token and let the next save

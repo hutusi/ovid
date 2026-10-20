@@ -9,7 +9,11 @@
     "body": "自你打开以来，“{{name}}”已被其他程序更改。你想怎么做？",
     "reload": "放弃我的更改并重新加载",
     "keep_editing": "继续编辑",
-    "overwrite": "用我的更改覆盖"
+    "overwrite": "用我的更改覆盖",
+    "missing_title": "文件已不在磁盘上",
+    "missing_body": "“{{name}}”在打开期间被其他程序删除或移动。你的内容仍在编辑器中——可以重新创建该文件，或放弃更改并关闭。",
+    "discard": "放弃更改并关闭",
+    "recreate": "重新创建文件"
   },
   "preferences": {
     "title": "偏好设置",

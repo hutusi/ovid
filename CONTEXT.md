@@ -253,10 +253,14 @@ token**: `write_file` takes the hash of the content the client last saw
 the post-write content hash. If the on-disk content no longer matches, the
 Rust side refuses the write with
 `EXTERNAL_CHANGE_CONFLICT` instead of clobbering. The hook then pauses autosave
-(keeping the pending edit) and calls `onConflict`, which opens the blocking
+(keeping the pending edit) and calls `onConflict("changed")`, which opens the blocking
 `conflict` overlay; `resolveConflict("reload" | "overwrite" | "dismiss")`
 either reloads the disk version, force-writes (`expectedVersion: null`), or leaves
-the file unsaved for a later retry. **File transitions await the outgoing
+the file unsaved for a later retry. A save to a file that no longer exists is
+refused with `FILE_MISSING` and opens the same overlay as `onConflict("missing")`,
+resolved by `"recreate"` (write the current text back via `create_file`),
+`"discard"` (drop the edits; the host closes the file like an in-app delete),
+or `"dismiss"` (autosave holds until a decision). **File transitions await the outgoing
 save**: a switch or close awaits the full save transaction before the
 selection moves and aborts on failure or conflict, so the prompt always
 targets the file on screen and no edit is dropped mid-transition (removal-

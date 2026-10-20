@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import type { ContentPreferences } from "./useContentPreferences";
 import { type FileEditorHandle, useEditorSession } from "./useEditorSession";
 import { useWorkspace } from "./useWorkspace";
@@ -86,5 +86,16 @@ export function useWorkspaceSession({
   // through a current session instance.
   sessionRef.current = session;
 
-  return { ...workspace, ...session };
+  /** Forget a path that vanished outside the app — the same bookkeeping as an
+   *  in-app delete (close it if open, drop its tab and recents entry, notify
+   *  the host) without touching the filesystem. */
+  const forgetRemovedPath = useCallback(
+    (path: string): Promise<void> => {
+      onSessionPathRemoved?.(path);
+      return session.notifyPathRemoved(path);
+    },
+    [onSessionPathRemoved, session.notifyPathRemoved]
+  );
+
+  return { ...workspace, ...session, forgetRemovedPath };
 }

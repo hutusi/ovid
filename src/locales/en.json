@@ -9,7 +9,11 @@
     "body": "\"{{name}}\" was changed by another program since you opened it. What would you like to do?",
     "reload": "Discard my changes & reload",
     "keep_editing": "Keep editing",
-    "overwrite": "Overwrite with my changes"
+    "overwrite": "Overwrite with my changes",
+    "missing_title": "File no longer on disk",
+    "missing_body": "\"{{name}}\" was deleted or moved by another program while it was open. Your text is still here — recreate the file, or discard your changes and close it.",
+    "discard": "Discard changes & close",
+    "recreate": "Recreate file"
   },
   "preferences": {
     "title": "Preferences",

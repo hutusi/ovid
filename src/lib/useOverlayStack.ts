@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ModalState } from "./types";
+import type { SaveBlock } from "./useFileEditor";
 import type {
   BranchSwitcherState,
   DeleteBranchDialogState,
@@ -29,7 +30,7 @@ export type Overlay =
   | { kind: "gitCredentials"; state: NonNullable<GitCredentialsDialogState> }
   | { kind: "gitSyncPopover" }
   | { kind: "notifications" }
-  | { kind: "conflict" };
+  | { kind: "conflict"; reason: SaveBlock };
 
 export type OverlayKind = Overlay["kind"];
 

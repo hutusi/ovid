@@ -1136,3 +1136,146 @@ body`;
     expect(result.current.saveStatus).toBe("saved");
   });
 });
+
+describe("useFileEditor — the open file vanished", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  beforeEach(() => {
+    invokeCalls.length = 0;
+  });
+
+  function missingDisk() {
+    const state = { exists: true, content: "---\ntitle: T\n---\nbody" };
+    invokeImpl = whenInvoke({
+      read_file: () => state.content,
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        if (!state.exists) throw new Error("FILE_MISSING");
+        return "2000";
+      },
+      ensure_dir: () => undefined,
+      create_file: (args) => {
+        state.exists = true;
+        state.content = (args as { content: string }).content;
+        return "3000";
+      },
+    });
+    return state;
+  }
+
+  it("a save to a vanished file prompts as missing and keeps the edit", async () => {
+    const disk = missingDisk();
+    const reasons: string[] = [];
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: (r) => reasons.push(r) })
+    );
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      result.current.handleEditorChange("still here", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    expect(reasons).toEqual(["missing"]);
+    expect(result.current.conflictReason).toBe("missing");
+    expect(result.current.pendingMarkdownRef.current).toBe("still here");
+    expect(result.current.saveStatus).toBe("unsaved");
+
+    // Leaving is refused until the user decides.
+    let switched = true;
+    await act(async () => {
+      switched = await result.current.handleSelectFile({
+        name: "b.md",
+        path: "/ws/b.md",
+        isDirectory: false,
+      });
+    });
+    expect(switched).toBe(false);
+    expect(result.current.selectedFile?.path).toBe(NODE.path);
+  });
+
+  it("recreate writes the current text back, folder first, and saves normally after", async () => {
+    const disk = missingDisk();
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      result.current.handleEditorChange("rescued", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("recreate");
+    });
+
+    const names = invokeCalls.map((c) => c.name);
+    expect(names.indexOf("ensure_dir")).toBeLessThan(names.indexOf("create_file"));
+    expect(disk.content).toBe("---\ntitle: T\n---\nrescued");
+    expect(result.current.saveStatus).toBe("saved");
+
+    act(() => {
+      result.current.handleEditorChange("rescued and more", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(lastWriteArgs()?.expectedVersion).toBe("3000");
+  });
+
+  it("discard drops the edits", async () => {
+    const disk = missingDisk();
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      result.current.handleEditorChange("let it go", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("discard");
+    });
+    expect(result.current.pendingMarkdownRef.current).toBeNull();
+    expect(result.current.saveStatus).toBe("saved");
+  });
+
+  it("keep editing holds autosave instead of re-prompting on every pause", async () => {
+    const disk = missingDisk();
+    const reasons: string[] = [];
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: (r) => reasons.push(r) })
+    );
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      result.current.handleEditorChange("draft", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("dismiss");
+    });
+    const writesBefore = invokeCalls.filter((c) => c.name === "write_file").length;
+
+    act(() => {
+      result.current.handleEditorChange("draft, continued", result.current.editorDocument.docId);
+    });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect(invokeCalls.filter((c) => c.name === "write_file").length).toBe(writesBefore);
+    expect(reasons).toEqual(["missing"]);
+    expect(result.current.saveStatus).toBe("unsaved");
+  });
+});

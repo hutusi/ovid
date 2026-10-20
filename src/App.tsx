@@ -29,7 +29,7 @@ import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useContentPreferences } from "./lib/useContentPreferences";
 import { useCoverImage } from "./lib/useCoverImage";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
-import { useFileEditor } from "./lib/useFileEditor";
+import { type ConflictResolution, type SaveBlock, useFileEditor } from "./lib/useFileEditor";
 import { useFilesMode } from "./lib/useFilesMode";
 import { useGit } from "./lib/useGit";
 import { useGitFocusFetch } from "./lib/useGitFocusFetch";
@@ -89,7 +89,10 @@ function App() {
 
   // Open the external-change conflict prompt when a save is refused because the
   // file changed on disk. Memoized so useFileEditor's conflict handler is stable.
-  const openConflictDialog = useCallback(() => overlay.open({ kind: "conflict" }), [overlay.open]);
+  const openConflictDialog = useCallback(
+    (reason: SaveBlock) => overlay.open({ kind: "conflict", reason }),
+    [overlay.open]
+  );
 
   const {
     selectedFile,
@@ -199,6 +202,7 @@ function App() {
     openFile,
     openByPath,
     closeActive,
+    forgetRemovedPath,
   } = useWorkspaceSession({
     showToast,
     flushPendingSave,
@@ -358,7 +362,9 @@ function App() {
           postsBasePath,
           today: new Date().toISOString().slice(0, 10),
           ensureDir: (path) => commands.files.ensureDir({ path }),
-          createFile: (path, content) => commands.files.create({ path, content }),
+          createFile: async (path, content) => {
+            await commands.files.create({ path, content });
+          },
           t,
         });
         await refreshTree();
@@ -630,6 +636,14 @@ function App() {
       ? String(parsedFrontmatter.coverImage)
       : undefined;
 
+  /** Resolve a blocked save. "discard" (offered when the file vanished) also
+   *  closes it the way an in-app delete would — tab, recents and all. */
+  async function handleResolveConflict(resolution: ConflictResolution) {
+    const path = selectedFile?.path;
+    await resolveConflict(resolution);
+    if (resolution === "discard" && path) await forgetRemovedPath(path);
+  }
+
   async function handlePublishAwareFieldChange(path: string, key: string, value: unknown) {
     await handleFieldChange(path, key, value as Parameters<typeof handleFieldChange>[2]);
     if (key === "draft" && value === false && isGitRepo && path === selectedFile?.path) {
@@ -883,7 +897,7 @@ function App() {
         }}
         conflict={{
           fileName: selectedFile?.name ?? "",
-          resolveConflict,
+          resolveConflict: handleResolveConflict,
         }}
       />
     </div>

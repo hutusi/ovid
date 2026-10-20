@@ -51,6 +51,12 @@ release cadence and Conventional Commit history.
   WeChat publish) that finished after you switched files wrote the original
   file's whole frontmatter into the newly opened one. Property edits are now
   bound to the file they were made on.
+- **A file deleted or moved outside Ovid no longer traps you**: if the open
+  file vanished while it had unsaved edits, every autosave failed with a
+  generic error and switching files, closing it, and quitting were all
+  refused until restart. Ovid now explains that the file is gone and offers to
+  recreate it with your text, discard your changes and close it, or keep
+  editing (autosave then waits for your decision).
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 

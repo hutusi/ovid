@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "./commands";
-import { EXTERNAL_CHANGE_CONFLICT, FILE_TOO_LARGE } from "./commands/files";
+import { EXTERNAL_CHANGE_CONFLICT, FILE_MISSING, FILE_TOO_LARGE } from "./commands/files";
 import {
   editFrontmatterField,
   type FrontmatterValue,
@@ -47,11 +47,19 @@ function dirname(path: string): string {
   return slash === -1 ? "" : path.slice(0, slash);
 }
 
-/** How the user chose to resolve an external-change conflict. */
-export type ConflictResolution = "reload" | "overwrite" | "dismiss";
+/** Why a save was refused in a way only the user can resolve: the file
+ *  changed on disk since it was read, or it no longer exists at all. */
+export type SaveBlock = "changed" | "missing";
 
-function isExternalChangeConflict(err: unknown): boolean {
-  return err instanceof Error && err.message === EXTERNAL_CHANGE_CONFLICT;
+/** How the user chose to resolve a blocked save. "reload" / "overwrite" answer
+ *  a changed file; "recreate" / "discard" a missing one; "dismiss" either. */
+export type ConflictResolution = "reload" | "overwrite" | "dismiss" | "recreate" | "discard";
+
+function classifySaveError(err: unknown): SaveBlock | null {
+  if (!(err instanceof Error)) return null;
+  if (err.message === EXTERNAL_CHANGE_CONFLICT) return "changed";
+  if (err.message === FILE_MISSING) return "missing";
+  return null;
 }
 
 function isFileTooLarge(err: unknown): boolean {
@@ -63,9 +71,10 @@ export function useFileEditor({
   onConflict,
 }: {
   showToast: (msg: string) => void;
-  /** Called when a save is refused because the file changed on disk, so the
-   *  host can surface the conflict prompt. Resolve via `resolveConflict`. */
-  onConflict?: () => void;
+  /** Called when a save is refused because the file changed on disk or no
+   *  longer exists, so the host can surface the matching prompt. Resolve via
+   *  `resolveConflict`. */
+  onConflict?: (reason: SaveBlock) => void;
 }) {
   const { t } = useTranslation();
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
@@ -96,6 +105,7 @@ export function useFileEditor({
   const [frontmatterError, setFrontmatterError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [conflictActive, setConflictActive] = useState(false);
+  const [conflictReason, setConflictReason] = useState<SaveBlock>("changed");
 
   const frontmatterRef = useRef<string>("");
   const selectedPathRef = useRef<string | null>(null);
@@ -123,6 +133,12 @@ export function useFileEditor({
   const conflictRetryRef = useRef<{ path: string; markdown: string } | null>(null);
   // Ref mirror of conflictActive so async write handlers can guard re-entrancy.
   const conflictActiveRef = useRef(false);
+  const conflictReasonRef = useRef<SaveBlock>("changed");
+  // Set when the user chose "keep editing" on a missing-file prompt: autosave
+  // stops retrying (each retry would re-prompt) until the file is recreated,
+  // reloaded or closed. A switch/close/quit still flushes — and so re-prompts,
+  // because leaving must not silently drop the edits.
+  const missingPausedRef = useRef(false);
   // Debounced property-panel/title edit awaiting its write, captured as a
   // (path, body, frontmatter) snapshot at edit time so a file switch can't
   // bleed the next file's state into the write.
@@ -172,7 +188,7 @@ export function useFileEditor({
       path: string,
       markdown: string | (() => string),
       perfName: WritePerfName,
-      opts?: { force?: boolean; frontmatter?: string }
+      opts?: { force?: boolean; frontmatter?: string; create?: boolean }
     ) => {
       // Queue-time snapshots, refreshed at start time only while `path` is
       // still the selected file — the refs then still describe this file (an
@@ -203,11 +219,14 @@ export function useFileEditor({
           perfName,
           async () => {
             try {
-              const newVersion = await commands.files.write({
-                path,
-                content: diskContent,
-                expectedVersion,
-              });
+              // `create` recreates a file that vanished: make its folder again
+              // if needed, then create it exclusively (never clobbering a file
+              // that reappeared meanwhile).
+              const newVersion = opts?.create
+                ? await commands.files
+                    .ensureDir({ path: path.slice(0, path.lastIndexOf("/")) })
+                    .then(() => commands.files.create({ path, content: diskContent }))
+                : await commands.files.write({ path, content: diskContent, expectedVersion });
               lastWrittenByPathRef.current.set(path, { content: diskContent, version: newVersion });
               if (selectedPathRef.current === path) {
                 lastSavedContentRef.current = diskContent;
@@ -216,7 +235,7 @@ export function useFileEditor({
             } catch (err) {
               // Remember what we tried to write so an "overwrite" resolution can
               // force exactly this content back to disk.
-              if (isExternalChangeConflict(err) && selectedPathRef.current === path) {
+              if (classifySaveError(err) !== null && selectedPathRef.current === path) {
                 conflictRetryRef.current = { path, markdown: body };
               }
               throw err;
@@ -255,13 +274,18 @@ export function useFileEditor({
     };
   }, [writeMarkdown]);
 
-  const triggerConflict = useCallback(() => {
-    if (conflictActiveRef.current) return;
-    conflictActiveRef.current = true;
-    setConflictActive(true);
-    setSaveStatus("unsaved");
-    onConflict?.();
-  }, [onConflict]);
+  const triggerConflict = useCallback(
+    (reason: SaveBlock) => {
+      if (conflictActiveRef.current) return;
+      conflictActiveRef.current = true;
+      conflictReasonRef.current = reason;
+      setConflictReason(reason);
+      setConflictActive(true);
+      setSaveStatus("unsaved");
+      onConflict?.(reason);
+    },
+    [onConflict]
+  );
 
   /** Publish a freshly read frontmatter block to the panel: its display
    *  projection, or — when the YAML doesn't parse — the error that makes the
@@ -292,8 +316,9 @@ export function useFileEditor({
       // conflict overlay's reload/overwrite act on the current selection, so
       // prompting after a switch would target the wrong file. (Transitions
       // await the field save, so this guard is defense in depth.)
-      if (isExternalChangeConflict(err) && selectedPathRef.current === path) {
-        triggerConflict();
+      const block = classifySaveError(err);
+      if (block !== null && selectedPathRef.current === path) {
+        triggerConflict(block);
         return;
       }
       console.error("Failed to save frontmatter:", err);
@@ -414,8 +439,9 @@ export function useFileEditor({
             if (selectedPathRef.current === path && pendingMarkdownRef.current === null) {
               pendingMarkdownRef.current = markdown;
             }
-            if (isExternalChangeConflict(err)) {
-              triggerConflict();
+            const block = classifySaveError(err);
+            if (block !== null) {
+              triggerConflict(block);
               return;
             }
             console.error("Failed to flush pending save:", err);
@@ -429,7 +455,8 @@ export function useFileEditor({
             // Surface the conflict prompt, but still throw so the caller (e.g.
             // the close-guard) treats the save as failed and doesn't proceed to
             // clobber the external change.
-            if (isExternalChangeConflict(err)) triggerConflict();
+            const block = classifySaveError(err);
+            if (block !== null) triggerConflict(block);
             else {
               console.error("Failed to flush pending save:", err);
               showToast(t("errors.save_failed"));
@@ -452,8 +479,9 @@ export function useFileEditor({
         try {
           await awaitInFlightWrites();
         } catch (err) {
-          if (isExternalChangeConflict(err)) {
-            triggerConflict();
+          const block = classifySaveError(err);
+          if (block !== null) {
+            triggerConflict(block);
           } else {
             console.error("Failed to finish in-flight save:", err);
             showToast(t("errors.save_failed"));
@@ -476,6 +504,7 @@ export function useFileEditor({
   const clearConflict = useCallback(() => {
     conflictActiveRef.current = false;
     conflictRetryRef.current = null;
+    missingPausedRef.current = false;
     setConflictActive(false);
   }, []);
 
@@ -685,6 +714,9 @@ export function useFileEditor({
         // Resolve the target when the timer fires, not when it was set: a
         // rename in between moved the document, and a switch made it stale.
         if (editorDocumentRef.current.docId !== docId) return;
+        // The file is gone and the user chose to keep editing: hold the edit
+        // (still "unsaved") rather than re-prompt on every pause in typing.
+        if (missingPausedRef.current) return;
         const pathToSave = loadedPathRef.current;
         const snapshot = pendingMarkdownRef.current;
         if (snapshot === null || pathToSave === null) return;
@@ -696,11 +728,12 @@ export function useFileEditor({
             setSaveStatus("saved");
           }
         } catch (err) {
-          if (isExternalChangeConflict(err)) {
+          const block = classifySaveError(err);
+          if (block !== null) {
             // Pause autosave and prompt; the pending markdown is retained so
-            // "overwrite" can force it and "dismiss" retries on the next save.
+            // "overwrite"/"recreate" can write it and "dismiss" keeps it.
             if (pendingMarkdownRef.current === snapshot) setSaveStatus("unsaved");
-            triggerConflict();
+            triggerConflict(block);
             return;
           }
           console.error("Failed to save file:", err);
@@ -749,7 +782,7 @@ export function useFileEditor({
           });
           return "done";
         } catch (err) {
-          if (isExternalChangeConflict(err)) return "conflict";
+          if (classifySaveError(err) === "changed") return "conflict";
           throw err;
         }
       };
@@ -815,6 +848,8 @@ export function useFileEditor({
       if (fieldSaveTimerRef.current) clearTimeout(fieldSaveTimerRef.current);
       fieldSaveTimerRef.current = setTimeout(() => {
         fieldSaveTimerRef.current = null;
+        // Held, like body autosave, while a missing file awaits a decision.
+        if (missingPausedRef.current) return;
         void flushFieldSave();
       }, FIELD_SAVE_DELAY_MS);
     },
@@ -823,6 +858,7 @@ export function useFileEditor({
 
   const resolveConflict = useCallback(
     async (resolution: ConflictResolution) => {
+      const reason = conflictReasonRef.current;
       conflictActiveRef.current = false;
       setConflictActive(false);
       const retry = conflictRetryRef.current;
@@ -849,10 +885,45 @@ export function useFileEditor({
         }
         return;
       }
-      // "dismiss": leave the file unsaved; a later save re-triggers the prompt.
+      if (resolution === "recreate") {
+        const path = loadedPathRef.current;
+        if (!path || path !== selectedPathRef.current) return;
+        missingPausedRef.current = false;
+        // A debounced property edit is already in frontmatterRef, which the
+        // recreating write carries — its own write would only hit the gap.
+        discardFieldSave();
+        const body = getCurrentBody();
+        setSaveStatus("saving");
+        try {
+          await writeMarkdown(path, body, "editor.writeFile", { create: true });
+          if (pendingMarkdownRef.current === body) pendingMarkdownRef.current = null;
+          setSaveStatus(pendingMarkdownRef.current === null ? "saved" : "unsaved");
+        } catch (err) {
+          console.error("Failed to recreate file:", err);
+          showToast(t("errors.save_failed"));
+          setSaveStatus("unsaved");
+        }
+        return;
+      }
+      if (resolution === "discard") {
+        // Drop the edits; the host then closes the file (it has nothing on
+        // disk left to show).
+        missingPausedRef.current = false;
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        pendingMarkdownRef.current = null;
+        discardFieldSave();
+        setSaveStatus("saved");
+        return;
+      }
+      // "dismiss": leave the file unsaved. A changed file re-prompts on the
+      // next save; a missing one holds its autosave until a decision.
+      if (reason === "missing") missingPausedRef.current = true;
       setSaveStatus("unsaved");
     },
-    [reloadSelectedFileFromDisk, writeMarkdown, showToast, t]
+    [discardFieldSave, getCurrentBody, reloadSelectedFileFromDisk, writeMarkdown, showToast, t]
   );
 
   return {
@@ -869,6 +940,7 @@ export function useFileEditor({
     frontmatterError,
     saveStatus,
     conflictActive,
+    conflictReason,
     resolveConflict,
     selectedPathRef,
     pendingMarkdownRef,

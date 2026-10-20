@@ -12,6 +12,11 @@ export const EXTERNAL_CHANGE_CONFLICT = "EXTERNAL_CHANGE_CONFLICT";
  *  Mirrors `FILE_TOO_LARGE` in `src-tauri/src/files.rs`. */
 export const FILE_TOO_LARGE = "FILE_TOO_LARGE";
 
+/** Rejection marker: a versioned save targeted a file that no longer exists
+ *  (deleted or moved by another program). Mirrors `FILE_MISSING` in
+ *  `src-tauri/src/files.rs`. */
+export const FILE_MISSING = "FILE_MISSING";
+
 export interface ReadFileArgs {
   path: string;
 }
@@ -67,9 +72,11 @@ export const files = {
    *  out-of-workspace paths are omitted from the result. */
   readBulk: (args: ReadFilesBulkArgs) => invokeCmd<BulkFileContent[]>("read_files_bulk", args),
   /** Returns the post-write version token. Rejects with EXTERNAL_CHANGE_CONFLICT
-   *  when expectedVersion is set and the file's content changed on disk. */
+   *  when expectedVersion is set and the file's content changed on disk, and
+   *  with FILE_MISSING when the file no longer exists. */
   write: (args: WriteFileArgs) => invokeCmd<string>("write_file", args),
-  create: (args: CreateFileArgs) => invokeCmd<void>("create_file", args),
+  /** Creates a new file (fails if it exists); returns its version token. */
+  create: (args: CreateFileArgs) => invokeCmd<string>("create_file", args),
   rename: (args: RenameFileArgs) => invokeCmd<void>("rename_file", args),
   duplicate: (args: DuplicateEntryArgs) => invokeCmd<void>("duplicate_entry", args),
   trash: (args: TrashFileArgs) => invokeCmd<void>("trash_file", args),
