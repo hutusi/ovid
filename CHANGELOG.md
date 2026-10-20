@@ -133,6 +133,10 @@ release cadence and Conventional Commit history.
   strip could not be dragged. The panel now has the same 36 px draggable top
   strip as the sidebar, with the search field just below it, a labelled
   close button, and the width you gave the sidebar instead of a fixed one.
+- **The keyboard highlight stands out from the mouse hover**: in Quick
+  Open, Add to Collection and search results, the row the arrow keys have
+  selected (the one Enter opens) is now tinted, as in the `[[` link
+  suggestions, instead of looking identical to a row under the pointer.
 - **Long names in the status bar end in an ellipsis**: a long file name was
   cut off mid-letter instead of ending in "…", and a long branch name had
   no limit at all, pushing the rest of the status bar aside. Both now

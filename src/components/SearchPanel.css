@@ -117,9 +117,13 @@
   transition: background var(--duration-fast) var(--ease-out);
 }
 
-.search-result-match:hover,
-.search-result-match[data-active="true"] {
+.search-result-match:hover {
   background: var(--color-surface-hover);
+}
+
+/* The keyboard-highlighted match (what Enter opens), distinct from hover. */
+.search-result-match[data-active="true"] {
+  background: var(--color-accent-subtle);
 }
 
 .search-result-match:focus-visible {

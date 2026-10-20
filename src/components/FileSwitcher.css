@@ -79,9 +79,15 @@
   cursor: pointer;
 }
 
-.fs-item:hover,
-.fs-item.is-active {
+.fs-item:hover {
   background: var(--color-surface-hover);
+}
+
+/* The keyboard-highlighted row (what Enter opens) is tinted, so it stays
+   distinguishable from a row the pointer merely rests on — the same
+   convention as the [[ suggestion list. */
+.fs-item.is-active {
+  background: var(--color-accent-subtle);
 }
 
 .fs-item-title {
