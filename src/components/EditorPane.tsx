@@ -67,6 +67,8 @@ export interface EditorPaneProps {
   typewriterMode: boolean;
   spellCheck: boolean;
   parsedFrontmatter: ParsedFrontmatter;
+  /** YAML parse error of the open file's frontmatter (properties read-only). */
+  frontmatterError: string | null;
   onFieldChange: (key: string, value: FrontmatterValue) => void | Promise<void>;
   onWordCount: (count: number, filePath?: string, kind?: WordCountKind) => void;
   onDirty: () => void;
@@ -130,6 +132,7 @@ export function EditorPane({
   typewriterMode,
   spellCheck,
   parsedFrontmatter,
+  frontmatterError,
   onFieldChange,
   onWordCount,
   onDirty,
@@ -264,7 +267,13 @@ export function EditorPane({
                 spellCheck={spellCheck}
                 showH1Warning={editorTitle.trim() !== ""}
                 title={editorTitle}
-                onTitleChange={(value) => void onFieldChange("title", value)}
+                // Unparseable frontmatter has no knowable title, and edits to
+                // it are refused — hide the title field rather than offer one.
+                onTitleChange={
+                  frontmatterError === null
+                    ? (value) => void onFieldChange("title", value)
+                    : undefined
+                }
                 onWordCount={onWordCount}
                 onDirty={onDirty}
                 onChange={(markdown) => onChange(markdown, editorDocument.docId)}
@@ -300,6 +309,7 @@ export function EditorPane({
       {selectedFile && !isReadOnlyContent(selectedFile) && (
         <PropertiesPanel
           frontmatter={parsedFrontmatter}
+          frontmatterError={frontmatterError}
           visible={propertiesOpen}
           drawer={propertiesDrawer}
           rootRef={propertiesDrawerRef}

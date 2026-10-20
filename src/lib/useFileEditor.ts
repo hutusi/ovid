@@ -6,9 +6,11 @@ import {
   editFrontmatterField,
   type FrontmatterValue,
   joinFrontmatter,
+  loadFrontmatterBlock,
   type ParsedFrontmatter,
   parseFrontmatter,
   parseYamlFrontmatter,
+  projectFrontmatter,
 } from "./frontmatter";
 import { measureAsync } from "./perf";
 import { frontmatterLineOffset as computeFrontmatterLineOffset } from "./searchJump";
@@ -88,6 +90,10 @@ export function useFileEditor({
   const [frontmatterLineOffset, setFrontmatterLineOffset] = useState(0);
   const [wordCount, setWordCount] = useState(0);
   const [parsedFrontmatter, setParsedFrontmatter] = useState<ParsedFrontmatter>({});
+  // The YAML parse error of the open file's frontmatter, or null. While set,
+  // property edits are refused and the panel is read-only — rewriting a block
+  // we can't read would destroy every field in it.
+  const [frontmatterError, setFrontmatterError] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved");
   const [conflictActive, setConflictActive] = useState(false);
 
@@ -257,6 +263,15 @@ export function useFileEditor({
     onConflict?.();
   }, [onConflict]);
 
+  /** Publish a freshly read frontmatter block to the panel: its display
+   *  projection, or — when the YAML doesn't parse — the error that makes the
+   *  panel read-only. */
+  const applyFrontmatterProjection = useCallback((block: string) => {
+    const loaded = loadFrontmatterBlock(block);
+    setParsedFrontmatter(loaded.ok ? projectFrontmatter(loaded.data) : {});
+    setFrontmatterError(loaded.ok ? null : loaded.error);
+  }, []);
+
   /** Revert in-memory frontmatter to the last content known to be on disk —
    *  used when a debounced field write fails, so the properties panel doesn't
    *  keep showing a value that was never persisted. */
@@ -265,11 +280,11 @@ export function useFileEditor({
     if (raw === null) return;
     const { frontmatter } = parseFrontmatter(raw);
     frontmatterRef.current = frontmatter;
-    setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
+    applyFrontmatterProjection(frontmatter);
     // Restore the search-jump offset too — otherwise it keeps the failed
     // edit's frontmatter line count after the panel reverts.
     setFrontmatterLineOffset(computeFrontmatterLineOffset(raw));
-  }, []);
+  }, [applyFrontmatterProjection]);
 
   const handleFieldSaveError = useCallback(
     (path: string, err: unknown) => {
@@ -519,6 +534,7 @@ export function useFileEditor({
     setFrontmatterLineOffset(0);
     setWordCount(0);
     setParsedFrontmatter({});
+    setFrontmatterError(null);
     setSaveStatus("saved");
     frontmatterRef.current = "";
     selectedPathRef.current = null;
@@ -578,7 +594,7 @@ export function useFileEditor({
       // Update all state only after a successful read so a failure leaves the
       // previous file's metadata intact on screen.
       setWordCount(0);
-      setParsedFrontmatter(parseYamlFrontmatter(frontmatter));
+      applyFrontmatterProjection(frontmatter);
       setSaveStatus("saved");
       const prev = editorDocumentRef.current;
       loadedPathRef.current = node.path;
@@ -595,7 +611,7 @@ export function useFileEditor({
       setSelectedFile(node);
       return true;
     },
-    [clearConflict, discardFieldSave, publishEditorDocument]
+    [applyFrontmatterProjection, clearConflict, discardFieldSave, publishEditorDocument]
   );
 
   /** Returns true when the file was read and is now the active selection —
@@ -798,6 +814,7 @@ export function useFileEditor({
     wordCount,
     setWordCount,
     parsedFrontmatter,
+    frontmatterError,
     saveStatus,
     conflictActive,
     resolveConflict,

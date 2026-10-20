@@ -101,6 +101,7 @@ function App() {
     wordCount,
     setWordCount,
     parsedFrontmatter,
+    frontmatterError,
     saveStatus,
     resolveConflict,
     pendingMarkdownRef,
@@ -739,6 +740,7 @@ function App() {
           typewriterMode={typewriterMode}
           spellCheck={prefs.spellCheck}
           parsedFrontmatter={parsedFrontmatter}
+          frontmatterError={frontmatterError}
           onFieldChange={handlePublishAwareFieldChange}
           onWordCount={handleWordCount}
           onDirty={handleEditorDirty}

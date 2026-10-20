@@ -29,6 +29,9 @@ const SORT_OPTION_LABEL_KEY: Record<string, string> = {
 
 interface PropertiesPanelProps {
   frontmatter: ParsedFrontmatter;
+  /** The frontmatter's YAML parse error, when it has one. The panel then shows
+   *  why it can't be edited instead of the (unknowable) fields. */
+  frontmatterError?: string | null;
   visible: boolean;
   drawer?: boolean;
   /** Focus target for the compact drawer (a non-modal dialog): the root is
@@ -52,6 +55,7 @@ const PUBLISHING_BOOLEAN_FIELDS = ["draft", "featured", "pinned"];
 
 export function PropertiesPanel({
   frontmatter,
+  frontmatterError = null,
   visible,
   drawer = false,
   rootRef,
@@ -128,143 +132,155 @@ export function PropertiesPanel({
         <span className="prop-panel-title">{t("properties.frontmatter")}</span>
       </div>
 
-      <div className="properties-body">
-        <section className="prop-section" aria-label={t("properties.document_metadata")}>
-          {title !== undefined && (
-            <div className="prop-field">
-              <span className="prop-label">{t("properties.title")}</span>
-              <EditableValue
-                label={t("properties.title")}
-                value={title}
-                onSave={(v) => onFieldChange?.("title", v)}
-              />
-            </div>
-          )}
-
-          {excerpt !== undefined && (
-            <div className="prop-field">
-              <div className="prop-field-head">
-                <span className="prop-label">{t("properties.excerpt")}</span>
-                <div className="prop-field-actions">
-                  <RemoveFieldButton
-                    label={t("properties.excerpt")}
-                    onRemove={() => onFieldChange?.("excerpt", null)}
-                  />
-                </div>
+      {frontmatterError !== null ? (
+        <div className="properties-body">
+          <div className="prop-error-notice" role="status">
+            <strong className="prop-error-notice-title">
+              {t("properties.frontmatter_invalid_title")}
+            </strong>
+            <p className="prop-error-notice-body">{t("properties.frontmatter_invalid_body")}</p>
+            <code className="prop-error-notice-detail">{frontmatterError.split("\n")[0]}</code>
+          </div>
+        </div>
+      ) : (
+        <div className="properties-body">
+          <section className="prop-section" aria-label={t("properties.document_metadata")}>
+            {title !== undefined && (
+              <div className="prop-field">
+                <span className="prop-label">{t("properties.title")}</span>
+                <EditableValue
+                  label={t("properties.title")}
+                  value={title}
+                  onSave={(v) => onFieldChange?.("title", v)}
+                />
               </div>
-              <LongTextField
-                ariaLabel={t("properties.excerpt")}
-                value={excerpt}
-                onSave={(v) => onFieldChange?.("excerpt", v)}
-              />
-            </div>
-          )}
+            )}
 
-          {slug && (
-            <div className="prop-field">
-              <span className="prop-label">{t("properties.slug")}</span>
-              <span className="prop-slug">{slug}</span>
-            </div>
-          )}
-
-          {date !== undefined && (
-            <div className="prop-field">
-              <span className="prop-label">{t("properties.date")}</span>
-              <DateField value={date} onSave={(v) => onFieldChange?.("date", v)} />
-            </div>
-          )}
-
-          {tags !== undefined && (
-            <div className="prop-field">
-              <span className="prop-label">{t("properties.tags")}</span>
-              <TagInput tags={tags} onSave={(v) => onFieldChange?.("tags", v)} />
-            </div>
-          )}
-
-          {sort !== undefined && (
-            <div className="prop-field">
-              <div className="prop-field-head">
-                <span className="prop-label">{t("properties.sort")}</span>
-                <div className="prop-field-actions">
-                  <RemoveFieldButton
-                    label={t("properties.sort")}
-                    onRemove={() => onFieldChange?.("sort", null)}
-                  />
+            {excerpt !== undefined && (
+              <div className="prop-field">
+                <div className="prop-field-head">
+                  <span className="prop-label">{t("properties.excerpt")}</span>
+                  <div className="prop-field-actions">
+                    <RemoveFieldButton
+                      label={t("properties.excerpt")}
+                      onRemove={() => onFieldChange?.("excerpt", null)}
+                    />
+                  </div>
                 </div>
+                <LongTextField
+                  ariaLabel={t("properties.excerpt")}
+                  value={excerpt}
+                  onSave={(v) => onFieldChange?.("excerpt", v)}
+                />
               </div>
-              <SelectField
-                ariaLabel={t("properties.sort")}
-                value={sort}
-                options={sortOptions}
-                onSave={(v) => onFieldChange?.("sort", v)}
-              />
-            </div>
+            )}
+
+            {slug && (
+              <div className="prop-field">
+                <span className="prop-label">{t("properties.slug")}</span>
+                <span className="prop-slug">{slug}</span>
+              </div>
+            )}
+
+            {date !== undefined && (
+              <div className="prop-field">
+                <span className="prop-label">{t("properties.date")}</span>
+                <DateField value={date} onSave={(v) => onFieldChange?.("date", v)} />
+              </div>
+            )}
+
+            {tags !== undefined && (
+              <div className="prop-field">
+                <span className="prop-label">{t("properties.tags")}</span>
+                <TagInput tags={tags} onSave={(v) => onFieldChange?.("tags", v)} />
+              </div>
+            )}
+
+            {sort !== undefined && (
+              <div className="prop-field">
+                <div className="prop-field-head">
+                  <span className="prop-label">{t("properties.sort")}</span>
+                  <div className="prop-field-actions">
+                    <RemoveFieldButton
+                      label={t("properties.sort")}
+                      onRemove={() => onFieldChange?.("sort", null)}
+                    />
+                  </div>
+                </div>
+                <SelectField
+                  ariaLabel={t("properties.sort")}
+                  value={sort}
+                  options={sortOptions}
+                  onSave={(v) => onFieldChange?.("sort", v)}
+                />
+              </div>
+            )}
+          </section>
+
+          {publishingFields.length > 0 && (
+            <section className="prop-section" aria-label={t("properties.publishing_metadata")}>
+              <span className="prop-section-title">{t("properties.publishing")}</span>
+              {publishingFields.map(({ key, value }) => (
+                <PublishingBooleanField
+                  key={key}
+                  fieldKey={key}
+                  value={value}
+                  onSave={(fieldKey, value) => onFieldChange?.(fieldKey, value)}
+                  onRemove={() => onFieldChange?.(key, null)}
+                />
+              ))}
+            </section>
           )}
-        </section>
 
-        {publishingFields.length > 0 && (
-          <section className="prop-section" aria-label={t("properties.publishing_metadata")}>
-            <span className="prop-section-title">{t("properties.publishing")}</span>
-            {publishingFields.map(({ key, value }) => (
-              <PublishingBooleanField
-                key={key}
-                fieldKey={key}
-                value={value}
-                onSave={(fieldKey, value) => onFieldChange?.(fieldKey, value)}
-                onRemove={() => onFieldChange?.(key, null)}
-              />
-            ))}
-          </section>
-        )}
-
-        {coverImage !== undefined && (
-          <section className="prop-section" aria-label={t("properties.cover_image_metadata")}>
-            <CoverImageField
-              value={coverImage}
-              previewVisible={coverImageVisible}
-              filePath={filePath}
-              assetRoot={assetRoot}
-              cdnBase={cdnBase}
-              slug={slug ?? ""}
-              fallbackText={title ?? slug ?? ""}
-              onTogglePreview={() => onToggleCoverImage?.()}
-              onSave={(v) => onFieldChange?.("coverImage", v)}
-              onRemove={() => onFieldChange?.("coverImage", null)}
-              onError={onError}
-            />
-          </section>
-        )}
-
-        {customKeys.length > 0 && (
-          <section className="prop-section" aria-label={t("properties.custom_metadata")}>
-            <span className="prop-section-title">{t("properties.custom")}</span>
-            {customKeys.map((key) => (
-              <CustomMetadataField
-                key={key}
-                fieldKey={key}
-                value={frontmatter[key]}
-                onSave={(v) => onFieldChange?.(key, v)}
-                onRemove={() => onFieldChange?.(key, null)}
+          {coverImage !== undefined && (
+            <section className="prop-section" aria-label={t("properties.cover_image_metadata")}>
+              <CoverImageField
+                value={coverImage}
+                previewVisible={coverImageVisible}
+                filePath={filePath}
+                assetRoot={assetRoot}
+                cdnBase={cdnBase}
+                slug={slug ?? ""}
+                fallbackText={title ?? slug ?? ""}
+                onTogglePreview={() => onToggleCoverImage?.()}
+                onSave={(v) => onFieldChange?.("coverImage", v)}
+                onRemove={() => onFieldChange?.("coverImage", null)}
                 onError={onError}
               />
-            ))}
-          </section>
-        )}
+            </section>
+          )}
 
-        {isEmpty && (
-          <p className="prop-empty-notice">
-            {t("properties.no_frontmatter")}
-            <br />
-            {t("properties.add_field_hint")}
-          </p>
-        )}
-        <AddFieldRow
-          existingKeys={Object.keys(frontmatter).filter((k) => frontmatter[k] != null)}
-          addableKeys={addableKeys}
-          onAddKnownField={(key) => onFieldChange?.(key, getFrontmatterFieldDefaultValue(key))}
-          onAdd={(k, v) => onFieldChange?.(k, v)}
-        />
-      </div>
+          {customKeys.length > 0 && (
+            <section className="prop-section" aria-label={t("properties.custom_metadata")}>
+              <span className="prop-section-title">{t("properties.custom")}</span>
+              {customKeys.map((key) => (
+                <CustomMetadataField
+                  key={key}
+                  fieldKey={key}
+                  value={frontmatter[key]}
+                  onSave={(v) => onFieldChange?.(key, v)}
+                  onRemove={() => onFieldChange?.(key, null)}
+                  onError={onError}
+                />
+              ))}
+            </section>
+          )}
+
+          {isEmpty && (
+            <p className="prop-empty-notice">
+              {t("properties.no_frontmatter")}
+              <br />
+              {t("properties.add_field_hint")}
+            </p>
+          )}
+          <AddFieldRow
+            existingKeys={Object.keys(frontmatter).filter((k) => frontmatter[k] != null)}
+            addableKeys={addableKeys}
+            onAddKnownField={(key) => onFieldChange?.(key, getFrontmatterFieldDefaultValue(key))}
+            onAdd={(k, v) => onFieldChange?.(k, v)}
+          />
+        </div>
+      )}
     </div>
   );
 }

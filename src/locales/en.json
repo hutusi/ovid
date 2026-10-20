@@ -467,6 +467,8 @@
     "cover_save_error": "Failed to save cover image: {{reason}}",
     "custom": "Custom",
     "custom_metadata": "Custom metadata",
+    "frontmatter_invalid_title": "Frontmatter can't be edited here",
+    "frontmatter_invalid_body": "Its YAML has an error, so properties are read-only to keep every field safe. Fix it in a text editor — Ovid reloads the file when it changes.",
     "no_frontmatter": "No frontmatter in this file.",
     "add_field_hint": "Add a field below to get started.",
     "add_metadata": "Add Metadata",

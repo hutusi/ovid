@@ -42,6 +42,11 @@ release cadence and Conventional Commit history.
   unquoted. Files whose frontmatter YAML is invalid are never rewritten.
   "New from existing" and collection add/remove keep nested fields and dates
   the same way.
+- **Broken frontmatter is protected, and says so**: when a file's
+  frontmatter YAML doesn't parse, the properties panel now explains the
+  problem (with the parser's message) and is read-only, and the title field
+  is hidden, instead of showing an empty panel whose first edit would have
+  replaced every field.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 

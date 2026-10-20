@@ -1083,4 +1083,22 @@ body`;
     );
     expect(result.current.saveStatus).toBe("saved");
   });
+
+  it("reports a frontmatter parse error on load and clears it once the file is fixed", async () => {
+    let disk = "---\ntitle: [unclosed\n---\nbody";
+    invokeImpl = whenInvoke({ read_file: () => disk, get_file_mtime: () => 1000 });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    expect(result.current.frontmatterError).toContain("flow collection");
+    expect(result.current.parsedFrontmatter).toEqual({});
+
+    disk = "---\ntitle: Fixed\n---\nbody";
+    await act(async () => {
+      await result.current.reloadSelectedFileFromDisk(NODE);
+    });
+    expect(result.current.frontmatterError).toBeNull();
+    expect(result.current.parsedFrontmatter).toEqual({ title: "Fixed" });
+  });
 });

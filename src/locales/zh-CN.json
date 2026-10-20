@@ -467,6 +467,8 @@
     "cover_save_error": "保存封面图片失败：{{reason}}",
     "custom": "自定义",
     "custom_metadata": "自定义元数据",
+    "frontmatter_invalid_title": "无法在此编辑 frontmatter",
+    "frontmatter_invalid_body": "其中的 YAML 有错误，为保证所有字段安全，属性暂为只读。请在文本编辑器中修正——文件变更后 Ovid 会自动重新加载。",
     "no_frontmatter": "此文件无前置数据。",
     "add_field_hint": "在下方添加字段开始使用。",
     "add_metadata": "添加元数据",

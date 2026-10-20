@@ -437,6 +437,38 @@
   text-align: center;
 }
 
+/* ── Unreadable frontmatter ──────────────────── */
+.prop-error-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 35%, transparent);
+  border-radius: var(--radius-xl);
+  background: var(--color-warning-subtle);
+}
+
+.prop-error-notice-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+
+.prop-error-notice-body {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--color-fg-muted);
+}
+
+.prop-error-notice-detail {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--color-fg-muted);
+  overflow-wrap: anywhere;
+}
+
 /* ── Add field row ───────────────────────────── */
 .prop-add-block,
 .prop-add-known {

@@ -63,3 +63,24 @@ describe("PropertiesPanel publishing booleans", () => {
     expect(markup).toContain('aria-label="Remove Pinned metadata"');
   });
 });
+
+describe("PropertiesPanel with unparseable frontmatter", () => {
+  it("explains why it is read-only instead of offering fields", () => {
+    const markup = renderToStaticMarkup(
+      <PropertiesPanel
+        frontmatter={{}}
+        frontmatterError={"unexpected end of the stream within a flow collection (2:1)\n\n 1 | x"}
+        visible={true}
+        onFieldChange={mock(() => {})}
+      />
+    );
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain(en.properties.frontmatter_invalid_title.replace("'", "&#x27;"));
+    expect(markup).toContain("unexpected end of the stream within a flow collection (2:1)");
+    // Only the first line of the parser message is shown.
+    expect(markup).not.toContain("1 | x");
+    // No way to add a field to a block that can't be rewritten.
+    expect(markup).not.toContain(en.properties.no_frontmatter);
+    expect(markup).not.toContain("prop-add");
+  });
+});
