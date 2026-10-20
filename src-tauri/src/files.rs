@@ -10,7 +10,7 @@ use crate::paths::{
     create_sibling_temp_dir, create_sibling_temp_file, ensure_within, validate_new_dir_path,
     validate_new_path, validate_path, write_atomic, ExistenceMode, TempPathGuard,
 };
-use crate::state::WorkspaceState;
+use crate::state::{run_blocking, WorkspaceState};
 
 /// Marker returned when the on-disk file changed since the client last read or
 /// wrote it. The frontend matches on this exact string to open the
@@ -75,12 +75,20 @@ fn current_version(path: &Path) -> Option<String> {
     read_text_bounded(path).ok().map(|c| content_version(&c))
 }
 
+// Every file command is async and does its IO through `run_blocking`, off the
+// main thread, with the workspace root cloned out of its mutex first.
+
 #[tauri::command]
-pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Result<String, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = validate_path(root, &path)?;
-    read_text_bounded(&canonical)
+pub(crate) async fn read_file(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<String, String> {
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical = validate_path(&root, &path)?;
+        read_text_bounded(&canonical)
+    })
+    .await
 }
 
 /// A file's content together with its content-hash version token. Because the
@@ -105,14 +113,16 @@ fn read_versioned_checked(canonical: &Path) -> Result<VersionedFile, String> {
 }
 
 #[tauri::command]
-pub(crate) fn read_file_versioned(
+pub(crate) async fn read_file_versioned(
     path: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<VersionedFile, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = validate_path(root, &path)?;
-    read_versioned_checked(&canonical)
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical = validate_path(&root, &path)?;
+        read_versioned_checked(&canonical)
+    })
+    .await
 }
 
 /// One corpus file returned by `read_files_bulk`, keyed by the path string
@@ -135,12 +145,9 @@ pub(crate) async fn read_files_bulk(
     paths: Vec<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<Vec<BulkFileContent>, String> {
-    let root = {
-        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-        root_guard.as_ref().ok_or("no workspace open")?.clone()
-    };
-    // Read off the main thread — this walks the whole markdown corpus.
-    tauri::async_runtime::spawn_blocking(move || {
+    let root = state.workspace_root_path()?;
+    // This reads the whole markdown corpus.
+    run_blocking(move || {
         let mut files = Vec::with_capacity(paths.len());
         for path in paths {
             let Ok(canonical) = validate_path(&root, &path) else {
@@ -151,10 +158,9 @@ pub(crate) async fn read_files_bulk(
             };
             files.push(BulkFileContent { path, content });
         }
-        files
+        Ok(files)
     })
     .await
-    .map_err(|e| e.to_string())
 }
 
 /// Optimistic-concurrency write, factored out of the Tauri command so it can be
@@ -214,32 +220,36 @@ fn resolve_write_target(root: &Path, requested: &str) -> Result<std::path::PathB
 }
 
 #[tauri::command]
-pub(crate) fn write_file(
+pub(crate) async fn write_file(
     path: String,
     content: String,
     expected_version: Option<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = resolve_write_target(root, &path)?;
-    write_checked(&canonical, &content, expected_version.as_deref())
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical = resolve_write_target(&root, &path)?;
+        write_checked(&canonical, &content, expected_version.as_deref())
+    })
+    .await
 }
 
 /// Create a new file; fails if it already exists. Returns the content's
 /// version token, so an editor that recreates its vanished file can keep
 /// saving with the usual optimistic-concurrency check.
 #[tauri::command]
-pub(crate) fn create_file(
+pub(crate) async fn create_file(
     path: String,
     content: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let new_path = validate_new_path(root, &path)?;
-    create_new_checked(&new_path, &content)?;
-    Ok(content_version(&content))
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let new_path = validate_new_path(&root, &path)?;
+        create_new_checked(&new_path, &content)?;
+        Ok(content_version(&content))
+    })
+    .await
 }
 
 fn map_exclusive_install_error(error: std::io::Error, collision_message: &str) -> String {
@@ -287,16 +297,18 @@ fn create_new_checked(new_path: &Path, content: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub(crate) fn rename_file(
+pub(crate) async fn rename_file(
     old_path: String,
     new_path: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical_old = validate_path(root, &old_path)?;
-    let new = validate_new_path(root, &new_path)?;
-    install_exclusive(&canonical_old, &new, "a file with that name already exists")
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical_old = validate_path(&root, &old_path)?;
+        let new = validate_new_path(&root, &new_path)?;
+        install_exclusive(&canonical_old, &new, "a file with that name already exists")
+    })
+    .await
 }
 
 fn copy_file_exclusive(src: &Path, dest: &Path) -> Result<(), String> {
@@ -382,51 +394,65 @@ fn duplicate_checked_with(
 }
 
 #[tauri::command]
-pub(crate) fn duplicate_entry(
+pub(crate) async fn duplicate_entry(
     src_path: String,
     dest_path: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root = {
-        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-        root_guard.as_ref().ok_or("no workspace open")?.clone()
-    };
-    let src = validate_path(&root, &src_path)?;
-    let dest = validate_new_path(&root, &dest_path)?;
-    duplicate_checked_with(&src, &dest, || Ok(()))
-}
-
-#[tauri::command]
-pub(crate) fn trash_file(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = validate_path(root, &path)?;
-    trash::delete(&canonical).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub(crate) fn create_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let new_path = validate_new_path(root, &path)?;
-    std::fs::create_dir(&new_path).map_err(|error| {
-        if error.kind() == std::io::ErrorKind::AlreadyExists {
-            "directory already exists".to_string()
-        } else {
-            error.to_string()
-        }
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let src = validate_path(&root, &src_path)?;
+        let dest = validate_new_path(&root, &dest_path)?;
+        duplicate_checked_with(&src, &dest, || Ok(()))
     })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn trash_file(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical = validate_path(&root, &path)?;
+        trash::delete(&canonical).map_err(|e| e.to_string())
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn create_dir(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let new_path = validate_new_path(&root, &path)?;
+        std::fs::create_dir(&new_path).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                "directory already exists".to_string()
+            } else {
+                error.to_string()
+            }
+        })
+    })
+    .await
 }
 
 /// Create a directory (and all ancestors) inside the workspace, succeeding if
 /// it already exists. Unlike `create_dir`, the parent need not exist yet.
 #[tauri::command]
-pub(crate) fn ensure_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
-    drop(root_guard);
-    let new_path = validate_new_dir_path(&root, &path)?;
-    std::fs::create_dir_all(&new_path).map_err(|e| e.to_string())
+pub(crate) async fn ensure_dir(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let new_path = validate_new_dir_path(&root, &path)?;
+        std::fs::create_dir_all(&new_path).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[cfg(test)]

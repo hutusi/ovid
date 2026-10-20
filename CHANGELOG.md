@@ -80,6 +80,11 @@ release cadence and Conventional Commit history.
   tree, re-read every note for wiki links and backlinks, and refreshed git
   twice. Ovid's own staging files are now ignored by the watcher and hidden
   from the sidebar (including any left behind by a crash).
+- **File operations no longer block the window**: reading, saving, creating,
+  renaming, duplicating and trashing files, and saving pasted or dropped
+  images, now run off the UI thread. A save's fsync, a slow or network volume,
+  or the Finder round-trip behind "Move to Trash" no longer freezes the app
+  while it completes.
 
 ## 0.17.0 - 2026-08-08
 
