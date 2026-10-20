@@ -66,7 +66,7 @@ describe("WorkspaceSwitcher two-pane shell", () => {
         currentRootPath="/a"
         onSelect={mock(() => {})}
         onOpenOther={mock(() => {})}
-        onRemoveRecent={mock(() => {})}
+        onRemoveRecent={mock(() => null)}
         onCreate={mock(() => Promise.resolve(true))}
         onClone={mock(() => Promise.resolve(true))}
         onToast={mock(() => {})}
@@ -131,7 +131,7 @@ describe("WorkspaceSwitcher two-pane shell", () => {
         currentRootPath="/a"
         onSelect={onSelect}
         onOpenOther={mock(() => {})}
-        onRemoveRecent={mock(() => {})}
+        onRemoveRecent={mock(() => null)}
         onCreate={mock(() => Promise.resolve(true))}
         onClone={mock(() => Promise.resolve(true))}
         onToast={mock(() => {})}
@@ -187,7 +187,7 @@ describe("WorkspaceSwitcher two-pane shell", () => {
         currentRootPath="/a"
         onSelect={onSelect}
         onOpenOther={mock(() => {})}
-        onRemoveRecent={mock(() => {})}
+        onRemoveRecent={mock(() => null)}
         onCreate={mock(() => Promise.resolve(true))}
         onClone={mock(() => Promise.resolve(true))}
         onToast={mock(() => {})}
@@ -240,7 +240,7 @@ describe("WorkspaceSwitcher two-pane shell", () => {
         currentRootPath="/a"
         onSelect={mock(() => {})}
         onOpenOther={mock(() => {})}
-        onRemoveRecent={mock(() => {})}
+        onRemoveRecent={mock(() => null)}
         onCreate={mock(() => Promise.resolve(true))}
         onClone={mock(() => Promise.resolve(true))}
         onToast={mock(() => {})}

@@ -3,6 +3,7 @@ import type { NewContentKind } from "./amytisScaffold";
 import type { ShortcutKeys } from "./shortcuts";
 import type { FileNode } from "./types";
 import type { OverlayStack } from "./useOverlayStack";
+import type { ShowToast } from "./useToast";
 
 // ─── Global action dispatch table (ADR 0018) ──────────────────────────────
 //
@@ -33,7 +34,7 @@ export interface AppActionCtx {
 
   // For wechat-copy: the current body, including unsaved and autosaved edits.
   getCurrentBody: () => string;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
   t: Translate;
 
   // Responsive-aware panel actions
@@ -114,7 +115,7 @@ async function runWechatCopy(ctx: AppActionCtx): Promise<void> {
       await navigator.clipboard.writeText(html);
     } catch (fallbackErr) {
       const message = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
-      ctx.showToast(ctx.t("menu.file_wechat_copy_failed", { message }));
+      ctx.showToast(ctx.t("menu.file_wechat_copy_failed", { message }), { kind: "error" });
       return;
     }
   }

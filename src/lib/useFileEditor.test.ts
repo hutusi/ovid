@@ -1283,7 +1283,8 @@ body`;
     });
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(0);
     expect(showToast).toHaveBeenCalledWith(
-      "This file's frontmatter isn't valid YAML, so its properties are read-only — fix it in a text editor first"
+      "This file's frontmatter isn't valid YAML, so its properties are read-only — fix it in a text editor first",
+      { kind: "error" }
     );
     expect(result.current.saveStatus).toBe("saved");
   });

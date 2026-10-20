@@ -7,6 +7,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getFileViewKind, isReadOnlyContent } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import { ToastStack } from "./components/ToastStack";
 import type { NewContentKind } from "./lib/amytisScaffold";
 import type { AppActionCtx } from "./lib/appActions";
 import { loadLastRecentFilePath } from "./lib/appRestore";
@@ -68,8 +69,22 @@ function App() {
   const pendingAutoOpenPath = useRef<string | null>(null);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
 
-  const { toasts, showToast, notifications, unread, markNotificationsRead, clearNotifications } =
-    useToast();
+  const {
+    toasts,
+    showToast,
+    dismissToast,
+    pauseToast,
+    resumeToast,
+    notifications,
+    unread,
+    markNotificationsRead,
+    clearNotifications,
+  } = useToast();
+  // Editor/properties failures (image paste, cover upload) are errors.
+  const showError = useCallback(
+    (message: string) => showToast(message, { kind: "error" }),
+    [showToast]
+  );
   // Surface otherwise-silent async failures (fire-and-forget promises, uncaught
   // errors) as a throttled toast instead of losing them to the console.
   useGlobalErrorHandlers(showToast);
@@ -302,7 +317,8 @@ function App() {
           t("wikiLink.createNoteFailed", {
             target,
             message: err instanceof Error ? err.message : String(err),
-          })
+          }),
+          { kind: "error" }
         );
       }
     },
@@ -723,7 +739,7 @@ function App() {
           onWordCount={handleWordCount}
           onDirty={handleEditorDirty}
           onChange={handleEditorChange}
-          onError={showToast}
+          onError={showError}
           currentEditorViewState={currentEditorViewState}
           onEditorViewStateChange={handleEditorViewStateChange}
           registerPendingFlush={registerEditorFlush}
@@ -812,7 +828,6 @@ function App() {
       >
         <AppDialogs
           overlay={overlay}
-          toasts={toasts}
           notifications={notifications}
           clearNotifications={clearNotifications}
           flushPendingSave={flushPendingSave}
@@ -874,6 +889,13 @@ function App() {
           }}
         />
       </ErrorBoundary>
+      {/* Outside the dialog boundary: a crashed dialog must not hide toasts. */}
+      <ToastStack
+        toasts={toasts}
+        onDismiss={dismissToast}
+        onPause={pauseToast}
+        onResume={resumeToast}
+      />
     </div>
   );
 }

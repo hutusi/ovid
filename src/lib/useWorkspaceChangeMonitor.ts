@@ -2,6 +2,7 @@ import type React from "react";
 import { useEffect, useRef } from "react";
 import { commands } from "./commands";
 import type { FileNode, SaveStatus } from "./types";
+import type { ShowToast } from "./useToast";
 import { getExternalWorkspaceChangeAction } from "./workspaceRefresh";
 
 export const WORKSPACE_REVISION_FALLBACK_MS = 30_000;
@@ -13,7 +14,7 @@ interface UseWorkspaceChangeMonitorOptions {
   reloadSelectedFileFromDisk: (node: FileNode) => Promise<boolean>;
   handleCloseFile: (opts?: { discard?: boolean }) => Promise<boolean>;
   refreshGitStatus: () => void;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
   t: (key: string, vars?: Record<string, unknown>) => string;
   lastSavedContentRef: React.RefObject<string | null>;
   selectedFileRef: React.RefObject<FileNode | null>;
@@ -189,7 +190,7 @@ export function useWorkspaceChangeMonitor({
         const message = err instanceof Error ? err.message : String(err);
         if (workspaceRefreshFailureToastRef.current !== message) {
           workspaceRefreshFailureToastRef.current = message;
-          showToast(t("workspace_refresh.refresh_failed", { message }));
+          showToast(t("workspace_refresh.refresh_failed", { message }), { kind: "error" });
         }
       } finally {
         refreshInFlight = false;

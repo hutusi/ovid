@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { parseAuthRequired } from "./commands/git";
 import { formatGitActionError, type GitAction, getErrorMessage } from "./gitActionError";
 import type { OverlayStack } from "./useOverlayStack";
+import type { ShowToast } from "./useToast";
 
 // State for the credentials dialog opened on AUTH_REQUIRED. `host` keys the
 // stored credential, `remoteName` is what the user sees in the subtitle.
@@ -19,7 +20,7 @@ export type GitCredentialsDialogState = {
 
 interface UseGitCredentialsRetryOptions {
   overlay: OverlayStack;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
   handlePushWithCredentials: (args: {
     remoteName?: string;
     username: string;
@@ -155,7 +156,9 @@ export function useGitCredentialsRetry({
         }
         overlay.close("gitCredentials");
         pendingAuthRetryRef.current = null;
-        showToast(pending?.successMessage ?? t(`toast.git_${args.operation}ed`));
+        showToast(pending?.successMessage ?? t(`toast.git_${args.operation}ed`), {
+          kind: "success",
+        });
       } catch (err) {
         const message = getErrorMessage(err);
         const reopened = await openGitCredentialsDialog(
@@ -168,7 +171,7 @@ export function useGitCredentialsRetry({
         if (reopened) return;
         overlay.close("gitCredentials");
         pendingAuthRetryRef.current = null;
-        showToast(formatGitActionError(args.operation, message, t));
+        showToast(formatGitActionError(args.operation, message, t), { kind: "error" });
       }
     },
     [
@@ -203,7 +206,7 @@ export function useGitCredentialsRetry({
         }
       } catch (err) {
         const message = getErrorMessage(err);
-        showToast(t("errors.git_forget_credentials_failed", { message }));
+        showToast(t("errors.git_forget_credentials_failed", { message }), { kind: "error" });
       }
     },
     [handleForgetCredentials, overlay, showToast, t]

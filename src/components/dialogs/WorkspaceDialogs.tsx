@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import type { RecentWorkspace } from "../../lib/types";
 import type { OverlayStack } from "../../lib/useOverlayStack";
+import type { ShowToast } from "../../lib/useToast";
 
 const WorkspaceSwitcher = lazy(async () => ({
   default: (await import("../WorkspaceSwitcher")).WorkspaceSwitcher,
@@ -12,10 +13,10 @@ export interface WorkspaceDialogsProps {
   workspaceRootPath: string | null;
   openWorkspaceAtPath: (path: string) => Promise<void>;
   handleOpenWorkspace: () => void;
-  removeRecentWorkspace: (rootPath: string) => void;
+  removeRecentWorkspace: (rootPath: string) => (() => void) | null;
   handleCreateAmytisWorkspace: (parentDir: string, name: string) => Promise<boolean>;
   handleCloneWorkspace: (url: string, parentDir: string, name: string | null) => Promise<boolean>;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
 }
 
 /** The workspace manager overlay (open / create / clone / recents). */

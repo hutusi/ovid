@@ -106,7 +106,9 @@ describe("useGitCommitFlow — commit dialog", () => {
       await result.current.controller.handleCommitDialogCommit("msg", [], false);
     });
 
-    expect(spies.showToast).toHaveBeenCalledWith("Commit failed: nothing to commit");
+    expect(spies.showToast).toHaveBeenCalledWith("Commit failed: nothing to commit", {
+      kind: "error",
+    });
   });
 
   it("handleCommitDialogCommit opens the credentials dialog when commit+push hits AUTH_REQUIRED", async () => {

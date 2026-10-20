@@ -6,7 +6,7 @@ import type { EditorPreferences } from "../lib/useEditorPreferences";
 import type { ConflictResolution } from "../lib/useFileEditor";
 import type { OverlayStack } from "../lib/useOverlayStack";
 import type { ThemePreference } from "../lib/useTheme";
-import type { NotificationEntry, Toast } from "../lib/useToast";
+import type { NotificationEntry, ShowToast } from "../lib/useToast";
 import { ConflictDialog } from "./ConflictDialog";
 import { FileDialogs, type FileDialogsProps } from "./dialogs/FileDialogs";
 import { GitDialogs, type GitDialogsProps } from "./dialogs/GitDialogs";
@@ -40,14 +40,13 @@ export interface PreferencesDialogGroupProps {
   updateContentPrefs: (updates: Partial<ContentPreferences>) => void;
   appPrefs: AppPreferences;
   updateAppPrefs: (updates: Partial<AppPreferences>) => void;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
 }
 
 export interface AppDialogsProps {
   // Overlay stack — the single visibility seam for every dialog below.
   overlay: OverlayStack;
 
-  toasts: Toast[];
   notifications: NotificationEntry[];
   clearNotifications: () => void;
 
@@ -71,7 +70,6 @@ export interface AppDialogsProps {
 
 export function AppDialogs({
   overlay,
-  toasts,
   notifications,
   clearNotifications,
   flushPendingSave,
@@ -85,15 +83,6 @@ export function AppDialogs({
   return (
     <>
       <GitDialogs overlay={overlay} {...git} />
-      {toasts.length > 0 && (
-        <div className="toast-container" aria-live="polite" aria-atomic="true">
-          {toasts.map((toast) => (
-            <div key={toast.id} className={toast.leaving ? "toast is-leaving" : "toast"}>
-              {toast.message}
-            </div>
-          ))}
-        </div>
-      )}
       {overlay.is("notifications") && (
         <Suspense fallback={null}>
           <NotificationsDialog

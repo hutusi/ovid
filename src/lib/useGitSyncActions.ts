@@ -9,13 +9,14 @@ import {
 } from "./gitUi";
 import type { GitRemoteInfo, GitStatus } from "./types";
 import type { OverlayStack } from "./useOverlayStack";
+import type { ShowToast } from "./useToast";
 
 interface UseGitSyncActionsOptions {
   overlay: OverlayStack;
   gitStatusMap: Map<string, GitStatus>;
   isGitRepo: boolean;
   remoteInfo: GitRemoteInfo;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
   flushPendingSave: () => Promise<unknown>;
   handlePush: (remoteName?: string) => Promise<void>;
   handlePull: () => Promise<void>;
@@ -63,11 +64,11 @@ export function useGitSyncActions({
       try {
         await flushPendingSave();
         await run();
-        showToast(successMessage);
+        showToast(successMessage, { kind: "success" });
       } catch (err) {
         const message = getErrorMessage(err);
         if (await openGitCredentialsDialog(action, successMessage, message)) return;
-        showToast(formatGitActionError(action, message, t));
+        showToast(formatGitActionError(action, message, t), { kind: "error" });
       }
     },
     [flushPendingSave, openGitCredentialsDialog, showToast, t]

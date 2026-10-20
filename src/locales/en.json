@@ -2,6 +2,8 @@
   "common": {
     "close": "Close",
     "done": "Done",
+    "dismiss": "Dismiss",
+    "undo": "Undo",
     "retry": "Retry"
   },
   "conflict": {

@@ -26,6 +26,7 @@ import { createPostFromExistingContent } from "./postTemplate";
 import { forContentMode } from "./sidebarUtils";
 import type { FileNode } from "./types";
 import type { ContentPreferences } from "./useContentPreferences";
+import type { ShowToast } from "./useToast";
 
 // Same as the generated (Rust-sourced) WorkspaceResult, except `tree` is
 // re-typed to the frontend's own FileNode (./types) — the sidebar projections'
@@ -35,7 +36,7 @@ import type { ContentPreferences } from "./useContentPreferences";
 type WorkspaceResult = Omit<GeneratedWorkspaceResult, "tree"> & { tree: FileNode[] };
 
 interface UseWorkspaceOptions {
-  showToast: (msg: string) => void;
+  showToast: ShowToast;
   flushPendingSave: () => Promise<void>;
   resetFileState: () => void;
   /** New-content format/layout choice, threaded into `handleNewFile`'s scaffold call. */
@@ -144,7 +145,7 @@ export function useWorkspace({
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("Failed to refresh tree:", err);
-      showToast(t("workspace_refresh.refresh_failed", { message }));
+      showToast(t("workspace_refresh.refresh_failed", { message }), { kind: "error" });
       return [];
     }
   }, [showToast, t]);
@@ -210,13 +211,14 @@ export function useWorkspace({
           )) as WorkspaceResult | null;
           if (result) {
             applyWorkspaceResult(result);
-          } else showToast(t("errors.workspace_path_invalid"));
+          } else showToast(t("errors.workspace_path_invalid"), { kind: "error" });
         } catch (err) {
           console.error("Failed to open workspace:", err);
           showToast(
             t("errors.open_workspace_failed", {
               message: err instanceof Error ? err.message : String(err),
-            })
+            }),
+            { kind: "error" }
           );
         }
       }),
@@ -239,7 +241,8 @@ export function useWorkspace({
           showToast(
             t("errors.create_workspace_failed", {
               message: err instanceof Error ? err.message : String(err),
-            })
+            }),
+            { kind: "error" }
           );
           return false;
         }
@@ -266,7 +269,8 @@ export function useWorkspace({
           showToast(
             t("errors.clone_workspace_failed", {
               message: err instanceof Error ? err.message : String(err),
-            })
+            }),
+            { kind: "error" }
           );
           return false;
         }
@@ -290,7 +294,8 @@ export function useWorkspace({
           showToast(
             t("errors.open_workspace_failed", {
               message: err instanceof Error ? err.message : String(err),
-            })
+            }),
+            { kind: "error" }
           );
         }
       }),
@@ -320,7 +325,8 @@ export function useWorkspace({
       showToast(
         t("errors.open_today_flow_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }, [workspaceRoot, refreshTree, onPathCreated, showToast, t]);
@@ -368,7 +374,8 @@ export function useWorkspace({
       showToast(
         t("errors.create_file_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -390,7 +397,8 @@ export function useWorkspace({
       showToast(
         t("errors.rename_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -412,7 +420,8 @@ export function useWorkspace({
       showToast(
         t("errors.duplicate_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -423,7 +432,7 @@ export function useWorkspace({
     const targetPath = folderBacked ? `${newPath}/${entryFileName}` : newPath;
 
     if (findNode(tree, newPath)) {
-      showToast(t("errors.new_from_existing_conflict", { name: newName }));
+      showToast(t("errors.new_from_existing_conflict", { name: newName }), { kind: "error" });
       return;
     }
 
@@ -446,7 +455,8 @@ export function useWorkspace({
       showToast(
         t("errors.new_from_existing_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -471,7 +481,8 @@ export function useWorkspace({
       showToast(
         t("errors.delete_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -509,11 +520,11 @@ export function useWorkspace({
       let outcome = await attempt();
       if (outcome === "conflict") outcome = await attempt();
       if (outcome === "invalid") {
-        showToast(t("errors.frontmatter_invalid"));
+        showToast(t("errors.frontmatter_invalid"), { kind: "error" });
         return;
       }
       if (outcome === "conflict") {
-        showToast(t("errors.collection_changed"));
+        showToast(t("errors.collection_changed"), { kind: "error" });
         await refreshTree();
         return;
       }
@@ -523,7 +534,8 @@ export function useWorkspace({
       showToast(
         t("errors.update_collection_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }

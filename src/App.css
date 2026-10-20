@@ -161,13 +161,84 @@
 }
 
 .toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(520px, calc(100vw - 32px));
   background: var(--color-fg);
   color: var(--color-surface);
   font-size: 12.5px;
-  padding: 7px 16px;
+  line-height: 1.45;
+  padding: 7px 14px;
   border-radius: var(--radius-md);
-  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  /* Long messages (git errors) wrap instead of running off-screen. */
+  overflow-wrap: anywhere;
+  /* The container lets clicks through; the toast itself is interactive
+     (hover holds it, action and dismiss buttons). */
+  pointer-events: auto;
   animation: toast-in var(--duration-base) var(--ease-out);
+}
+
+/* A small status mark before the message; info toasts have none. */
+.toast--error::before,
+.toast--success::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+}
+
+.toast--error::before {
+  background: var(--color-error);
+}
+
+.toast--success::before {
+  background: var(--color-success);
+}
+
+.toast-message {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toast-action,
+.toast-dismiss {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.toast-action {
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.toast-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: -6px;
+  border-radius: var(--radius-sm);
+  opacity: 0.7;
+}
+
+.toast-dismiss:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--color-surface) 16%, transparent);
+}
+
+.toast-action:focus-visible,
+.toast-dismiss:focus-visible {
+  outline: 2px solid var(--color-surface);
+  outline-offset: 2px;
 }
 
 @keyframes toast-in {

@@ -12,6 +12,7 @@ import { listenEvent } from "../lib/commands/internal";
 import type { RecentWorkspace } from "../lib/types";
 import { Modal } from "./Modal";
 import "./WorkspaceSwitcher.css";
+import type { ShowToast } from "../lib/useToast";
 
 /** Hard-coded starter for the "From Amytis starter" template option. */
 const AMYTIS_STARTER_URL = "https://github.com/hutusi/amytis-starter.git";
@@ -28,13 +29,14 @@ interface WorkspaceSwitcherProps {
   /** Open a native folder picker, then load that folder as a workspace. */
   onOpenOther: () => void;
   /** Remove a recent entry (does NOT touch the filesystem). */
-  onRemoveRecent: (rootPath: string) => void;
+  /** Returns an undo for the removal, when there is one. */
+  onRemoveRecent: (rootPath: string) => (() => void) | null;
   /** Scaffold a brand-new Amytis workspace; resolves true on success. */
   onCreate: (parentDir: string, name: string) => Promise<boolean>;
   /** Clone a remote workspace; resolves true on success. */
   onClone: (url: string, parentDir: string, name: string | null) => Promise<boolean>;
   /** Surface a toast (used for "Copied", "Removed", etc.). */
-  onToast: (message: string) => void;
+  onToast: ShowToast;
   onClose: () => void;
 }
 
@@ -176,7 +178,7 @@ export function WorkspaceSwitcher({
               onCreate={onCreate}
               onCloneStarter={(parentDir, name) => onClone(AMYTIS_STARTER_URL, parentDir, name)}
               onSuccess={(name) => {
-                onToast(t("workspace_switcher.toast_created", { name }));
+                onToast(t("workspace_switcher.toast_created", { name }), { kind: "success" });
                 onClose();
               }}
             />
@@ -185,7 +187,7 @@ export function WorkspaceSwitcher({
             <ClonePanel
               onClone={onClone}
               onSuccess={(name) => {
-                onToast(t("workspace_switcher.toast_cloned", { name }));
+                onToast(t("workspace_switcher.toast_cloned", { name }), { kind: "success" });
                 onClose();
               }}
             />
@@ -202,8 +204,9 @@ interface RecentPanelProps {
   recentWorkspaces: RecentWorkspace[];
   currentRootPath: string | null;
   onSelect: (rootPath: string) => void;
-  onRemoveRecent: (rootPath: string) => void;
-  onToast: (message: string) => void;
+  /** Returns an undo for the removal, when there is one. */
+  onRemoveRecent: (rootPath: string) => (() => void) | null;
+  onToast: ShowToast;
   onClose: () => void;
 }
 
@@ -295,9 +298,12 @@ function RecentPanel({
             }}
             onActivate={() => handleRowActivate(w.rootPath)}
             onRemove={() => {
-              onRemoveRecent(w.rootPath);
+              const undo = onRemoveRecent(w.rootPath);
               if (selectedRecent === w.rootPath) setSelectedRecent(null);
-              onToast(t("workspace_switcher.toast_removed", { name: w.name }));
+              onToast(t("workspace_switcher.toast_removed", { name: w.name }), {
+                kind: "success",
+                action: undo ? { label: t("common.undo"), run: undo } : undefined,
+              });
             }}
             onReveal={async () => {
               try {
@@ -306,19 +312,21 @@ function RecentPanel({
                 onToast(
                   t("errors.reveal_failed", {
                     message: err instanceof Error ? err.message : String(err),
-                  })
+                  }),
+                  { kind: "error" }
                 );
               }
             }}
             onCopyPath={async () => {
               try {
                 await navigator.clipboard.writeText(w.rootPath);
-                onToast(t("workspace_switcher.toast_copied"));
+                onToast(t("workspace_switcher.toast_copied"), { kind: "success" });
               } catch (err) {
                 onToast(
                   t("errors.copy_path_failed", {
                     message: err instanceof Error ? err.message : String(err),
-                  })
+                  }),
+                  { kind: "error" }
                 );
               }
             }}

@@ -2,6 +2,8 @@
   "common": {
     "close": "关闭",
     "done": "完成",
+    "dismiss": "关闭",
+    "undo": "撤销",
     "retry": "重试"
   },
   "conflict": {

@@ -16,6 +16,14 @@ release cadence and Conventional Commit history.
 - **Destructive actions are red**: delete buttons and menu items used the
   amber warning colour; they now use the danger red, and deleting a branch
   confirms with a red button rather than the copper one.
+- **Clearer notifications**: errors now stay on screen for several seconds
+  (they used to vanish after two), carry a red mark, can be dismissed, and
+  are announced to screen readers immediately; confirmations carry a green
+  mark. Long messages wrap instead of running off the screen, hovering a
+  notification holds it, and a message that repeats (a save that keeps
+  failing) refreshes the one on screen instead of stacking copies.
+  Removing a workspace from the recent list can be undone from the
+  notification.
 
 ### Fixed
 - **Cmd+Q no longer drops the last edits**: the app menu's Quit item (and

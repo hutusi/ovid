@@ -59,3 +59,36 @@ describe("useRecentWorkspaces.removeRecentWorkspace", () => {
     expect(result.current.recentWorkspaces).toBe(before);
   });
 });
+
+describe("useRecentWorkspaces — undoing a removal", () => {
+  it("puts the workspace back in its old position and persists it", () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify([
+        { rootPath: "/a", name: "a", lastOpenedAt: 1 },
+        { rootPath: "/b", name: "b", lastOpenedAt: 2 },
+        { rootPath: "/c", name: "c", lastOpenedAt: 3 },
+      ])
+    );
+    const { result } = renderHook(() => useRecentWorkspaces());
+    let undo: (() => void) | null = null;
+    act(() => {
+      undo = result.current.removeRecentWorkspace("/b");
+    });
+    expect(result.current.recentWorkspaces.map((w) => w.rootPath)).toEqual(["/a", "/c"]);
+
+    act(() => undo?.());
+    expect(result.current.recentWorkspaces.map((w) => w.rootPath)).toEqual(["/a", "/b", "/c"]);
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
+    expect(stored.map((w: { rootPath: string }) => w.rootPath)).toEqual(["/a", "/b", "/c"]);
+  });
+
+  it("has nothing to undo for an unknown workspace", () => {
+    const { result } = renderHook(() => useRecentWorkspaces());
+    let undo: (() => void) | null = () => {};
+    act(() => {
+      undo = result.current.removeRecentWorkspace("/nope");
+    });
+    expect(undo).toBeNull();
+  });
+});

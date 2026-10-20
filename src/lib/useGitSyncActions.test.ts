@@ -36,7 +36,7 @@ describe("useGitSyncActions", () => {
     expect(spies.flushPendingSave).toHaveBeenCalled();
     expect(spies.handlePull).toHaveBeenCalledTimes(1);
     expect(spies.handlePush).not.toHaveBeenCalled();
-    expect(spies.showToast).toHaveBeenCalledWith("Pulled latest changes");
+    expect(spies.showToast).toHaveBeenCalledWith("Pulled latest changes", { kind: "success" });
   });
 
   it("handleGitSyncAction dispatches push when the popover actionKind is 'push'", async () => {
@@ -95,7 +95,7 @@ describe("useGitSyncActions", () => {
       await result.current.controller.handleGitSyncAction();
     });
 
-    expect(spies.showToast).toHaveBeenCalledWith("push failed: auth required");
+    expect(spies.showToast).toHaveBeenCalledWith("push failed: auth required", { kind: "error" });
   });
 
   it("runGitAction opens the credentials dialog when push rejects with AUTH_REQUIRED", async () => {
@@ -199,6 +199,8 @@ describe("useGitSyncActions", () => {
     });
 
     expect(result.current.overlay.active).toBeNull();
-    expect(spies.showToast).toHaveBeenCalledWith("push failed: network unreachable");
+    expect(spies.showToast).toHaveBeenCalledWith("push failed: network unreachable", {
+      kind: "error",
+    });
   });
 });

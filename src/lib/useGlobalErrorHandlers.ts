@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import type { ShowToast } from "./useToast";
 
 /** Minimum gap between toasts for uncaught async failures, so a storm of
  *  rejections can't spam the toast stack. Every occurrence is still logged. */
@@ -13,7 +14,7 @@ const TOAST_THROTTLE_MS = 3000;
  * log. We always log (dev pass-through) and surface a throttled generic toast
  * so the user knows something went wrong.
  */
-export function useGlobalErrorHandlers(showToast: (msg: string) => void): void {
+export function useGlobalErrorHandlers(showToast: ShowToast): void {
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export function useGlobalErrorHandlers(showToast: (msg: string) => void): void {
       const now = Date.now();
       if (now - lastToastAt < TOAST_THROTTLE_MS) return;
       lastToastAt = now;
-      showToast(t("errors.unexpected"));
+      showToast(t("errors.unexpected"), { kind: "error" });
     };
 
     const onRejection = (event: PromiseRejectionEvent) => {

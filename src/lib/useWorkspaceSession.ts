@@ -1,10 +1,11 @@
 import { useCallback, useRef } from "react";
 import type { ContentPreferences } from "./useContentPreferences";
 import { type FileEditorHandle, useEditorSession } from "./useEditorSession";
+import type { ShowToast } from "./useToast";
 import { useWorkspace } from "./useWorkspace";
 
 interface UseWorkspaceSessionOptions {
-  showToast: (msg: string) => void;
+  showToast: ShowToast;
   flushPendingSave: () => Promise<void>;
   resetFileState: () => void;
   /**
