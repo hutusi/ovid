@@ -145,6 +145,11 @@ release cadence and Conventional Commit history.
   or the Menu key opens its context menu under the row, F2 renames (now on
   folders too), and Cmd+Backspace asks to move it to the Trash. Content
   buckets stay protected from rename and delete, as in the menu.
+- **Start writing straight after creating a file**: after New (Cmd+N),
+  Make a Copy, New from Existing or Today's Flow, the caret is already in
+  the body, so you can type without clicking. A new post's "Write your
+  content here..." placeholder is selected, so the first keystroke replaces
+  it; anything else gets the caret at the end.
 - **Popovers work from the keyboard**: the editor settings popover, the
   code-block language picker and the Workspace Manager's row menu now take
   focus when they open and hand it back when closed with Escape. Escape in

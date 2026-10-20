@@ -161,6 +161,10 @@ function App() {
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
   const saveStatusRef = useRef<SaveStatus>(saveStatus);
   const isGitRepoRef = useRef(false);
+  // One-shot: a file just created and opened gets keyboard focus in its body
+  // (the title was typed in the New dialog), consumed by the Editor.
+  const [focusBodyPath, setFocusBodyPath] = useState<string | null>(null);
+  const handleFocusBodyHandled = useCallback(() => setFocusBodyPath(null), []);
 
   selectedFileRef.current = selectedFile;
   saveStatusRef.current = saveStatus;
@@ -206,6 +210,7 @@ function App() {
     contentPrefs,
     onSessionPathRenamed: writingStats.pathRenamed,
     onSessionPathRemoved: writingStats.pathRemoved,
+    onSessionPathCreated: setFocusBodyPath,
     fileEditor: {
       selectedFile,
       renameSelection,
@@ -767,6 +772,8 @@ function App() {
           searchJump={searchJump}
           frontmatterLineOffset={frontmatterLineOffset}
           onSearchJumpHandled={handleSearchJumpHandled}
+          focusBodyPath={focusBodyPath}
+          onFocusBodyHandled={handleFocusBodyHandled}
           recentFiles={recentFiles}
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}

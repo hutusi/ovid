@@ -119,6 +119,9 @@ export interface EditorPaneProps {
    *  line numbers to body lines). */
   frontmatterLineOffset: number;
   onSearchJumpHandled: () => void;
+  /** One-shot: focus this just-created file's body once it is on screen. */
+  focusBodyPath: string | null;
+  onFocusBodyHandled: () => void;
 
   // Empty state
   recentFiles: RecentFile[];
@@ -173,6 +176,8 @@ export function EditorPane({
   searchJump,
   frontmatterLineOffset,
   onSearchJumpHandled,
+  focusBodyPath,
+  onFocusBodyHandled,
   recentFiles,
   onOpenWorkspace,
   onOpenRecent,
@@ -322,6 +327,8 @@ export function EditorPane({
                 searchJump={searchJump}
                 frontmatterLineOffset={frontmatterLineOffset}
                 onSearchJumpHandled={onSearchJumpHandled}
+                focusBodyPath={focusBodyPath}
+                onFocusBodyHandled={onFocusBodyHandled}
               />
             </Suspense>
           </ErrorBoundary>

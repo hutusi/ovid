@@ -25,6 +25,7 @@ import {
   createImagePasteHandler,
   IMAGE_MIME,
 } from "../lib/editor/imagePaste";
+import { placeholderSelection } from "../lib/editor/newDocumentFocus";
 import { isPersistableUpdate } from "../lib/editor/persistableChange";
 import { useEditorCommands } from "../lib/editor/useEditorCommands";
 import { useMarkdownSync } from "../lib/editor/useMarkdownSync";
@@ -131,6 +132,10 @@ interface EditorProps {
    *  to a body line. */
   frontmatterLineOffset?: number;
   onSearchJumpHandled?: () => void;
+  /** One-shot: this file was just created; once its content is on screen,
+   *  put the caret in the body, then clear via onFocusBodyHandled. */
+  focusBodyPath?: string | null;
+  onFocusBodyHandled?: () => void;
 }
 
 export const Editor = memo(function Editor({
@@ -158,6 +163,8 @@ export const Editor = memo(function Editor({
   searchJump,
   frontmatterLineOffset = 0,
   onSearchJumpHandled,
+  focusBodyPath,
+  onFocusBodyHandled,
 }: EditorProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -639,6 +646,20 @@ export const Editor = memo(function Editor({
     clearPendingRestore,
     onSearchJumpHandled,
   ]);
+
+  // A just-created file (New, Make a Copy, Today's Flow): its title was
+  // typed in the dialog, so the next keystroke belongs to the body. The
+  // scaffold's "Write your content here..." placeholder is selected so typing
+  // replaces it; otherwise the caret goes to the end.
+  useEffect(() => {
+    if (!editor || !focusBodyPath || focusBodyPath !== filePath) return;
+    if (lastAppliedLoadIdRef.current !== loadId) return;
+    clearPendingRestore();
+    const range = placeholderSelection(editor.state.doc, t("scaffold.post_body"));
+    if (range) editor.chain().focus().setTextSelection(range).run();
+    else editor.commands.focus("end");
+    onFocusBodyHandled?.();
+  }, [editor, focusBodyPath, filePath, loadId, clearPendingRestore, onFocusBodyHandled, t]);
 
   // Update spellcheck live — set directly on the DOM to avoid replacing editorProps
   useEffect(() => {

@@ -209,3 +209,56 @@ describe("Editor — configured once", () => {
     expect(view.container.querySelector("h1.h1-warning")).not.toBeNull();
   });
 });
+
+describe("Editor — a just-created file", () => {
+  it("selects the scaffold placeholder so the first keystroke replaces it", () => {
+    const onFocusBodyHandled = mock(() => {});
+    const placeholder = "Write your content here...";
+    const view = render(
+      <Editor
+        content={placeholder}
+        loadId={1}
+        filePath="/ws/new.md"
+        focusBodyPath="/ws/new.md"
+        onFocusBodyHandled={onFocusBodyHandled}
+      />
+    );
+    mounted.push(view);
+    const { from, to } = tiptapOf(view.container).state.selection;
+    expect(tiptapOf(view.container).state.doc.textBetween(from, to)).toBe(placeholder);
+    expect(onFocusBodyHandled).toHaveBeenCalledTimes(1);
+  });
+
+  it("puts the caret at the end of other bodies and selects nothing", () => {
+    const onFocusBodyHandled = mock(() => {});
+    const view = render(
+      <Editor
+        content={"First line\n\nSecond line"}
+        loadId={1}
+        filePath="/ws/flow.md"
+        focusBodyPath="/ws/flow.md"
+        onFocusBodyHandled={onFocusBodyHandled}
+      />
+    );
+    mounted.push(view);
+    const editor = tiptapOf(view.container);
+    expect(editor.state.selection.empty).toBe(true);
+    expect(editor.state.selection.from).toBe(editor.state.doc.content.size - 1);
+    expect(onFocusBodyHandled).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a request for another file", () => {
+    const onFocusBodyHandled = mock(() => {});
+    const view = render(
+      <Editor
+        content="text"
+        loadId={1}
+        filePath="/ws/note.md"
+        focusBodyPath="/ws/other.md"
+        onFocusBodyHandled={onFocusBodyHandled}
+      />
+    );
+    mounted.push(view);
+    expect(onFocusBodyHandled).not.toHaveBeenCalled();
+  });
+});
