@@ -469,6 +469,7 @@ function App() {
   // App-level consumers (StatusBar, menu/keyboard wiring) pull what they
   // need off the controller; the git dialogs receive `gitUi` whole.
   const {
+    gitActionInFlight,
     gitChangeSummary,
     gitSyncLabel,
     gitSyncPopover,
@@ -782,6 +783,7 @@ function App() {
           gitBranch={isGitRepo ? currentBranch : null}
           gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo, t) : undefined}
           gitSyncLabel={gitSyncLabel}
+          gitActionInFlight={gitActionInFlight}
           gitSyncTitle={gitSyncPopover?.description}
           gitChangeLabel={gitChangeSummary?.label}
           gitChangeTitle={gitChangeSummary?.title}

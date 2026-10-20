@@ -64,6 +64,9 @@
     "open_hint": "{{modKey}}O 打开文件夹"
   },
   "status_bar": {
+    "git_push_running": "正在推送…",
+    "git_pull_running": "正在拉取…",
+    "git_fetch_running": "正在获取…",
     "unsaved": "未保存的修改",
     "saving": "保存中…",
     "saved": "已保存",

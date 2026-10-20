@@ -286,11 +286,30 @@
   color: var(--color-fg-muted);
 }
 
+.statusbar-busy-icon {
+  animation: statusbar-spin 1s linear infinite;
+}
+
+@keyframes statusbar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .statusbar-git-sync:hover,
 .statusbar-git-sync:focus-visible {
   color: var(--color-accent);
   border-color: var(--color-accent);
   background: var(--color-accent-subtle);
+}
+
+/* A push/pull/fetch in progress: not a button, so no hover affordance. */
+.statusbar-git-sync.is-busy,
+.statusbar-git-sync.is-busy:hover {
+  cursor: default;
+  color: var(--color-fg-muted);
+  border-color: transparent;
+  background: transparent;
 }
 
 .statusbar-git-changes {

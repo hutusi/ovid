@@ -203,4 +203,36 @@ describe("useGitSyncActions", () => {
       kind: "error",
     });
   });
+
+  it("ignores a second trigger while one git action runs, and reports it in flight", async () => {
+    const spies = makeSpies();
+    let release: () => void = () => {};
+    const slowPush = mock(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
+    );
+    const { result } = renderController({ spies });
+
+    let first: Promise<void> = Promise.resolve();
+    await act(async () => {
+      first = result.current.controller.runGitAction("push", slowPush, "Pushed");
+      // Let the flush resolve so the push itself starts.
+      await Promise.resolve();
+    });
+    expect(result.current.controller.gitActionInFlight).toBe("push");
+
+    await act(async () => {
+      await result.current.controller.runGitAction("push", slowPush, "Pushed");
+    });
+    expect(slowPush).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      release();
+      await first;
+    });
+    expect(result.current.controller.gitActionInFlight).toBeNull();
+    expect(spies.showToast).toHaveBeenCalledWith("Pushed", { kind: "success" });
+  });
 });

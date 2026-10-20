@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { formatGitActionError, type GitAction, getErrorMessage } from "./gitActionError";
 import {
@@ -59,8 +59,17 @@ export function useGitSyncActions({
   const gitSyncLabel = isGitRepo ? getGitSyncLabel(remoteInfo) : null;
   const gitSyncPopover = isGitRepo ? getGitSyncPopoverState(remoteInfo, t) : null;
 
+  // The push/pull/fetch running right now, shown in the status bar. A second
+  // trigger while one runs (menu + popover, a double click) is ignored rather
+  // than starting a concurrent git operation on the same repository.
+  const [gitActionInFlight, setGitActionInFlight] = useState<GitAction | null>(null);
+  const inFlightRef = useRef<GitAction | null>(null);
+
   const runGitAction = useCallback(
     async (action: GitAction, run: () => Promise<void>, successMessage: string) => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = action;
+      setGitActionInFlight(action);
       try {
         await flushPendingSave();
         await run();
@@ -69,6 +78,9 @@ export function useGitSyncActions({
         const message = getErrorMessage(err);
         if (await openGitCredentialsDialog(action, successMessage, message)) return;
         showToast(formatGitActionError(action, message, t), { kind: "error" });
+      } finally {
+        inFlightRef.current = null;
+        setGitActionInFlight(null);
       }
     },
     [flushPendingSave, openGitCredentialsDialog, showToast, t]
@@ -92,6 +104,7 @@ export function useGitSyncActions({
   }, [gitSyncPopover, handlePull, handlePush, remoteInfo, runGitAction, t, overlay]);
 
   return {
+    gitActionInFlight,
     gitChangeSummary,
     gitSyncLabel,
     gitSyncPopover,

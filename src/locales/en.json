@@ -64,6 +64,9 @@
     "open_hint": "{{modKey}}O to open a folder"
   },
   "status_bar": {
+    "git_push_running": "Pushing…",
+    "git_pull_running": "Pulling…",
+    "git_fetch_running": "Fetching…",
     "unsaved": "Unsaved changes",
     "saving": "Saving…",
     "saved": "Saved",

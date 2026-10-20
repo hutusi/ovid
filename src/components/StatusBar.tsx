@@ -8,11 +8,13 @@ import {
   Keyboard,
   MoonStar,
   PencilLine,
+  RefreshCw,
   Settings,
   SunMedium,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { commands } from "../lib/commands";
+import type { GitAction } from "../lib/gitActionError";
 import { getGitSyncDisplayLabel } from "../lib/gitUi";
 import { buildMenuLabels } from "../lib/menuLabels";
 import type { SaveStatus } from "../lib/types";
@@ -55,6 +57,8 @@ interface StatusBarProps {
   gitBranch: string | null;
   gitBranchTitle?: string;
   gitSyncLabel?: string | null;
+  /** A push/pull/fetch in progress, shown in place of the sync summary. */
+  gitActionInFlight?: GitAction | null;
   gitSyncTitle?: string;
   gitChangeLabel?: string | null;
   gitChangeTitle?: string;
@@ -92,6 +96,7 @@ export function StatusBar({
   gitBranch,
   gitBranchTitle,
   gitSyncLabel,
+  gitActionInFlight = null,
   gitSyncTitle,
   gitChangeLabel,
   gitChangeTitle,
@@ -163,18 +168,25 @@ export function StatusBar({
                 {gitChangeLabel}
               </button>
             )}
-            {gitSyncLabel && (
-              <button
-                type="button"
-                className="statusbar-git-sync"
-                onClick={onOpenGitSync}
-                title={gitSyncTitle ?? getGitSyncDisplayLabel(gitSyncLabel, t)}
-                aria-haspopup="dialog"
-                aria-expanded={gitSyncPopoverOpen}
-              >
-                <GitSyncStatusIcon label={gitSyncLabel} />
-                {getGitSyncDisplayLabel(gitSyncLabel, t)}
-              </button>
+            {gitActionInFlight ? (
+              <span className="statusbar-git-sync is-busy" role="status">
+                <RefreshCw className="statusbar-git-icon statusbar-busy-icon" aria-hidden="true" />
+                {t(`status_bar.git_${gitActionInFlight}_running`)}
+              </span>
+            ) : (
+              gitSyncLabel && (
+                <button
+                  type="button"
+                  className="statusbar-git-sync"
+                  onClick={onOpenGitSync}
+                  title={gitSyncTitle ?? getGitSyncDisplayLabel(gitSyncLabel, t)}
+                  aria-haspopup="dialog"
+                  aria-expanded={gitSyncPopoverOpen}
+                >
+                  <GitSyncStatusIcon label={gitSyncLabel} />
+                  {getGitSyncDisplayLabel(gitSyncLabel, t)}
+                </button>
+              )
             )}
           </div>
         )}

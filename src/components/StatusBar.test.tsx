@@ -15,6 +15,8 @@ import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
 import { createWritingStats } from "../lib/writingStats";
 import { StatusBar } from "./StatusBar";
 
+type StatusBarProps = Parameters<typeof StatusBar>[0];
+
 type TestElementProps = {
   children?: ReactNode;
   className?: string;
@@ -25,7 +27,8 @@ type TestElementProps = {
 function renderStatusBar(
   gitChangeLabel: string | null,
   onOpenCommit = mock(() => {}),
-  onOpenPreferences = mock(() => {})
+  onOpenPreferences = mock(() => {}),
+  overrides: Partial<StatusBarProps> = {}
 ) {
   return {
     onOpenCommit,
@@ -64,6 +67,7 @@ function renderStatusBar(
       onToggleSpellCheck: () => {},
       onSetWordCountGoal: () => {},
       onOpenPreferences,
+      ...overrides,
     }),
   };
 }
@@ -144,5 +148,23 @@ describe("StatusBar git change summary", () => {
     gears[0].props.onClick?.();
 
     expect(onOpenPreferences).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the running git action in place of the sync button", () => {
+    const idle = renderStatusBar(null).tree;
+    expect(
+      collectElements(idle, (element) => element.props.className === "statusbar-git-sync")
+    ).toHaveLength(1);
+
+    const busy = renderStatusBar(null, undefined, undefined, { gitActionInFlight: "push" }).tree;
+    expect(
+      collectElements(busy, (element) => element.props.className === "statusbar-git-sync")
+    ).toHaveLength(0);
+    const status = collectElements(
+      busy,
+      (element) => element.props.className === "statusbar-git-sync is-busy"
+    );
+    expect(status).toHaveLength(1);
+    expect(collectText(status[0].props.children)).toBe("status_bar.git_push_running");
   });
 });
