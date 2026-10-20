@@ -81,6 +81,16 @@
     background var(--duration-fast) var(--ease-out);
 }
 
+/* A long file or branch name ends in an ellipsis. text-overflow needs a
+   block-level box of its own: on a bare text node inside an inline-flex
+   button it never applies, and the name was just clipped. */
+.statusbar-truncate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .statusbar-file-button:hover,
 .statusbar-file-button:focus-visible {
   color: var(--color-fg);
@@ -213,6 +223,7 @@
 .statusbar-git {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 6px;
   margin-left: 10px;
   padding-left: 10px;
@@ -250,6 +261,11 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  /* A long branch name truncates instead of pushing the bar apart; the
+     button's title has the full name. */
+  max-width: min(220px, 24vw);
+  min-width: 0;
+  flex-shrink: 1;
   transition:
     border-color var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out),

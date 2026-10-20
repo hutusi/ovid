@@ -167,4 +167,13 @@ describe("StatusBar git change summary", () => {
     expect(status).toHaveLength(1);
     expect(collectText(status[0].props.children)).toBe("status_bar.git_push_running");
   });
+
+  it("puts the file and branch names in truncating spans", () => {
+    const { tree } = renderStatusBar(null);
+    const names = collectElements(
+      tree,
+      (element) => element.props.className === "statusbar-truncate"
+    ).map((element) => collectText(element.props.children));
+    expect(names).toEqual(["draft.md", "main"]);
+  });
 });

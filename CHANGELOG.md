@@ -133,6 +133,10 @@ release cadence and Conventional Commit history.
   strip could not be dragged. The panel now has the same 36 px draggable top
   strip as the sidebar, with the search field just below it, a labelled
   close button, and the width you gave the sidebar instead of a fixed one.
+- **Long names in the status bar end in an ellipsis**: a long file name was
+  cut off mid-letter instead of ending in "…", and a long branch name had
+  no limit at all, pushing the rest of the status bar aside. Both now
+  truncate cleanly; the branch's tooltip still shows its full name.
 - **Screen-reader and language fixes**: sidebar git markers are announced
   and labelled in the app language ("Modified", "Staged", "Untracked")
   instead of showing raw English status words, including inside the Chinese

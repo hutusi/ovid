@@ -141,7 +141,7 @@ export function StatusBar({
             title={t("status_bar.rename_path")}
           >
             <FilePenLine className="statusbar-git-icon" aria-hidden="true" />
-            {fileLabel}
+            <span className="statusbar-truncate">{fileLabel}</span>
           </button>
         ) : (
           <span className="statusbar-file">—</span>
@@ -155,7 +155,7 @@ export function StatusBar({
               title={gitBranchTitle ?? t("status_bar.current_branch", { branch: gitBranch })}
             >
               <GitBranch className="statusbar-git-icon" aria-hidden="true" />
-              {gitBranch}
+              <span className="statusbar-truncate">{gitBranch}</span>
             </button>
             {gitChangeLabel && (
               <button
