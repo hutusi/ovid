@@ -46,6 +46,16 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
 
+    // Quit is a custom item, not `PredefinedMenuItem::quit`: the predefined
+    // item sends `terminate:` straight to NSApp, which tears the process down
+    // without a window close-requested event — so the frontend's close guard
+    // (useCloseGuard) never got to flush the autosave debounce and Cmd+Q
+    // could drop the last second of typing. Routing it as a menu action lets
+    // the guard flush first and then destroy the window, which exits the app.
+    let quit_item = MenuItemBuilder::with_id("quit", get("app_quit"))
+        .accelerator("CmdOrCtrl+Q")
+        .build(app)?;
+
     #[cfg(target_os = "macos")]
     let ovid_menu = SubmenuBuilder::new(app, "Ovid")
         .items(&[
@@ -57,7 +67,7 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
             &PredefinedMenuItem::hide_others(app, None)?,
             &PredefinedMenuItem::show_all(app, None)?,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, None)?,
+            &quit_item,
         ])
         .build()?;
     #[cfg(not(target_os = "macos"))]
@@ -67,7 +77,7 @@ pub(crate) fn build_app_menu<R: tauri::Runtime>(
             &PredefinedMenuItem::separator(app)?,
             &preferences_item,
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, None)?,
+            &quit_item,
         ])
         .build()?;
 
@@ -311,6 +321,19 @@ fn dispatch_menu_event(handle: &AppHandle, id: &str) {
                 .title(title)
                 .blocking_show();
         }
+        "quit" => {
+            // Hand quit to the frontend so the close guard can flush pending
+            // saves before the window is destroyed. With no window (or if the
+            // event can't be delivered) there is nothing to flush — exit.
+            match handle.get_webview_window("main") {
+                Some(window) => {
+                    if window.emit("menu-action", "quit").is_err() {
+                        handle.exit(0);
+                    }
+                }
+                None => handle.exit(0),
+            }
+        }
         "help-docs" => {
             let _ = handle
                 .opener()
@@ -364,6 +387,7 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
             "about_body",
             "A minimalist desktop Markdown editor\nfor Amytis workspaces.",
         ),
+        ("app_quit", "Quit Ovid"),
         ("file_preferences", "Settings\u{2026}"),
         ("file_new_post", "New Post"),
         ("file_new_flow", "New Flow"),

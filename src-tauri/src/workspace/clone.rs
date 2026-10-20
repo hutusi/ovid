@@ -6,15 +6,34 @@
 //! directory flows through `build_workspace_result` so it becomes the
 //! active workspace exactly like a normal open.
 
-use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::Emitter;
 use ts_rs::TS;
 
-use crate::git::runner::configure_child_process;
+use crate::git::runner::{
+    configure_child_process, PipeReader, HTTP_LOW_SPEED_ARGS, PIPE_DRAIN_GRACE,
+};
+
+/// Marker message for a clone the user cancelled. The frontend matches on it
+/// to end quietly instead of reporting a failure.
+pub(crate) const CLONE_CANCELLED: &str = "CLONE_CANCELLED";
+
+/// Set by `cancel_clone`, polled by the clone in progress.
+static CLONE_CANCEL_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+/// Ask the clone in progress (if any) to stop: git is killed and the partial
+/// checkout removed, and the clone fails with `CLONE_CANCELLED`. A clone was
+/// otherwise unstoppable — and because workspace opens are queued, a stalled
+/// one blocked opening any other workspace until restart.
+#[tauri::command]
+pub(crate) fn cancel_clone() {
+    CLONE_CANCEL_REQUESTED.store(true, Ordering::SeqCst);
+}
 
 /// One progress tick from `git clone --progress`.
 #[derive(Serialize, Clone, TS)]
@@ -39,6 +58,7 @@ pub(crate) enum CloneError {
     TargetExists,
     GitNotFound,
     GitFailed(String),
+    Cancelled,
 }
 
 impl CloneError {
@@ -55,6 +75,7 @@ impl CloneError {
             CloneError::GitNotFound => {
                 "`git` was not found on PATH. Install git and try again.".to_string()
             }
+            CloneError::Cancelled => CLONE_CANCELLED.to_string(),
             CloneError::GitFailed(stderr) => {
                 if stderr.is_empty() {
                     "git clone failed.".to_string()
@@ -126,15 +147,34 @@ pub(crate) fn parse_progress_line(raw: &str) -> CloneProgress {
 }
 
 /// Run `git clone --progress <url> <target>`, blocking the current thread.
-/// Emits `workspace_clone_progress` events for the duration. Designed to be
-/// invoked from `tauri::async_runtime::spawn_blocking`.
+/// Emits `workspace_clone_progress` events for the duration and stops early
+/// on `cancel_clone`. Designed to be invoked from
+/// `tauri::async_runtime::spawn_blocking`.
 pub(crate) fn clone_blocking(
     url: &str,
     target: &Path,
     app: &tauri::AppHandle,
 ) -> Result<(), CloneError> {
+    CLONE_CANCEL_REQUESTED.store(false, Ordering::SeqCst);
+    let app = app.clone();
+    clone_with_progress(url, target, &CLONE_CANCEL_REQUESTED, move |progress| {
+        let _ = app.emit("workspace_clone_progress", progress);
+    })
+}
+
+/// The clone itself, with progress reporting and cancellation injected so it
+/// can be exercised without a Tauri app.
+pub(crate) fn clone_with_progress(
+    url: &str,
+    target: &Path,
+    cancel: &AtomicBool,
+    on_progress: impl Fn(CloneProgress) + Send + 'static,
+) -> Result<(), CloneError> {
     let mut cmd = Command::new("git");
-    cmd.arg("clone")
+    // An HTTP transfer that stalls (under 1 KB/s for a minute) is aborted by
+    // git itself; anything else can be cancelled by the user.
+    cmd.args(HTTP_LOW_SPEED_ARGS)
+        .arg("clone")
         .arg("--progress")
         .arg(url)
         .arg(target)
@@ -150,45 +190,45 @@ pub(crate) fn clone_blocking(
         Err(e) => return Err(CloneError::GitFailed(e.to_string())),
     };
 
-    let stderr = child.stderr.take();
-    let stderr_buf = if let Some(s) = stderr {
-        // Tee into both: stream live to the frontend AND keep a copy for the
-        // failure message. We re-read by capturing into a Vec via a small
-        // adapter — but a simpler approach is to spawn a reader thread that
-        // both emits and accumulates.
-        let app_clone = app.clone();
-        std::thread::spawn(move || {
-            let mut collected = Vec::new();
-            let mut buf = BufReader::new(s);
-            let mut byte = [0u8; 1];
-            let mut line = Vec::with_capacity(256);
-            while buf.read(&mut byte).unwrap_or(0) == 1 {
-                collected.push(byte[0]);
-                if byte[0] == b'\r' || byte[0] == b'\n' {
-                    if !line.is_empty() {
-                        let raw = String::from_utf8_lossy(&line).to_string();
-                        let _ =
-                            app_clone.emit("workspace_clone_progress", parse_progress_line(&raw));
-                        line.clear();
-                    }
-                } else {
-                    line.push(byte[0]);
+    // Stream progress live to the frontend while the reader also keeps the
+    // whole of stderr for the failure message. git redraws a progress line
+    // with `\r` and ends one with `\n`.
+    let mut line = Vec::with_capacity(256);
+    let stderr = PipeReader::spawn(child.stderr.take(), move |chunk| {
+        for &byte in chunk {
+            if byte == b'\r' || byte == b'\n' {
+                if !line.is_empty() {
+                    on_progress(parse_progress_line(&String::from_utf8_lossy(&line)));
+                    line.clear();
                 }
+            } else {
+                line.push(byte);
             }
-            if !line.is_empty() {
-                let raw = String::from_utf8_lossy(&line).to_string();
-                let _ = app_clone.emit("workspace_clone_progress", parse_progress_line(&raw));
-            }
-            collected
-        })
-    } else {
-        std::thread::spawn(Vec::new)
-    };
+        }
+    });
 
-    let status = child
-        .wait()
-        .map_err(|e| CloneError::GitFailed(e.to_string()))?;
-    let collected = stderr_buf.join().unwrap_or_default();
+    let status = loop {
+        if let Some(status) = child
+            .try_wait()
+            .map_err(|e| CloneError::GitFailed(e.to_string()))?
+        {
+            break status;
+        }
+        if cancel.swap(false, Ordering::SeqCst) {
+            let _ = child.kill();
+            let _ = child.wait();
+            // `resolve_target` guaranteed the target didn't exist before the
+            // clone, so whatever is there now is the partial checkout.
+            if target.exists() {
+                let _ = std::fs::remove_dir_all(target);
+            }
+            return Err(CloneError::Cancelled);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    // Bounded: an ssh ControlPersist master started by the clone keeps
+    // stderr open after git exits (see PIPE_DRAIN_GRACE).
+    let collected = stderr.finish(Instant::now() + PIPE_DRAIN_GRACE);
 
     if !status.success() {
         let stderr = String::from_utf8_lossy(&collected)
@@ -407,6 +447,55 @@ mod tests {
             .stderr(Stdio::piped());
         let output = cmd.output().expect("git clone failed");
         assert!(output.status.success());
+        assert!(dest.join("hello.txt").is_file());
+    }
+
+    #[test]
+    fn clone_with_progress_stops_and_cleans_up_when_cancelled() {
+        if !git_available() {
+            return;
+        }
+        let dest_parent = TempDir::new().unwrap();
+        let dest = dest_parent.path().join("cancelled");
+        // Requested before git even starts: the first poll kills it.
+        let cancel = AtomicBool::new(true);
+        let result = clone_with_progress(
+            "https://example.invalid/never/resolves.git",
+            &dest,
+            &cancel,
+            |_| {},
+        );
+        assert_eq!(result, Err(CloneError::Cancelled));
+        assert!(!dest.exists(), "partial clone must be removed");
+        assert!(!cancel.load(Ordering::SeqCst), "the request is consumed");
+    }
+
+    #[test]
+    fn clone_with_progress_clones_a_local_repository() {
+        if !git_available() {
+            return;
+        }
+        let src = TempDir::new().unwrap();
+        let run = |args: &[&str]| {
+            let status = Command::new("git")
+                .args(args)
+                .current_dir(src.path())
+                .status()
+                .expect("git failed");
+            assert!(status.success(), "git {args:?} failed");
+        };
+        run(&["init", "-q", "-b", "main"]);
+        run(&["config", "user.email", "test@example.com"]);
+        run(&["config", "user.name", "Test"]);
+        std::fs::write(src.path().join("hello.txt"), "hi").unwrap();
+        run(&["add", "."]);
+        run(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"]);
+
+        let dest_parent = TempDir::new().unwrap();
+        let dest = dest_parent.path().join("copy");
+        let cancel = AtomicBool::new(false);
+        let url = src.path().to_string_lossy().into_owned();
+        clone_with_progress(&url, &dest, &cancel, |_| {}).unwrap();
         assert!(dest.join("hello.txt").is_file());
     }
 

@@ -175,8 +175,42 @@ describe("setCollectionItems", () => {
     expect(out).toContain("type: collection");
     expect(out).toContain("Modern Web Development");
     expect(out).toContain("Body text stays.");
-    const reparsed = parseCollectionItems(out);
+    const reparsed = parseCollectionItems(out ?? "");
     expect(reparsed).toEqual([{ post: "x" }]);
+  });
+
+  it("leaves dates, comments and unrelated lines byte-identical", () => {
+    const raw = `---
+title: Reading list # curated
+date: 2024-03-01
+updated: 2024-03-02T09:15:00+08:00
+type: collection
+items:
+  - post: a
+seo:
+  description: Things I read
+---
+Body
+`;
+    const out = setCollectionItems(raw, [{ post: "a" }, { series: "b" }]);
+    expect(out).toBe(`---
+title: Reading list # curated
+date: 2024-03-01
+updated: 2024-03-02T09:15:00+08:00
+type: collection
+items:
+  - post: a
+  - series: b
+seo:
+  description: Things I read
+---
+Body
+`);
+  });
+
+  it("refuses to rewrite frontmatter it cannot parse", () => {
+    const raw = "---\ntitle: [unclosed\nitems:\n  - post: a\n---\nBody\n";
+    expect(setCollectionItems(raw, [{ post: "b" }])).toBeNull();
   });
 
   it("drops the items field entirely when empty", () => {

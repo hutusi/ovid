@@ -137,20 +137,13 @@ export function AppDialogs({
       )}
       <WechatDialogs overlay={overlay} {...wechat} />
       <FileDialogs overlay={overlay} {...files} />
-      {overlay.is("conflict") && (
+      {overlay.active?.kind === "conflict" && (
         <ConflictDialog
           fileName={conflict.fileName}
-          onReload={() => {
+          reason={overlay.active.reason}
+          onResolve={(resolution) => {
             overlay.close("conflict");
-            conflict.resolveConflict("reload");
-          }}
-          onOverwrite={() => {
-            overlay.close("conflict");
-            conflict.resolveConflict("overwrite");
-          }}
-          onKeepEditing={() => {
-            overlay.close("conflict");
-            conflict.resolveConflict("dismiss");
+            conflict.resolveConflict(resolution);
           }}
         />
       )}

@@ -13,6 +13,7 @@ import type {
   SearchJumpTarget,
   WordCountKind,
 } from "../lib/types";
+import type { EditorDocument } from "../lib/useFileEditor";
 import { useNonModalDialogFocus } from "../lib/useNonModalDialogFocus";
 import type { NoteResolverIndex, ResolvedWikiTarget } from "../lib/wikiLink";
 import { EmptyState } from "./EmptyState";
@@ -60,18 +61,26 @@ export interface EditorPaneProps {
   onCloseFileViewer: () => void;
 
   // Editor
-  fileContent: string;
+  editorDocument: EditorDocument;
+  /** Error-boundary retry: remount the editor with the current body. */
+  onEditorRetry: () => void;
   typewriterMode: boolean;
   spellCheck: boolean;
   parsedFrontmatter: ParsedFrontmatter;
-  onFieldChange: (key: string, value: FrontmatterValue) => void | Promise<void>;
+  /** YAML parse error of the open file's frontmatter (properties read-only). */
+  frontmatterError: string | null;
+  /** Set a frontmatter field of the file at `path`. EditorPane binds the open
+   *  file's path at render time, so an edit that completes after a file switch
+   *  (a cover upload) still targets the file it was made on. */
+  onFieldChange: (path: string, key: string, value: FrontmatterValue) => void | Promise<void>;
   onWordCount: (count: number, filePath?: string, kind?: WordCountKind) => void;
   onDirty: () => void;
-  onChange: (markdown: string) => void;
+  /** Serialized markdown from the editor showing session `docId`. */
+  onChange: (markdown: string, docId: number) => void;
   onError: (message: string) => void;
   currentEditorViewState: EditorViewState | undefined;
   onEditorViewStateChange: (state: EditorViewState) => void;
-  registerPendingFlush: (flush: (() => void) | null) => void;
+  registerPendingFlush: (flush: () => void) => () => void;
 
   // Wiki links
   resolveWikiTarget: (target: string) => ResolvedWikiTarget;
@@ -121,10 +130,12 @@ export function EditorPane({
   cdnBase,
   fileViewerNode,
   onCloseFileViewer,
-  fileContent,
+  editorDocument,
+  onEditorRetry,
   typewriterMode,
   spellCheck,
   parsedFrontmatter,
+  frontmatterError,
   onFieldChange,
   onWordCount,
   onDirty,
@@ -233,11 +244,17 @@ export function EditorPane({
         ) : selectedFile && isReadOnlyContent(selectedFile) ? (
           <FileViewer node={selectedFile} onClose={() => onCloseTab(selectedFile.path)} />
         ) : selectedFile ? (
-          <ErrorBoundary key={selectedFile.path}>
+          // Keyed by the open-file session, not the path: a rename keeps the
+          // mounted editor (and its live content) instead of remounting it
+          // with the body from when the file was opened.
+          <ErrorBoundary
+            key={`${editorDocument.docId}:${editorDocument.mountGen}`}
+            onReset={onEditorRetry}
+          >
             <Suspense fallback={<div className="editor-loading">{t("editor.loading")}</div>}>
               <Editor
-                key={selectedFile.path}
-                content={fileContent}
+                content={editorDocument.body}
+                loadId={editorDocument.loadId}
                 filePath={selectedFile.path}
                 assetRoot={assetRoot}
                 cdnBase={cdnBase}
@@ -253,10 +270,16 @@ export function EditorPane({
                 spellCheck={spellCheck}
                 showH1Warning={editorTitle.trim() !== ""}
                 title={editorTitle}
-                onTitleChange={(value) => void onFieldChange("title", value)}
+                // Unparseable frontmatter has no knowable title, and edits to
+                // it are refused — hide the title field rather than offer one.
+                onTitleChange={
+                  frontmatterError === null
+                    ? (value) => void onFieldChange(selectedFile.path, "title", value)
+                    : undefined
+                }
                 onWordCount={onWordCount}
                 onDirty={onDirty}
-                onChange={onChange}
+                onChange={(markdown) => onChange(markdown, editorDocument.docId)}
                 onError={onError}
                 initialSelection={currentEditorViewState?.selection}
                 initialScrollTop={currentEditorViewState?.scrollTop}
@@ -287,22 +310,29 @@ export function EditorPane({
         />
       )}
       {selectedFile && !isReadOnlyContent(selectedFile) && (
-        <PropertiesPanel
-          frontmatter={parsedFrontmatter}
-          visible={propertiesOpen}
-          drawer={propertiesDrawer}
-          rootRef={propertiesDrawerRef}
-          slug={selectedFile.name.replace(/\.mdx?$/, "")}
-          contentType={selectedFile.contentType}
-          coverImageVisible={coverImageVisible}
-          filePath={selectedFile.path}
-          assetRoot={assetRoot}
-          cdnBase={cdnBase}
-          onFieldChange={onFieldChange}
-          onToggleCoverImage={onToggleCoverImage}
-          onToggle={onToggleProperties}
-          onError={onError}
-        />
+        <ErrorBoundary
+          variant="panel"
+          title={t("errors.properties_failed")}
+          resetKey={selectedFile.path}
+        >
+          <PropertiesPanel
+            frontmatter={parsedFrontmatter}
+            frontmatterError={frontmatterError}
+            visible={propertiesOpen}
+            drawer={propertiesDrawer}
+            rootRef={propertiesDrawerRef}
+            slug={selectedFile.name.replace(/\.mdx?$/, "")}
+            contentType={selectedFile.contentType}
+            coverImageVisible={coverImageVisible}
+            filePath={selectedFile.path}
+            assetRoot={assetRoot}
+            cdnBase={cdnBase}
+            onFieldChange={(key, value) => onFieldChange(selectedFile.path, key, value)}
+            onToggleCoverImage={onToggleCoverImage}
+            onToggle={onToggleProperties}
+            onError={onError}
+          />
+        </ErrorBoundary>
       )}
     </>
   );

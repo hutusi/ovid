@@ -9,7 +9,11 @@
     "body": "自你打开以来，“{{name}}”已被其他程序更改。你想怎么做？",
     "reload": "放弃我的更改并重新加载",
     "keep_editing": "继续编辑",
-    "overwrite": "用我的更改覆盖"
+    "overwrite": "用我的更改覆盖",
+    "missing_title": "文件已不在磁盘上",
+    "missing_body": "“{{name}}”在打开期间被其他程序删除或移动。你的内容仍在编辑器中——可以重新创建该文件，或放弃更改并关闭。",
+    "discard": "放弃更改并关闭",
+    "recreate": "重新创建文件"
   },
   "preferences": {
     "title": "偏好设置",
@@ -377,6 +381,7 @@
     "clone_url_placeholder": "https://github.com/user/repo.git",
     "clone_folder_label": "文件夹名",
     "clone_folder_placeholder": "（从 URL 推断）",
+    "clone_cancel": "取消",
     "clone_submit": "克隆",
     "clone_working": "正在克隆…",
     "progress_starting": "正在准备克隆…",
@@ -467,6 +472,8 @@
     "cover_save_error": "保存封面图片失败：{{reason}}",
     "custom": "自定义",
     "custom_metadata": "自定义元数据",
+    "frontmatter_invalid_title": "无法在此编辑 frontmatter",
+    "frontmatter_invalid_body": "其中的 YAML 有错误，为保证所有字段安全，属性暂为只读。请在文本编辑器中修正——文件变更后 Ovid 会自动重新加载。",
     "no_frontmatter": "此文件无前置数据。",
     "add_field_hint": "在下方添加字段开始使用。",
     "add_metadata": "添加元数据",
@@ -509,6 +516,7 @@
     "about_item": "关于 Ovid",
     "about_title": "关于 Ovid",
     "about_body": "为 Amytis 内容工作区打造的\n极简桌面 Markdown 编辑器。",
+    "app_quit": "退出 Ovid",
     "file_preferences": "设置…",
     "file_new_post": "新建文章",
     "file_new_flow": "新建日志",
@@ -709,9 +717,15 @@
     "done": "完成"
   },
   "errors": {
+    "reload_panel": "重新加载面板",
+    "sidebar_failed": "侧边栏出现问题",
+    "properties_failed": "属性面板出现问题",
+    "status_bar_failed": "状态栏出现问题",
+    "dialog_failed": "该对话框出现问题",
     "boundary_title": "出错了",
     "unexpected": "发生意外错误——详情请见控制台",
     "close_save_failed": "关闭前保存失败——已保留窗口，以免丢失更改",
+    "frontmatter_invalid": "此文件的 frontmatter 不是有效的 YAML，属性暂为只读——请先在文本编辑器中修正",
     "save_failed": "保存失败——详情请见控制台",
     "file_too_large": "此文件太大，无法在编辑器中打开",
     "open_file_failed": "打开文件失败——详情请见控制台",

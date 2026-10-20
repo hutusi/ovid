@@ -7,8 +7,9 @@ import { useRecentFiles } from "./useRecentFiles";
 
 export interface FileEditorHandle {
   selectedFile: FileNode | null;
-  selectedPathRef: { current: string | null };
-  setSelectedFile: (node: FileNode | null) => void;
+  /** Follow a rename of the open file (or a folder containing it), carrying
+   *  the editing session and any queued writes over to the new path. */
+  renameSelection: (oldPath: string, newPath: string, node: FileNode) => void;
   /** Resolves true when the file was read and selected; false when the read
    *  failed, the outgoing save aborted the switch, or a newer selection
    *  superseded it. */
@@ -161,19 +162,18 @@ export function useEditorSession({
       tabs.renameTab(oldPath, newPath);
       recents.renameRecent(oldPath, newPath);
 
-      const nextPath = selectionAfterRename(fileEditor.selectedFile, oldPath, newPath);
-      if (nextPath) {
+      const selected = fileEditor.selectedFile;
+      const nextPath = selectionAfterRename(selected, oldPath, newPath);
+      if (selected && nextPath) {
         const nextNode = lookup?.(nextPath) ?? lookupNode(nextPath);
-        fileEditor.selectedPathRef.current = nextPath;
-        fileEditor.setSelectedFile(nextNode);
+        fileEditor.renameSelection(selected.path, nextPath, nextNode);
       }
     },
     [
       tabs.renameTab,
       recents.renameRecent,
       fileEditor.selectedFile,
-      fileEditor.setSelectedFile,
-      fileEditor.selectedPathRef,
+      fileEditor.renameSelection,
       lookupNode,
     ]
   );

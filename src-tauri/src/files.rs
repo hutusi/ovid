@@ -7,15 +7,22 @@ use tauri::State;
 use ts_rs::TS;
 
 use crate::paths::{
-    create_sibling_temp_dir, create_sibling_temp_file, validate_new_dir_path, validate_new_path,
-    validate_path, write_atomic, TempPathGuard,
+    create_sibling_temp_dir, create_sibling_temp_file, ensure_within, validate_new_dir_path,
+    validate_new_path, validate_path, write_atomic, ExistenceMode, TempPathGuard,
 };
-use crate::state::WorkspaceState;
+use crate::state::{run_blocking, WorkspaceState};
 
 /// Marker returned when the on-disk file changed since the client last read or
 /// wrote it. The frontend matches on this exact string to open the
 /// external-change conflict prompt instead of silently clobbering the change.
 pub(crate) const EXTERNAL_CHANGE_CONFLICT: &str = "EXTERNAL_CHANGE_CONFLICT";
+
+/// Marker returned when a versioned save targets a file that no longer exists —
+/// deleted, or renamed/moved by another program while it was open. The
+/// frontend matches on this to offer "recreate it / discard my edits" instead
+/// of failing every autosave (and every switch, close and quit) with a
+/// generic error.
+pub(crate) const FILE_MISSING: &str = "FILE_MISSING";
 
 /// Marker returned when a file is too large to load into the editor. The
 /// frontend matches on this to show a "file too large" message instead of the
@@ -68,12 +75,20 @@ fn current_version(path: &Path) -> Option<String> {
     read_text_bounded(path).ok().map(|c| content_version(&c))
 }
 
+// Every file command is async and does its IO through `run_blocking`, off the
+// main thread, with the workspace root cloned out of its mutex first.
+
 #[tauri::command]
-pub(crate) fn read_file(path: String, state: State<'_, WorkspaceState>) -> Result<String, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = validate_path(root, &path)?;
-    read_text_bounded(&canonical)
+pub(crate) async fn read_file(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<String, String> {
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical = validate_path(&root, &path)?;
+        read_text_bounded(&canonical)
+    })
+    .await
 }
 
 /// A file's content together with its content-hash version token. Because the
@@ -98,14 +113,16 @@ fn read_versioned_checked(canonical: &Path) -> Result<VersionedFile, String> {
 }
 
 #[tauri::command]
-pub(crate) fn read_file_versioned(
+pub(crate) async fn read_file_versioned(
     path: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<VersionedFile, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = validate_path(root, &path)?;
-    read_versioned_checked(&canonical)
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical = validate_path(&root, &path)?;
+        read_versioned_checked(&canonical)
+    })
+    .await
 }
 
 /// One corpus file returned by `read_files_bulk`, keyed by the path string
@@ -128,12 +145,9 @@ pub(crate) async fn read_files_bulk(
     paths: Vec<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<Vec<BulkFileContent>, String> {
-    let root = {
-        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-        root_guard.as_ref().ok_or("no workspace open")?.clone()
-    };
-    // Read off the main thread — this walks the whole markdown corpus.
-    tauri::async_runtime::spawn_blocking(move || {
+    let root = state.workspace_root_path()?;
+    // This reads the whole markdown corpus.
+    run_blocking(move || {
         let mut files = Vec::with_capacity(paths.len());
         for path in paths {
             let Ok(canonical) = validate_path(&root, &path) else {
@@ -144,10 +158,9 @@ pub(crate) async fn read_files_bulk(
             };
             files.push(BulkFileContent { path, content });
         }
-        files
+        Ok(files)
     })
     .await
-    .map_err(|e| e.to_string())
 }
 
 /// Optimistic-concurrency write, factored out of the Tauri command so it can be
@@ -155,9 +168,10 @@ pub(crate) async fn read_files_bulk(
 /// the check runs against the *current on-disk* content immediately before the
 /// rename (via `write_atomic`'s verify hook), refusing with
 /// `EXTERNAL_CHANGE_CONFLICT` if the content's hash no longer matches — so an
-/// external edit during staging is caught, not clobbered. A missing target is
-/// treated as no-conflict. Returns the written content's token. `None` forces
-/// the write (conflict resolution / untracked writes).
+/// external edit during staging is caught, not clobbered. A target that
+/// vanished refuses with `FILE_MISSING` instead of being silently recreated.
+/// Returns the written content's token. `None` forces the write (conflict
+/// resolution / untracked writes).
 fn write_checked(
     canonical: &Path,
     content: &str,
@@ -165,40 +179,77 @@ fn write_checked(
 ) -> Result<String, String> {
     write_atomic(canonical, content, |target| match expected_version {
         // Proceed only when the current on-disk content is readable AND its
-        // token matches. A target that was deleted, made unreadable, or
-        // replaced with non-UTF-8 during staging yields `None` → conflict,
-        // rather than silently recreating/overwriting it.
-        Some(expected) if current_version(target).as_deref() == Some(expected) => Ok(()),
-        Some(_) => Err(EXTERNAL_CHANGE_CONFLICT.to_string()),
+        // token matches. A target made unreadable or replaced with non-UTF-8
+        // during staging conflicts; one that was deleted is reported as such.
+        Some(expected) => match current_version(target) {
+            Some(current) if current == expected => Ok(()),
+            None if is_missing(target) => Err(FILE_MISSING.to_string()),
+            _ => Err(EXTERNAL_CHANGE_CONFLICT.to_string()),
+        },
         // No expected token forces the write (conflict resolution / new files).
         None => Ok(()),
     })?;
     Ok(content_version(content))
 }
 
+fn is_missing(path: &Path) -> bool {
+    matches!(
+        std::fs::symlink_metadata(path),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound
+    )
+}
+
+/// The write target, or `FILE_MISSING` when it is a workspace path that simply
+/// doesn't exist any more (its folder may be gone too). Anything else that
+/// fails validation — a path outside the workspace — keeps its own error.
+fn resolve_write_target(root: &Path, requested: &str) -> Result<std::path::PathBuf, String> {
+    validate_path(root, requested).map_err(|error| {
+        let inside = ensure_within(
+            root,
+            Path::new(requested),
+            ExistenceMode::AncestorMayBeMissing,
+            "invalid path",
+        )
+        .is_ok();
+        if inside && is_missing(Path::new(requested)) {
+            FILE_MISSING.to_string()
+        } else {
+            error
+        }
+    })
+}
+
 #[tauri::command]
-pub(crate) fn write_file(
+pub(crate) async fn write_file(
     path: String,
     content: String,
     expected_version: Option<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = validate_path(root, &path)?;
-    write_checked(&canonical, &content, expected_version.as_deref())
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical = resolve_write_target(&root, &path)?;
+        write_checked(&canonical, &content, expected_version.as_deref())
+    })
+    .await
 }
 
+/// Create a new file; fails if it already exists. Returns the content's
+/// version token, so an editor that recreates its vanished file can keep
+/// saving with the usual optimistic-concurrency check.
 #[tauri::command]
-pub(crate) fn create_file(
+pub(crate) async fn create_file(
     path: String,
     content: String,
     state: State<'_, WorkspaceState>,
-) -> Result<(), String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let new_path = validate_new_path(root, &path)?;
-    create_new_checked(&new_path, &content)
+) -> Result<String, String> {
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let new_path = validate_new_path(&root, &path)?;
+        create_new_checked(&new_path, &content)?;
+        Ok(content_version(&content))
+    })
+    .await
 }
 
 fn map_exclusive_install_error(error: std::io::Error, collision_message: &str) -> String {
@@ -246,16 +297,69 @@ fn create_new_checked(new_path: &Path, content: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub(crate) fn rename_file(
+pub(crate) async fn rename_file(
     old_path: String,
     new_path: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical_old = validate_path(root, &old_path)?;
-    let new = validate_new_path(root, &new_path)?;
-    install_exclusive(&canonical_old, &new, "a file with that name already exists")
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical_old = validate_path(&root, &old_path)?;
+        let new = validate_new_path(&root, &new_path)?;
+        rename_checked(&canonical_old, &new)
+    })
+    .await
+}
+
+/// Rename `old` to `new`, refusing to replace an existing entry — except the
+/// entry itself: on a case-insensitive filesystem (the macOS and Windows
+/// defaults) `Notes.md` → `notes.md` finds the "destination" already present,
+/// because it *is* the source, so the exclusive rename refused every
+/// case-only rename. Those go through a unique temporary name instead.
+fn rename_checked(old: &Path, new: &Path) -> Result<(), String> {
+    const COLLISION: &str = "a file with that name already exists";
+    if is_same_entry_by_another_case(old, new) {
+        let staging = crate::paths::sibling_temp_path(old, "rename")?;
+        std::fs::rename(old, &staging).map_err(|e| e.to_string())?;
+        return install_exclusive(&staging, new, COLLISION).inspect_err(|_| {
+            // Put the entry back under its original name.
+            let _ = std::fs::rename(&staging, old);
+        });
+    }
+    install_exclusive(old, new, COLLISION)
+}
+
+fn is_same_entry_by_another_case(old: &Path, new: &Path) -> bool {
+    let (Some(old_name), Some(new_name)) = (old.file_name(), new.file_name()) else {
+        return false;
+    };
+    let old_name = old_name.to_string_lossy();
+    let new_name = new_name.to_string_lossy();
+    if old_name == new_name || old_name.to_lowercase() != new_name.to_lowercase() {
+        return false;
+    }
+    let same_parent = match (old.parent(), new.parent()) {
+        (Some(a), Some(b)) => std::fs::canonicalize(a).ok() == std::fs::canonicalize(b).ok(),
+        _ => false,
+    };
+    same_parent && same_file(old, new)
+}
+
+#[cfg(unix)]
+fn same_file(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (std::fs::symlink_metadata(a), std::fs::symlink_metadata(b)) {
+        (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
+        _ => false,
+    }
+}
+
+#[cfg(not(unix))]
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 fn copy_file_exclusive(src: &Path, dest: &Path) -> Result<(), String> {
@@ -341,51 +445,65 @@ fn duplicate_checked_with(
 }
 
 #[tauri::command]
-pub(crate) fn duplicate_entry(
+pub(crate) async fn duplicate_entry(
     src_path: String,
     dest_path: String,
     state: State<'_, WorkspaceState>,
 ) -> Result<(), String> {
-    let root = {
-        let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-        root_guard.as_ref().ok_or("no workspace open")?.clone()
-    };
-    let src = validate_path(&root, &src_path)?;
-    let dest = validate_new_path(&root, &dest_path)?;
-    duplicate_checked_with(&src, &dest, || Ok(()))
-}
-
-#[tauri::command]
-pub(crate) fn trash_file(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let canonical = validate_path(root, &path)?;
-    trash::delete(&canonical).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub(crate) fn create_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?;
-    let new_path = validate_new_path(root, &path)?;
-    std::fs::create_dir(&new_path).map_err(|error| {
-        if error.kind() == std::io::ErrorKind::AlreadyExists {
-            "directory already exists".to_string()
-        } else {
-            error.to_string()
-        }
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let src = validate_path(&root, &src_path)?;
+        let dest = validate_new_path(&root, &dest_path)?;
+        duplicate_checked_with(&src, &dest, || Ok(()))
     })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn trash_file(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let canonical = validate_path(&root, &path)?;
+        trash::delete(&canonical).map_err(|e| e.to_string())
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn create_dir(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let new_path = validate_new_path(&root, &path)?;
+        std::fs::create_dir(&new_path).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                "directory already exists".to_string()
+            } else {
+                error.to_string()
+            }
+        })
+    })
+    .await
 }
 
 /// Create a directory (and all ancestors) inside the workspace, succeeding if
 /// it already exists. Unlike `create_dir`, the parent need not exist yet.
 #[tauri::command]
-pub(crate) fn ensure_dir(path: String, state: State<'_, WorkspaceState>) -> Result<(), String> {
-    let root_guard = state.workspace_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
-    drop(root_guard);
-    let new_path = validate_new_dir_path(&root, &path)?;
-    std::fs::create_dir_all(&new_path).map_err(|e| e.to_string())
+pub(crate) async fn ensure_dir(
+    path: String,
+    state: State<'_, WorkspaceState>,
+) -> Result<(), String> {
+    let root = state.workspace_root_path()?;
+    run_blocking(move || {
+        let new_path = validate_new_dir_path(&root, &path)?;
+        std::fs::create_dir_all(&new_path).map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -439,6 +557,35 @@ mod tests {
     }
 
     #[test]
+    fn rename_checked_handles_a_case_only_rename() {
+        let dir = TempDir::new().unwrap();
+        let old = dir.path().join("Notes.md");
+        fs::write(&old, "hello").unwrap();
+        let new = dir.path().join("notes.md");
+
+        rename_checked(&old, &new).unwrap();
+
+        let names: Vec<String> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, vec!["notes.md".to_string()]);
+        assert_eq!(fs::read_to_string(&new).unwrap(), "hello");
+    }
+
+    #[test]
+    fn rename_checked_still_refuses_to_replace_another_file() {
+        let dir = TempDir::new().unwrap();
+        let old = dir.path().join("a.md");
+        let other = dir.path().join("b.md");
+        fs::write(&old, "a").unwrap();
+        fs::write(&other, "b").unwrap();
+        assert!(rename_checked(&old, &other).is_err());
+        assert_eq!(fs::read_to_string(&other).unwrap(), "b");
+        assert_eq!(fs::read_to_string(&old).unwrap(), "a");
+    }
+
+    #[test]
     fn write_checked_rejects_a_stale_version_without_clobbering() {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("note.md");
@@ -458,18 +605,49 @@ mod tests {
     }
 
     #[test]
-    fn write_checked_conflicts_when_the_target_is_deleted_mid_save() {
-        // With an expected token, a target that becomes unreadable (here:
-        // deleted before the write) must conflict, not silently recreate it.
+    fn write_checked_reports_a_target_deleted_mid_save_as_missing() {
+        // With an expected token, a target deleted before the write must be
+        // reported (not silently recreated) — as missing, not as a conflict.
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("gone.md");
         let expected = content_version("original");
-        // File does not exist → current_version is None → conflict.
         assert_eq!(
             write_checked(&path, "recreated", Some(&expected)),
+            Err(FILE_MISSING.to_string())
+        );
+        assert!(!path.exists(), "target must not be recreated");
+    }
+
+    #[test]
+    fn write_checked_conflicts_when_the_target_became_unreadable() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("binary.md");
+        fs::write(&path, [0xff_u8, 0xfe, 0x00]).unwrap();
+        assert_eq!(
+            write_checked(&path, "text", Some(&content_version("original"))),
             Err(EXTERNAL_CHANGE_CONFLICT.to_string())
         );
-        assert!(!path.exists(), "target must not be recreated on conflict");
+    }
+
+    #[test]
+    fn resolve_write_target_reports_a_vanished_workspace_file_as_missing() {
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        let gone = root.join("notes").join("gone.md");
+        assert_eq!(
+            resolve_write_target(root, gone.to_str().unwrap()),
+            Err(FILE_MISSING.to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_write_target_keeps_the_error_for_paths_outside_the_workspace() {
+        let workspace = TempDir::new().unwrap();
+        let elsewhere = TempDir::new().unwrap();
+        let outside = elsewhere.path().join("gone.md");
+        let result = resolve_write_target(workspace.path(), outside.to_str().unwrap());
+        assert!(result.is_err());
+        assert_ne!(result, Err(FILE_MISSING.to_string()));
     }
 
     #[test]

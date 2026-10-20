@@ -20,6 +20,42 @@ pub(crate) struct WorkspaceState {
     pub(crate) workspace_watcher: Mutex<Option<notify::RecommendedWatcher>>,
 }
 
+impl WorkspaceState {
+    /// The open workspace root, cloned out of its mutex so a command's IO never
+    /// runs with the lock held.
+    pub(crate) fn workspace_root_path(&self) -> Result<PathBuf, String> {
+        self.workspace_root
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone()
+            .ok_or_else(|| "no workspace open".to_string())
+    }
+
+    /// The open tree root (the visible content root), cloned out of its mutex.
+    pub(crate) fn tree_root_path(&self) -> Result<PathBuf, String> {
+        self.tree_root
+            .lock()
+            .map_err(|e| e.to_string())?
+            .clone()
+            .ok_or_else(|| "no workspace open".to_string())
+    }
+}
+
+/// Run blocking filesystem work on the async runtime's blocking pool.
+///
+/// Synchronous Tauri commands execute on the main thread, so a save's fsync,
+/// a slow or network volume, a large duplicate, or the `osascript` round-trip
+/// behind moving a file to the Trash would freeze the whole UI while it ran.
+pub(crate) async fn run_blocking<T, F>(work: F) -> Result<T, String>
+where
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+    T: Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 // Caches the WeChat access token so we don't refetch it on every publish.
 pub(crate) struct WechatState {
     pub(crate) token_cache: Mutex<Option<WechatTokenCache>>,

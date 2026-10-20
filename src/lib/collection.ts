@@ -1,6 +1,10 @@
-import { dump, load } from "js-yaml";
 import type { FlatFile } from "./fileSearch";
-import { joinFrontmatter, parseFrontmatter } from "./frontmatter";
+import {
+  joinFrontmatter,
+  loadFrontmatterBlock,
+  parseFrontmatter,
+  setFrontmatterKey,
+} from "./frontmatter";
 import type { CollectionItem, FileNode } from "./types";
 
 // An Amytis "collection" (a series whose index.mdx has `type: collection`)
@@ -17,21 +21,7 @@ export interface CollectionLink {
   node?: FileNode;
 }
 
-const FRONTMATTER_INNER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
 const DATE_PREFIX_RE = /^\d{4}-\d{2}-\d{2}-/;
-
-function loadFrontmatterObject(rawFileText: string): Record<string, unknown> {
-  const match = FRONTMATTER_INNER_RE.exec(rawFileText);
-  if (!match) return {};
-  try {
-    const parsed = load(match[1]);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {};
-  } catch {
-    return {};
-  }
-}
 
 function isValidItem(value: unknown): value is CollectionItem {
   if (!value || typeof value !== "object") return false;
@@ -41,7 +31,8 @@ function isValidItem(value: unknown): value is CollectionItem {
 
 /** The `items:` list from a collection index file, or `[]` when absent/invalid. */
 export function parseCollectionItems(rawFileText: string): CollectionItem[] {
-  const items = loadFrontmatterObject(rawFileText).items;
+  const loaded = loadFrontmatterBlock(rawFileText);
+  const items = loaded.ok ? loaded.data.items : undefined;
   return Array.isArray(items) ? items.filter(isValidItem) : [];
 }
 
@@ -158,14 +149,12 @@ export function removeItem(items: CollectionItem[], key: string): CollectionItem
   return items.filter((item) => itemKey(item) !== key);
 }
 
-/** Write `items` back into a collection index file, preserving its other
- *  frontmatter fields and body. Re-serialises the frontmatter block (comments
- *  are not preserved — same trade-off as the properties panel). */
-export function setCollectionItems(rawFileText: string, items: CollectionItem[]): string {
-  const obj = loadFrontmatterObject(rawFileText);
-  if (items.length > 0) obj.items = items;
-  else delete obj.items;
-  const yaml = dump(obj, { lineWidth: -1 }).trimEnd();
-  const { body } = parseFrontmatter(rawFileText);
-  return joinFrontmatter(`---\n${yaml}\n---\n`, body);
+/** Write `items` back into a collection index file, leaving its other
+ *  frontmatter (dates, comments, nested values) and body as they were. Null
+ *  when the frontmatter YAML can't be parsed — rewriting it then would destroy
+ *  every field we couldn't read. */
+export function setCollectionItems(rawFileText: string, items: CollectionItem[]): string | null {
+  const { frontmatter, body } = parseFrontmatter(rawFileText);
+  const edit = setFrontmatterKey(frontmatter, "items", items.length > 0 ? items : undefined);
+  return edit.ok ? joinFrontmatter(edit.block, body) : null;
 }

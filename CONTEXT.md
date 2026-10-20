@@ -166,6 +166,27 @@ follow-ups).
 
 ---
 
+### Frontmatter: raw mapping vs display projection
+
+A file's frontmatter exists in two shapes, and only one may be written back:
+
+- **The raw block / mapping** — the fenced text at the top of the file and
+  what `loadFrontmatterBlock` parses from it, every value kept: nested maps,
+  lists of maps, and timestamps as `YamlTimestamp` (the exact source text, so
+  `2024-01-01` and `…T10:30:00+08:00` survive with no UTC shift).
+- **The display projection** — `ParsedFrontmatter`, what the properties panel
+  renders (`projectFrontmatter`): scalars and scalar lists only, timestamps
+  shown as their written date.
+
+Structured edits go through `editFrontmatterField` (panel semantics:
+canonical-key matching, `null` deletes, date fields written as unquoted YAML
+dates, a datetime's time kept when only its date is edited) or the lower-level
+`setFrontmatterKey` (collections' `items:`). Both edit the raw mapping and
+splice just that key's lines into the block, re-parsing to verify — so every
+other line, comments included, stays byte-identical — and both refuse when
+the YAML doesn't parse. Never rebuild a block from the projection: it is
+lossy by design.
+
 ## File lifecycle vocabulary
 
 Five layers, each owning one piece of the "user opens a file and edits it"
@@ -187,6 +208,31 @@ The session is the seam every other piece of UI talks to:
 - `notifyPathRenamed(old, new, lookup?)` / `notifyPathRemoved(path)` — keep
   tabs + recents + selection in lockstep on filesystem mutations.
 
+### The open document: session id and load id
+
+What the editor shows is one value, `EditorDocument { docId, loadId, mountGen,
+body }`, owned by `useFileEditor`:
+
+- **`docId`** names one *open-file session*. It changes when a different file
+  is opened and **survives renames**. `EditorPane` keys the `Editor` (and its
+  error boundary) by it, so renaming or moving the open file keeps the mounted
+  editor — its live text, cursor and undo history — rather than remounting it
+  with the body from when the file was opened. `renameSelection` moves the
+  selection and any write queued under the old path to the new one.
+- **`loadId`** changes on **every** read from disk (open, external reload,
+  conflict "take disk"). The editor re-applies `body` when `loadId` changes —
+  never by comparing strings — so an external revert back to the
+  originally-loaded text (`git restore`) still replaces what's on screen. A
+  reload cancels any pending serialize and stays out of undo history.
+- **`mountGen`** forces a remount within the same session (error-boundary
+  Retry, or a rename that moved the file to another folder — image views
+  resolve relative paths against the folder they were created in); `body` is
+  then the *current* text (`getCurrentBody`), never the load-time body.
+
+`body` is only what to load: the live text is the editor's. Anything that
+needs "the document as it stands now" (WeChat copy, remounts) calls
+`getCurrentBody()` — the pending edit, else the last content written or read.
+
 `useWorkspace` never reaches into editor state directly. It owns the **tree
 and the file-mutation handlers**; when a mutation lands, it fires
 `onPathCreated` / `onPathRenamed` / `onPathRemoved` callbacks for the session
@@ -207,10 +253,17 @@ token**: `write_file` takes the hash of the content the client last saw
 the post-write content hash. If the on-disk content no longer matches, the
 Rust side refuses the write with
 `EXTERNAL_CHANGE_CONFLICT` instead of clobbering. The hook then pauses autosave
-(keeping the pending edit) and calls `onConflict`, which opens the blocking
+(keeping the pending edit) and calls `onConflict("changed")`, which opens the blocking
 `conflict` overlay; `resolveConflict("reload" | "overwrite" | "dismiss")`
 either reloads the disk version, force-writes (`expectedVersion: null`), or leaves
-the file unsaved for a later retry. **File transitions await the outgoing
+the file unsaved for a later retry. A save to a file that no longer exists is
+refused with `FILE_MISSING` and opens the same overlay as `onConflict("missing")`,
+resolved by `"recreate"` (write the current text back via `create_file`),
+`"discard"` (drop the edits; the host closes the file like an in-app delete),
+or `"dismiss"` (autosave holds until a decision). A refused write keeps its
+edit pending until it is saved or discarded — a property edit included,
+unless a newer one has superseded it (each carries a generation, so an older
+failure can never put its frontmatter back over a newer save). **File transitions await the outgoing
 save**: a switch or close awaits the full save transaction before the
 selection moves and aborts on failure or conflict, so the prompt always
 targets the file on screen and no edit is dropped mid-transition (removal-
@@ -219,10 +272,22 @@ the close-guard's window-hide flush stays fire-and-forget, non-forced, with
 restore-on-failure; see ADR 0020. This is the write-time complement to the
 external-change monitor (`useWorkspaceChangeMonitor`), which handles the
 no-local-edits case by reloading and treats the `saving` state like `unsaved`.
+Because that decision is made from render-time state, `reloadSelectedFileFromDisk`
+re-checks for local edits itself — flushing the editor's serialize debounce
+first, and again after its read — and stands down (returns false) if any
+exist; only the user's explicit "discard & reload" passes `discardLocalEdits`.
 The Rust watcher emits filtered `workspace-fs-change` events; the hook
 debounces them and verifies a workspace revision before refreshing. A 30 s
 revision check and a visibility-resume check remain as correctness fallbacks
 for dropped or unsupported native events (ADR 0021).
+
+**Quit paths.** The window close button and the app menu's Quit item (Cmd+Q)
+both end in `useCloseGuard`'s `requestQuit`: a blocking flush, then
+`destroy()` of the last window, which exits the app; a failed flush keeps the
+window open. Quit is deliberately a custom menu item routed to the `quit` app
+action — the predefined terminate item would skip the flush. Dock "Quit" and
+system logout arrive as `terminate:`, which tao cannot intercept, so they rely
+on the blur/visibility background flush alone.
 
 ---
 

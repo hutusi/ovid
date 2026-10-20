@@ -2,10 +2,19 @@ import { describe, expect, it } from "bun:test";
 import {
   createTodayFlowFrontmatter,
   createTypedFrontmatter,
+  editFrontmatterField,
+  type FrontmatterEdit,
   joinFrontmatter,
+  loadFrontmatterBlock,
   parseFrontmatter,
   parseYamlFrontmatter,
+  setFrontmatterKey,
 } from "./frontmatter";
+
+function edited(result: FrontmatterEdit): string {
+  if (!result.ok) throw new Error(`edit refused: ${result.error}`);
+  return result.block;
+}
 
 // ---------------------------------------------------------------------------
 // parseFrontmatter
@@ -44,6 +53,12 @@ describe("parseFrontmatter", () => {
     const { frontmatter, body } = parseFrontmatter(raw);
     expect(frontmatter).toBe("---\r\ntitle: Hello\r\n---\r\n");
     expect(body).toBe("Body\r\n");
+  });
+
+  it("treats an empty fenced block as empty frontmatter", () => {
+    const { frontmatter, body } = parseFrontmatter("---\n---\nBody\n");
+    expect(frontmatter).toBe("---\n---\n");
+    expect(body).toBe("Body\n");
   });
 
   it("does not treat a lone --- as frontmatter", () => {
@@ -118,6 +133,180 @@ describe("parseYamlFrontmatter", () => {
   it("returns empty object when YAML root is not an object", () => {
     const raw = "---\n- item1\n- item2\n---\n";
     expect(parseYamlFrontmatter(raw)).toEqual({});
+  });
+
+  it("shows a datetime's date as written, without a UTC shift", () => {
+    // 01:30 at +08:00 is the previous day in UTC; the panel must not say so.
+    const raw = "---\ndate: 2024-01-15T01:30:00+08:00\n---\n";
+    expect(parseYamlFrontmatter(raw).date).toBe("2024-01-15");
+  });
+
+  it("leaves structured values out of the projection", () => {
+    const raw =
+      "---\ntitle: T\nseo:\n  description: d\nitems:\n  - post: a\ntags: [a, 2024]\n---\n";
+    expect(parseYamlFrontmatter(raw)).toEqual({ title: "T", tags: ["a", "2024"] });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// loadFrontmatterBlock
+// ---------------------------------------------------------------------------
+
+describe("loadFrontmatterBlock", () => {
+  it("treats a missing or empty block as an empty mapping", () => {
+    expect(loadFrontmatterBlock("")).toEqual({ ok: true, data: {} });
+    expect(loadFrontmatterBlock("---\n---\n")).toEqual({ ok: true, data: {} });
+  });
+
+  it("fails on invalid YAML instead of returning an empty mapping", () => {
+    expect(loadFrontmatterBlock("---\ntitle: [unclosed\n---\n").ok).toBe(false);
+    expect(loadFrontmatterBlock("---\n- a\n- b\n---\n").ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// editFrontmatterField — properties-panel edits on the raw mapping
+// ---------------------------------------------------------------------------
+
+describe("editFrontmatterField", () => {
+  const RICH = `---
+title: Old title # the working title
+date: 2024-01-15
+updated: 2024-01-15T09:30:00+08:00
+seo:
+  description: A description
+  keywords: [one, two]
+items:
+  - post: first
+  - series: second
+    label: Second
+ratings: [1, 2, 3]
+slug: ~
+tags:
+- writing
+- notes
+
+# publishing
+draft: true
+---
+`;
+
+  it("changes only the edited key's line", () => {
+    const out = edited(editFrontmatterField(RICH, "title", "New title"));
+    expect(out).toBe(RICH.replace("title: Old title # the working title", "title: New title"));
+  });
+
+  it("keeps nested maps, lists of maps, numeric lists and null keys", () => {
+    const out = edited(editFrontmatterField(RICH, "draft", false));
+    const loaded = loadFrontmatterBlock(out);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.data.seo).toEqual({ description: "A description", keywords: ["one", "two"] });
+    expect(loaded.data.items).toEqual([{ post: "first" }, { series: "second", label: "Second" }]);
+    expect(loaded.data.ratings).toEqual([1, 2, 3]);
+    expect("slug" in loaded.data).toBe(true);
+    expect(out).toContain("# publishing");
+  });
+
+  it("writes date fields as unquoted YAML dates", () => {
+    const out = edited(editFrontmatterField(RICH, "date", "2025-02-03"));
+    expect(out).toContain("\ndate: 2025-02-03\n");
+  });
+
+  it("editing a datetime's date keeps its time and offset", () => {
+    const out = edited(editFrontmatterField(RICH, "updated", "2025-02-03"));
+    expect(out).toContain("\nupdated: 2025-02-03T09:30:00+08:00\n");
+  });
+
+  it("returns the block verbatim when the value didn't change", () => {
+    expect(edited(editFrontmatterField(RICH, "updated", "2024-01-15"))).toBe(RICH);
+    expect(edited(editFrontmatterField(RICH, "draft", true))).toBe(RICH);
+  });
+
+  it("quotes a text value that would otherwise read back as a date", () => {
+    const out = edited(editFrontmatterField(RICH, "title", "2024-01-01"));
+    expect(out).toContain("title: '2024-01-01'");
+  });
+
+  it("removes a key when set to null", () => {
+    const out = edited(editFrontmatterField(RICH, "seo", null));
+    expect(out).not.toContain("seo:");
+    expect(out).not.toContain("A description");
+    expect(out).toContain("items:");
+  });
+
+  it("replaces a multi-line value whole, including column-0 sequence items", () => {
+    const out = edited(editFrontmatterField(RICH, "tags", ["fiction"]));
+    expect(out).not.toContain("- writing");
+    expect(out).toContain("tags:\n  - fiction\n\n# publishing\ndraft: true");
+  });
+
+  it("appends a new key before the closing fence", () => {
+    const out = edited(editFrontmatterField("---\ntitle: T\n---\n", "featured", true));
+    expect(out).toBe("---\ntitle: T\nfeatured: true\n---\n");
+  });
+
+  it("renames a case-variant known key to its canonical spelling in place", () => {
+    const out = edited(editFrontmatterField("---\nTitle: Old\nauthor: me\n---\n", "title", "New"));
+    expect(out).toBe("---\ntitle: New\nauthor: me\n---\n");
+  });
+
+  it("creates frontmatter for a file that has none", () => {
+    expect(edited(editFrontmatterField("", "title", "Hello"))).toBe("---\ntitle: Hello\n---\n");
+  });
+
+  it("keeps CRLF line endings", () => {
+    const block = "---\r\ntitle: Old\r\ndate: 2024-01-01\r\n---\r\n";
+    expect(edited(editFrontmatterField(block, "title", "New"))).toBe(
+      "---\r\ntitle: New\r\ndate: 2024-01-01\r\n---\r\n"
+    );
+  });
+
+  it("removing the last key leaves an empty block that still parses", () => {
+    const out = edited(editFrontmatterField("---\ntitle: T\n---\n", "title", null));
+    expect(out).toBe("---\n---\n");
+    expect(parseFrontmatter(`${out}Body`).body).toBe("Body");
+  });
+
+  it("refuses to edit frontmatter whose YAML doesn't parse", () => {
+    const result = editFrontmatterField("---\ntitle: [unclosed\nkeep: me\n---\n", "title", "x");
+    expect(result.ok).toBe(false);
+  });
+});
+
+describe("setFrontmatterKey", () => {
+  it("writes structured values", () => {
+    const out = edited(setFrontmatterKey("---\ntitle: T\n---\n", "items", [{ post: "a" }]));
+    expect(out).toBe("---\ntitle: T\nitems:\n  - post: a\n---\n");
+  });
+
+  it("falls back to a whole-block dump when the key isn't on lines of its own", () => {
+    const block = "---\n{ title: T, items: [] }\n---\n";
+    const out = edited(setFrontmatterKey(block, "items", [{ post: "a" }]));
+    const loaded = loadFrontmatterBlock(out);
+    expect(loaded.ok && loaded.data).toEqual({ title: "T", items: [{ post: "a" }] });
+  });
+
+  it("edits a block whose aliases refer to themselves", () => {
+    const block = "---\ntitle: A\nmeta: &m { self: *m }\nlist: &l [1, *l]\n---\n";
+    expect(edited(editFrontmatterField(block, "title", "B"))).toBe(
+      "---\ntitle: B\nmeta: &m { self: *m }\nlist: &l [1, *l]\n---\n"
+    );
+    expect(edited(editFrontmatterField(block, "title", "A"))).toBe(block);
+    expect(edited(setFrontmatterKey(block, "items", ["a"]))).toBe(
+      "---\ntitle: A\nmeta: &m { self: *m }\nlist: &l [1, *l]\nitems:\n  - a\n---\n"
+    );
+  });
+
+  it("keeps a self-referencing alias through the whole-block fallback", () => {
+    const out = edited(
+      setFrontmatterKey("---\n{ title: T, m: &m { self: *m } }\n---\n", "title", "U")
+    );
+    const loaded = loadFrontmatterBlock(out);
+    if (!loaded.ok) throw new Error(loaded.error);
+    const m = loaded.data.m as { self: unknown };
+    expect(loaded.data.title).toBe("U");
+    expect(m.self).toBe(m);
   });
 });
 

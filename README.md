@@ -96,7 +96,7 @@ All major actions are accessible from the native menu bar, making features disco
 
 | Menu | Items |
 |---|---|
-| **Ovid** | About Ovid, Hide, Quit (standard macOS app menu) |
+| **Ovid** | About Ovid, Hide, Quit (standard macOS app menu; Quit saves pending edits first) |
 | **File** | New, Today's Flow, Open Workspace…, Switch Workspace…, Save, Close File |
 | **Edit** | Undo, Redo, Cut, Copy, Paste, Select All, Find in Workspace, Find…, Find & Replace…, Open Quickly |
 | **Insert** | Link…, Image…, Code Block, Table, Horizontal Rule |

@@ -93,9 +93,9 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("draft 1");
-      result.current.handleEditorChange("draft 2");
-      result.current.handleEditorChange("draft 3");
+      result.current.handleEditorChange("draft 1", result.current.editorDocument.docId);
+      result.current.handleEditorChange("draft 2", result.current.editorDocument.docId);
+      result.current.handleEditorChange("draft 3", result.current.editorDocument.docId);
     });
 
     // None of the three edits should have written yet — each call resets the
@@ -109,6 +109,36 @@ describe("useFileEditor — save flush semantics", () => {
     const writes = invokeCalls.filter((c) => c.name === "write_file");
     expect(writes).toHaveLength(1);
     expect(writeArgs(0)?.content).toBe("draft 3");
+  });
+
+  it("an outgoing editor's unregister leaves its successor's flush in place", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "",
+      get_file_mtime: () => 1000,
+      write_file: () => undefined,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+
+    let outgoingFlushes = 0;
+    let incomingFlushes = 0;
+    const unregisterOutgoing = result.current.registerEditorFlush(() => {
+      outgoingFlushes += 1;
+    });
+    result.current.registerEditorFlush(() => {
+      incomingFlushes += 1;
+    });
+    // React may run the outgoing editor's cleanup after the incoming one
+    // registered; that must not clear the incoming registration.
+    unregisterOutgoing();
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(outgoingFlushes).toBe(0);
+    expect(incomingFlushes).toBe(1);
   });
 
   it("forced flush pre-empts the debounce: content is written immediately, not after the delay", async () => {
@@ -125,7 +155,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("urgent edit");
+      result.current.handleEditorChange("urgent edit", result.current.editorDocument.docId);
     });
     expect(result.current.saveStatus).toBe("unsaved");
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(0);
@@ -160,7 +190,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("in flight content");
+      result.current.handleEditorChange("in flight content", result.current.editorDocument.docId);
     });
 
     // Background flush kicks off the write but doesn't await it — it clears
@@ -221,7 +251,7 @@ describe("useFileEditor — save flush semantics", () => {
     // tracked path (a direct commands.files.write), the blocking flush below
     // would not wait for it — the regression this guards against.
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     // The field write sits behind a debounce; a background flush pre-empts the
     // timer and dispatches it without awaiting.
@@ -266,7 +296,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("my local edit");
+      result.current.handleEditorChange("my local edit", result.current.editorDocument.docId);
     });
 
     // A forced flush attempts the write, which conflicts. The hook must surface
@@ -300,7 +330,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("edit");
+      result.current.handleEditorChange("edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave({ mode: "background" });
@@ -333,7 +363,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("precious edit");
+      result.current.handleEditorChange("precious edit", result.current.editorDocument.docId);
     });
 
     failWrites = true;
@@ -373,7 +403,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("local edit");
+      result.current.handleEditorChange("local edit", result.current.editorDocument.docId);
     });
 
     conflict = true;
@@ -408,7 +438,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("my local edit");
+      result.current.handleEditorChange("my local edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave().catch(() => {});
@@ -421,7 +451,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     expect(result.current.conflictActive).toBe(false);
-    expect(result.current.fileContent).toBe("external version");
+    expect(result.current.editorDocument.body).toBe("external version");
     expect(result.current.saveStatus).toBe("saved");
   });
 
@@ -443,7 +473,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("my local edit");
+      result.current.handleEditorChange("my local edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave().catch(() => {});
@@ -478,7 +508,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("my local edit");
+      result.current.handleEditorChange("my local edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave().catch(() => {});
@@ -492,6 +522,137 @@ describe("useFileEditor — save flush semantics", () => {
     expect(result.current.conflictActive).toBe(false);
     expect(result.current.saveStatus).toBe("unsaved");
     expect(result.current.pendingMarkdownRef.current).toBe("my local edit");
+  });
+
+  it("a property edit that conflicted survives keep editing, and overwrite saves it", async () => {
+    let conflict = true;
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: Old\n---\nbody",
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        if (conflict) throw new Error("EXTERNAL_CHANGE_CONFLICT");
+        return "2000";
+      },
+    });
+    const reasons: string[] = [];
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: (r) => reasons.push(r) })
+    );
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "New");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("dismiss");
+    });
+
+    // Leaving still has the property edit to save, so it meets the conflict
+    // again instead of closing as if nothing were pending.
+    let closed = true;
+    await act(async () => {
+      closed = await result.current.handleCloseFile();
+    });
+    expect(closed).toBe(false);
+    expect(reasons).toEqual(["changed", "changed"]);
+    expect(result.current.parsedFrontmatter.title).toBe("New");
+
+    conflict = false;
+    await act(async () => {
+      await result.current.resolveConflict("overwrite");
+    });
+    expect(lastWriteArgs()?.content).toBe("---\ntitle: New\n---\nbody");
+    expect(result.current.saveStatus).toBe("saved");
+    // Saved — nothing is left pending to write again on the way out.
+    const writes = invokeCalls.length;
+    await act(async () => {
+      closed = await result.current.handleCloseFile();
+    });
+    expect(closed).toBe(true);
+    expect(invokeCalls).toHaveLength(writes);
+  });
+
+  /** Property edit "First" starts writing and is held there; "Latest" is then
+   *  taken out to write and queued behind it. `fail` refuses the first write. */
+  async function supersededFieldWrite(fail: Error) {
+    const disk = { content: "---\ntitle: Old\n---\nbody" };
+    let refuseFirst: () => void = () => {};
+    let writes = 0;
+    invokeImpl = whenInvoke({
+      read_file: () => disk.content,
+      get_file_mtime: () => 1000,
+      write_file: (args) => {
+        writes += 1;
+        if (writes === 1) {
+          return new Promise((_, reject) => {
+            refuseFirst = () => reject(fail);
+          });
+        }
+        disk.content = (args as { content: string }).content;
+        return "2000";
+      },
+    });
+    const hook = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: mock(() => {}) })
+    );
+    const { result } = hook;
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "First");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave({ mode: "background" });
+    });
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "Latest");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave({ mode: "background" });
+    });
+    await act(async () => {
+      refuseFirst();
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+    });
+    return { disk, result };
+  }
+
+  it("a refused property write that a newer edit superseded is not put back", async () => {
+    const { disk, result } = await supersededFieldWrite(new Error("EXTERNAL_CHANGE_CONFLICT"));
+    expect(disk.content).toBe("---\ntitle: Latest\n---\nbody");
+
+    await act(async () => {
+      await result.current.resolveConflict("dismiss");
+    });
+    expect(result.current.saveStatus).toBe("saved");
+    let closed = false;
+    await act(async () => {
+      closed = await result.current.handleCloseFile();
+    });
+    expect(closed).toBe(true);
+    // The older edit was never written back over the newer one.
+    expect(disk.content).toBe("---\ntitle: Latest\n---\nbody");
+  });
+
+  it("a failed property write that a newer edit superseded doesn't revert the panel", async () => {
+    const { disk, result } = await supersededFieldWrite(new Error("disk full"));
+    expect(disk.content).toBe("---\ntitle: Latest\n---\nbody");
+    expect(result.current.parsedFrontmatter.title).toBe("Latest");
+    expect(result.current.saveStatus).toBe("saved");
+
+    // The next body save carries the newer frontmatter, not the reverted one.
+    act(() => {
+      result.current.handleEditorChange("more body", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(disk.content).toBe("---\ntitle: Latest\n---\nmore body");
   });
 
   it("serializes writes per file: a queued write starts only after the previous settles", async () => {
@@ -516,7 +677,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("edit one");
+      result.current.handleEditorChange("edit one", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave({ mode: "background" });
@@ -527,7 +688,7 @@ describe("useFileEditor — save flush semantics", () => {
     // behind it, not race it. (The background flush pre-empts the field
     // debounce and dispatches the write.)
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     await act(async () => {
       await result.current.flushPendingSave({ mode: "background" });
@@ -560,13 +721,13 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      void result.current.handleFieldChange("title", "A");
+      void result.current.handleFieldChange(NODE.path, "title", "A");
     });
     act(() => {
-      void result.current.handleFieldChange("title", "AB");
+      void result.current.handleFieldChange(NODE.path, "title", "AB");
     });
     act(() => {
-      void result.current.handleFieldChange("title", "ABC");
+      void result.current.handleFieldChange(NODE.path, "title", "ABC");
     });
     // No write yet — each keystroke resets the field debounce — but the panel
     // reflects the edit immediately.
@@ -598,7 +759,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     expect(result.current.parsedFrontmatter.title).toBe("New");
 
@@ -628,7 +789,7 @@ describe("useFileEditor — save flush semantics", () => {
     expect(result.current.saveStatus).toBe("saved");
 
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     // Unsaved the instant the edit lands, before the debounce fires.
     expect(result.current.saveStatus).toBe("unsaved");
@@ -640,7 +801,7 @@ describe("useFileEditor — save flush semantics", () => {
     expect(result.current.saveStatus).toBe("saved");
   });
 
-  it("reloading from disk cancels a pending field write so it can't overwrite the reload", async () => {
+  it("an automatic reload is refused while a property edit is pending", async () => {
     let diskTitle = "Old";
     invokeImpl = whenInvoke({
       read_file: () => `---\ntitle: ${diskTitle}\n---\nbody`,
@@ -651,17 +812,46 @@ describe("useFileEditor — save flush semantics", () => {
     await act(async () => {
       await result.current.handleSelectFile(NODE);
     });
-
-    // A property edit is pending in the debounce window...
     act(() => {
-      void result.current.handleFieldChange("title", "Local");
+      void result.current.handleFieldChange(NODE.path, "title", "Local");
+    });
+
+    // An external change arrives while the edit sits in its debounce window.
+    // Reloading would silently drop the edit; instead the reload is refused,
+    // and the edit's own save will meet the external change as a conflict.
+    diskTitle = "External";
+    let reloaded = true;
+    await act(async () => {
+      reloaded = await result.current.reloadSelectedFileFromDisk(NODE);
+    });
+    expect(reloaded).toBe(false);
+    expect(result.current.parsedFrontmatter.title).toBe("Local");
+    expect(invokeCalls.filter((c) => c.name === "read_file_versioned")).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+  });
+
+  it("an explicit discard-and-reload cancels a pending field write", async () => {
+    let diskTitle = "Old";
+    invokeImpl = whenInvoke({
+      read_file: () => `---\ntitle: ${diskTitle}\n---\nbody`,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "Local");
     });
     const writesBefore = invokeCalls.filter((c) => c.name === "write_file").length;
 
-    // ...when an external change triggers a reload of the file.
     diskTitle = "External";
     await act(async () => {
-      await result.current.reloadSelectedFileFromDisk(NODE);
+      await result.current.reloadSelectedFileFromDisk(NODE, { discardLocalEdits: true });
       for (let i = 0; i < 10; i++) await Promise.resolve();
     });
 
@@ -669,6 +859,50 @@ describe("useFileEditor — save flush semantics", () => {
     // so the external frontmatter change survives.
     expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(writesBefore);
     expect(result.current.parsedFrontmatter.title).toBe("External");
+  });
+
+  it("an edit typed while a reload is reading keeps the reload from replacing it", async () => {
+    let releaseRead: () => void = () => {};
+    let disk = "original";
+    invokeImpl = async (name, args) => {
+      if (name === "read_file_versioned" && disk === "external") {
+        await new Promise<void>((resolve) => {
+          releaseRead = resolve;
+        });
+      }
+      return whenInvoke({
+        read_file: () => disk,
+        get_file_mtime: () => 1000,
+        write_file: () => 2000,
+      })(name, args);
+    };
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const before = result.current.editorDocument;
+
+    disk = "external";
+    let reload: Promise<boolean> = Promise.resolve(true);
+    act(() => {
+      reload = result.current.reloadSelectedFileFromDisk(NODE);
+    });
+    // The user types after the reload was decided, before its read returns.
+    act(() => {
+      result.current.handleEditorChange("typed meanwhile", before.docId);
+    });
+    let reloaded = true;
+    await act(async () => {
+      releaseRead();
+      reloaded = await reload;
+    });
+    expect(reloaded).toBe(false);
+    expect(result.current.editorDocument).toEqual(before);
+    expect(result.current.pendingMarkdownRef.current).toBe("typed meanwhile");
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
   });
 
   it("opens via a versioned read, seeding a real mtime the next save carries", async () => {
@@ -685,7 +919,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      result.current.handleEditorChange("edited");
+      result.current.handleEditorChange("edited", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave();
@@ -715,12 +949,12 @@ describe("useFileEditor — save flush semantics", () => {
 
     // Edit A, dispatch its write (which will fail), then edit B before A rejects.
     act(() => {
-      void result.current.handleFieldChange("title", "A");
+      void result.current.handleFieldChange(NODE.path, "title", "A");
     });
     failNext = true;
     const flushA = result.current.flushPendingSave();
     act(() => {
-      void result.current.handleFieldChange("title", "B");
+      void result.current.handleFieldChange(NODE.path, "title", "B");
     });
     await act(async () => {
       await flushA.catch(() => {});
@@ -750,7 +984,7 @@ describe("useFileEditor — save flush semantics", () => {
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      result.current.handleEditorChange("precious edit");
+      result.current.handleEditorChange("precious edit", result.current.editorDocument.docId);
     });
     await act(async () => {
       await result.current.flushPendingSave({ mode: "background" });
@@ -771,5 +1005,671 @@ describe("useFileEditor — save flush semantics", () => {
     expect(writes).toHaveLength(2);
     expect((writes[1]?.args as { content: string }).content).toBe("precious edit");
     expect(result.current.saveStatus).toBe("saved");
+  });
+});
+
+describe("useFileEditor — the open document's identity", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  beforeEach(() => {
+    invokeCalls.length = 0;
+  });
+
+  it("an external revert to the loaded text is a new load, not a no-op", async () => {
+    let disk = "original";
+    invokeImpl = whenInvoke({
+      read_file: () => disk,
+      get_file_mtime: () => 1000,
+      write_file: (args) => {
+        disk = (args as { content: string }).content;
+        return 2000;
+      },
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const opened = result.current.editorDocument;
+    expect(opened.body).toBe("original");
+
+    act(() => {
+      result.current.handleEditorChange("edited", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    // e.g. `git restore` puts the file back exactly as it was opened.
+    disk = "original";
+    await act(async () => {
+      await result.current.reloadSelectedFileFromDisk(NODE);
+    });
+
+    const reloaded = result.current.editorDocument;
+    expect(reloaded.body).toBe("original");
+    expect(reloaded.loadId).not.toBe(opened.loadId);
+    // Same session: the mounted editor swaps content instead of remounting.
+    expect(reloaded.docId).toBe(opened.docId);
+  });
+
+  it("opening a different file starts a new session", async () => {
+    invokeImpl = whenInvoke({
+      read_file: (args) => `content of ${(args as { path: string }).path}`,
+      get_file_mtime: () => 1000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const first = result.current.editorDocument;
+    await act(async () => {
+      await result.current.handleSelectFile({ name: "b.md", path: "/ws/b.md", isDirectory: false });
+    });
+    expect(result.current.editorDocument.docId).not.toBe(first.docId);
+    expect(result.current.editorDocument.body).toBe("content of /ws/b.md");
+  });
+
+  it("re-selecting the open file does not re-read it", async () => {
+    invokeImpl = whenInvoke({ read_file: () => "body", get_file_mtime: () => 1000 });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const opened = result.current.editorDocument;
+    let reselected = false;
+    await act(async () => {
+      reselected = await result.current.handleSelectFile(NODE);
+    });
+    expect(reselected).toBe(true);
+    expect(invokeCalls.filter((c) => c.name === "read_file_versioned")).toHaveLength(1);
+    expect(result.current.editorDocument).toEqual(opened);
+  });
+
+  it("getCurrentBody and remountEditor carry autosaved text, not the load-time body", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "as opened",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("autosaved since", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(result.current.editorDocument.body).toBe("as opened");
+    expect(result.current.getCurrentBody()).toBe("autosaved since");
+
+    const before = result.current.editorDocument;
+    act(() => {
+      result.current.remountEditor();
+    });
+    expect(result.current.editorDocument.body).toBe("autosaved since");
+    expect(result.current.editorDocument.mountGen).toBe(before.mountGen + 1);
+    expect(result.current.editorDocument.docId).toBe(before.docId);
+  });
+
+  it("a rename keeps the session and moves a pending property write to the new path", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: Old\n---\nbody",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const before = result.current.editorDocument;
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "New");
+    });
+    const renamed: FileNode = { name: "renamed.md", path: "/ws/renamed.md", isDirectory: false };
+    act(() => {
+      result.current.renameSelection(NODE.path, renamed.path, renamed);
+    });
+    // Same folder: no remount, same session.
+    expect(result.current.editorDocument).toEqual(before);
+    expect(result.current.selectedFile?.path).toBe("/ws/renamed.md");
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    const writes = invokeCalls.filter((c) => c.name === "write_file");
+    expect(writes).toHaveLength(1);
+    expect((writes[0]?.args as { path: string }).path).toBe("/ws/renamed.md");
+  });
+
+  it("a rename into another folder remounts with the current body", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "as opened",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange(
+        "typed before the move",
+        result.current.editorDocument.docId
+      );
+    });
+    const before = result.current.editorDocument;
+    const moved: FileNode = { name: "index.md", path: "/ws/slug/index.md", isDirectory: false };
+    act(() => {
+      result.current.renameSelection(NODE.path, moved.path, moved);
+    });
+    expect(result.current.editorDocument.docId).toBe(before.docId);
+    expect(result.current.editorDocument.mountGen).toBe(before.mountGen + 1);
+    expect(result.current.editorDocument.body).toBe("typed before the move");
+
+    // Settle the pending autosave inside this test (it targets the new path).
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect((lastWriteArgs() as { path: string }).path).toBe("/ws/slug/index.md");
+  });
+
+  it("an edit from a superseded editor is dropped, not written into the new file", async () => {
+    invokeImpl = whenInvoke({
+      read_file: (args) => `content of ${(args as { path: string }).path}`,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    const outgoingDocId = result.current.editorDocument.docId;
+    await act(async () => {
+      await result.current.handleSelectFile({ name: "b.md", path: "/ws/b.md", isDirectory: false });
+    });
+
+    // The outgoing editor's unmount flush arrives after the switch landed.
+    act(() => {
+      result.current.handleEditorChange("tail of draft.md", outgoingDocId);
+    });
+    expect(result.current.pendingMarkdownRef.current).toBeNull();
+    expect(result.current.saveStatus).toBe("saved");
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(0);
+  });
+
+  it("an autosave scheduled before a rename lands on the new path", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "body",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      result.current.handleEditorChange("typed during rename", result.current.editorDocument.docId);
+    });
+    const renamed: FileNode = { name: "renamed.md", path: "/ws/renamed.md", isDirectory: false };
+    act(() => {
+      result.current.renameSelection(NODE.path, renamed.path, renamed);
+    });
+    // Let the 750 ms autosave debounce fire on its own.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    const writes = invokeCalls.filter((c) => c.name === "write_file");
+    expect(writes).toHaveLength(1);
+    expect((writes[0]?.args as { path: string; content: string }).path).toBe("/ws/renamed.md");
+    expect(result.current.saveStatus).toBe("saved");
+  });
+});
+
+describe("useFileEditor — property edits", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  beforeEach(() => {
+    invokeCalls.length = 0;
+  });
+
+  it("a title edit keeps nested frontmatter and timestamps intact", async () => {
+    const original = `---
+title: Old
+date: 2024-01-15T09:30:00+08:00
+seo:
+  description: Keep me
+items:
+  - post: a
+---
+body`;
+    invokeImpl = whenInvoke({
+      read_file: () => original,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "New");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(lastWriteArgs()?.content).toBe(original.replace("title: Old", "title: New"));
+  });
+
+  it("refuses property edits when the frontmatter YAML is invalid", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: [unclosed\nkeep: me\n---\nbody",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const showToast = mock((_: string) => {});
+    const { result } = renderHook(() => useFileEditor({ showToast }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "x");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(0);
+    expect(showToast).toHaveBeenCalledWith(
+      "This file's frontmatter isn't valid YAML, so its properties are read-only — fix it in a text editor first"
+    );
+    expect(result.current.saveStatus).toBe("saved");
+  });
+
+  it("reports a frontmatter parse error on load and clears it once the file is fixed", async () => {
+    let disk = "---\ntitle: [unclosed\n---\nbody";
+    invokeImpl = whenInvoke({ read_file: () => disk, get_file_mtime: () => 1000 });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    expect(result.current.frontmatterError).toContain("flow collection");
+    expect(result.current.parsedFrontmatter).toEqual({});
+
+    disk = "---\ntitle: Fixed\n---\nbody";
+    await act(async () => {
+      await result.current.reloadSelectedFileFromDisk(NODE);
+    });
+    expect(result.current.frontmatterError).toBeNull();
+    expect(result.current.parsedFrontmatter).toEqual({ title: "Fixed" });
+  });
+
+  it("an edit that lands after a switch updates the file it was made on, not the open one", async () => {
+    const disk: Record<string, string> = {
+      "/ws/draft.md": "---\ntitle: Draft\n---\ndraft body",
+      "/ws/b.md": "---\ntitle: B\n---\nb body",
+    };
+    invokeImpl = whenInvoke({
+      read_file: (args) => disk[(args as { path: string }).path],
+      get_file_mtime: () => 1000,
+      write_file: (args) => {
+        const { path, content } = args as { path: string; content: string };
+        disk[path] = content;
+        return 2000;
+      },
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    await act(async () => {
+      await result.current.handleSelectFile({ name: "b.md", path: "/ws/b.md", isDirectory: false });
+    });
+    // e.g. a cover upload started on draft.md finishes now.
+    await act(async () => {
+      await result.current.handleFieldChange(NODE.path, "coverImage", "./images/cover.png");
+    });
+
+    expect(disk["/ws/draft.md"]).toBe(
+      "---\ntitle: Draft\ncoverImage: ./images/cover.png\n---\ndraft body"
+    );
+    expect(disk["/ws/b.md"]).toBe("---\ntitle: B\n---\nb body");
+    expect(result.current.parsedFrontmatter).toEqual({ title: "B" });
+    expect(result.current.saveStatus).toBe("saved");
+  });
+});
+
+describe("useFileEditor — the open file vanished", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  beforeEach(() => {
+    invokeCalls.length = 0;
+  });
+
+  function missingDisk() {
+    const state = { exists: true, content: "---\ntitle: T\n---\nbody" };
+    invokeImpl = whenInvoke({
+      read_file: () => state.content,
+      get_file_mtime: () => 1000,
+      write_file: () => {
+        if (!state.exists) throw new Error("FILE_MISSING");
+        return "2000";
+      },
+      ensure_dir: () => undefined,
+      create_file: (args) => {
+        state.exists = true;
+        state.content = (args as { content: string }).content;
+        return "3000";
+      },
+    });
+    return state;
+  }
+
+  it("a save to a vanished file prompts as missing and keeps the edit", async () => {
+    const disk = missingDisk();
+    const reasons: string[] = [];
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: (r) => reasons.push(r) })
+    );
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      result.current.handleEditorChange("still here", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    expect(reasons).toEqual(["missing"]);
+    expect(result.current.conflictReason).toBe("missing");
+    expect(result.current.pendingMarkdownRef.current).toBe("still here");
+    expect(result.current.saveStatus).toBe("unsaved");
+
+    // Leaving is refused until the user decides.
+    let switched = true;
+    await act(async () => {
+      switched = await result.current.handleSelectFile({
+        name: "b.md",
+        path: "/ws/b.md",
+        isDirectory: false,
+      });
+    });
+    expect(switched).toBe(false);
+    expect(result.current.selectedFile?.path).toBe(NODE.path);
+  });
+
+  it("recreate writes the current text back, folder first, and saves normally after", async () => {
+    const disk = missingDisk();
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      result.current.handleEditorChange("rescued", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("recreate");
+    });
+
+    const names = invokeCalls.map((c) => c.name);
+    expect(names.indexOf("ensure_dir")).toBeLessThan(names.indexOf("create_file"));
+    expect(disk.content).toBe("---\ntitle: T\n---\nrescued");
+    expect(result.current.saveStatus).toBe("saved");
+
+    act(() => {
+      result.current.handleEditorChange("rescued and more", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(lastWriteArgs()?.expectedVersion).toBe("3000");
+  });
+
+  it("discard drops the edits", async () => {
+    const disk = missingDisk();
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      result.current.handleEditorChange("let it go", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("discard");
+    });
+    expect(result.current.pendingMarkdownRef.current).toBeNull();
+    expect(result.current.saveStatus).toBe("saved");
+  });
+
+  it("keep editing holds autosave instead of re-prompting on every pause", async () => {
+    const disk = missingDisk();
+    const reasons: string[] = [];
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: (r) => reasons.push(r) })
+    );
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      result.current.handleEditorChange("draft", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("dismiss");
+    });
+    const writesBefore = invokeCalls.filter((c) => c.name === "write_file").length;
+
+    act(() => {
+      result.current.handleEditorChange("draft, continued", result.current.editorDocument.docId);
+    });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 900)));
+    expect(invokeCalls.filter((c) => c.name === "write_file").length).toBe(writesBefore);
+    expect(reasons).toEqual(["missing"]);
+    expect(result.current.saveStatus).toBe("unsaved");
+  });
+
+  it("keep editing also holds the blur flush, but leaving still re-prompts", async () => {
+    const disk = missingDisk();
+    const reasons: string[] = [];
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: (r) => reasons.push(r) })
+    );
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      result.current.handleEditorChange("draft", result.current.editorDocument.docId);
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("dismiss");
+    });
+    act(() => {
+      result.current.handleEditorChange("draft, continued", result.current.editorDocument.docId);
+    });
+    const writesBefore = invokeCalls.filter((c) => c.name === "write_file").length;
+
+    // The close guard's window-blur flush: switching apps must not re-prompt.
+    await act(async () => {
+      await result.current.flushPendingSave({ mode: "background" });
+    });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(invokeCalls.filter((c) => c.name === "write_file").length).toBe(writesBefore);
+    expect(reasons).toEqual(["missing"]);
+    expect(result.current.conflictActive).toBe(false);
+    expect(result.current.pendingMarkdownRef.current).toBe("draft, continued");
+
+    // A blocking flush (switch, close, quit) still tries, and prompts again.
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    expect(reasons).toEqual(["missing", "missing"]);
+  });
+
+  it("a property edit that hit the vanished file survives keep editing", async () => {
+    const disk = missingDisk();
+    const reasons: string[] = [];
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: (r) => reasons.push(r) })
+    );
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "Renamed");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("dismiss");
+    });
+    expect(result.current.saveStatus).toBe("unsaved");
+
+    let closed = true;
+    await act(async () => {
+      closed = await result.current.handleCloseFile();
+    });
+    expect(closed).toBe(false);
+    expect(reasons).toEqual(["missing", "missing"]);
+
+    await act(async () => {
+      await result.current.resolveConflict("recreate");
+    });
+    expect(disk.content).toBe("---\ntitle: Renamed\n---\nbody");
+    const writes = invokeCalls.length;
+    await act(async () => {
+      closed = await result.current.handleCloseFile();
+    });
+    expect(closed).toBe(true);
+    expect(invokeCalls).toHaveLength(writes);
+  });
+
+  it("a property edit survives a recreate that fails because the file came back", async () => {
+    const disk = { exists: true, content: "---\ntitle: T\n---\nbody" };
+    invokeImpl = whenInvoke({
+      read_file: () => disk.content,
+      get_file_mtime: () => 1000,
+      write_file: (args) => {
+        if (!disk.exists) throw new Error("FILE_MISSING");
+        disk.content = (args as { content: string }).content;
+        return "2000";
+      },
+      ensure_dir: () => undefined,
+      create_file: () => {
+        // Another program restored it between the prompt and the click.
+        disk.exists = true;
+        throw new Error("File already exists");
+      },
+    });
+    const { result } = renderHook(() =>
+      useFileEditor({ showToast: mock((_: string) => {}), onConflict: mock(() => {}) })
+    );
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    disk.exists = false;
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "Renamed");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave().catch(() => {});
+    });
+    await act(async () => {
+      await result.current.resolveConflict("recreate");
+    });
+    expect(result.current.saveStatus).toBe("unsaved");
+
+    let closed = false;
+    await act(async () => {
+      closed = await result.current.handleCloseFile();
+    });
+    expect(closed).toBe(true);
+    expect(disk.content).toBe("---\ntitle: Renamed\n---\nbody");
+  });
+});
+
+describe("useFileEditor — on-disk format", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  beforeEach(() => {
+    invokeCalls.length = 0;
+  });
+
+  const WINDOWS_FILE =
+    "\uFEFF---\r\ntitle: T\r\ndate: 2024-01-01\r\n---\r\nFirst line\r\n\r\nSecond line\r\n";
+
+  it("reads the frontmatter of a file that starts with a byte-order mark", async () => {
+    invokeImpl = whenInvoke({ read_file: () => WINDOWS_FILE, get_file_mtime: () => 1000 });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    expect(result.current.parsedFrontmatter).toEqual({ title: "T", date: "2024-01-01" });
+    expect(result.current.editorDocument.body.startsWith("First line")).toBe(true);
+  });
+
+  it("saves body edits with the file's BOM and CRLF line endings throughout", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => WINDOWS_FILE,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      // The editor serializes with LF.
+      result.current.handleEditorChange(
+        "First line\n\nEdited\n",
+        result.current.editorDocument.docId
+      );
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(lastWriteArgs()?.content).toBe(
+      "\uFEFF---\r\ntitle: T\r\ndate: 2024-01-01\r\n---\r\nFirst line\r\n\r\nEdited\r\n"
+    );
+  });
+
+  it("a property edit changes only its own line of a BOM + CRLF file", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => WINDOWS_FILE,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      void result.current.handleFieldChange(NODE.path, "title", "New");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(lastWriteArgs()?.content).toBe(WINDOWS_FILE.replace("title: T", "title: New"));
   });
 });

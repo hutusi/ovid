@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
 import type { EditorViewState } from "./components/EditorPane";
 import { EditorPane } from "./components/EditorPane";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getFileViewKind, isReadOnlyContent } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
@@ -29,7 +30,7 @@ import { useCollectionLinks } from "./lib/useCollectionLinks";
 import { useContentPreferences } from "./lib/useContentPreferences";
 import { useCoverImage } from "./lib/useCoverImage";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
-import { useFileEditor } from "./lib/useFileEditor";
+import { type ConflictResolution, type SaveBlock, useFileEditor } from "./lib/useFileEditor";
 import { useFilesMode } from "./lib/useFilesMode";
 import { useGit } from "./lib/useGit";
 import { useGitFocusFetch } from "./lib/useGitFocusFetch";
@@ -89,19 +90,24 @@ function App() {
 
   // Open the external-change conflict prompt when a save is refused because the
   // file changed on disk. Memoized so useFileEditor's conflict handler is stable.
-  const openConflictDialog = useCallback(() => overlay.open({ kind: "conflict" }), [overlay.open]);
+  const openConflictDialog = useCallback(
+    (reason: SaveBlock) => overlay.open({ kind: "conflict", reason }),
+    [overlay.open]
+  );
 
   const {
     selectedFile,
-    setSelectedFile,
-    fileContent,
+    editorDocument,
+    getCurrentBody,
+    remountEditor,
+    renameSelection,
     frontmatterLineOffset,
     wordCount,
     setWordCount,
     parsedFrontmatter,
+    frontmatterError,
     saveStatus,
     resolveConflict,
-    selectedPathRef,
     pendingMarkdownRef,
     lastSavedContentRef,
     flushPendingSave,
@@ -139,7 +145,7 @@ function App() {
   }, [panelLayout.propertiesOpen]);
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
-  useCloseGuard(flushPendingSave, showToast);
+  const requestQuit = useCloseGuard(flushPendingSave, showToast);
   const {
     sessionWordsAdded,
     noteWordCount,
@@ -197,6 +203,7 @@ function App() {
     openFile,
     openByPath,
     closeActive,
+    forgetRemovedPath,
   } = useWorkspaceSession({
     showToast,
     flushPendingSave,
@@ -206,8 +213,7 @@ function App() {
     onSessionPathRemoved: notePathRemoved,
     fileEditor: {
       selectedFile,
-      selectedPathRef,
-      setSelectedFile,
+      renameSelection,
       handleSelectFile,
       handleCloseFile,
     },
@@ -357,7 +363,9 @@ function App() {
           postsBasePath,
           today: new Date().toISOString().slice(0, 10),
           ensureDir: (path) => commands.files.ensureDir({ path }),
-          createFile: (path, content) => commands.files.create({ path, content }),
+          createFile: async (path, content) => {
+            await commands.files.create({ path, content });
+          },
           t,
         });
         await refreshTree();
@@ -548,14 +556,14 @@ function App() {
       prefs,
       pushSuccessMessage,
       defaultCommitMessage,
-      pendingMarkdownRef,
-      fileContent,
+      getCurrentBody,
       showToast,
       t,
       toggleSidebar: panelLayout.toggleSidebar,
       toggleProperties: panelLayout.toggleProperties,
       setZenMode,
       setTypewriterMode,
+      requestQuit,
       flushPendingSave,
       closeActiveTabOrFile,
       handleOpenWorkspace,
@@ -580,12 +588,12 @@ function App() {
       prefs,
       pushSuccessMessage,
       defaultCommitMessage,
-      pendingMarkdownRef,
-      fileContent,
+      getCurrentBody,
       showToast,
       t,
       panelLayout.toggleSidebar,
       panelLayout.toggleProperties,
+      requestQuit,
       flushPendingSave,
       closeActiveTabOrFile,
       handleOpenWorkspace,
@@ -629,9 +637,17 @@ function App() {
       ? String(parsedFrontmatter.coverImage)
       : undefined;
 
-  async function handlePublishAwareFieldChange(key: string, value: unknown) {
-    await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
-    if (key === "draft" && value === false && isGitRepo) {
+  /** Resolve a blocked save. "discard" (offered when the file vanished) also
+   *  closes it the way an in-app delete would — tab, recents and all. */
+  async function handleResolveConflict(resolution: ConflictResolution) {
+    const path = selectedFile?.path;
+    await resolveConflict(resolution);
+    if (resolution === "discard" && path) await forgetRemovedPath(path);
+  }
+
+  async function handlePublishAwareFieldChange(path: string, key: string, value: unknown) {
+    await handleFieldChange(path, key, value as Parameters<typeof handleFieldChange>[2]);
+    if (key === "draft" && value === false && isGitRepo && path === selectedFile?.path) {
       try {
         const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
         await openCommitDialog(t("commit_dialog.default_publish_message", { title }));
@@ -677,46 +693,52 @@ function App() {
       data-platform={isMac ? "darwin" : undefined}
     >
       <div className="app-body">
-        {overlay.is("search") ? (
-          <Suspense fallback={null}>
-            <SearchPanel onOpenFile={handleOpenByPath} onClose={() => overlay.close("search")} />
-          </Suspense>
-        ) : (
-          <Sidebar
-            tree={sidebarTree}
-            workspaceKey={workspaceRootPath}
-            selectedPath={fileViewerNode?.path ?? selectedFile?.path ?? null}
-            visible={panelLayout.sidebarVisible}
-            maxWidth={panelLayout.sidebarMaxWidth}
-            workspaceName={workspaceName}
-            gitStatusMap={gitStatusMap}
-            mode={sidebarMode}
-            postsBasePath={postsBasePath}
-            features={features}
-            collectionLinks={collectionLinks}
-            onToggleMode={handleToggleSidebarMode}
-            onToggleVisible={panelLayout.toggleSidebar}
-            onSelect={handleSidebarSelect}
-            onOpenWorkspace={handleOpenWorkspace}
-            onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
-            onNewFile={(dirPath, kind) =>
-              overlay.open({ kind: "modal", state: { type: "new-file", dirPath, kind } })
-            }
-            onNewTodayFlow={handleNewTodayFlow}
-            onAddToCollection={handleAddToCollection}
-            onRemoveFromCollection={handleRemoveFromCollection}
-            onRename={(node) =>
-              overlay.open({ kind: "modal", state: { type: "rename-path", node } })
-            }
-            onDuplicate={(node) =>
-              overlay.open({ kind: "modal", state: { type: "duplicate-file", node } })
-            }
-            onNewFromExisting={(node) =>
-              overlay.open({ kind: "modal", state: { type: "new-from-existing", node } })
-            }
-            onDelete={handleDelete}
-          />
-        )}
+        <ErrorBoundary
+          variant="panel"
+          title={t("errors.sidebar_failed")}
+          resetKey={workspaceRootPath ?? undefined}
+        >
+          {overlay.is("search") ? (
+            <Suspense fallback={null}>
+              <SearchPanel onOpenFile={handleOpenByPath} onClose={() => overlay.close("search")} />
+            </Suspense>
+          ) : (
+            <Sidebar
+              tree={sidebarTree}
+              workspaceKey={workspaceRootPath}
+              selectedPath={fileViewerNode?.path ?? selectedFile?.path ?? null}
+              visible={panelLayout.sidebarVisible}
+              maxWidth={panelLayout.sidebarMaxWidth}
+              workspaceName={workspaceName}
+              gitStatusMap={gitStatusMap}
+              mode={sidebarMode}
+              postsBasePath={postsBasePath}
+              features={features}
+              collectionLinks={collectionLinks}
+              onToggleMode={handleToggleSidebarMode}
+              onToggleVisible={panelLayout.toggleSidebar}
+              onSelect={handleSidebarSelect}
+              onOpenWorkspace={handleOpenWorkspace}
+              onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
+              onNewFile={(dirPath, kind) =>
+                overlay.open({ kind: "modal", state: { type: "new-file", dirPath, kind } })
+              }
+              onNewTodayFlow={handleNewTodayFlow}
+              onAddToCollection={handleAddToCollection}
+              onRemoveFromCollection={handleRemoveFromCollection}
+              onRename={(node) =>
+                overlay.open({ kind: "modal", state: { type: "rename-path", node } })
+              }
+              onDuplicate={(node) =>
+                overlay.open({ kind: "modal", state: { type: "duplicate-file", node } })
+              }
+              onNewFromExisting={(node) =>
+                overlay.open({ kind: "modal", state: { type: "new-from-existing", node } })
+              }
+              onDelete={handleDelete}
+            />
+          )}
+        </ErrorBoundary>
         <EditorPane
           workspaceRoot={workspaceRoot}
           tabs={tabs}
@@ -734,10 +756,12 @@ function App() {
           cdnBase={cdnBase}
           fileViewerNode={fileViewerNode}
           onCloseFileViewer={() => setFileViewerNode(null)}
-          fileContent={fileContent}
+          editorDocument={editorDocument}
+          onEditorRetry={remountEditor}
           typewriterMode={typewriterMode}
           spellCheck={prefs.spellCheck}
           parsedFrontmatter={parsedFrontmatter}
+          frontmatterError={frontmatterError}
           onFieldChange={handlePublishAwareFieldChange}
           onWordCount={handleWordCount}
           onDirty={handleEditorDirty}
@@ -769,117 +793,130 @@ function App() {
           onToggleCoverImage={toggleCoverImage}
         />
       </div>
-      <StatusBar
-        fileLabel={selectedFile ? getPathDisplayLabel(selectedFile) : null}
-        wordCount={wordCount}
-        resolvedTheme={resolvedTheme}
-        saveStatus={saveStatus}
-        zenMode={zenMode}
-        typewriterMode={typewriterMode}
-        sessionWordsAdded={sessionWordsAdded}
-        wordCountGoal={wordCountGoal}
-        fontFamily={prefs.fontFamily}
-        fontSize={prefs.fontSize}
-        spellCheck={prefs.spellCheck}
-        gitBranch={isGitRepo ? currentBranch : null}
-        gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo, t) : undefined}
-        gitSyncLabel={gitSyncLabel}
-        gitSyncTitle={gitSyncPopover?.description}
-        gitChangeLabel={gitChangeSummary?.label}
-        gitChangeTitle={gitChangeSummary?.title}
-        gitSyncPopoverOpen={overlay.is("gitSyncPopover")}
-        notificationsCount={notifications.length}
-        notificationsUnread={unread}
-        notificationsOpen={overlay.is("notifications")}
-        onOpenNotifications={() => {
-          if (overlay.is("notifications")) {
-            overlay.close("notifications");
-          } else {
-            markNotificationsRead();
-            overlay.open({ kind: "notifications" });
+      <ErrorBoundary variant="bar" title={t("errors.status_bar_failed")}>
+        <StatusBar
+          fileLabel={selectedFile ? getPathDisplayLabel(selectedFile) : null}
+          wordCount={wordCount}
+          resolvedTheme={resolvedTheme}
+          saveStatus={saveStatus}
+          zenMode={zenMode}
+          typewriterMode={typewriterMode}
+          sessionWordsAdded={sessionWordsAdded}
+          wordCountGoal={wordCountGoal}
+          fontFamily={prefs.fontFamily}
+          fontSize={prefs.fontSize}
+          spellCheck={prefs.spellCheck}
+          gitBranch={isGitRepo ? currentBranch : null}
+          gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo, t) : undefined}
+          gitSyncLabel={gitSyncLabel}
+          gitSyncTitle={gitSyncPopover?.description}
+          gitChangeLabel={gitChangeSummary?.label}
+          gitChangeTitle={gitChangeSummary?.title}
+          gitSyncPopoverOpen={overlay.is("gitSyncPopover")}
+          notificationsCount={notifications.length}
+          notificationsUnread={unread}
+          notificationsOpen={overlay.is("notifications")}
+          onOpenNotifications={() => {
+            if (overlay.is("notifications")) {
+              overlay.close("notifications");
+            } else {
+              markNotificationsRead();
+              overlay.open({ kind: "notifications" });
+            }
+          }}
+          onOpenBranches={() => void openBranchSwitcher()}
+          onRenamePath={
+            selectedFile && !selectedFile.isDirectory
+              ? () =>
+                  overlay.open({
+                    kind: "modal",
+                    state: { type: "rename-path", node: selectedFile },
+                  })
+              : undefined
           }
-        }}
-        onOpenBranches={() => void openBranchSwitcher()}
-        onRenamePath={
-          selectedFile && !selectedFile.isDirectory
-            ? () =>
-                overlay.open({
-                  kind: "modal",
-                  state: { type: "rename-path", node: selectedFile },
-                })
-            : undefined
-        }
-        onOpenCommit={() => void openCommitDialog(t("commit_dialog.default_update_message"))}
-        onOpenGitSync={toggleGitSyncPopover}
-        onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
-        onToggleZen={() => setZenMode((v) => !v)}
-        onToggleTypewriter={() => setTypewriterMode((v) => !v)}
-        onSetFontFamily={(f) => updatePrefs({ fontFamily: f })}
-        onSetFontSize={(s) => updatePrefs({ fontSize: s })}
-        onToggleSpellCheck={() => updatePrefs({ spellCheck: !prefs.spellCheck })}
-        onSetWordCountGoal={setWordCountGoal}
-        onOpenPreferences={() => overlay.open({ kind: "preferences" })}
-      />
-      <AppDialogs
-        overlay={overlay}
-        toasts={toasts}
-        notifications={notifications}
-        clearNotifications={clearNotifications}
-        flushPendingSave={flushPendingSave}
-        git={{ gitUi, currentBranch, handlePush }}
-        workspace={{
-          recentWorkspaces,
-          workspaceRootPath,
-          openWorkspaceAtPath,
-          handleOpenWorkspace,
-          removeRecentWorkspace,
-          handleCreateAmytisWorkspace,
-          handleCloneWorkspace,
-          showToast,
-        }}
-        files={{
-          handleNewFile,
-          handleDuplicate,
-          handleNewFromExisting,
-          handleRename,
-          collectionCandidatesFor,
-          onAddCollectionItem: handleAddCollectionItem,
-          flatFiles,
-          recentFiles,
-          openFileByPath,
-        }}
-        wechat={{
-          selectedFile,
-          parsedFrontmatter,
-          workspaceRootPath,
-          defaultAuthor: defaultAuthor ?? null,
-          pendingMarkdownRef,
-          lastSavedContentRef,
-          fileContent,
-          authors,
-          assetRoot,
-          onSuccess: (mediaId) => {
-            void handleFieldChange("wechatMediaId", mediaId);
-          },
-        }}
-        preferences={{
-          themePreference,
-          setThemePreference: setPreference,
-          editorPrefs: prefs,
-          updateEditorPrefs: updatePrefs,
-          wordCountGoal,
-          setWordCountGoal,
-          contentPrefs,
-          updateContentPrefs,
-          appPrefs,
-          updateAppPrefs,
-          showToast,
-        }}
-        conflict={{
-          fileName: selectedFile?.name ?? "",
-          resolveConflict,
-        }}
-      />
+          onOpenCommit={() => void openCommitDialog(t("commit_dialog.default_update_message"))}
+          onOpenGitSync={toggleGitSyncPopover}
+          onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
+          onToggleZen={() => setZenMode((v) => !v)}
+          onToggleTypewriter={() => setTypewriterMode((v) => !v)}
+          onSetFontFamily={(f) => updatePrefs({ fontFamily: f })}
+          onSetFontSize={(s) => updatePrefs({ fontSize: s })}
+          onToggleSpellCheck={() => updatePrefs({ spellCheck: !prefs.spellCheck })}
+          onSetWordCountGoal={setWordCountGoal}
+          onOpenPreferences={() => overlay.open({ kind: "preferences" })}
+        />
+      </ErrorBoundary>
+      {/* A crashed dialog shows a small card; closing it closes the overlay. */}
+      <ErrorBoundary
+        variant="floating"
+        title={t("errors.dialog_failed")}
+        resetKey={overlay.active?.kind}
+        onReset={() => overlay.close()}
+      >
+        <AppDialogs
+          overlay={overlay}
+          toasts={toasts}
+          notifications={notifications}
+          clearNotifications={clearNotifications}
+          flushPendingSave={flushPendingSave}
+          git={{ gitUi, currentBranch, handlePush }}
+          workspace={{
+            recentWorkspaces,
+            workspaceRootPath,
+            openWorkspaceAtPath,
+            handleOpenWorkspace,
+            removeRecentWorkspace,
+            handleCreateAmytisWorkspace,
+            handleCloneWorkspace,
+            showToast,
+          }}
+          files={{
+            handleNewFile,
+            handleDuplicate,
+            handleNewFromExisting,
+            handleRename,
+            collectionCandidatesFor,
+            onAddCollectionItem: handleAddCollectionItem,
+            flatFiles,
+            recentFiles,
+            openFileByPath,
+          }}
+          wechat={{
+            selectedFile,
+            parsedFrontmatter,
+            workspaceRootPath,
+            defaultAuthor: defaultAuthor ?? null,
+            pendingMarkdownRef,
+            lastSavedContentRef,
+            fileContent: editorDocument.body,
+            authors,
+            assetRoot,
+            // Bound to the file being published when this render's closure is
+            // captured by the dialog's publish call, so the media id is recorded
+            // on that file even if the user moves on before it finishes.
+            onSuccess: (mediaId) => {
+              if (selectedFile) void handleFieldChange(selectedFile.path, "wechatMediaId", mediaId);
+            },
+          }}
+          preferences={{
+            themePreference,
+            setThemePreference: setPreference,
+            editorPrefs: prefs,
+            updateEditorPrefs: updatePrefs,
+            wordCountGoal,
+            setWordCountGoal,
+            contentPrefs,
+            updateContentPrefs,
+            appPrefs,
+            updateAppPrefs,
+            showToast,
+          }}
+          conflict={{
+            fileName: selectedFile?.name ?? "",
+            resolveConflict: handleResolveConflict,
+          }}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

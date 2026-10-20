@@ -6,6 +6,8 @@ use std::sync::Mutex;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::paths::sibling_temp_path;
+
 /// Serializes every read-modify-write across all stores in this process.
 /// `set`/`remove` re-read the whole map before writing it back; two
 /// concurrent Tauri commands hitting the same file (e.g. the two sequential
@@ -102,25 +104,36 @@ impl<V: Serialize + DeserializeOwned> CredsStore<V> {
     }
 }
 
-/// Atomically write a secrets file with restrictive permissions. The tmp
-/// file is chmodded to 0o600 *before* the rename — rename preserves perms,
-/// so setting them afterwards leaves a window where the secrets are world-
-/// readable.
+/// Atomically write a secrets file with restrictive permissions.
+///
+/// The staging file is *created* with mode 0o600 (on Unix), so the secret is
+/// never on disk with looser permissions — not even between a write and a
+/// chmod — and the rename carries that mode over. Its name is process-unique
+/// (no clash between two writers), the bytes are fsynced before the rename,
+/// and a failed write leaves no staging file behind.
 fn write_atomic_0600(path: &Path, content: &str) -> Result<(), String> {
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, content.as_bytes()).map_err(|e| e.to_string())?;
+    use std::io::Write;
+
+    let tmp = sibling_temp_path(path, "tmp")?;
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600)).map_err(|e| {
-            let _ = std::fs::remove_file(&tmp);
-            e.to_string()
-        })?;
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
     }
-    std::fs::rename(&tmp, path).map_err(|e| {
+    let result = options
+        .open(&tmp)
+        .and_then(|mut file| {
+            file.write_all(content.as_bytes())?;
+            file.sync_all()
+        })
+        .and_then(|()| std::fs::rename(&tmp, path))
+        .map_err(|e| e.to_string());
+    if result.is_err() {
         let _ = std::fs::remove_file(&tmp);
-        e.to_string()
-    })
+    }
+    result
 }
 
 #[cfg(test)]

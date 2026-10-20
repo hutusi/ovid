@@ -15,6 +15,8 @@ import type { Author } from "./commands/generated/Author";
 import type { FeatureBucket } from "./commands/generated/FeatureBucket";
 import type { I18nConfig } from "./commands/generated/I18nConfig";
 import type { WorkspaceResult as GeneratedWorkspaceResult } from "./commands/generated/WorkspaceResult";
+import { CLONE_CANCELLED } from "./commands/workspace";
+import { detectDiskFormat, encodeDiskText } from "./diskText";
 import { type FlatFile, flattenTree } from "./fileSearch";
 import { createTodayFlowFrontmatter } from "./frontmatter";
 import { measureAsync } from "./perf";
@@ -160,6 +162,20 @@ export function useWorkspace({
     [resetFileState, showToast, t]
   );
 
+  /** Save the open file before an operation that could move or replace it.
+   *  flushPendingSave has already surfaced a failure (toast or conflict
+   *  prompt) when it rejects, so the operation simply doesn't proceed —
+   *  letting the rejection escape would add a generic "unexpected error"
+   *  toast on top and, for a rename, act on a file whose edits weren't saved. */
+  const flushBeforeMutation = useCallback(async (): Promise<boolean> => {
+    try {
+      await flushPendingSave();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [flushPendingSave]);
+
   // Run `task` only after every earlier open/create/clone has settled (see
   // openChainRef). Errors in one open don't block the next; the returned
   // promise reflects this task alone.
@@ -172,7 +188,7 @@ export function useWorkspace({
   const openWorkspaceAtPath = useCallback(
     (path: string) =>
       enqueueOpen(async () => {
-        await flushPendingSave();
+        if (!(await flushBeforeMutation())) return;
         try {
           const result = (await measureAsync(
             "open_workspace_at_path.invoke",
@@ -191,14 +207,14 @@ export function useWorkspace({
           );
         }
       }),
-    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
+    [enqueueOpen, flushBeforeMutation, showToast, t, applyWorkspaceResult]
   );
 
   const handleCreateAmytisWorkspace = useCallback(
     (parentDir: string, name: string): Promise<boolean> =>
       enqueueOpen(async () => {
+        if (!(await flushBeforeMutation())) return false;
         try {
-          await flushPendingSave();
           const result = (await commands.workspace.createAmytis({
             parentDir,
             name,
@@ -215,14 +231,14 @@ export function useWorkspace({
           return false;
         }
       }),
-    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
+    [enqueueOpen, flushBeforeMutation, showToast, t, applyWorkspaceResult]
   );
 
   const handleCloneWorkspace = useCallback(
     (url: string, parentDir: string, name: string | null): Promise<boolean> =>
       enqueueOpen(async () => {
+        if (!(await flushBeforeMutation())) return false;
         try {
-          await flushPendingSave();
           const result = (await commands.workspace.clone({
             url,
             parentDir,
@@ -231,6 +247,8 @@ export function useWorkspace({
           applyWorkspaceResult(result);
           return true;
         } catch (err) {
+          // A cancelled clone is the user's choice, not a failure.
+          if (err instanceof Error && err.message === CLONE_CANCELLED) return false;
           console.error("Failed to clone workspace:", err);
           showToast(
             t("errors.clone_workspace_failed", {
@@ -240,13 +258,13 @@ export function useWorkspace({
           return false;
         }
       }),
-    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
+    [enqueueOpen, flushBeforeMutation, showToast, t, applyWorkspaceResult]
   );
 
   const handleOpenWorkspace = useCallback(
     () =>
       enqueueOpen(async () => {
-        await flushPendingSave();
+        if (!(await flushBeforeMutation())) return;
         try {
           const result = (await measureAsync("open_workspace.invoke", () =>
             commands.workspace.open()
@@ -263,7 +281,7 @@ export function useWorkspace({
           );
         }
       }),
-    [enqueueOpen, flushPendingSave, showToast, t, applyWorkspaceResult]
+    [enqueueOpen, flushBeforeMutation, showToast, t, applyWorkspaceResult]
   );
 
   const handleNewTodayFlow = useCallback(async () => {
@@ -343,7 +361,7 @@ export function useWorkspace({
   }
 
   async function handleRename(node: FileNode, newName: string) {
-    await flushPendingSave();
+    if (!(await flushBeforeMutation())) return;
     const { oldPath, newPath } = buildPostTargetPath(node, newName);
     try {
       await commands.files.rename({ oldPath, newPath });
@@ -365,7 +383,7 @@ export function useWorkspace({
   }
 
   async function handleDuplicate(node: FileNode, newName: string) {
-    await flushPendingSave();
+    if (!(await flushBeforeMutation())) return;
     const { oldPath, newPath, folderBacked, entryFileName } = buildPostTargetPath(node, newName);
 
     try {
@@ -387,7 +405,7 @@ export function useWorkspace({
   }
 
   async function handleNewFromExisting(node: FileNode, newName: string) {
-    await flushPendingSave();
+    if (!(await flushBeforeMutation())) return;
     const { newPath, folderBacked, entryFileName } = buildPostTargetPath(node, newName);
     const targetPath = folderBacked ? `${newPath}/${entryFileName}` : newPath;
 
@@ -430,7 +448,7 @@ export function useWorkspace({
     // Always flush — the editor session decides whether the deleted file is
     // the active one and closes it via onPathRemoved. flushPendingSave is a
     // no-op when nothing is pending, so unconditional is safe.
-    await flushPendingSave();
+    if (!(await flushBeforeMutation())) return;
     try {
       await commands.files.trash({ path: targetPath });
       await onPathRemoved?.(targetPath);
@@ -456,12 +474,14 @@ export function useWorkspace({
     indexPath: string,
     transform: (items: CollectionItem[]) => CollectionItem[]
   ) {
-    await flushPendingSave();
-    const attempt = async (): Promise<number | "conflict"> => {
+    if (!(await flushBeforeMutation())) return;
+    const attempt = async (): Promise<number | "conflict" | "invalid"> => {
       // Read content + its version token as one snapshot, then write against
       // that token so an external edit between read and write is caught.
       const { content: raw, version } = await commands.files.readVersioned({ path: indexPath });
-      const next = setCollectionItems(raw, transform(parseCollectionItems(raw)));
+      const edited = setCollectionItems(raw, transform(parseCollectionItems(raw)));
+      if (edited === null) return "invalid";
+      const next = encodeDiskText(edited, detectDiskFormat(raw));
       try {
         await commands.files.write({ path: indexPath, content: next, expectedVersion: version });
         return 0;
@@ -473,7 +493,13 @@ export function useWorkspace({
     try {
       // One retry: re-read the externally-changed index and re-apply the same
       // add/remove, merging our edit with theirs.
-      if ((await attempt()) === "conflict" && (await attempt()) === "conflict") {
+      let outcome = await attempt();
+      if (outcome === "conflict") outcome = await attempt();
+      if (outcome === "invalid") {
+        showToast(t("errors.frontmatter_invalid"));
+        return;
+      }
+      if (outcome === "conflict") {
         showToast(t("errors.collection_changed"));
         await refreshTree();
         return;

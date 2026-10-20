@@ -5,7 +5,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::app::relative_path_from;
 use crate::paths::to_slash;
-use crate::state::WorkspaceState;
+use crate::state::{run_blocking, WorkspaceState};
 
 /// Open a native file picker filtered to image types and return the chosen path.
 #[tauri::command]
@@ -99,16 +99,21 @@ pub(crate) fn reserve_unique_name(dir: &Path, base_name: &str) -> Result<String,
 /// whenever it can't prove containment, so the write itself can never land
 /// outside the workspace regardless of where `src_path` points.
 #[tauri::command]
-pub(crate) fn save_asset(
+pub(crate) async fn save_asset(
     src_path: String,
     active_file_path: Option<String>,
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
-    drop(root_guard);
+    let root = state.tree_root_path()?;
+    run_blocking(move || save_asset_blocking(&src_path, active_file_path, &root)).await
+}
 
-    let src = Path::new(&src_path);
+fn save_asset_blocking(
+    src_path: &str,
+    active_file_path: Option<String>,
+    root: &Path,
+) -> Result<String, String> {
+    let src = Path::new(src_path);
     let file_name = src
         .file_name()
         .ok_or("invalid source path")?
@@ -121,7 +126,7 @@ pub(crate) fn save_asset(
         .unwrap_or_default();
     validate_image_extension(&ext)?;
 
-    let images_dir = resolve_images_dir(active_file_path.as_deref(), &root);
+    let images_dir = resolve_images_dir(active_file_path.as_deref(), root);
     std::fs::create_dir_all(&images_dir)
         .map_err(|e| format!("could not create images dir: {e}"))?;
 
@@ -157,7 +162,7 @@ fn validate_image_extension(ext: &str) -> Result<(), String> {
 /// `images/` directory (falls back to `<workspace_root>/images/`).
 /// Returns the relative path to insert into the document.
 #[tauri::command]
-pub(crate) fn save_asset_from_bytes(
+pub(crate) async fn save_asset_from_bytes(
     bytes: Vec<u8>,
     extension: String,
     active_file_path: Option<String>,
@@ -165,19 +170,24 @@ pub(crate) fn save_asset_from_bytes(
 ) -> Result<String, String> {
     let ext = extension.trim_start_matches('.').to_lowercase();
     validate_image_extension(&ext)?;
+    let root = state.tree_root_path()?;
+    run_blocking(move || save_bytes_blocking(&bytes, &ext, active_file_path, &root)).await
+}
 
-    let root_guard = state.tree_root.lock().map_err(|e| e.to_string())?;
-    let root = root_guard.as_ref().ok_or("no workspace open")?.clone();
-    drop(root_guard);
-
-    let images_dir = resolve_images_dir(active_file_path.as_deref(), &root);
+fn save_bytes_blocking(
+    bytes: &[u8],
+    ext: &str,
+    active_file_path: Option<String>,
+    root: &Path,
+) -> Result<String, String> {
+    let images_dir = resolve_images_dir(active_file_path.as_deref(), root);
     std::fs::create_dir_all(&images_dir)
         .map_err(|e| format!("could not create images dir: {e}"))?;
 
     let base_name = format!("pasted-image.{ext}");
     let dest_name = reserve_unique_name(&images_dir, &base_name)?;
     let dest = images_dir.join(&dest_name);
-    std::fs::write(&dest, &bytes).map_err(|e| format!("write failed: {e}"))?;
+    std::fs::write(&dest, bytes).map_err(|e| format!("write failed: {e}"))?;
 
     let rel = if let Some(active) = active_file_path {
         let from_dir = PathBuf::from(&active);

@@ -7,6 +7,109 @@ release cadence and Conventional Commit history.
 
 ## Unreleased
 
+### Fixed
+- **Cmd+Q no longer drops the last edits**: the app menu's Quit item (and
+  Cmd+Q) now flushes pending saves before exiting, exactly like closing the
+  window. Previously it terminated the app immediately, losing up to a second
+  of typing still held by the autosave debounce.
+- **Replace All, image edits and code-block languages are saved**: document
+  changes made while focus sat outside the editor body — Find & Replace,
+  the image alt/src fields, the code-block language picker, task checkboxes —
+  were never marked unsaved or written to disk. Whether a change is saved is
+  now decided by the transaction itself, not by editor focus, and merely
+  opening a document no longer risks an automatic rewrite.
+- **Renaming the open file no longer reverts it**: renaming (or moving) the
+  file you are editing reloaded the editor with the text from when the file
+  was opened, and the next keystroke saved that stale text over everything
+  written since. The editor now stays mounted across renames. The
+  error-boundary Retry likewise restores the current text.
+- **External reverts show up**: when a file was changed on disk back to
+  exactly the text it was opened with (e.g. `git restore` after edits), the
+  editor kept showing the edited version and the next save silently undid the
+  revert. Every reload from disk now replaces the editor's content, and Undo
+  can no longer bring back text from before a reload.
+- **Edits can't leak into another file**: a keystroke serialized by the
+  editor you were leaving (during a tab switch) could be saved into the file
+  you switched to. Edits are now tied to the document they were made in, and
+  an autosave that straddles a rename lands on the new path.
+- **Property edits no longer wipe frontmatter**: editing any field in the
+  properties panel rebuilt the whole frontmatter from what the panel could
+  display, deleting nested fields (`seo:`, a collection's `items:`),
+  numeric lists and empty keys, cutting datetimes down to a date (shown as the
+  previous day for positive UTC offsets), and — when the YAML didn't parse —
+  deleting every field. Edits now change only the edited key's lines; all
+  other lines, comments included, are left exactly as written, and dates stay
+  unquoted. Files whose frontmatter YAML is invalid are never rewritten.
+  "New from existing" and collection add/remove keep nested fields and dates
+  the same way.
+- **Broken frontmatter is protected, and says so**: when a file's
+  frontmatter YAML doesn't parse, the properties panel now explains the
+  problem (with the parser's message) and is read-only, and the title field
+  is hidden, instead of showing an empty panel whose first edit would have
+  replaced every field.
+- **Late property edits land on the right file**: a cover image upload (or a
+  WeChat publish) that finished after you switched files wrote the original
+  file's whole frontmatter into the newly opened one. Property edits are now
+  bound to the file they were made on.
+- **A file deleted or moved outside Ovid no longer traps you**: if the open
+  file vanished while it had unsaved edits, every autosave failed with a
+  generic error and switching files, closing it, and quitting were all
+  refused until restart. Ovid now explains that the file is gone and offers to
+  recreate it with your text, discard your changes and close it, or keep
+  editing (autosave then waits for your decision).
+- **No more doubled error toasts after a failed save**: when saving the open
+  file failed before a rename, delete, duplicate, collection edit, workspace
+  switch or Cmd+S, the operation now simply stops after the save error —
+  instead of also raising a generic "something went wrong" toast.
+- **An external change can't wipe what you just typed**: if a file changed on
+  disk while you were typing, the automatic reload could replace text typed
+  in the moment between noticing the change and reading the file. The reload
+  now stands down whenever there are unsaved edits; saving them then raises
+  the usual "changed on disk" prompt.
+- **Windows-style files keep their format**: a file starting with a
+  byte-order mark had its frontmatter shown as body text (and broken by the
+  first edit), and editing a CRLF file left it with a CRLF frontmatter over an
+  LF body. Saves now keep the file's BOM and line endings throughout.
+- **Git can no longer hang Ovid**: git commands had no time limit, so a
+  stalled fetch or push left its spinner (and background auto-fetch) stuck for
+  the rest of the session. Local git commands now stop after a minute; network
+  ones, and commits and branch switches (which run your git hooks), after ten;
+  and a stalled HTTP transfer is abandoned after a minute without progress.
+- **Clones can be cancelled**: the Workspace Manager shows a Cancel button
+  while cloning; cancelling stops git and removes the partial folder.
+  Previously a stuck clone also blocked opening any other workspace until
+  restart.
+- **Case-only renames work**: renaming `Notes.md` to `notes.md` on macOS (a
+  case-insensitive filesystem) failed with "a file with that name already
+  exists".
+- **Saved git credentials are written more safely**: the credentials file is
+  created private from the start (never briefly readable by others), with a
+  unique temporary name, and flushed to disk before it replaces the old one.
+- **Corrupt saved state can't break startup**: recent files, the last-session
+  file, and editor font preferences read from local storage are now checked
+  field by field; a malformed entry is ignored instead of crashing the app on
+  every launch of that workspace (or reaching the editor's font settings).
+- **One panel's crash no longer takes down the window**: the sidebar (and
+  search panel), properties panel, status bar and dialogs each catch their
+  own errors and show a small "ran into a problem — Reload panel" notice,
+  leaving the editor and your text usable. Previously any of them replaced
+  the whole app with a stack trace.
+- **WeChat copy uses the current text**, including edits autosaved since the
+  file was opened.
+
+### Performance
+- **Autosave no longer triggers a workspace rescan**: the temporary file each
+  atomic save stages next to the document looked like a new file to the
+  watcher, so every autosave re-walked the workspace, reloaded the sidebar
+  tree, re-read every note for wiki links and backlinks, and refreshed git
+  twice. Ovid's own staging files are now ignored by the watcher and hidden
+  from the sidebar (including any left behind by a crash).
+- **File operations no longer block the window**: reading, saving, creating,
+  renaming, duplicating and trashing files, and saving pasted or dropped
+  images, now run off the UI thread. A save's fsync, a slow or network volume,
+  or the Finder round-trip behind "Move to Trash" no longer freezes the app
+  while it completes.
+
 ## 0.17.0 - 2026-08-08
 
 ### Added

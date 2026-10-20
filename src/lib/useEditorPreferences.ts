@@ -30,8 +30,24 @@ const FONT_SIZE_VALUES: Record<FontSize, string> = {
   large: "19px",
 };
 
+const FONT_FAMILIES = Object.keys(FONT_FAMILY_VALUES) as FontFamily[];
+const FONT_SIZES = Object.keys(FONT_SIZE_VALUES) as FontSize[];
+
+/** Stored editor preferences, field by field: an unknown or mistyped value
+ *  falls back to its default instead of reaching the CSS variables. */
+export function parseEditorPreferences(stored: unknown): EditorPreferences {
+  const prefs = stored && typeof stored === "object" ? (stored as Record<string, unknown>) : {};
+  const fontFamily = prefs.fontFamily;
+  const fontSize = prefs.fontSize;
+  return {
+    fontFamily: FONT_FAMILIES.find((value) => value === fontFamily) ?? DEFAULT_PREFS.fontFamily,
+    fontSize: FONT_SIZES.find((value) => value === fontSize) ?? DEFAULT_PREFS.fontSize,
+    spellCheck: typeof prefs.spellCheck === "boolean" ? prefs.spellCheck : DEFAULT_PREFS.spellCheck,
+  };
+}
+
 function load(): EditorPreferences {
-  return { ...DEFAULT_PREFS, ...getJSON<Partial<EditorPreferences>>(STORAGE_KEY, {}) };
+  return parseEditorPreferences(getJSON<unknown>(STORAGE_KEY, {}));
 }
 
 function applyPrefs(prefs: EditorPreferences): void {

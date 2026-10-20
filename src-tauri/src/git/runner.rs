@@ -1,8 +1,192 @@
+use std::io::Read;
 use std::path::PathBuf;
+use std::process::{Command, Output, Stdio};
+use std::sync::{mpsc, Arc, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use tauri::State;
 
 use crate::state::WorkspaceState;
+
+/// Local git commands (status, branch, log, …) finish well within this even
+/// on large repositories; one that doesn't is stuck — a stale index lock, a
+/// hung filesystem — and is killed rather than wedging its caller forever.
+const LOCAL_GIT_TIMEOUT: Duration = Duration::from_secs(60);
+/// The ceiling for commands whose duration isn't git's own. Network commands:
+/// a big push over a slow link can take minutes, on top of git's HTTP
+/// low-speed abort below. Commands that run repository hooks or sign: a
+/// pre-commit hook running a test suite, or a GPG passphrase prompt, easily
+/// outlasts a minute — and `git commit` killed mid-hook leaves
+/// `.git/index.lock` behind, blocking every later commit until it's removed
+/// by hand.
+const LONG_GIT_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+/// Abort an HTTP transfer that stays under 1 KB/s for a minute — a stalled
+/// connection — instead of waiting on it indefinitely. Placed before the
+/// subcommand as `-c` overrides, so repo config is never modified.
+pub(crate) const HTTP_LOW_SPEED_ARGS: [&str; 4] = [
+    "-c",
+    "http.lowSpeedLimit=1000",
+    "-c",
+    "http.lowSpeedTime=60",
+];
+
+/// The subcommand of a git invocation: the first argument that is neither a
+/// global option nor the value of `-c` / `-C`.
+fn subcommand<'a>(args: &[&'a str]) -> Option<&'a str> {
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        if *arg == "-c" || *arg == "-C" {
+            iter.next();
+            continue;
+        }
+        if !arg.starts_with('-') {
+            return Some(*arg);
+        }
+    }
+    None
+}
+
+/// Whether the git invocation `args` talks to a remote.
+fn is_network_subcommand(args: &[&str]) -> bool {
+    matches!(
+        subcommand(args),
+        Some("push" | "pull" | "fetch" | "clone" | "ls-remote")
+    )
+}
+
+/// Whether the git invocation `args` can run repository hooks (pre-commit,
+/// commit-msg, post-checkout, …) or sign a commit.
+fn runs_repo_hooks(args: &[&str]) -> bool {
+    matches!(
+        subcommand(args),
+        Some("commit" | "merge" | "rebase" | "switch" | "checkout")
+    )
+}
+
+/// How long `git <args>` may run before it is killed.
+fn git_timeout(args: &[&str]) -> Duration {
+    if is_network_subcommand(args) || runs_repo_hooks(args) {
+        LONG_GIT_TIMEOUT
+    } else {
+        LOCAL_GIT_TIMEOUT
+    }
+}
+
+/// Once git has exited, how long to wait for its output pipes to close. Git's
+/// own output is in the pipe by then and drains at once; a pipe still open
+/// after that is held by a process git left behind with the inherited
+/// descriptor — a hook's background job, or an ssh ControlPersist master
+/// (which keeps stderr) — and may stay open indefinitely.
+pub(crate) const PIPE_DRAIN_GRACE: Duration = Duration::from_secs(1);
+
+/// A child's output pipe, read to EOF on a background thread.
+pub(crate) struct PipeReader {
+    buf: Arc<Mutex<Vec<u8>>>,
+    done: mpsc::Receiver<()>,
+}
+
+impl PipeReader {
+    /// Start reading `pipe`, passing each chunk to `on_read` as it arrives.
+    pub(crate) fn spawn<R: Read + Send + 'static>(
+        pipe: Option<R>,
+        mut on_read: impl FnMut(&[u8]) + Send + 'static,
+    ) -> Self {
+        let buf = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&buf);
+        let (done_tx, done) = mpsc::channel();
+        std::thread::spawn(move || {
+            if let Some(mut pipe) = pipe {
+                let mut chunk = [0u8; 8192];
+                loop {
+                    match pipe.read(&mut chunk) {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            on_read(&chunk[..n]);
+                            sink.lock()
+                                .unwrap_or_else(PoisonError::into_inner)
+                                .extend_from_slice(&chunk[..n]);
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                        Err(_) => break,
+                    }
+                }
+            }
+            let _ = done_tx.send(());
+        });
+        Self { buf, done }
+    }
+
+    /// Everything read, once the pipe closes — or what has been read by
+    /// `until` if it is still open then. The reader thread is left to finish
+    /// on its own.
+    pub(crate) fn finish(self, until: Instant) -> Vec<u8> {
+        let _ = self
+            .done
+            .recv_timeout(until.saturating_duration_since(Instant::now()));
+        std::mem::take(&mut *self.buf.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
+/// `Command::output`, but the child is killed once `timeout` elapses, and its
+/// pipes are waited on for at most `PIPE_DRAIN_GRACE` after it exits. Polls
+/// with a backoff from 1 ms to 25 ms, so quick commands (most git calls take a
+/// few milliseconds) pay almost nothing for the check.
+pub(crate) fn output_with_timeout(mut cmd: Command, timeout: Duration) -> Result<Output, String> {
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = cmd.spawn().map_err(|_| "git not found".to_string())?;
+    let stdout = PipeReader::spawn(child.stdout.take(), |_| {});
+    let stderr = PipeReader::spawn(child.stderr.take(), |_| {});
+    let deadline = Instant::now() + timeout;
+    let mut pause = Duration::from_millis(1);
+    loop {
+        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+            let drained_by = Instant::now() + PIPE_DRAIN_GRACE;
+            return Ok(Output {
+                status,
+                stdout: stdout.finish(drained_by),
+                stderr: stderr.finish(drained_by),
+            });
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            // The pipe readers are left to finish on their own: a process git
+            // spawned (ssh, a credential helper) may still hold the pipes open.
+            return Err(format!(
+                "git did not respond within {} seconds and was stopped",
+                timeout.as_secs()
+            ));
+        }
+        std::thread::sleep(pause);
+        pause = (pause * 2).min(Duration::from_millis(25));
+    }
+}
+
+/// Run `git <cmd_args>` with Ovid's non-interactive environment and a timeout
+/// suited to the subcommand; stdout on success, stderr (or a generic message)
+/// on failure.
+fn run_git_process(cmd_args: &[&str], envs: &[(&str, &str)]) -> Result<String, String> {
+    let mut cmd = Command::new("git");
+    cmd.args(cmd_args)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "Never");
+    for (key, value) in envs {
+        cmd.env(key, value);
+    }
+    configure_child_process(&mut cmd);
+    let output = output_with_timeout(cmd, git_timeout(cmd_args))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "git command failed".to_string()
+        } else {
+            stderr
+        });
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
 
 /// Run a git subcommand rooted at `root`. Returns stdout on success or an
 /// error string (stderr) on failure. Returns an empty string if git is not
@@ -19,23 +203,13 @@ pub(crate) fn configure_child_process(cmd: &mut std::process::Command) {
 pub(crate) fn configure_child_process(_cmd: &mut std::process::Command) {}
 
 pub(crate) fn run_git(root: &str, args: &[&str]) -> Result<String, String> {
+    let network = is_network_subcommand(args);
     let mut cmd_args = vec!["-C", root];
-    cmd_args.extend_from_slice(args);
-    let mut cmd = std::process::Command::new("git");
-    cmd.args(&cmd_args)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GCM_INTERACTIVE", "Never");
-    configure_child_process(&mut cmd);
-    let output = cmd.output().map_err(|_| "git not found".to_string())?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "git command failed".to_string()
-        } else {
-            stderr
-        });
+    if network {
+        cmd_args.extend_from_slice(&HTTP_LOW_SPEED_ARGS);
     }
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    cmd_args.extend_from_slice(args);
+    run_git_process(&cmd_args, &[])
 }
 
 /// Run a git subcommand with one-shot HTTPS credentials supplied to the
@@ -73,6 +247,7 @@ pub(crate) fn run_git_with_credentials(
     username: &str,
     password: &str,
 ) -> Result<String, String> {
+    let network = is_network_subcommand(args);
     let mut cmd_args: Vec<&str> = vec![
         "-C",
         root,
@@ -81,24 +256,14 @@ pub(crate) fn run_git_with_credentials(
         "-c",
         INLINE_CREDENTIAL_HELPER,
     ];
-    cmd_args.extend_from_slice(args);
-    let mut cmd = std::process::Command::new("git");
-    cmd.args(&cmd_args)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GCM_INTERACTIVE", "Never")
-        .env("OVID_GIT_USER", username)
-        .env("OVID_GIT_PASS", password);
-    configure_child_process(&mut cmd);
-    let output = cmd.output().map_err(|_| "git not found".to_string())?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() {
-            "git command failed".to_string()
-        } else {
-            stderr
-        });
+    if network {
+        cmd_args.extend_from_slice(&HTTP_LOW_SPEED_ARGS);
     }
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    cmd_args.extend_from_slice(args);
+    run_git_process(
+        &cmd_args,
+        &[("OVID_GIT_USER", username), ("OVID_GIT_PASS", password)],
+    )
 }
 
 pub(crate) fn resolve_git_root(state: State<'_, WorkspaceState>) -> Result<Option<String>, String> {
@@ -139,6 +304,65 @@ mod tests {
     use std::io::Write;
     use std::process::{Command, Stdio};
     use tempfile::TempDir;
+
+    #[test]
+    fn network_subcommands_are_recognised_past_leading_options() {
+        assert!(is_network_subcommand(&["push", "origin", "main"]));
+        assert!(is_network_subcommand(&["-c", "x=y", "fetch", "--prune"]));
+        assert!(is_network_subcommand(&["pull", "--ff-only"]));
+        assert!(!is_network_subcommand(&["status", "--porcelain"]));
+        assert!(!is_network_subcommand(&["-c", "push=1", "log"]));
+        assert!(!is_network_subcommand(&["remote", "get-url", "origin"]));
+    }
+
+    #[test]
+    fn hook_running_and_network_commands_get_the_long_timeout() {
+        let long = |args: &[&str]| git_timeout(args) == LONG_GIT_TIMEOUT;
+        assert!(long(&["-C", "/ws", "commit", "-m", "msg", "--", "a.md"]));
+        assert!(long(&["-C", "/ws", "switch", "--", "main"]));
+        assert!(long(&["-C", "/ws", "checkout", "main"]));
+        assert!(long(&["-C", "/ws", "-c", "credential.helper=", "push"]));
+        assert!(!long(&["-C", "/ws", "status", "--porcelain=v1", "-z"]));
+        assert!(!long(&["-C", "/ws", "branch", "-m", "--", "a", "b"]));
+        // An option value that happens to spell a subcommand is skipped.
+        assert!(!long(&["-C", "commit", "-c", "switch", "log"]));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_with_timeout_kills_a_process_that_overruns() {
+        let mut cmd = Command::new("sleep");
+        cmd.arg("5");
+        let started = Instant::now();
+        let result = output_with_timeout(cmd, Duration::from_millis(100));
+        assert!(result.unwrap_err().contains("did not respond"));
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_with_timeout_returns_output_of_a_quick_process() {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "printf out; printf err >&2"]);
+        let output = output_with_timeout(cmd, Duration::from_secs(5)).unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"out");
+        assert_eq!(output.stderr, b"err");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_with_timeout_does_not_wait_on_pipes_a_leftover_process_holds() {
+        // The shell exits at once; the background sleep inherits its stdout
+        // and stderr and holds them open for five seconds.
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "printf out; sleep 5 & exit 0"]);
+        let started = Instant::now();
+        let output = output_with_timeout(cmd, Duration::from_secs(30)).unwrap();
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"out");
+        assert!(started.elapsed() < PIPE_DRAIN_GRACE + Duration::from_secs(2));
+    }
 
     fn git_available() -> bool {
         Command::new("git")

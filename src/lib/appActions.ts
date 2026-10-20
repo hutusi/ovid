@@ -1,6 +1,5 @@
 import type React from "react";
 import type { NewContentKind } from "./amytisScaffold";
-import { parseFrontmatter } from "./frontmatter";
 import type { ShortcutKeys } from "./shortcuts";
 import type { FileNode } from "./types";
 import type { OverlayStack } from "./useOverlayStack";
@@ -32,9 +31,8 @@ export interface AppActionCtx {
   pushSuccessMessage: string;
   defaultCommitMessage: string;
 
-  // For wechat-copy
-  pendingMarkdownRef: React.RefObject<string | null>;
-  fileContent: string;
+  // For wechat-copy: the current body, including unsaved and autosaved edits.
+  getCurrentBody: () => string;
   showToast: (message: string) => void;
   t: Translate;
 
@@ -45,7 +43,10 @@ export interface AppActionCtx {
   setTypewriterMode: React.Dispatch<React.SetStateAction<boolean>>;
 
   // Action handlers
-  flushPendingSave: () => void;
+  /** Flush pending saves, then exit (see useCloseGuard). */
+  requestQuit: () => Promise<void>;
+  /** Rejects after surfacing its own failure (toast or conflict prompt). */
+  flushPendingSave: () => Promise<void>;
   closeActiveTabOrFile: () => void;
   handleOpenWorkspace: () => void;
   handleNewTodayFlow: () => void;
@@ -97,7 +98,7 @@ const NEW_CONTENT_ACTIONS: Array<[string, NewContentKind]> = [
 ];
 
 async function runWechatCopy(ctx: AppActionCtx): Promise<void> {
-  const markdown = ctx.pendingMarkdownRef.current ?? parseFrontmatter(ctx.fileContent).body;
+  const markdown = ctx.getCurrentBody();
   if (!markdown.trim()) {
     ctx.showToast(ctx.t("menu.file_wechat_copy_no_content"));
     return;
@@ -158,9 +159,19 @@ export const appActions: AppAction[] = [
     run: (ctx) => void ctx.handleNewTodayFlow(),
   },
   {
+    // Menu-only (menu.rs routes Cmd+Q here instead of the predefined
+    // terminate item) so pending saves flush before the app exits.
+    id: "quit",
+    allowWhenBlocking: true,
+    allowInInput: true,
+    run: (ctx) => ctx.requestQuit(),
+  },
+  {
     id: "save",
     allowWhenBlocking: true,
-    run: (ctx) => void ctx.flushPendingSave(),
+    // A failed save already told the user (toast or conflict prompt); swallow
+    // the rejection so it doesn't also surface as an "unexpected error".
+    run: (ctx) => ctx.flushPendingSave().catch(() => {}),
   },
   {
     id: "close-file",

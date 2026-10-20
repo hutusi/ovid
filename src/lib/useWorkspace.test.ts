@@ -307,6 +307,47 @@ describe("useWorkspace", () => {
     expect(created[0]?.path).toBe(capturedNewPath as unknown as string);
   });
 
+  it("a cancelled clone resolves false without reporting a failure", async () => {
+    invokeImpl = whenInvoke({
+      clone_workspace: () => {
+        throw new Error("CLONE_CANCELLED");
+      },
+    });
+    const opts = makeOptions();
+    const { result } = renderHook(() => useWorkspace(opts));
+    let ok = true;
+    await act(async () => {
+      ok = await result.current.handleCloneWorkspace("https://example.com/r.git", "/tmp", null);
+    });
+    expect(ok).toBe(false);
+    expect(opts.showToast).not.toHaveBeenCalled();
+  });
+
+  it("a rename whose outgoing save fails is abandoned without escaping as an error", async () => {
+    const oldNode = makeNode("/ws/content/posts/old.md");
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult({ tree: [oldNode] }),
+    });
+    let failFlush = false;
+    const opts = makeOptions({
+      flushPendingSave: mock(() =>
+        failFlush ? Promise.reject(new Error("disk full")) : Promise.resolve()
+      ),
+    });
+    const { result } = renderHook(() => useWorkspace(opts));
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+
+    // flushPendingSave has already told the user; the rename just stops.
+    failFlush = true;
+    await act(async () => {
+      await result.current.handleRename(oldNode, "new");
+    });
+    expect(invokeCalls.some((c) => c.name === "rename_file")).toBe(false);
+    expect(opts.showToast).not.toHaveBeenCalled();
+  });
+
   it("handleRename calls rename_file then fires onPathRenamed with a tree lookup", async () => {
     const oldNode = makeNode("/ws/content/posts/old.md");
     const newPath = "/ws/content/posts/new.md";

@@ -84,6 +84,55 @@ describe("useCloseGuard", () => {
     expect(showToast).toHaveBeenCalledWith("errors.close_save_failed");
   });
 
+  it("requestQuit (Cmd+Q / Quit menu) flushes then destroys", async () => {
+    const flush = mock((_opts?: FlushOpts) => Promise.resolve());
+    const showToast = mock(() => {});
+    const { result } = renderHook(() => useCloseGuard(flush, showToast));
+
+    await result.current();
+
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(flush.mock.calls[0]?.[0]).toEqual({ mode: "blocking" });
+    expect(destroyCalls).toBe(1);
+    expect(showToast).not.toHaveBeenCalled();
+  });
+
+  it("requestQuit keeps the window open and toasts when the save fails", async () => {
+    const flush = mock((_opts?: FlushOpts) => Promise.reject(new Error("disk full")));
+    const showToast = mock(() => {});
+    const { result } = renderHook(() => useCloseGuard(flush, showToast));
+
+    await result.current();
+
+    expect(destroyCalls).toBe(0);
+    expect(showToast).toHaveBeenCalledWith("errors.close_save_failed");
+  });
+
+  it("a close request during an in-flight quit flushes only once", async () => {
+    let releaseFlush: () => void = () => {};
+    const flush = mock(
+      (_opts?: FlushOpts) =>
+        new Promise<void>((resolve) => {
+          releaseFlush = resolve;
+        })
+    );
+    const { result } = renderHook(() =>
+      useCloseGuard(
+        flush,
+        mock(() => {})
+      )
+    );
+    await waitFor(() => expect(closeHandler).not.toBeNull());
+
+    const quitting = result.current();
+    const closing = fireClose();
+    releaseFlush();
+    await Promise.all([quitting, closing]);
+
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(destroyCalls).toBe(1);
+  });
+
   it("background-flushes on window blur", async () => {
     const flush = mock((_opts?: FlushOpts) => Promise.resolve());
     renderHook(() =>

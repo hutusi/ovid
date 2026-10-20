@@ -149,21 +149,6 @@ export function getFrontmatterFieldValue(
   return documentKey ? frontmatter[documentKey] : undefined;
 }
 
-export function setFrontmatterFieldValue(
-  frontmatter: ParsedFrontmatter,
-  key: string,
-  value: FrontmatterValue
-): ParsedFrontmatter {
-  const canonicalKey = resolveKnownFrontmatterFieldKey(key) ?? key;
-  const existingKey = resolveDocumentFrontmatterKey(frontmatter, key);
-  const updated = { ...frontmatter };
-  if (existingKey && existingKey !== canonicalKey) {
-    delete updated[existingKey];
-  }
-  updated[canonicalKey] = value;
-  return updated;
-}
-
 export function getMissingAddableFrontmatterFields(
   frontmatter: ParsedFrontmatter,
   context: { contentType?: string } = {}

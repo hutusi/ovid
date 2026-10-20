@@ -9,7 +9,11 @@
     "body": "\"{{name}}\" was changed by another program since you opened it. What would you like to do?",
     "reload": "Discard my changes & reload",
     "keep_editing": "Keep editing",
-    "overwrite": "Overwrite with my changes"
+    "overwrite": "Overwrite with my changes",
+    "missing_title": "File no longer on disk",
+    "missing_body": "\"{{name}}\" was deleted or moved by another program while it was open. Your text is still here — recreate the file, or discard your changes and close it.",
+    "discard": "Discard changes & close",
+    "recreate": "Recreate file"
   },
   "preferences": {
     "title": "Preferences",
@@ -377,6 +381,7 @@
     "clone_url_placeholder": "https://github.com/user/repo.git",
     "clone_folder_label": "Folder name",
     "clone_folder_placeholder": "(derived from URL)",
+    "clone_cancel": "Cancel",
     "clone_submit": "Clone",
     "clone_working": "Cloning…",
     "progress_starting": "Preparing clone…",
@@ -467,6 +472,8 @@
     "cover_save_error": "Failed to save cover image: {{reason}}",
     "custom": "Custom",
     "custom_metadata": "Custom metadata",
+    "frontmatter_invalid_title": "Frontmatter can't be edited here",
+    "frontmatter_invalid_body": "Its YAML has an error, so properties are read-only to keep every field safe. Fix it in a text editor — Ovid reloads the file when it changes.",
     "no_frontmatter": "No frontmatter in this file.",
     "add_field_hint": "Add a field below to get started.",
     "add_metadata": "Add Metadata",
@@ -509,6 +516,7 @@
     "about_item": "About Ovid",
     "about_title": "About Ovid",
     "about_body": "A minimalist desktop Markdown editor\nfor Amytis workspaces.",
+    "app_quit": "Quit Ovid",
     "file_preferences": "Settings…",
     "file_new_post": "New Post",
     "file_new_flow": "New Flow",
@@ -709,9 +717,15 @@
     "done": "Done"
   },
   "errors": {
+    "reload_panel": "Reload panel",
+    "sidebar_failed": "The sidebar ran into a problem",
+    "properties_failed": "The properties panel ran into a problem",
+    "status_bar_failed": "The status bar ran into a problem",
+    "dialog_failed": "That dialog ran into a problem",
     "boundary_title": "Something went wrong",
     "unexpected": "Something went wrong — check console for details",
     "close_save_failed": "Couldn't save before closing — window kept open so you don't lose changes",
+    "frontmatter_invalid": "This file's frontmatter isn't valid YAML, so its properties are read-only — fix it in a text editor first",
     "save_failed": "Failed to save — check console for details",
     "file_too_large": "This file is too large to open in the editor",
     "open_file_failed": "Failed to open file — check console for details",

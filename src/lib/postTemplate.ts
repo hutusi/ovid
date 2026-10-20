@@ -1,24 +1,22 @@
 import {
-  type FrontmatterValue,
+  dumpFrontmatterBlock,
+  type FrontmatterData,
   joinFrontmatter,
-  type ParsedFrontmatter,
+  loadFrontmatterBlock,
   parseFrontmatter,
-  parseYamlFrontmatter,
-  serializeFrontmatter,
+  yamlDate,
 } from "./frontmatter";
 
-function resetPostTemplateField(
-  key: string,
-  value: FrontmatterValue,
-  today: string
-): FrontmatterValue {
+/** The value a known post field starts with in a post created from an
+ *  existing one; `undefined` keeps the source value as is. */
+function resetPostTemplateField(key: string, today: string): unknown {
   switch (key.toLowerCase()) {
     case "title":
     case "slug":
     case "coverimage":
       return "";
     case "date":
-      return today;
+      return yamlDate(today);
     case "draft":
       return true;
     case "featured":
@@ -27,16 +25,19 @@ function resetPostTemplateField(
     case "tags":
       return [];
     default:
-      return value;
+      return undefined;
   }
 }
 
+/** Frontmatter for a new post modelled on `raw`: per-post fields reset, every
+ *  other field (nested ones included) kept. Unparseable frontmatter is copied
+ *  verbatim rather than rewritten. */
 export function createPostFromExistingContent(raw: string, now: Date = new Date()): string {
   const { frontmatter } = parseFrontmatter(raw);
   if (!frontmatter) return "";
 
-  const parsed = parseYamlFrontmatter(frontmatter);
-  if (Object.keys(parsed).length === 0) {
+  const loaded = loadFrontmatterBlock(frontmatter);
+  if (!loaded.ok || Object.keys(loaded.data).length === 0) {
     return frontmatter;
   }
 
@@ -44,11 +45,11 @@ export function createPostFromExistingContent(raw: string, now: Date = new Date(
   const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
   const today = `${yyyy}-${mm}-${dd}`;
-  const next: ParsedFrontmatter = {};
+  const next: FrontmatterData = {};
 
-  for (const [key, value] of Object.entries(parsed)) {
-    next[key] = resetPostTemplateField(key, value, today);
+  for (const [key, value] of Object.entries(loaded.data)) {
+    next[key] = resetPostTemplateField(key, today) ?? value;
   }
 
-  return joinFrontmatter(serializeFrontmatter(next), "");
+  return joinFrontmatter(dumpFrontmatterBlock(next), "");
 }

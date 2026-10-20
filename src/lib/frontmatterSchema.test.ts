@@ -10,7 +10,6 @@ import {
   normalizeFrontmatterKey,
   parseBooleanFrontmatterValue,
   resolveKnownFrontmatterFieldKey,
-  setFrontmatterFieldValue,
 } from "./frontmatterSchema";
 
 describe("frontmatter schema", () => {
@@ -113,15 +112,6 @@ describe("frontmatter schema", () => {
   test("reads mixed-case known field values from parsed frontmatter", () => {
     expect(getFrontmatterFieldValue({ Featured: true }, "featured")).toBe(true);
     expect(getFrontmatterFieldValue({ CoverImage: "/hero.png" }, "coverImage")).toBe("/hero.png");
-  });
-
-  test("writes known fields back using canonical schema keys", () => {
-    expect(setFrontmatterFieldValue({ Featured: true }, "featured", false)).toEqual({
-      featured: false,
-    });
-    expect(setFrontmatterFieldValue({ CoverImage: "/hero.png" }, "coverImage", null)).toEqual({
-      coverImage: null,
-    });
   });
 
   test("infers custom metadata value types from stored values", () => {

@@ -82,8 +82,11 @@ link's menu offers **Open** and **Remove from collection**.
   for the picker, the typed file commands for read/write.
 
 **Negative / accepted:**
-- Editing `items:` re-serialises the index's frontmatter (drops comments) — the
-  same trade-off the properties panel already makes (see ADR 0004 era behavior).
+- ~~Editing `items:` re-serialises the index's frontmatter (drops comments).~~
+  Superseded (2026-10): `setCollectionItems` now goes through
+  `setFrontmatterKey`, which edits the raw mapping and replaces only the
+  `items:` lines — other fields, timestamps and comments are kept, and an index
+  whose YAML doesn't parse is left untouched (the add/remove is refused).
 - The link list refreshes after add/remove and when the set of collections
   changes, but not for out-of-band edits (e.g. editing `items:` directly in the
   editor) until the collection set changes or the app re-opens.

@@ -7,8 +7,23 @@ export type { RecentFile };
 const MAX_RECENT = 10;
 export const STORAGE_KEY = "ovid:recentFiles";
 
-function loadRecent(workspaceRoot: string): RecentFile[] {
-  return getJSON<RecentFile[]>(`${STORAGE_KEY}:${workspaceRoot}`, []);
+function isRecentFile(value: unknown): value is RecentFile {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Record<string, unknown>;
+  return (
+    typeof entry.path === "string" &&
+    typeof entry.name === "string" &&
+    (entry.title === undefined || typeof entry.title === "string")
+  );
+}
+
+/** Stored recents for a workspace. Anything malformed — a hand-edited or
+ *  older-format entry, `null`, an object — is dropped rather than trusted: a
+ *  bad shape here used to crash the app on every launch of that workspace. */
+export function loadRecent(workspaceRoot: string): RecentFile[] {
+  const parsed = getJSON<unknown>(`${STORAGE_KEY}:${workspaceRoot}`, []);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(isRecentFile).slice(0, MAX_RECENT);
 }
 
 function saveRecent(workspaceRoot: string, files: RecentFile[]): void {

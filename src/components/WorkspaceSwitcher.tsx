@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 // 144px render copy of branding/ovid-logo-square.png (the 796px original is
 // 443 kB; the switcher shows it at 48px, so shipping the original is waste).
 import logoUrl from "../assets/ovid-logo-square.png?url";
+import { commands } from "../lib/commands";
 import type { CloneProgress } from "../lib/commands/generated/CloneProgress";
 import { listenEvent } from "../lib/commands/internal";
 import type { RecentWorkspace } from "../lib/types";
@@ -652,6 +653,7 @@ function CreatePanel({ onCreate, onCloneStarter, onSuccess }: CreatePanelProps) 
       )}
 
       <div className="ws-form-actions">
+        {working && template === "starter" && <CancelCloneButton />}
         <button
           type="button"
           className="modal-btn modal-btn-primary"
@@ -662,6 +664,26 @@ function CreatePanel({ onCreate, onCloneStarter, onSuccess }: CreatePanelProps) 
         </button>
       </div>
     </div>
+  );
+}
+
+/** Stops the clone in progress. The clone call then resolves as cancelled
+ *  (no error toast) and the panel returns to its idle state. */
+function CancelCloneButton() {
+  const { t } = useTranslation();
+  const [requested, setRequested] = useState(false);
+  return (
+    <button
+      type="button"
+      className="modal-btn modal-btn-cancel"
+      disabled={requested}
+      onClick={() => {
+        setRequested(true);
+        void commands.workspace.cancelClone().catch(() => setRequested(false));
+      }}
+    >
+      {t("workspace_switcher.clone_cancel")}
+    </button>
   );
 }
 
@@ -796,6 +818,7 @@ function ClonePanel({ onClone, onSuccess }: ClonePanelProps) {
       )}
 
       <div className="ws-form-actions">
+        {working && <CancelCloneButton />}
         <button
           type="button"
           className="modal-btn modal-btn-primary"

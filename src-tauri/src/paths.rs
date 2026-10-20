@@ -42,6 +42,33 @@ impl Drop for TempPathGuard {
     }
 }
 
+/// Whether `name` is one of Ovid's own staging entries, as named by
+/// `sibling_temp_path`: `.~<name>.<purpose>.<pid>-<counter>`. They exist only
+/// between a write's staging and its rename (or are left behind by a crash), so
+/// every walk — tree, revision, search — and the watcher skip them. Without
+/// that, each autosave's temp file looked like a structural change and set off
+/// a full revision walk, tree refresh and corpus re-read.
+pub(crate) fn is_staging_entry(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix(".~") else {
+        return false;
+    };
+    let Some((head, unique)) = rest.rsplit_once('.') else {
+        return false;
+    };
+    let Some((pid, counter)) = unique.split_once('-') else {
+        return false;
+    };
+    let all_digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+    if !all_digits(pid) || !all_digits(counter) {
+        return false;
+    }
+    head.rsplit_once('.').is_some_and(|(original, purpose)| {
+        !original.is_empty()
+            && !purpose.is_empty()
+            && purpose.bytes().all(|b| b.is_ascii_lowercase())
+    })
+}
+
 /// Generate a process-unique sibling path. Callers still create it with
 /// `create_new` / `create_dir` and retry collisions, because a stale file from
 /// a process that reused our PID must never be truncated.
@@ -127,7 +154,7 @@ fn is_noise_dir(name: &str) -> bool {
 /// skips them — so `.github/notes.md` appears in the tree and reloads on
 /// external edits without ever matching a search.
 pub(crate) fn should_skip_walk_entry(name: &str, is_symlink: bool, keep_dot_entries: bool) -> bool {
-    if is_symlink || is_noise_dir(name) {
+    if is_symlink || is_noise_dir(name) || is_staging_entry(name) {
         return true;
     }
     !keep_dot_entries && name.starts_with('.')
@@ -309,6 +336,34 @@ mod tests {
     use tempfile::TempDir;
 
     // ── write_atomic ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn staging_entries_are_recognised_for_every_purpose() {
+        for purpose in ["tmp", "create", "duplicate"] {
+            let staged = sibling_temp_path(Path::new("/ws/notes/hello.md"), purpose).unwrap();
+            let name = staged.file_name().unwrap().to_string_lossy().into_owned();
+            assert!(is_staging_entry(&name), "{name} should be a staging entry");
+            assert!(should_skip_walk_entry(&name, false, true));
+        }
+    }
+
+    #[test]
+    fn ordinary_dot_entries_are_not_staging_entries() {
+        for name in [
+            ".~lock.md",
+            ".~notes.md.tmp",
+            ".~notes.md.tmp.12",
+            ".~notes.md.TMP.1-2",
+            ".hidden.md",
+            "~draft.md",
+            ".~.tmp.1-2",
+        ] {
+            assert!(
+                !is_staging_entry(name),
+                "{name} must not be treated as staging"
+            );
+        }
+    }
 
     #[test]
     fn write_atomic_writes_content_and_leaves_no_temp_file() {

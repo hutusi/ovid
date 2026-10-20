@@ -93,8 +93,7 @@ function makeFlatFile(node: FileNode): FlatFile {
 
 interface FakeFileEditor {
   selectedFile: FileNode | null;
-  selectedPathRef: { current: string | null };
-  setSelectedFile: ReturnType<typeof mock>;
+  renameSelection: ReturnType<typeof mock>;
   handleSelectFile: ReturnType<typeof mock>;
   handleCloseFile: ReturnType<typeof mock>;
 }
@@ -102,8 +101,7 @@ interface FakeFileEditor {
 function makeFakeFileEditor(selected: FileNode | null = null): FakeFileEditor {
   return {
     selectedFile: selected,
-    selectedPathRef: { current: selected?.path ?? null },
-    setSelectedFile: mock((_: FileNode | null) => {}),
+    renameSelection: mock((_old: string, _new: string, _node: FileNode) => {}),
     handleSelectFile: mock((_: FileNode) => Promise.resolve(true)),
     handleCloseFile: mock(() => Promise.resolve(true)),
   };
@@ -305,8 +303,15 @@ describe("useEditorSession orchestration", () => {
     expect(result.current.tabs).toContain("/ws/posts/new.md");
     expect(result.current.tabs).not.toContain("/ws/posts/old.md");
     expect(result.current.recentFiles[0]?.path).toBe("/ws/posts/new.md");
-    expect(fileEditor.setSelectedFile).toHaveBeenCalled();
-    expect(fileEditor.selectedPathRef.current).toBe("/ws/posts/new.md");
+    expect(fileEditor.renameSelection).toHaveBeenCalledTimes(1);
+    const [oldPath, newPath, nextNode] = fileEditor.renameSelection.mock.calls[0] as [
+      string,
+      string,
+      FileNode,
+    ];
+    expect(oldPath).toBe("/ws/posts/old.md");
+    expect(newPath).toBe("/ws/posts/new.md");
+    expect(nextNode.path).toBe("/ws/posts/new.md");
   });
 
   it("notifyPathRemoved drops tab + recent and closes the editor when active", async () => {
