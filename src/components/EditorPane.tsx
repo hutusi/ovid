@@ -56,6 +56,8 @@ const Editor = lazy(async () => ({
 export interface EditorPaneProps {
   // Workspace context
   workspaceRoot: string | null;
+  /** A workspace is opening (see Sidebar's `loading`). */
+  workspaceLoading: boolean;
 
   // Tab bar
   tabs: string[];
@@ -138,6 +140,7 @@ export interface EditorPaneProps {
 
 export function EditorPane({
   workspaceRoot,
+  workspaceLoading,
   tabs,
   tree,
   saveStatus,
@@ -335,6 +338,7 @@ export function EditorPane({
         ) : (
           <EmptyState
             workspaceOpen={workspaceRoot !== null}
+            loading={workspaceLoading}
             recentFiles={recentFiles}
             onOpenWorkspace={onOpenWorkspace}
             onOpenRecent={onOpenRecent}

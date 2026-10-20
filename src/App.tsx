@@ -172,6 +172,7 @@ function App() {
   const {
     tree,
     flatFiles,
+    openingWorkspacePath,
     workspaceName,
     workspaceRoot,
     workspaceRootPath,
@@ -526,6 +527,16 @@ function App() {
     void openWorkspaceAtPath(recentWorkspaces[0].rootPath);
   }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath]);
 
+  // Opening a workspace — including the first frames of a launch that is
+  // about to restore one, before the effect above has started the open, so
+  // the sidebar and editor don't flash "no workspace" on every launch.
+  const awaitingLaunchRestore =
+    !autoReopenAttempted.current &&
+    workspaceRootPath === null &&
+    recentWorkspaces.length > 0 &&
+    initialRestoreLastSession.current;
+  const workspaceLoading = openingWorkspacePath !== null || awaitingLaunchRestore;
+
   useEffect(() => {
     const path = pendingAutoOpenPath.current;
     if (!path || tree.length === 0 || selectedFile) return;
@@ -711,6 +722,7 @@ function App() {
               visible={panelLayout.sidebarVisible}
               maxWidth={panelLayout.sidebarMaxWidth}
               workspaceName={workspaceName}
+              loading={workspaceLoading}
               gitStatusMap={gitStatusMap}
               mode={sidebarMode}
               postsBasePath={postsBasePath}
@@ -734,6 +746,7 @@ function App() {
         </ErrorBoundary>
         <EditorPane
           workspaceRoot={workspaceRoot}
+          workspaceLoading={workspaceLoading}
           tabs={tabs}
           tree={tree}
           saveStatus={saveStatus}

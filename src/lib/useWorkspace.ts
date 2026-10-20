@@ -198,11 +198,18 @@ export function useWorkspace({
     return run;
   }, []);
 
+  // The workspace being opened right now, so the UI can say so instead of
+  // showing "no workspace" while a large tree is walked.
+  const [openingWorkspacePath, setOpeningWorkspacePath] = useState<string | null>(null);
+
   const openWorkspaceAtPath = useCallback(
     (path: string) =>
       enqueueOpen(async () => {
-        if (!(await flushBeforeMutation())) return;
+        // Marked before the flush, so there is no frame between the launch
+        // restore starting and this state where the UI reads "no workspace".
+        setOpeningWorkspacePath(path);
         try {
+          if (!(await flushBeforeMutation())) return;
           const result = (await measureAsync(
             "open_workspace_at_path.invoke",
             () => commands.workspace.openAtPath({ path }),
@@ -219,6 +226,8 @@ export function useWorkspace({
             }),
             { kind: "error" }
           );
+        } finally {
+          setOpeningWorkspacePath(null);
         }
       }),
     [enqueueOpen, flushBeforeMutation, showToast, t, applyWorkspaceResult]
@@ -547,6 +556,7 @@ export function useWorkspace({
   return {
     tree,
     flatFiles,
+    openingWorkspacePath,
     workspaceName,
     workspaceRoot,
     workspaceRootPath,

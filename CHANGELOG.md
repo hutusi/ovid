@@ -27,6 +27,11 @@ release cadence and Conventional Commit history.
 - **Deleting a file asks in the app's own dialog**: "Move to Trash?" now
   appears as an Ovid dialog in the current theme, with a red Move to Trash
   button and focus on Cancel, instead of a system alert box.
+- **No "No workspace" flash at launch**: when Ovid reopens your last
+  workspace, the sidebar and editor no longer show "No workspace open" and
+  the Open button for a moment first; the sidebar says "Opening
+  workspace…" until the files appear, also when opening a workspace from
+  the switcher into an empty window.
 - **Git sync shows progress**: while a push, pull or fetch runs, the status
   bar shows a spinner and what is running instead of the sync button, and a
   second trigger (a double click, or the menu while the popover action runs)

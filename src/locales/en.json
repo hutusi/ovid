@@ -148,6 +148,7 @@
     "open_folder": "Open folder",
     "resize": "Resize sidebar",
     "no_workspace_name": "No workspace",
+    "opening_workspace": "Opening workspace…",
     "changes_inside": "Changes inside: {{status}}",
     "git_status": {
       "modified": "Modified",

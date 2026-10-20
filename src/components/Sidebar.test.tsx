@@ -41,10 +41,14 @@ const tree: FileNode[] = [
   { name: "b.md", path: "/ws/b.md", isDirectory: false, extension: ".md" },
 ];
 
-function renderSidebar(selectedPath: string | null) {
+function renderSidebar(
+  selectedPath: string | null,
+  opts: { tree?: FileNode[]; loading?: boolean } = {}
+) {
   return render(
     <Sidebar
-      tree={tree}
+      tree={opts.tree ?? tree}
+      loading={opts.loading}
       workspaceKey={`kbd-test-${Math.random()}`}
       selectedPath={selectedPath}
       visible
@@ -145,6 +149,23 @@ describe("Sidebar keyboard", () => {
     });
     expect(focused).toBe(true);
     expect((document.activeElement as HTMLElement).dataset.path).toBe("/ws/docs/a.md");
+    view.unmount();
+  });
+});
+
+describe("Sidebar while a workspace opens", () => {
+  it("says it is opening instead of offering to open a folder", () => {
+    const view = renderSidebar(null, { tree: [], loading: true });
+    expect(view.container.querySelector('.sidebar-empty[role="status"]')?.textContent).toBe(
+      "Opening workspace…"
+    );
+    expect(view.container.querySelector(".sidebar-open-workspace-btn")).toBeNull();
+    view.unmount();
+  });
+
+  it("offers to open a folder once nothing is opening", () => {
+    const view = renderSidebar(null, { tree: [], loading: false });
+    expect(view.container.querySelector(".sidebar-open-workspace-btn")).not.toBeNull();
     view.unmount();
   });
 });

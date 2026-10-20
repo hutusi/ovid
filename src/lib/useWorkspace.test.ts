@@ -132,6 +132,32 @@ describe("useWorkspace", () => {
     expect(opts.showToast).not.toHaveBeenCalled();
   });
 
+  it("reports the workspace being opened until the open settles", async () => {
+    let finishOpen: () => void = () => {};
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () =>
+        new Promise((resolve) => {
+          finishOpen = () => resolve(makeWorkspaceResult());
+        }),
+    });
+    const { result } = renderHook(() => useWorkspace(makeOptions()));
+    expect(result.current.openingWorkspacePath).toBeNull();
+
+    let opening: Promise<void> = Promise.resolve();
+    await act(async () => {
+      opening = result.current.openWorkspaceAtPath("/ws");
+      await Promise.resolve();
+    });
+    expect(result.current.openingWorkspacePath).toBe("/ws");
+
+    await act(async () => {
+      finishOpen();
+      await opening;
+    });
+    expect(result.current.openingWorkspacePath).toBeNull();
+    expect(result.current.workspaceName).toBe("ws");
+  });
+
   it("a slow refresh from the previous workspace cannot overwrite a newly opened one", async () => {
     let resolveRefresh: (tree: FileNode[]) => void = () => {};
     invokeImpl = whenInvoke({

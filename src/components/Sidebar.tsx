@@ -45,6 +45,9 @@ interface SidebarProps {
   visible: boolean;
   maxWidth?: number;
   workspaceName: string | null;
+  /** A workspace is being opened (or is about to be, at launch): say so
+   *  rather than "No workspace". */
+  loading?: boolean;
   gitStatusMap: Map<string, GitStatus>;
   mode: SidebarMode;
   /** `posts.basePath` from site.config, so the posts bucket follows the config. */
@@ -78,6 +81,7 @@ export const Sidebar = memo(function Sidebar({
   visible,
   maxWidth = SIDEBAR_MAX,
   workspaceName,
+  loading = false,
   gitStatusMap,
   mode,
   postsBasePath,
@@ -329,7 +333,8 @@ export const Sidebar = memo(function Sidebar({
         >
           <LibraryBig size={13} className="sidebar-workspace-name-icon" aria-hidden="true" />
           <span className="sidebar-workspace-name-label">
-            {workspaceName ?? t("sidebar.no_workspace_name")}
+            {workspaceName ??
+              (loading ? t("sidebar.opening_workspace") : t("sidebar.no_workspace_name"))}
           </span>
           <ChevronDown size={11} className="sidebar-workspace-name-chevron" aria-hidden="true" />
         </button>
@@ -435,7 +440,11 @@ export const Sidebar = memo(function Sidebar({
 
       {/* biome-ignore lint/a11y/noStaticElementInteractions: delegates arrow keys for the row buttons inside; the rows are the interactive elements */}
       <div ref={treeRef} className="sidebar-tree" onKeyDown={handleTreeKeyDown}>
-        {tree.length === 0 ? (
+        {tree.length === 0 && loading ? (
+          <div className="sidebar-empty" role="status">
+            <p>{t("sidebar.opening_workspace")}</p>
+          </div>
+        ) : tree.length === 0 ? (
           <div className="sidebar-empty">
             <p>{t("sidebar.no_workspace")}</p>
             <button type="button" className="sidebar-open-workspace-btn" onClick={onOpenWorkspace}>

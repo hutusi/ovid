@@ -148,6 +148,7 @@
     "open_folder": "打开文件夹",
     "resize": "调整侧栏宽度",
     "no_workspace_name": "未打开工作区",
+    "opening_workspace": "正在打开工作区…",
     "changes_inside": "内含更改：{{status}}",
     "git_status": {
       "modified": "已修改",
