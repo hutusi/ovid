@@ -1023,3 +1023,64 @@ describe("useFileEditor — the open document's identity", () => {
     expect(result.current.saveStatus).toBe("saved");
   });
 });
+
+describe("useFileEditor — property edits", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  beforeEach(() => {
+    invokeCalls.length = 0;
+  });
+
+  it("a title edit keeps nested frontmatter and timestamps intact", async () => {
+    const original = `---
+title: Old
+date: 2024-01-15T09:30:00+08:00
+seo:
+  description: Keep me
+items:
+  - post: a
+---
+body`;
+    invokeImpl = whenInvoke({
+      read_file: () => original,
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      void result.current.handleFieldChange("title", "New");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(lastWriteArgs()?.content).toBe(original.replace("title: Old", "title: New"));
+  });
+
+  it("refuses property edits when the frontmatter YAML is invalid", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "---\ntitle: [unclosed\nkeep: me\n---\nbody",
+      get_file_mtime: () => 1000,
+      write_file: () => 2000,
+    });
+    const showToast = mock((_: string) => {});
+    const { result } = renderHook(() => useFileEditor({ showToast }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    act(() => {
+      void result.current.handleFieldChange("title", "x");
+    });
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(invokeCalls.filter((c) => c.name === "write_file")).toHaveLength(0);
+    expect(showToast).toHaveBeenCalledWith(
+      "This file's frontmatter isn't valid YAML, so its properties are read-only — fix it in a text editor first"
+    );
+    expect(result.current.saveStatus).toBe("saved");
+  });
+});

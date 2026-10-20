@@ -3,14 +3,13 @@ import { useTranslation } from "react-i18next";
 import { commands } from "./commands";
 import { EXTERNAL_CHANGE_CONFLICT, FILE_TOO_LARGE } from "./commands/files";
 import {
+  editFrontmatterField,
   type FrontmatterValue,
   joinFrontmatter,
   type ParsedFrontmatter,
   parseFrontmatter,
   parseYamlFrontmatter,
-  serializeFrontmatter,
 } from "./frontmatter";
-import { setFrontmatterFieldValue } from "./frontmatterSchema";
 import { measureAsync } from "./perf";
 import { frontmatterLineOffset as computeFrontmatterLineOffset } from "./searchJump";
 import type { FileNode, SaveStatus } from "./types";
@@ -715,9 +714,17 @@ export function useFileEditor({
 
   async function handleFieldChange(key: string, value: FrontmatterValue) {
     if (!selectedFile) return;
-    const updated = setFrontmatterFieldValue(parsedFrontmatter, key, value);
-    setParsedFrontmatter(updated);
-    const newFrontmatter = serializeFrontmatter(updated);
+    // Edit the raw block, never a rebuild from the display projection: nested
+    // maps, lists of maps, timestamps and keys the panel doesn't show must all
+    // survive a title edit. Unparseable YAML is refused, not overwritten.
+    const edit = editFrontmatterField(frontmatterRef.current, key, value);
+    if (!edit.ok) {
+      showToast(t("errors.frontmatter_invalid"));
+      return;
+    }
+    if (edit.block === frontmatterRef.current) return;
+    const newFrontmatter = edit.block;
+    setParsedFrontmatter(parseYamlFrontmatter(newFrontmatter));
     frontmatterRef.current = newFrontmatter;
     // Keep the search-jump offset correct when a property edit changes the
     // frontmatter's line count (offset is otherwise only recomputed on load).

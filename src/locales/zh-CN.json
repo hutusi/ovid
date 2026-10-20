@@ -713,6 +713,7 @@
     "boundary_title": "出错了",
     "unexpected": "发生意外错误——详情请见控制台",
     "close_save_failed": "关闭前保存失败——已保留窗口，以免丢失更改",
+    "frontmatter_invalid": "此文件的 frontmatter 不是有效的 YAML，属性暂为只读——请先在文本编辑器中修正",
     "save_failed": "保存失败——详情请见控制台",
     "file_too_large": "此文件太大，无法在编辑器中打开",
     "open_file_failed": "打开文件失败——详情请见控制台",

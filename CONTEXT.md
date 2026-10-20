@@ -166,6 +166,27 @@ follow-ups).
 
 ---
 
+### Frontmatter: raw mapping vs display projection
+
+A file's frontmatter exists in two shapes, and only one may be written back:
+
+- **The raw block / mapping** — the fenced text at the top of the file and
+  what `loadFrontmatterBlock` parses from it, every value kept: nested maps,
+  lists of maps, and timestamps as `YamlTimestamp` (the exact source text, so
+  `2024-01-01` and `…T10:30:00+08:00` survive with no UTC shift).
+- **The display projection** — `ParsedFrontmatter`, what the properties panel
+  renders (`projectFrontmatter`): scalars and scalar lists only, timestamps
+  shown as their written date.
+
+Structured edits go through `editFrontmatterField` (panel semantics:
+canonical-key matching, `null` deletes, date fields written as unquoted YAML
+dates, a datetime's time kept when only its date is edited) or the lower-level
+`setFrontmatterKey` (collections' `items:`). Both edit the raw mapping and
+splice just that key's lines into the block, re-parsing to verify — so every
+other line, comments included, stays byte-identical — and both refuse when
+the YAML doesn't parse. Never rebuild a block from the projection: it is
+lossy by design.
+
 ## File lifecycle vocabulary
 
 Five layers, each owning one piece of the "user opens a file and edits it"

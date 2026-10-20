@@ -457,11 +457,12 @@ export function useWorkspace({
     transform: (items: CollectionItem[]) => CollectionItem[]
   ) {
     await flushPendingSave();
-    const attempt = async (): Promise<number | "conflict"> => {
+    const attempt = async (): Promise<number | "conflict" | "invalid"> => {
       // Read content + its version token as one snapshot, then write against
       // that token so an external edit between read and write is caught.
       const { content: raw, version } = await commands.files.readVersioned({ path: indexPath });
       const next = setCollectionItems(raw, transform(parseCollectionItems(raw)));
+      if (next === null) return "invalid";
       try {
         await commands.files.write({ path: indexPath, content: next, expectedVersion: version });
         return 0;
@@ -473,7 +474,13 @@ export function useWorkspace({
     try {
       // One retry: re-read the externally-changed index and re-apply the same
       // add/remove, merging our edit with theirs.
-      if ((await attempt()) === "conflict" && (await attempt()) === "conflict") {
+      let outcome = await attempt();
+      if (outcome === "conflict") outcome = await attempt();
+      if (outcome === "invalid") {
+        showToast(t("errors.frontmatter_invalid"));
+        return;
+      }
+      if (outcome === "conflict") {
         showToast(t("errors.collection_changed"));
         await refreshTree();
         return;

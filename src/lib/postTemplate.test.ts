@@ -26,7 +26,7 @@ Body text
 
     expect(createPostFromExistingContent(raw, new Date(2026, 3, 26))).toBe(`---
 title: ''
-date: '2026-04-26'
+date: 2026-04-26
 draft: true
 featured: false
 pinned: false
@@ -35,6 +35,30 @@ slug: ''
 tags: []
 type: post
 series: weekly-notes
+---
+`);
+  });
+
+  test("keeps nested fields and timestamps it doesn't reset", () => {
+    const raw = `---
+title: Hello
+date: 2024-01-15T09:30:00+08:00
+updated: 2024-02-01
+seo:
+  description: About hello
+authors:
+  - name: Ada
+---
+Body
+`;
+    expect(createPostFromExistingContent(raw, new Date(2026, 3, 26))).toBe(`---
+title: ''
+date: 2026-04-26
+updated: 2024-02-01
+seo:
+  description: About hello
+authors:
+  - name: Ada
 ---
 `);
   });

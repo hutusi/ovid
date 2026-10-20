@@ -32,6 +32,16 @@ release cadence and Conventional Commit history.
   editor you were leaving (during a tab switch) could be saved into the file
   you switched to. Edits are now tied to the document they were made in, and
   an autosave that straddles a rename lands on the new path.
+- **Property edits no longer wipe frontmatter**: editing any field in the
+  properties panel rebuilt the whole frontmatter from what the panel could
+  display, deleting nested fields (`seo:`, a collection's `items:`),
+  numeric lists and empty keys, cutting datetimes down to a date (shown as the
+  previous day for positive UTC offsets), and — when the YAML didn't parse —
+  deleting every field. Edits now change only the edited key's lines; all
+  other lines, comments included, are left exactly as written, and dates stay
+  unquoted. Files whose frontmatter YAML is invalid are never rewritten.
+  "New from existing" and collection add/remove keep nested fields and dates
+  the same way.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 
