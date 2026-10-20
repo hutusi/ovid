@@ -18,6 +18,14 @@ pub(crate) struct AboutState {
 // (left sidebar / right sidebar) so the menu can be rebuilt with the
 // correct check state on language change. Frontend keeps this in sync
 // via `set_menu_checked`.
+/// The labels the current native menu was built with. The frontend sends its
+/// labels once i18n initialises; they usually match what Rust seeded from the
+/// system locale, and rebuilding the whole menu bar then was wasted startup
+/// work, so set_menu_language skips identical labels.
+pub(crate) struct MenuLabelsState {
+    pub(crate) labels: Mutex<HashMap<String, String>>,
+}
+
 pub(crate) struct ViewToggleState {
     pub(crate) sidebar_visible: Mutex<bool>,
     pub(crate) properties_open: Mutex<bool>,
@@ -467,7 +475,12 @@ pub(crate) fn set_menu_language(
     labels: HashMap<String, String>,
     about_state: State<'_, AboutState>,
     view_state: State<'_, ViewToggleState>,
+    labels_state: State<'_, MenuLabelsState>,
 ) -> Result<(), String> {
+    let mut current = labels_state.labels.lock().map_err(|e| e.to_string())?;
+    if *current == labels {
+        return Ok(());
+    }
     // Update stored about dialog strings for the non-macOS handler.
     if let Some(title) = labels.get("about_title") {
         *about_state.title.lock().map_err(|e| e.to_string())? = title.clone();
@@ -490,6 +503,7 @@ pub(crate) fn set_menu_language(
     let menu = build_app_menu(&app, &labels, sidebar_checked, properties_checked)
         .map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
+    *current = labels;
     Ok(())
 }
 

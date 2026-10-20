@@ -30,7 +30,7 @@ use git::commands::{
 };
 use menu::{
     build_app_menu, initial_menu_labels, set_menu_checked, set_menu_language, AboutState,
-    ViewToggleState,
+    MenuLabelsState, ViewToggleState,
 };
 use search::search_workspace;
 use state::{WechatState, WorkspaceState};
@@ -75,8 +75,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            let menu = build_app_menu(app, &initial_menu_labels(), true, true)?;
+            let labels = initial_menu_labels();
+            let menu = build_app_menu(app, &labels, true, true)?;
             app.set_menu(menu)?;
+            tauri::Manager::manage(
+                app,
+                MenuLabelsState {
+                    labels: Mutex::new(labels),
+                },
+            );
             menu::register_menu_event_handler(app);
             Ok(())
         })

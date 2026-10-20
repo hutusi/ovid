@@ -25,10 +25,30 @@ import { TextCover } from "./TextCover";
 
 export type EditorViewState = { selection: number; scrollTop: number };
 
-const loadEditor = async () => {
-  await loadKatexRuntime();
-  return import("./Editor");
-};
+// KaTeX (a script-injected asset) and the Editor chunk load in parallel —
+// evaluating the Editor module before KaTeX exists is safe because the math
+// extension resolves the KaTeX global lazily (src/lib/katexGlobal.ts). The
+// Editor only renders once both are in. Memoized so a preload and the lazy
+// component share one load.
+let editorLoad: Promise<typeof import("./Editor")> | null = null;
+function loadEditor(): Promise<typeof import("./Editor")> {
+  if (!editorLoad) {
+    editorLoad = Promise.all([loadKatexRuntime(), import("./Editor")]).then(([, mod]) => mod);
+    // A failed load (e.g. KaTeX script error) may be retried on next use.
+    editorLoad.catch(() => {
+      editorLoad = null;
+    });
+  }
+  return editorLoad;
+}
+
+/** Start loading the editor ahead of the first file open — called while a
+ *  restored session's workspace is opening, so the file it reopens doesn't
+ *  wait on the editor's chunks afterwards. */
+export function preloadEditor(): void {
+  void loadEditor().catch(() => {});
+}
+
 const Editor = lazy(async () => ({
   default: (await loadEditor()).Editor,
 }));

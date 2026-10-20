@@ -107,6 +107,10 @@ release cadence and Conventional Commit history.
   Startup now loads about 540 KiB instead of about 1,280 KiB (−58%); the
   editor libraries arrive with the editor. The build fails if they creep back
   into startup.
+- **Restored sessions open sooner**: when Ovid reopens your last file, the
+  editor now loads while the workspace is still opening rather than after,
+  and its math renderer loads alongside it instead of first. The native menu
+  bar is no longer rebuilt at startup when the language hasn't changed.
 - **Autosave no longer triggers a workspace rescan**: the temporary file each
   atomic save stages next to the document looked like a new file to the
   watcher, so every autosave re-walked the workspace, reloaded the sidebar

@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
 import type { EditorViewState } from "./components/EditorPane";
-import { EditorPane } from "./components/EditorPane";
+import { EditorPane, preloadEditor } from "./components/EditorPane";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getFileViewKind, isReadOnlyContent } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
@@ -463,6 +463,8 @@ function App() {
       recentWorkspaces[0].rootPath,
       localStorage
     );
+    // A file will reopen once the workspace is in: load the editor meanwhile.
+    if (pendingAutoOpenPath.current) preloadEditor();
     void openWorkspaceAtPath(recentWorkspaces[0].rootPath);
   }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath]);
 
