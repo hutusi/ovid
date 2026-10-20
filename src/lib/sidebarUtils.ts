@@ -73,6 +73,31 @@ export function rollupGitStatus(
   return best;
 }
 
+/** Every folder's rolled-up git status — the most significant status of
+ *  anything inside it — in one post-order pass. Rows look their folder up
+ *  here instead of walking its whole subtree on every render. */
+export function computeGitRollup(
+  nodes: FileNode[],
+  map: Map<string, GitStatus>
+): Map<string, GitStatus> {
+  const rollup = new Map<string, GitStatus>();
+  const visit = (node: FileNode): GitStatus | undefined => {
+    if (!node.isDirectory) return map.get(node.path);
+    let best: GitStatus | undefined;
+    for (const child of node.children ?? []) {
+      const childStatus = visit(child);
+      if (!childStatus) continue;
+      if (!best || GIT_PRIORITY.indexOf(childStatus) < GIT_PRIORITY.indexOf(best)) {
+        best = childStatus;
+      }
+    }
+    if (best) rollup.set(node.path, best);
+    return best;
+  };
+  for (const node of nodes) visit(node);
+  return rollup;
+}
+
 export function filterTree(nodes: FileNode[], query: string): FileNode[] {
   const q = query.toLowerCase();
   return nodes.flatMap((node) => {

@@ -149,6 +149,10 @@ release cadence and Conventional Commit history.
 - **Pasting large images is quicker**: pasted, dropped and cover images are
   sent to the backend as raw bytes instead of a JSON list of numbers, which
   inflated a 5 MB screenshot to roughly 15–20 MB of text to build and parse.
+- **A quieter sidebar**: the file tree re-rendered every row — re-walking
+  each collapsed folder for its git dot — whenever anything in the window
+  changed, including autosave status while typing and each step of a
+  sidebar resize. Rows now re-render only when their own content changes.
 - **File operations no longer block the window**: reading, saving, creating,
   renaming, duplicating and trashing files, and saving pasted or dropped
   images, now run off the UI thread. A save's fsync, a slow or network volume,

@@ -7,6 +7,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getFileViewKind, isReadOnlyContent } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import type { NewContentKind } from "./lib/amytisScaffold";
 import type { AppActionCtx } from "./lib/appActions";
 import { loadLastRecentFilePath } from "./lib/appRestore";
 import { commands } from "./lib/commands";
@@ -35,6 +36,7 @@ import { useNoteIndex } from "./lib/useNoteIndex";
 import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useResponsivePanels } from "./lib/useResponsivePanels";
+import { useStableCallback } from "./lib/useStableCallback";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
@@ -312,6 +314,33 @@ function App() {
       resolveWikiTargetCallback,
     ]
   );
+
+  // Stable handlers for the memoized sidebar (its rows re-render only when
+  // their own inputs change). The overlay's open() is itself stable.
+  const openModal = overlay.open;
+  const sidebarHandlers = {
+    onSelect: useStableCallback((node: FileNode) => handleSidebarSelect(node)),
+    onToggleMode: useStableCallback(() => handleToggleSidebarMode()),
+    onDelete: useStableCallback((node: FileNode) => handleDelete(node)),
+    onOpenSwitcher: useCallback(() => openModal({ kind: "workspaceSwitcher" }), [openModal]),
+    onNewFile: useCallback(
+      (dirPath: string, kind: NewContentKind) =>
+        openModal({ kind: "modal", state: { type: "new-file", dirPath, kind } }),
+      [openModal]
+    ),
+    onRename: useCallback(
+      (node: FileNode) => openModal({ kind: "modal", state: { type: "rename-path", node } }),
+      [openModal]
+    ),
+    onDuplicate: useCallback(
+      (node: FileNode) => openModal({ kind: "modal", state: { type: "duplicate-file", node } }),
+      [openModal]
+    ),
+    onNewFromExisting: useCallback(
+      (node: FileNode) => openModal({ kind: "modal", state: { type: "new-from-existing", node } }),
+      [openModal]
+    ),
+  };
 
   async function handleSidebarSelect(node: FileNode) {
     // Bump first, before any branch or early return, so *every* sidebar click
@@ -648,27 +677,19 @@ function App() {
               postsBasePath={postsBasePath}
               features={features}
               collectionLinks={collectionLinks}
-              onToggleMode={handleToggleSidebarMode}
+              onToggleMode={sidebarHandlers.onToggleMode}
               onToggleVisible={panelLayout.toggleSidebar}
-              onSelect={handleSidebarSelect}
+              onSelect={sidebarHandlers.onSelect}
               onOpenWorkspace={handleOpenWorkspace}
-              onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
-              onNewFile={(dirPath, kind) =>
-                overlay.open({ kind: "modal", state: { type: "new-file", dirPath, kind } })
-              }
+              onOpenSwitcher={sidebarHandlers.onOpenSwitcher}
+              onNewFile={sidebarHandlers.onNewFile}
               onNewTodayFlow={handleNewTodayFlow}
               onAddToCollection={handleAddToCollection}
               onRemoveFromCollection={handleRemoveFromCollection}
-              onRename={(node) =>
-                overlay.open({ kind: "modal", state: { type: "rename-path", node } })
-              }
-              onDuplicate={(node) =>
-                overlay.open({ kind: "modal", state: { type: "duplicate-file", node } })
-              }
-              onNewFromExisting={(node) =>
-                overlay.open({ kind: "modal", state: { type: "new-from-existing", node } })
-              }
-              onDelete={handleDelete}
+              onRename={sidebarHandlers.onRename}
+              onDuplicate={sidebarHandlers.onDuplicate}
+              onNewFromExisting={sidebarHandlers.onNewFromExisting}
+              onDelete={sidebarHandlers.onDelete}
             />
           )}
         </ErrorBoundary>

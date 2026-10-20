@@ -9,7 +9,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
@@ -17,6 +17,7 @@ import type { FeatureBucket } from "../lib/commands/generated/FeatureBucket";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import {
   clampSidebarWidth,
+  computeGitRollup,
   filterTree,
   getBucketContentType,
   needsPageDivider,
@@ -65,7 +66,9 @@ const SIDEBAR_MIN = 180;
 const SIDEBAR_MAX = 480;
 const SIDEBAR_DEFAULT = 240;
 
-export function Sidebar({
+/** Memoized: App re-renders often (save state, git refreshes) and the sidebar
+ *  depends on none of that, given stable props. */
+export const Sidebar = memo(function Sidebar({
   tree,
   workspaceKey,
   selectedPath,
@@ -181,6 +184,13 @@ export function Sidebar({
         }
       ),
     [filterQuery, tree]
+  );
+
+  // Folder roll-ups for the rendered (possibly filtered) tree, computed once
+  // per tree/status change instead of per collapsed row per render.
+  const gitRollup = useMemo(
+    () => computeGitRollup(renderedNodes, gitStatusMap),
+    [renderedNodes, gitStatusMap]
   );
 
   useEffect(() => {
@@ -407,6 +417,7 @@ export function Sidebar({
                 onToggleExpand={handleToggleExpand}
                 selectedPath={selectedPath}
                 gitStatusMap={gitStatusMap}
+                gitRollup={gitRollup}
                 forceExpand={filterQuery.length > 0}
                 filesMode={filesMode}
                 postsBasePath={postsBasePath}
@@ -454,4 +465,4 @@ export function Sidebar({
       />
     </div>
   );
-}
+});

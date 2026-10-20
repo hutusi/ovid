@@ -1,6 +1,6 @@
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import { FileImage, FileText, Folder, FolderOpen } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, memo } from "react";
 import { useTranslation } from "react-i18next";
 import type { NewContentKind } from "../../lib/amytisScaffold";
 import type { CollectionLink } from "../../lib/collection";
@@ -12,7 +12,6 @@ import {
   getDirIndexEntry,
   getSidebarDisplayName,
   needsPageDivider,
-  rollupGitStatus,
 } from "../../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../../lib/types";
 import { ContentTypeIcon } from "../ContentTypeIcon";
@@ -39,6 +38,9 @@ export interface FileItemProps {
   onToggleExpand: (path: string, depth: number, opts?: { isBucket?: boolean }) => void;
   selectedPath: string | null;
   gitStatusMap: Map<string, GitStatus>;
+  /** Each folder's rolled-up status (computeGitRollup), shown on collapsed
+   *  folders. */
+  gitRollup: Map<string, GitStatus>;
   forceExpand?: boolean;
   filesMode: boolean;
   /** Content type of the top-level bucket this node lives under (e.g. "series"
@@ -61,13 +63,17 @@ export interface FileItemProps {
   onDelete: (node: FileNode) => void;
 }
 
-export function FileItem({
+/** One sidebar row (and, for an expanded folder, its subtree). Memoized: with
+ *  stable handlers from the sidebar, a row re-renders only when its own
+ *  inputs change — not on every App render while typing. */
+export const FileItem = memo(function FileItem({
   node,
   depth,
   isExpanded,
   onToggleExpand,
   selectedPath,
   gitStatusMap,
+  gitRollup,
   forceExpand = false,
   filesMode,
   bucketType,
@@ -176,7 +182,7 @@ export function FileItem({
     ) : (
       <DirIcon size={13} className="sidebar-file-icon sidebar-dir-icon" />
     );
-    const dirRollup = !expanded ? rollupGitStatus(node, gitStatusMap) : undefined;
+    const dirRollup = !expanded ? gitRollup.get(node.path) : undefined;
     // An entry folder's label is the index's title; clicking it opens the
     // index, the chevron toggles expansion, and the index child is hidden.
     const childNodes = indexEntry
@@ -295,6 +301,7 @@ export function FileItem({
                 onToggleExpand={onToggleExpand}
                 selectedPath={selectedPath}
                 gitStatusMap={gitStatusMap}
+                gitRollup={gitRollup}
                 forceExpand={forceExpand}
                 filesMode={filesMode}
                 bucketType={effectiveBucketType}
@@ -412,4 +419,4 @@ export function FileItem({
       })}
     </>
   );
-}
+});
