@@ -162,151 +162,176 @@ export function useGit(workspaceRoot: string | null) {
     void refreshGitStatus();
   }, [workspaceRoot, refreshGitStatus, resetGitState]);
 
-  async function getCommitChanges(): Promise<GitCommitChange[]> {
+  // Every handler is stable (useCallback) — they feed App's action context and
+  // the native-menu adapter, where a fresh identity per render meant
+  // rebuilding that context and churning listeners on every App render.
+  const getCommitChanges = useCallback(async (): Promise<GitCommitChange[]> => {
     return (await commands.git.commitChanges()) as GitCommitChange[];
-  }
+  }, []);
 
-  async function getBranch(): Promise<string> {
+  const getBranch = useCallback(async (): Promise<string> => {
     return commands.git.branch();
-  }
+  }, []);
 
-  async function getBranches(): Promise<GitBranch[]> {
+  const getBranches = useCallback(async (): Promise<GitBranch[]> => {
     return commands.git.branches();
-  }
+  }, []);
 
-  async function getRemoteBranches(): Promise<GitRemoteBranch[]> {
+  const getRemoteBranches = useCallback(async (): Promise<GitRemoteBranch[]> => {
     return commands.git.remoteBranches();
-  }
+  }, []);
 
-  async function getRemoteInfo(): Promise<GitRemoteInfo> {
+  const getRemoteInfo = useCallback(async (): Promise<GitRemoteInfo> => {
     return commands.git.remoteInfo();
-  }
+  }, []);
 
-  async function handlePush(remoteName?: string): Promise<void> {
-    try {
-      await commands.git.push({ remoteName });
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handlePush = useCallback(
+    async (remoteName?: string): Promise<void> => {
+      try {
+        await commands.git.push({ remoteName });
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
-  async function handlePull(): Promise<void> {
+  const handlePull = useCallback(async (): Promise<void> => {
     try {
       await commands.git.pull();
     } finally {
       void refreshGitStatus();
     }
-  }
+  }, [refreshGitStatus]);
 
-  async function handleFetch(): Promise<void> {
+  const handleFetch = useCallback(async (): Promise<void> => {
     try {
       await commands.git.fetch();
     } finally {
       void refreshGitStatus();
     }
-  }
+  }, [refreshGitStatus]);
 
-  async function handleSwitchBranch(branch: string): Promise<void> {
-    try {
-      await commands.git.switchBranch({ branch });
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handleSwitchBranch = useCallback(
+    async (branch: string): Promise<void> => {
+      try {
+        await commands.git.switchBranch({ branch });
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
-  async function handleCreateBranch(branch: string): Promise<void> {
-    try {
-      await commands.git.createBranch({ branch });
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handleCreateBranch = useCallback(
+    async (branch: string): Promise<void> => {
+      try {
+        await commands.git.createBranch({ branch });
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
-  async function handleCheckoutRemoteBranch(remoteRef: string): Promise<void> {
-    try {
-      await commands.git.checkoutRemoteBranch({ remoteRef });
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handleCheckoutRemoteBranch = useCallback(
+    async (remoteRef: string): Promise<void> => {
+      try {
+        await commands.git.checkoutRemoteBranch({ remoteRef });
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
-  async function handleRenameBranch(oldBranch: string, newBranch: string): Promise<void> {
-    try {
-      await commands.git.renameBranch({ oldBranch, newBranch });
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handleRenameBranch = useCallback(
+    async (oldBranch: string, newBranch: string): Promise<void> => {
+      try {
+        await commands.git.renameBranch({ oldBranch, newBranch });
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
-  async function handleDeleteBranch(branch: string): Promise<void> {
-    try {
-      await commands.git.deleteBranch({ branch });
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handleDeleteBranch = useCallback(
+    async (branch: string): Promise<void> => {
+      try {
+        await commands.git.deleteBranch({ branch });
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
-  async function handleOpenRemote(remoteName?: string): Promise<void> {
+  const handleOpenRemote = useCallback(async (remoteName?: string): Promise<void> => {
     await commands.git.openRemote({ remoteName });
-  }
+  }, []);
 
-  async function handleCommit(message: string, paths: string[], push: boolean): Promise<void> {
-    try {
-      await commands.git.commit({ message, push, paths });
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handleCommit = useCallback(
+    async (message: string, paths: string[], push: boolean): Promise<void> => {
+      try {
+        await commands.git.commit({ message, push, paths });
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
   // Credentialed retry variants — invoked from the credentials dialog after
   // an AUTH_REQUIRED failure on push/pull/fetch. Each one calls the matching
   // *_with_credentials Tauri command and refreshes git state afterwards.
 
-  async function handlePushWithCredentials(args: {
-    remoteName?: string;
-    username: string;
-    password: string;
-    remember: boolean;
-  }): Promise<void> {
-    try {
-      await commands.git.pushWithCredentials(args);
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handlePushWithCredentials = useCallback(
+    async (args: {
+      remoteName?: string;
+      username: string;
+      password: string;
+      remember: boolean;
+    }): Promise<void> => {
+      try {
+        await commands.git.pushWithCredentials(args);
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
-  async function handlePullWithCredentials(args: {
-    username: string;
-    password: string;
-    remember: boolean;
-  }): Promise<void> {
-    try {
-      await commands.git.pullWithCredentials(args);
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handlePullWithCredentials = useCallback(
+    async (args: { username: string; password: string; remember: boolean }): Promise<void> => {
+      try {
+        await commands.git.pullWithCredentials(args);
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
-  async function handleFetchWithCredentials(args: {
-    username: string;
-    password: string;
-    remember: boolean;
-  }): Promise<void> {
-    try {
-      await commands.git.fetchWithCredentials(args);
-    } finally {
-      void refreshGitStatus();
-    }
-  }
+  const handleFetchWithCredentials = useCallback(
+    async (args: { username: string; password: string; remember: boolean }): Promise<void> => {
+      try {
+        await commands.git.fetchWithCredentials(args);
+      } finally {
+        void refreshGitStatus();
+      }
+    },
+    [refreshGitStatus]
+  );
 
-  async function handleForgetCredentials(host: string): Promise<void> {
+  const handleForgetCredentials = useCallback(async (host: string): Promise<void> => {
     await commands.git.forgetCredentials({ host });
-  }
+  }, []);
 
-  async function hasCredentialsForHost(host: string): Promise<boolean> {
+  const hasCredentialsForHost = useCallback(async (host: string): Promise<boolean> => {
     if (!host) return false;
     return commands.git.hasCredentialsForHost({ host });
-  }
+  }, []);
 
   return {
     gitStatusMap,

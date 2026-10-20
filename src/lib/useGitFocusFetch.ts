@@ -16,6 +16,10 @@ export function useGitFocusFetch({
 }: UseGitFocusFetchOptions): void {
   const lastAutoFetchAtRef = useRef(0);
   const autoFetchInFlightRef = useRef(false);
+  // Read through a ref so a new handleFetch identity doesn't re-register the
+  // window focus listener (an IPC round-trip each time).
+  const handleFetchRef = useRef(handleFetch);
+  handleFetchRef.current = handleFetch;
 
   useEffect(() => {
     if (!workspaceRoot || !isGitRepo) return;
@@ -35,7 +39,7 @@ export function useGitFocusFetch({
             lastFetchedAt: lastAutoFetchAtRef.current,
             cooldownMs: AUTO_FETCH_COOLDOWN_MS,
           },
-          handleFetch
+          () => handleFetchRef.current()
         );
       } finally {
         autoFetchInFlightRef.current = false;
@@ -61,5 +65,5 @@ export function useGitFocusFetch({
       mounted = false;
       unlisten?.();
     };
-  }, [workspaceRoot, isGitRepo, handleFetch]);
+  }, [workspaceRoot, isGitRepo]);
 }
