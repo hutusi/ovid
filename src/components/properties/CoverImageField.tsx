@@ -55,7 +55,7 @@ function EyeIcon({ open }: { open: boolean }) {
 async function uploadImageBytes(file: File, filePath: string | undefined): Promise<string> {
   const ext = resolveImageExtension(file);
   const buf = await file.arrayBuffer();
-  const bytes = Array.from(new Uint8Array(buf));
+  const bytes = new Uint8Array(buf);
   return commands.assets.saveFromBytes({
     bytes,
     extension: ext,

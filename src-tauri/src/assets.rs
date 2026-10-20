@@ -158,18 +158,49 @@ fn validate_image_extension(ext: &str) -> Result<(), String> {
     }
 }
 
+/// Request header carrying the image's file extension (e.g. `png`).
+const EXTENSION_HEADER: &str = "x-ovid-extension";
+/// Request header carrying the active file's path, percent-encoded because
+/// header values must be ASCII and paths need not be.
+const ACTIVE_FILE_HEADER: &str = "x-ovid-active-file";
+
+/// Decode a percent-encoded (`encodeURIComponent`) header value.
+fn decode_header_value(ascii: &str) -> Result<String, String> {
+    percent_encoding::percent_decode_str(ascii)
+        .decode_utf8()
+        .map(|decoded| decoded.into_owned())
+        .map_err(|e| e.to_string())
+}
+
 /// Save raw image bytes (e.g. from the clipboard) to the active file's sibling
 /// `images/` directory (falls back to `<workspace_root>/images/`).
 /// Returns the relative path to insert into the document.
+///
+/// The bytes arrive as the raw IPC request body, not as a JSON argument: a
+/// JSON array of numbers inflated a 5 MB screenshot to ~15–20 MB of text that
+/// had to be built, sent and parsed. The extension and path ride in headers.
 #[tauri::command]
 pub(crate) async fn save_asset_from_bytes(
-    bytes: Vec<u8>,
-    extension: String,
-    active_file_path: Option<String>,
+    request: tauri::ipc::Request<'_>,
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
-    let ext = extension.trim_start_matches('.').to_lowercase();
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected the image bytes as a raw request body".to_string());
+    };
+    let header = |name: &str| -> Result<Option<String>, String> {
+        request
+            .headers()
+            .get(name)
+            .map(|value| decode_header_value(value.to_str().map_err(|e| e.to_string())?))
+            .transpose()
+    };
+    let ext = header(EXTENSION_HEADER)?
+        .ok_or("missing image extension")?
+        .trim_start_matches('.')
+        .to_lowercase();
     validate_image_extension(&ext)?;
+    let active_file_path = header(ACTIVE_FILE_HEADER)?;
+    let bytes = bytes.clone();
     let root = state.tree_root_path()?;
     run_blocking(move || save_bytes_blocking(&bytes, &ext, active_file_path, &root)).await
 }
@@ -205,6 +236,16 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn decode_header_value_reverses_encode_uri_component() {
+        assert_eq!(
+            decode_header_value("%2Fws%2F%E7%AC%94%E8%AE%B0%2Fa%20b.md").unwrap(),
+            "/ws/笔记/a b.md"
+        );
+        assert_eq!(decode_header_value("png").unwrap(), "png");
+        assert!(decode_header_value("%FF%FE").is_err(), "not UTF-8");
+    }
 
     // ── resolve_images_dir ───────────────────────────────────────────────────
 

@@ -146,6 +146,9 @@ release cadence and Conventional Commit history.
   shows the 100 best-matching files (with a note on how many more matched)
   instead of rendering thousands of rows for a common word. Opening a
   workspace walks its files on a background thread.
+- **Pasting large images is quicker**: pasted, dropped and cover images are
+  sent to the backend as raw bytes instead of a JSON list of numbers, which
+  inflated a 5 MB screenshot to roughly 15–20 MB of text to build and parse.
 - **File operations no longer block the window**: reading, saving, creating,
   renaming, duplicating and trashing files, and saving pasted or dropped
   images, now run off the UI thread. A save's fsync, a slow or network volume,
