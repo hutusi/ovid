@@ -71,7 +71,7 @@ export interface EditorPaneProps {
   onError: (message: string) => void;
   currentEditorViewState: EditorViewState | undefined;
   onEditorViewStateChange: (state: EditorViewState) => void;
-  registerPendingFlush: (flush: (() => void) | null) => void;
+  registerPendingFlush: (flush: () => void) => () => void;
 
   // Wiki links
   resolveWikiTarget: (target: string) => ResolvedWikiTarget;

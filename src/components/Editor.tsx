@@ -106,7 +106,7 @@ interface EditorProps {
   onChange?: (markdown: string) => void;
   onError?: (msg: string) => void;
   onViewStateChange?: (viewState: { selection: number; scrollTop: number }) => void;
-  registerPendingFlush?: (flush: (() => void) | null) => void;
+  registerPendingFlush?: (flush: () => void) => () => void;
   /** One-shot "scroll to this search match" request; consumed once the target
    *  file's content is on screen, then cleared via onSearchJumpHandled. */
   searchJump?: SearchJumpTarget | null;

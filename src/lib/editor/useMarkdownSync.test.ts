@@ -107,18 +107,23 @@ describe("useMarkdownSync", () => {
     expect(changes).toEqual(["# trailing edit"]);
   });
 
-  it("wires registerPendingFlush with a working flush and tears it down with null", () => {
-    const registered: Array<(() => void) | null> = [];
+  it("wires registerPendingFlush with a working flush and unregisters on unmount", () => {
+    const registered: Array<() => void> = [];
+    let unregistered = 0;
     const changes: string[] = [];
     const { result, unmount } = renderHook(() =>
       useMarkdownSync({
         onChange: (md) => changes.push(md),
-        registerPendingFlush: (flush) => registered.push(flush),
+        registerPendingFlush: (flush) => {
+          registered.push(flush);
+          return () => {
+            unregistered += 1;
+          };
+        },
       })
     );
 
     expect(registered).toHaveLength(1);
-    expect(registered[0]).not.toBeNull();
 
     act(() => {
       result.current.setCurrentEditor(makeEditor("# via session flush"));
@@ -128,7 +133,55 @@ describe("useMarkdownSync", () => {
     expect(changes).toEqual(["# via session flush"]);
 
     unmount();
-    expect(registered[registered.length - 1]).toBeNull();
+    expect(unregistered).toBe(1);
+  });
+
+  it("a new onChange identity on re-render neither flushes nor re-registers", async () => {
+    const calls: string[] = [];
+    let registrations = 0;
+    const registerPendingFlush = () => {
+      registrations += 1;
+      return () => {};
+    };
+    const { result, rerender } = renderHook(
+      ({ tag }: { tag: string }) =>
+        useMarkdownSync({
+          onChange: (md) => calls.push(`${tag}:${md}`),
+          registerPendingFlush,
+        }),
+      { initialProps: { tag: "first" } }
+    );
+
+    act(() => {
+      result.current.setCurrentEditor(makeEditor("# draft"));
+      result.current.scheduleSerialize(makeEditor("# draft"));
+    });
+    // Parent re-renders hand the hook a fresh onChange closure — that must
+    // not force the pending serialization out early.
+    rerender({ tag: "second" });
+    rerender({ tag: "third" });
+    expect(calls).toEqual([]);
+    expect(registrations).toBe(1);
+
+    // The debounce still fires once, through the latest onChange.
+    await act(() => sleep(DEBOUNCE_SETTLE_MS));
+    expect(calls).toEqual(["third:# draft"]);
+  });
+
+  it("the unmount flush emits through the latest onChange", () => {
+    const calls: string[] = [];
+    const { result, rerender, unmount } = renderHook(
+      ({ tag }: { tag: string }) =>
+        useMarkdownSync({ onChange: (md) => calls.push(`${tag}:${md}`) }),
+      { initialProps: { tag: "first" } }
+    );
+    act(() => {
+      result.current.setCurrentEditor(makeEditor("# tail"));
+      result.current.scheduleSerialize(makeEditor("# tail"));
+    });
+    rerender({ tag: "latest" });
+    unmount();
+    expect(calls).toEqual(["latest:# tail"]);
   });
 
   it("does nothing without an onChange consumer", async () => {

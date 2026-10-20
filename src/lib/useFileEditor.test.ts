@@ -111,6 +111,36 @@ describe("useFileEditor — save flush semantics", () => {
     expect(writeArgs(0)?.content).toBe("draft 3");
   });
 
+  it("an outgoing editor's unregister leaves its successor's flush in place", async () => {
+    invokeImpl = whenInvoke({
+      read_file: () => "",
+      get_file_mtime: () => 1000,
+      write_file: () => undefined,
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+
+    let outgoingFlushes = 0;
+    let incomingFlushes = 0;
+    const unregisterOutgoing = result.current.registerEditorFlush(() => {
+      outgoingFlushes += 1;
+    });
+    result.current.registerEditorFlush(() => {
+      incomingFlushes += 1;
+    });
+    // React may run the outgoing editor's cleanup after the incoming one
+    // registered; that must not clear the incoming registration.
+    unregisterOutgoing();
+
+    await act(async () => {
+      await result.current.flushPendingSave();
+    });
+    expect(outgoingFlushes).toBe(0);
+    expect(incomingFlushes).toBe(1);
+  });
+
   it("forced flush pre-empts the debounce: content is written immediately, not after the delay", async () => {
     invokeImpl = whenInvoke({
       read_file: () => "",

@@ -584,8 +584,14 @@ export function useFileEditor({
     setSaveStatus("unsaved");
   }, []);
 
-  const registerEditorFlush = useCallback((flush: (() => void) | null) => {
+  /** Register the mounted editor's pending-serialize flush; returns the
+   *  matching unregister, which only clears the slot if it still holds this
+   *  flush (so an outgoing editor can't clear its successor's). */
+  const registerEditorFlush = useCallback((flush: () => void) => {
     editorFlushRef.current = flush;
+    return () => {
+      if (editorFlushRef.current === flush) editorFlushRef.current = null;
+    };
   }, []);
 
   async function handleFieldChange(key: string, value: FrontmatterValue) {
