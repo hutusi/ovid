@@ -30,6 +30,7 @@ import { useEditorCommands } from "../lib/editor/useEditorCommands";
 import { useMarkdownSync } from "../lib/editor/useMarkdownSync";
 import type { FlatFile } from "../lib/fileSearch";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
+import { scrollBehavior } from "../lib/motion";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import { matchOccurrenceRank, stripLineMarkers } from "../lib/searchJump";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
@@ -492,7 +493,7 @@ export const Editor = memo(function Editor({
             const rect = scrollEl.getBoundingClientRect();
             const cursorRelTop = coords.top - rect.top;
             const target = scrollEl.scrollTop + cursorRelTop - rect.height / 2;
-            scrollEl.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+            scrollEl.scrollTo({ top: Math.max(0, target), behavior: scrollBehavior() });
           },
           {
             docSize: ed.state.doc.content.size,
