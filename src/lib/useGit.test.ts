@@ -200,4 +200,45 @@ describe("useGit — status-only refresh after a save", () => {
     expect(result.current.gitStatusMap).not.toBe(before);
     expect(result.current.gitStatusMap.get("/ws/a.md")).toBe("staged");
   });
+
+  it("an older status read can't overwrite a newer one that landed first", async () => {
+    let disk = [{ path: "/ws/a.md", status: "modified" }];
+    let stallNextRead = false;
+    let releaseStalled: () => void = () => {};
+    invokeImpl = whenInvoke({
+      get_git_branch: () => "main",
+      get_git_status: () => {
+        const snapshot = disk;
+        if (!stallNextRead) return snapshot;
+        stallNextRead = false;
+        return new Promise((resolve) => {
+          releaseStalled = () => resolve(snapshot);
+        });
+      },
+      get_git_remote_info: () => EMPTY_REMOTE_INFO,
+    });
+    const { result } = renderHook(() => useGit("/ws"));
+    await act(async () => {
+      await result.current.refreshGitStatus();
+    });
+
+    // A save's file-status read sees the file modified, and stalls...
+    stallNextRead = true;
+    let fileRefresh: Promise<void> = Promise.resolve();
+    act(() => {
+      fileRefresh = result.current.refreshFileStatus();
+    });
+    // ...while a commit lands and a full refresh reads the clean tree.
+    disk = [];
+    await act(async () => {
+      await result.current.refreshGitStatus();
+    });
+    expect(result.current.gitStatusMap.size).toBe(0);
+
+    await act(async () => {
+      releaseStalled();
+      await fileRefresh;
+    });
+    expect(result.current.gitStatusMap.size).toBe(0);
+  });
 });

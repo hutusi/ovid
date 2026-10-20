@@ -37,6 +37,12 @@ export function useGit(workspaceRoot: string | null) {
   const refreshGenerationRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshQueuedRef = useRef(false);
+  // Status reads overlap — a save's file-status refresh runs beside a full
+  // refresh — and can land out of order. Each read is numbered when it starts
+  // and applied only if no later-started read has landed already: git reports
+  // the repository as of when it ran, so a later start is never staler.
+  const statusReadSeqRef = useRef(0);
+  const appliedStatusSeqRef = useRef(0);
 
   const resetGitState = useCallback(() => {
     setGitStatusMap(new Map());
@@ -62,12 +68,23 @@ export function useGit(workspaceRoot: string | null) {
     });
   }, []);
 
+  /** Read per-file status, numbered for applyStatuses. */
+  const readStatuses = useCallback(async () => {
+    const seq = ++statusReadSeqRef.current;
+    return { seq, statuses: await commands.git.status() };
+  }, []);
+
   // A refresh that finds nothing changed keeps the previous objects, so the
   // sidebar rows and everything else keyed on them don't re-render.
-  const applyStatuses = useCallback((statuses: Array<{ path: string; status: string }>) => {
-    const next = new Map(statuses.map((s) => [s.path, s.status as GitStatus]));
-    setGitStatusMap((prev) => (sameGitStatusMap(prev, next) ? prev : next));
-  }, []);
+  const applyStatuses = useCallback(
+    ({ seq, statuses }: { seq: number; statuses: Array<{ path: string; status: string }> }) => {
+      if (seq < appliedStatusSeqRef.current) return;
+      appliedStatusSeqRef.current = seq;
+      const next = new Map(statuses.map((s) => [s.path, s.status as GitStatus]));
+      setGitStatusMap((prev) => (sameGitStatusMap(prev, next) ? prev : next));
+    },
+    []
+  );
 
   const refreshGitStatus = useCallback(async () => {
     if (refreshInFlightRef.current) {
@@ -96,12 +113,9 @@ export function useGit(workspaceRoot: string | null) {
           setIsGitRepo(detectedInRepo);
           setCurrentBranch(detectedBranch);
           if (detectedInRepo) {
-            const [statuses, remote] = await Promise.all([
-              commands.git.status(),
-              commands.git.remoteInfo(),
-            ]);
+            const [read, remote] = await Promise.all([readStatuses(), commands.git.remoteInfo()]);
             if (refreshGeneration !== refreshGenerationRef.current) return;
-            applyStatuses(statuses);
+            applyStatuses(read);
             setRemoteInfo((prev) => (sameRemoteInfo(prev, remote) ? prev : remote));
           } else {
             resetGitState();
@@ -133,7 +147,7 @@ export function useGit(workspaceRoot: string | null) {
     });
     refreshInFlightRef.current = refreshPromise;
     return refreshPromise;
-  }, [applyStatuses, resetGitDetails, resetGitState]);
+  }, [applyStatuses, readStatuses, resetGitDetails, resetGitState]);
 
   /** Refresh only per-file status — all a save can change — instead of the
    *  full refresh's branch, remotes and upstream queries (about ten git
@@ -147,13 +161,13 @@ export function useGit(workspaceRoot: string | null) {
     const generation = refreshGenerationRef.current;
     if (!currentWorkspaceRootRef.current) return;
     try {
-      const statuses = await measureAsync("git.refreshFileStatus", () => commands.git.status());
-      if (generation === refreshGenerationRef.current) applyStatuses(statuses);
+      const read = await measureAsync("git.refreshFileStatus", readStatuses);
+      if (generation === refreshGenerationRef.current) applyStatuses(read);
     } catch (err) {
       // The next full refresh reconciles; a status hiccup isn't worth a toast.
       console.warn("[useGit] refreshFileStatus failed", err);
     }
-  }, [applyStatuses]);
+  }, [applyStatuses, readStatuses]);
 
   useEffect(() => {
     currentWorkspaceRootRef.current = workspaceRoot;
