@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::state::{CachedFrontmatter, CachedSearchFile};
 
@@ -96,18 +97,21 @@ pub(crate) fn read_frontmatter_meta_cached(
     (title, draft, content_type)
 }
 
+/// A file's searchable text, from the cache when its (mtime, len) still match.
+/// Entries are shared (`Arc`): a search used to deep-clone every cached file —
+/// all of its lines — for every query.
 pub(crate) fn load_search_file_cached(
     path: &Path,
-    cache: &mut HashMap<PathBuf, CachedSearchFile>,
+    cache: &mut HashMap<PathBuf, Arc<CachedSearchFile>>,
     frontmatter_cache: &HashMap<PathBuf, CachedFrontmatter>,
-) -> Option<CachedSearchFile> {
+) -> Option<Arc<CachedSearchFile>> {
     let metadata = std::fs::metadata(path).ok()?;
     let modified = metadata.modified().ok();
     let len = metadata.len();
 
     if let Some(cached) = cache.get(path) {
         if cached.modified == modified && cached.len == len {
-            return Some(cached.clone());
+            return Some(Arc::clone(cached));
         }
     }
 
@@ -121,14 +125,17 @@ pub(crate) fn load_search_file_cached(
         let (t, d, _) = read_frontmatter_meta_from_str(&content);
         (t, d.unwrap_or(false))
     };
-    let entry = CachedSearchFile {
+    let lines: Vec<String> = content.lines().map(|line| line.to_string()).collect();
+    let lines_lower = lines.iter().map(|line| line.to_lowercase()).collect();
+    let entry = Arc::new(CachedSearchFile {
         modified,
         len,
         title,
         draft,
-        lines: content.lines().map(|line| line.to_string()).collect(),
-    };
-    cache.insert(path.to_path_buf(), entry.clone());
+        lines,
+        lines_lower,
+    });
+    cache.insert(path.to_path_buf(), Arc::clone(&entry));
     Some(entry)
 }
 
@@ -141,6 +148,24 @@ mod tests {
     fn write_markdown_file(path: &Path, title: &str, body: &str) {
         let content = format!("---\ntitle: \"{title}\"\ntype: note\n---\n\n{body}\n");
         fs::write(path, content).unwrap();
+    }
+
+    #[test]
+    fn a_cache_hit_shares_the_entry_and_its_lowercased_lines() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("note.md");
+        write_markdown_file(&path, "Title", "Some MIXED Case");
+        let mut cache = HashMap::new();
+        let frontmatter = HashMap::new();
+
+        let first = load_search_file_cached(&path, &mut cache, &frontmatter).unwrap();
+        let second = load_search_file_cached(&path, &mut cache, &frontmatter).unwrap();
+        assert!(Arc::ptr_eq(&first, &second), "a hit must not copy the file");
+        assert_eq!(first.lines.len(), first.lines_lower.len());
+        assert!(first
+            .lines_lower
+            .iter()
+            .any(|line| line == "some mixed case"));
     }
 
     #[test]

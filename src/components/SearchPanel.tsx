@@ -19,6 +19,16 @@ interface SearchPanelProps {
 }
 
 const DEBOUNCE_MS = 300;
+/** Files rendered for one search. Results arrive ranked, so the cut keeps the
+ *  best ones; rendering thousands of rows for a common word made typing in the
+ *  search box lag. */
+export const MAX_RENDERED_RESULT_FILES = 100;
+
+/** The ranked results to render, and how many files were left out. */
+export function limitResults<T>(results: T[]): { shown: T[]; hidden: number } {
+  const shown = results.slice(0, MAX_RENDERED_RESULT_FILES);
+  return { shown, hidden: results.length - shown.length };
+}
 
 export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
   const { t } = useTranslation();
@@ -99,21 +109,26 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
     timerRef.current = setTimeout(() => runSearch(q), DEBOUNCE_MS);
   }
 
+  const { shown: shownResults, hidden: hiddenFileCount } = useMemo(
+    () => limitResults(results),
+    [results]
+  );
+
   // Flattened match rows for keyboard navigation, and each file's offset into
   // that flat list so rendered rows can mark themselves active.
   const flatMatches = useMemo(
-    () => results.flatMap((r) => r.matches.map((match) => ({ path: r.path, match }))),
-    [results]
+    () => shownResults.flatMap((r) => r.matches.map((match) => ({ path: r.path, match }))),
+    [shownResults]
   );
   const matchOffsets = useMemo(() => {
     const offsets = new Map<string, number>();
     let acc = 0;
-    for (const r of results) {
+    for (const r of shownResults) {
       offsets.set(r.path, acc);
       acc += r.matches.length;
     }
     return offsets;
-  }, [results]);
+  }, [shownResults]);
 
   useEffect(() => {
     if (activeIndex < 0) return;
@@ -235,7 +250,7 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
 
         {results.length > 0 && (
           <div id="search-listbox" role="listbox" aria-label={t("search_panel.aria_label")}>
-            {results.map((result) => {
+            {shownResults.map((result) => {
               const baseName =
                 result.path
                   .split("/")
@@ -294,6 +309,11 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
                 </div>
               );
             })}
+            {hiddenFileCount > 0 && (
+              <p className="search-status" role="status">
+                {t("search_panel.more_files", { count: hiddenFileCount })}
+              </p>
+            )}
           </div>
         )}
       </div>

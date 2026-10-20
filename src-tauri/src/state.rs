@@ -14,7 +14,7 @@ pub(crate) struct WorkspaceState {
     // workspace they stay bounded by its file set, keyed by path and refreshed
     // by (mtime, len).
     pub(crate) frontmatter_cache: Mutex<HashMap<PathBuf, CachedFrontmatter>>,
-    pub(crate) search_cache: Mutex<HashMap<PathBuf, CachedSearchFile>>,
+    pub(crate) search_cache: Mutex<HashMap<PathBuf, Arc<CachedSearchFile>>>,
     // The watcher must stay alive for notifications to continue. Replaced and
     // dropped whenever the user opens a different workspace.
     pub(crate) workspace_watcher: Mutex<Option<notify::RecommendedWatcher>>,
@@ -166,6 +166,9 @@ pub(crate) struct CachedSearchFile {
     pub(crate) title: Option<String>,
     pub(crate) draft: bool,
     pub(crate) lines: Vec<String>,
+    /// `lines`, lowercased once at load — a query used to lowercase every
+    /// line of the corpus again on every keystroke-debounced search.
+    pub(crate) lines_lower: Vec<String>,
 }
 
 #[cfg(test)]

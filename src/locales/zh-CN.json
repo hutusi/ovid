@@ -632,6 +632,8 @@
     "matches_other": "{{count}} 个匹配",
     "files_one": "{{count}} 个文件",
     "files_other": "{{count}} 个文件",
+    "more_files_one": "还有 {{count}} 个文件——请缩小搜索范围以查看",
+    "more_files_other": "还有 {{count}} 个文件——请缩小搜索范围以查看",
     "overflow": "在此文件中显示 {{total}} 个匹配中的 {{shown}} 个"
   },
   "code_block": {

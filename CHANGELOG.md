@@ -141,6 +141,11 @@ release cadence and Conventional Commit history.
   paragraphs); it now rescans only the paragraph being edited. Section
   folding and find-highlighting no longer rebuild on every cursor move, and
   fold chevrons are no longer re-created for every heading on each change.
+- **Faster search, and a calmer results list**: searching no longer copies
+  and re-lowercases every cached file for each query, and the results list
+  shows the 100 best-matching files (with a note on how many more matched)
+  instead of rendering thousands of rows for a common word. Opening a
+  workspace walks its files on a background thread.
 - **File operations no longer block the window**: reading, saving, creating,
   renaming, duplicating and trashing files, and saving pasted or dropped
   images, now run off the UI thread. A save's fsync, a slow or network volume,
