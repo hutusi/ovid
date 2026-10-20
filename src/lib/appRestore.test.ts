@@ -61,6 +61,15 @@ describe("loadLastRecentFilePath", () => {
 
     expect(loadLastRecentFilePath(workspace, storage)).toBeNull();
   });
+
+  it("ignores a stored first entry whose path isn't a string", () => {
+    const workspace = "/workspace/site";
+    const storage = makeStorage({
+      [`${RECENT_FILES_KEY}:${workspace}`]: JSON.stringify([{ path: 42 }]),
+      [`${RECENT_FILES_KEY}:${workspace}/content`]: JSON.stringify(null),
+    });
+    expect(loadLastRecentFilePath(workspace, storage)).toBeNull();
+  });
 });
 
 describe("findNodeByPath", () => {

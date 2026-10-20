@@ -85,6 +85,10 @@ release cadence and Conventional Commit history.
 - **Saved git credentials are written more safely**: the credentials file is
   created private from the start (never briefly readable by others), with a
   unique temporary name, and flushed to disk before it replaces the old one.
+- **Corrupt saved state can't break startup**: recent files, the last-session
+  file, and editor font preferences read from local storage are now checked
+  field by field; a malformed entry is ignored instead of crashing the app on
+  every launch of that workspace (or reaching the editor's font settings).
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 

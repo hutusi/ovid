@@ -48,7 +48,10 @@ export function useGitFocusFetch({
         void maybeFetchRemoteStatus();
       })
       .then((dispose) => {
-        unlisten = dispose;
+        // The effect may already have been cleaned up while registration was
+        // pending; dispose right away instead of leaking the listener.
+        if (mounted) unlisten = dispose;
+        else dispose();
       })
       .catch(() => {
         // If focus listeners are unavailable, Git status still updates via manual actions.

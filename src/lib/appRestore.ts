@@ -11,9 +11,11 @@ export function loadLastRecentFilePath(
     try {
       const raw = storage.getItem(`${RECENT_FILES_KEY}:${candidate}`);
       if (!raw) continue;
-      const parsed = JSON.parse(raw) as Array<{ path?: string }>;
-      const path = parsed[0]?.path ?? null;
-      if (path) return path;
+      const parsed: unknown = JSON.parse(raw);
+      const first: unknown = Array.isArray(parsed) ? parsed[0] : undefined;
+      const path =
+        first && typeof first === "object" ? (first as { path?: unknown }).path : undefined;
+      if (typeof path === "string" && path) return path;
     } catch {
       // Ignore malformed or inaccessible storage entries and try the next key.
     }

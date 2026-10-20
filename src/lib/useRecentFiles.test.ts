@@ -1,5 +1,11 @@
-import { describe, expect, it } from "bun:test";
-import { filterRemovedRecentPaths, rewriteRecentPaths } from "./useRecentFiles";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { registerHappyDom, unregisterHappyDom } from "../../scripts/test-setup";
+import {
+  filterRemovedRecentPaths,
+  loadRecent,
+  rewriteRecentPaths,
+  STORAGE_KEY,
+} from "./useRecentFiles";
 
 describe("rewriteRecentPaths", () => {
   it("rewrites exact recent paths for renamed files", () => {
@@ -74,5 +80,36 @@ describe("filterRemovedRecentPaths", () => {
       "/workspace/content/posts/hello"
     );
     expect(result).toEqual([{ path: "/workspace/content/posts/keep.md", name: "keep.md" }]);
+  });
+});
+
+describe("loadRecent", () => {
+  beforeAll(registerHappyDom);
+  afterAll(unregisterHappyDom);
+
+  const store = (value: string) => localStorage.setItem(`${STORAGE_KEY}:/ws`, value);
+
+  it("drops malformed entries instead of trusting the stored shape", () => {
+    store(
+      JSON.stringify([
+        { path: "/ws/a.md", name: "a.md" },
+        null,
+        "b.md",
+        { path: 42, name: "c.md" },
+        { path: "/ws/d.md", name: "d.md", title: "D" },
+        { path: "/ws/e.md", name: "e.md", title: 7 },
+      ])
+    );
+    expect(loadRecent("/ws")).toEqual([
+      { path: "/ws/a.md", name: "a.md" },
+      { path: "/ws/d.md", name: "d.md", title: "D" },
+    ]);
+  });
+
+  it("treats a non-array value as no recents", () => {
+    store("null");
+    expect(loadRecent("/ws")).toEqual([]);
+    store('{"path":"/ws/a.md"}');
+    expect(loadRecent("/ws")).toEqual([]);
   });
 });
