@@ -139,7 +139,7 @@ function App() {
   }, [panelLayout.propertiesOpen]);
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
-  useCloseGuard(flushPendingSave, showToast);
+  const requestQuit = useCloseGuard(flushPendingSave, showToast);
   const {
     sessionWordsAdded,
     noteWordCount,
@@ -556,6 +556,7 @@ function App() {
       toggleProperties: panelLayout.toggleProperties,
       setZenMode,
       setTypewriterMode,
+      requestQuit,
       flushPendingSave,
       closeActiveTabOrFile,
       handleOpenWorkspace,
@@ -586,6 +587,7 @@ function App() {
       t,
       panelLayout.toggleSidebar,
       panelLayout.toggleProperties,
+      requestQuit,
       flushPendingSave,
       closeActiveTabOrFile,
       handleOpenWorkspace,

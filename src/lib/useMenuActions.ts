@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { type AppActionCtx, dispatchAppAction, getAppAction } from "./appActions";
 import { listenEvent } from "./commands/internal";
 
@@ -9,11 +9,17 @@ import { listenEvent } from "./commands/internal";
 
 /** Wire native menu events to the app action table. */
 export function useMenuActions(ctx: AppActionCtx): void {
+  // Subscribe once and read the latest ctx through a ref. Re-subscribing on
+  // every ctx change (it changes on most App renders) churned listen/unlisten
+  // IPC and left a gap while the async `listen` was pending in which a menu
+  // event — Quit included — could be dropped.
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
   useEffect(() => {
     return listenEvent<string>("menu-action", (payload) => {
       const action = getAppAction(payload);
       if (!action) return;
-      dispatchAppAction(action, ctx, { inInput: false });
+      dispatchAppAction(action, ctxRef.current, { inInput: false });
     });
-  }, [ctx]);
+  }, []);
 }

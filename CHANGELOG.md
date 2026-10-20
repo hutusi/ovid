@@ -7,6 +7,12 @@ release cadence and Conventional Commit history.
 
 ## Unreleased
 
+### Fixed
+- **Cmd+Q no longer drops the last edits**: the app menu's Quit item (and
+  Cmd+Q) now flushes pending saves before exiting, exactly like closing the
+  window. Previously it terminated the app immediately, losing up to a second
+  of typing still held by the autosave debounce.
+
 ## 0.17.0 - 2026-08-08
 
 ### Added

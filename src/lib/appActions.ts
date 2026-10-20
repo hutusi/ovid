@@ -45,6 +45,8 @@ export interface AppActionCtx {
   setTypewriterMode: React.Dispatch<React.SetStateAction<boolean>>;
 
   // Action handlers
+  /** Flush pending saves, then exit (see useCloseGuard). */
+  requestQuit: () => Promise<void>;
   flushPendingSave: () => void;
   closeActiveTabOrFile: () => void;
   handleOpenWorkspace: () => void;
@@ -156,6 +158,14 @@ export const appActions: AppAction[] = [
     id: "today-flow",
     when: hasWorkspace,
     run: (ctx) => void ctx.handleNewTodayFlow(),
+  },
+  {
+    // Menu-only (menu.rs routes Cmd+Q here instead of the predefined
+    // terminate item) so pending saves flush before the app exits.
+    id: "quit",
+    allowWhenBlocking: true,
+    allowInInput: true,
+    run: (ctx) => ctx.requestQuit(),
   },
   {
     id: "save",

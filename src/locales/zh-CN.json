@@ -509,6 +509,7 @@
     "about_item": "关于 Ovid",
     "about_title": "关于 Ovid",
     "about_body": "为 Amytis 内容工作区打造的\n极简桌面 Markdown 编辑器。",
+    "app_quit": "退出 Ovid",
     "file_preferences": "设置…",
     "file_new_post": "新建文章",
     "file_new_flow": "新建日志",

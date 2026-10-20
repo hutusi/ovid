@@ -224,6 +224,14 @@ debounces them and verifies a workspace revision before refreshing. A 30 s
 revision check and a visibility-resume check remain as correctness fallbacks
 for dropped or unsupported native events (ADR 0021).
 
+**Quit paths.** The window close button and the app menu's Quit item (Cmd+Q)
+both end in `useCloseGuard`'s `requestQuit`: a blocking flush, then
+`destroy()` of the last window, which exits the app; a failed flush keeps the
+window open. Quit is deliberately a custom menu item routed to the `quit` app
+action — the predefined terminate item would skip the flush. Dock "Quit" and
+system logout arrive as `terminate:`, which tao cannot intercept, so they rely
+on the blur/visibility background flush alone.
+
 ---
 
 ## The typed Tauri seam

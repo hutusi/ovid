@@ -25,6 +25,7 @@ const MENU_PAYLOAD_IDS = [
   "today-flow",
   "open-workspace",
   "switch-workspace",
+  "quit",
   "save",
   "close-file",
   "toggle-sidebar",
@@ -81,6 +82,7 @@ function makeCtx(overrides: Partial<AppActionCtx> = {}): AppActionCtx {
     toggleProperties: () => {},
     setZenMode: () => {},
     setTypewriterMode: () => {},
+    requestQuit: async () => {},
     flushPendingSave: () => {},
     closeActiveTabOrFile: () => {},
     handleOpenWorkspace: () => {},
@@ -164,6 +166,20 @@ describe("dispatchAppAction guards", () => {
     expect(dispatchAppAction(gated.action, makeCtx({ isGitRepo: true }), { inInput: false })).toBe(
       true
     );
+  });
+
+  it("quit fires through a blocking overlay and from inside an input", () => {
+    let quits = 0;
+    const ctx = makeCtx({
+      overlay: makeOverlay(true),
+      requestQuit: async () => {
+        quits += 1;
+      },
+    });
+    // biome-ignore lint/style/noNonNullAssertion: asserted present by the table tests
+    const quit = getAppAction("quit")!;
+    expect(dispatchAppAction(quit, ctx, { inInput: true })).toBe(true);
+    expect(quits).toBe(1);
   });
 
   it("git actions require a git repo; workspace actions require a workspace", () => {

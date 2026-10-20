@@ -509,6 +509,7 @@
     "about_item": "About Ovid",
     "about_title": "About Ovid",
     "about_body": "A minimalist desktop Markdown editor\nfor Amytis workspaces.",
+    "app_quit": "Quit Ovid",
     "file_preferences": "Settings…",
     "file_new_post": "New Post",
     "file_new_flow": "New Flow",
