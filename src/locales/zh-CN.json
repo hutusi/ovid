@@ -148,7 +148,12 @@
     "open_folder": "打开文件夹",
     "resize": "调整侧栏宽度",
     "no_workspace_name": "未打开工作区",
-    "changes_inside": "{{status}} 更改在内",
+    "changes_inside": "内含更改：{{status}}",
+    "git_status": {
+      "modified": "已修改",
+      "staged": "已暂存",
+      "untracked": "未跟踪"
+    },
     "mode_content": "内容",
     "mode_files": "文件",
     "toggle_mode_to_files": "切换到文件视图",
@@ -655,7 +660,8 @@
   },
   "tab_bar": {
     "open_files": "打开的文件",
-    "close_tab": "关闭 {{label}}"
+    "close_tab": "关闭 {{label}}",
+    "unsaved": "未保存"
   },
   "editor": {
     "h1_warning": "⚠ 此文档已有标题。建议将此处改为 ## 二级标题。",

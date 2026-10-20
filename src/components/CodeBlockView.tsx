@@ -96,6 +96,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
             <button
               type="button"
               className={`code-block-lang-option${!language ? " active" : ""}`}
+              aria-pressed={!language}
               onClick={() => selectLang(null)}
             >
               {t("code_block.plain")}
@@ -105,6 +106,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
                 key={lang}
                 type="button"
                 className={`code-block-lang-option${language === lang ? " active" : ""}`}
+                aria-pressed={language === lang}
                 onClick={() => selectLang(lang)}
               >
                 {lang}

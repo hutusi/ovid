@@ -128,6 +128,12 @@ release cadence and Conventional Commit history.
   of open dialogs, and toasts stay readable above them.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
+- **Screen-reader and language fixes**: sidebar git markers are announced
+  and labelled in the app language ("Modified", "Staged", "Untracked")
+  instead of showing raw English status words, including inside the Chinese
+  "changes inside" hint; an unsaved tab is announced as unsaved; the commit
+  message box has a name; and the code-block language picker says which
+  language is current.
 - **Dialogs keep keyboard focus after a click inside them**: clicking a
   dialog's text or empty space dropped focus to the window behind it, so
   Escape stopped closing the dialog and Tab wandered into the sidebar. Focus

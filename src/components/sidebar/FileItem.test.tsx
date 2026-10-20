@@ -104,4 +104,13 @@ describe("FileItem", () => {
     expect(onDelete).not.toHaveBeenCalled();
     act(() => view.unmount());
   });
+
+  it("labels the git marker in the app language", () => {
+    const view = render(
+      <FileItem {...stableProps} gitStatusMap={new Map([[node.path, "modified" as GitStatus]])} />
+    );
+    const marker = view.container.querySelector('.git-dot[role="img"]');
+    expect(marker?.getAttribute("aria-label")).toBe("Modified");
+    act(() => view.unmount());
+  });
 });

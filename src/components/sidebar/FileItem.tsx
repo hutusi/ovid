@@ -227,7 +227,9 @@ export const FileItem = memo(function FileItem({
     const dirRollupDot = dirRollup ? (
       <span
         className={`git-dot git-dot-${dirRollup}`}
-        title={t("sidebar.changes_inside", { status: dirRollup })}
+        role="img"
+        aria-label={t("sidebar.changes_inside", { status: t(`sidebar.git_status.${dirRollup}`) })}
+        title={t("sidebar.changes_inside", { status: t(`sidebar.git_status.${dirRollup}`) })}
       />
     ) : null;
     return (
@@ -439,7 +441,14 @@ export const FileItem = memo(function FileItem({
           <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
             {displayName}
           </span>
-          {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
+          {gitStatus && (
+            <span
+              className={`git-dot git-dot-${gitStatus}`}
+              role="img"
+              aria-label={t(`sidebar.git_status.${gitStatus}`)}
+              title={t(`sidebar.git_status.${gitStatus}`)}
+            />
+          )}
         </button>
       </div>
       {node.translations?.map((translation) => {
@@ -467,7 +476,14 @@ export const FileItem = memo(function FileItem({
                 </span>
               </span>
               <span className="sidebar-file-name">{displayName}</span>
-              {trGit && <span className={`git-dot git-dot-${trGit}`} title={trGit} />}
+              {trGit && (
+                <span
+                  className={`git-dot git-dot-${trGit}`}
+                  role="img"
+                  aria-label={t(`sidebar.git_status.${trGit}`)}
+                  title={t(`sidebar.git_status.${trGit}`)}
+                />
+              )}
             </button>
           </div>
         );

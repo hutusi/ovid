@@ -148,7 +148,12 @@
     "open_folder": "Open folder",
     "resize": "Resize sidebar",
     "no_workspace_name": "No workspace",
-    "changes_inside": "{{status}} changes inside",
+    "changes_inside": "Changes inside: {{status}}",
+    "git_status": {
+      "modified": "Modified",
+      "staged": "Staged",
+      "untracked": "Untracked"
+    },
     "mode_content": "Content",
     "mode_files": "Files",
     "toggle_mode_to_files": "Switch to Files view",
@@ -655,7 +660,8 @@
   },
   "tab_bar": {
     "open_files": "Open files",
-    "close_tab": "Close {{label}}"
+    "close_tab": "Close {{label}}",
+    "unsaved": "unsaved"
   },
   "editor": {
     "h1_warning": "⚠ This document already has a title. Consider changing this heading to ##.",
