@@ -42,7 +42,6 @@ import { useMenuActions } from "./lib/useMenuActions";
 import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useResponsivePanels } from "./lib/useResponsivePanels";
-import { useSessionWords } from "./lib/useSessionWords";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
@@ -56,6 +55,7 @@ import {
   type ResolvedWikiTarget,
   resolveWikiTarget,
 } from "./lib/wikiLink";
+import { createWritingStats } from "./lib/writingStats";
 import "./styles/global.css";
 import "./App.css";
 
@@ -102,8 +102,6 @@ function App() {
     remountEditor,
     renameSelection,
     frontmatterLineOffset,
-    wordCount,
-    setWordCount,
     parsedFrontmatter,
     frontmatterError,
     saveStatus,
@@ -146,22 +144,15 @@ function App() {
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
   const requestQuit = useCloseGuard(flushPendingSave, showToast);
-  const {
-    sessionWordsAdded,
-    noteWordCount,
-    rebaselineWordCount,
-    notePathRenamed,
-    notePathRemoved,
-  } = useSessionWords(selectedFile?.path ?? null);
+  // Word counts and session progress live outside App state (see
+  // writingStats.ts): only the status-bar readout re-renders while typing.
+  const [writingStats] = useState(createWritingStats);
   const { coverImageVisible, toggleCoverImage } = useCoverImage(selectedFile);
   const handleWordCount = useCallback(
     (count: number, path?: string, kind?: WordCountKind) => {
-      setWordCount(count);
-      if (!path) return;
-      if (kind === "reload") rebaselineWordCount(path, count);
-      else noteWordCount(path, count);
+      if (path) writingStats.report(path, count, kind);
     },
-    [setWordCount, noteWordCount, rebaselineWordCount]
+    [writingStats]
   );
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
   const saveStatusRef = useRef<SaveStatus>(saveStatus);
@@ -209,8 +200,8 @@ function App() {
     flushPendingSave,
     resetFileState,
     contentPrefs,
-    onSessionPathRenamed: notePathRenamed,
-    onSessionPathRemoved: notePathRemoved,
+    onSessionPathRenamed: writingStats.pathRenamed,
+    onSessionPathRemoved: writingStats.pathRemoved,
     fileEditor: {
       selectedFile,
       renameSelection,
@@ -797,12 +788,12 @@ function App() {
       <ErrorBoundary variant="bar" title={t("errors.status_bar_failed")}>
         <StatusBar
           fileLabel={selectedFile ? getPathDisplayLabel(selectedFile) : null}
-          wordCount={wordCount}
+          writingStats={writingStats}
+          filePath={selectedFile?.path ?? null}
           resolvedTheme={resolvedTheme}
           saveStatus={saveStatus}
           zenMode={zenMode}
           typewriterMode={typewriterMode}
-          sessionWordsAdded={sessionWordsAdded}
           wordCountGoal={wordCountGoal}
           fontFamily={prefs.fontFamily}
           fontSize={prefs.fontSize}

@@ -106,7 +106,6 @@ export function useFileEditor({
   // editor document in applyDiskContent so a search jump maps its full-file
   // line number to a body line using this file's offset, never the previous one.
   const [frontmatterLineOffset, setFrontmatterLineOffset] = useState(0);
-  const [wordCount, setWordCount] = useState(0);
   const [parsedFrontmatter, setParsedFrontmatter] = useState<ParsedFrontmatter>({});
   // The YAML parse error of the open file's frontmatter, or null. While set,
   // property edits are refused and the panel is read-only — rewriting a block
@@ -607,7 +606,6 @@ export function useFileEditor({
       body: "",
     });
     setFrontmatterLineOffset(0);
-    setWordCount(0);
     setParsedFrontmatter({});
     setFrontmatterError(null);
     setSaveStatus("saved");
@@ -677,7 +675,6 @@ export function useFileEditor({
       clearConflict();
       // Update all state only after a successful read so a failure leaves the
       // previous file's metadata intact on screen.
-      setWordCount(0);
       applyFrontmatterProjection(frontmatter);
       setSaveStatus("saved");
       const prev = editorDocumentRef.current;
@@ -1040,8 +1037,6 @@ export function useFileEditor({
     remountEditor,
     renameSelection,
     frontmatterLineOffset,
-    wordCount,
-    setWordCount,
     parsedFrontmatter,
     frontmatterError,
     saveStatus,

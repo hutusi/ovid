@@ -16,7 +16,7 @@ interface UseWorkspaceSessionOptions {
   fileEditor: FileEditorHandle;
   /** New-content format/layout choice, forwarded to `useWorkspace`. */
   contentPrefs?: ContentPreferences;
-  /** Session word-counter path lifecycle (useSessionWords): renames migrate
+  /** Session word-counter path lifecycle (writingStats): renames migrate
    *  per-path baselines so "+N" survives, deletions drop them so a file
    *  recreated at the same path doesn't inherit a dead baseline. Called
    *  alongside the tabs/recents notifications below. Must be stable

@@ -12,6 +12,7 @@ mock.module("react-i18next", () => ({
 }));
 
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
+import { createWritingStats } from "../lib/writingStats";
 import { StatusBar } from "./StatusBar";
 
 type TestElementProps = {
@@ -31,12 +32,12 @@ function renderStatusBar(
     onOpenPreferences,
     tree: StatusBar({
       fileLabel: "draft.md",
-      wordCount: 120,
+      writingStats: createWritingStats(),
+      filePath: "/ws/draft.md",
       resolvedTheme: "light",
       saveStatus: "saved",
       zenMode: false,
       typewriterMode: false,
-      sessionWordsAdded: 0,
       wordCountGoal: null,
       fontFamily: "serif" as FontFamily,
       fontSize: "default" as FontSize,
