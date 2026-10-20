@@ -132,6 +132,11 @@ release cadence and Conventional Commit history.
   dialog's text or empty space dropped focus to the window behind it, so
   Escape stopped closing the dialog and Tab wandered into the sidebar. Focus
   now stays in the dialog, and Tab returns to its first control.
+- **Popovers work from the keyboard**: the editor settings popover, the
+  code-block language picker and the Workspace Manager's row menu now take
+  focus when they open and hand it back when closed with Escape. Escape in
+  a row menu closes just the menu, not the whole Workspace Manager, and the
+  menu's items can be reached with the arrow keys, Home and End.
 - **Typewriter mode respects Reduce Motion**: with the system's Reduce
   Motion setting on, typewriter mode keeps the current line centred by
   jumping instead of animating a scroll on every keystroke.

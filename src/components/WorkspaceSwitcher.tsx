@@ -10,6 +10,7 @@ import { commands } from "../lib/commands";
 import type { CloneProgress } from "../lib/commands/generated/CloneProgress";
 import { listenEvent } from "../lib/commands/internal";
 import type { RecentWorkspace } from "../lib/types";
+import { usePopover } from "../lib/usePopover";
 import { Modal } from "./Modal";
 import "./WorkspaceSwitcher.css";
 import type { ShowToast } from "../lib/useToast";
@@ -385,24 +386,16 @@ function RecentItem({
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const containerRef = useRef<HTMLLIElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // Close on outside click + Escape. Plain-CSS popover pattern from
-  // FontSettings/CodeBlockView (no Portal — fits the Tauri WebView rule).
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handlePointer(e: MouseEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", handlePointer);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handlePointer);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [menuOpen]);
+  // Escape closes just this menu, not the Workspace Manager around it.
+  usePopover({
+    open: menuOpen,
+    onClose: () => setMenuOpen(false),
+    containerRef,
+    panelRef: menuRef,
+    menu: true,
+  });
 
   const classes = ["ws-item"];
   if (isCurrent) classes.push("ws-item--active");
@@ -449,7 +442,7 @@ function RecentItem({
         </div>
       </div>
       {menuOpen && (
-        <div className="ws-actions-menu" role="menu">
+        <div ref={menuRef} className="ws-actions-menu" role="menu">
           <button
             type="button"
             role="menuitem"

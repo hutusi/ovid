@@ -8,6 +8,7 @@ import {
   normalizeCodeBlockLanguage,
 } from "../lib/codeBlockLanguages";
 import { PLAIN_TEXT_INPUT_PROPS } from "../lib/inputProps";
+import { usePopover } from "../lib/usePopover";
 import "./CodeBlockView.css";
 
 export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
@@ -17,25 +18,19 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
   const [customLanguage, setCustomLanguage] = useState("");
   const language = (node.attrs.language as string | null) ?? "";
   const barRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    function handlePointerDown(e: PointerEvent) {
-      if (barRef.current && !barRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
+  usePopover({
+    open,
+    onClose: () => setOpen(false),
+    containerRef: barRef,
+    panelRef: pickerRef,
+    initialFocusRef: customInputRef,
+    // The picker sits inside the editor's DOM, whose focus handling is
+    // ProseMirror's; a click outside still closes it.
+    closeOnFocusOut: false,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -97,7 +92,7 @@ export function CodeBlockView({ node, updateAttributes }: NodeViewProps) {
         </button>
 
         {open && (
-          <div className="code-block-lang-picker">
+          <div ref={pickerRef} className="code-block-lang-picker">
             <button
               type="button"
               className={`code-block-lang-option${!language ? " active" : ""}`}
