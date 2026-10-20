@@ -98,6 +98,12 @@ release cadence and Conventional Commit history.
   file was opened.
 
 ### Performance
+- **Faster startup**: the editor's libraries (ProseMirror, Tiptap and code
+  highlighting, about 750 KiB of JavaScript) were loaded and evaluated before
+  the window first painted, even though the editor itself loads lazily.
+  Startup now loads about 540 KiB instead of about 1,280 KiB (−58%); the
+  editor libraries arrive with the editor. The build fails if they creep back
+  into startup.
 - **Autosave no longer triggers a workspace rescan**: the temporary file each
   atomic save stages next to the document looked like a new file to the
   watcher, so every autosave re-walked the workspace, reloaded the sidebar

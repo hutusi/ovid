@@ -1,9 +1,14 @@
-// Side-effect imports for Tiptap module augmentations. The Table and Image
-// extensions declare setImage / insertTable on the ChainedCommands interface;
-// without these imports the test-tsconfig (which compiles in isolation from
-// Editor.tsx's extension imports) flags them as missing.
-import "@tiptap/extension-image";
-import "@tiptap/extension-table";
+// Type-only imports for Tiptap module augmentations: the Table and Image
+// extensions declare setImage / insertTable on the ChainedCommands interface,
+// and without these the test tsconfig (which compiles in isolation from
+// Editor.tsx's extension imports) flags them as missing. They MUST stay
+// `import type`: this table is reachable from startup via shortcuts.ts, and a
+// side-effect import here made index.html preload and evaluate the whole
+// ProseMirror / Tiptap / highlighting vendor set (~750 KiB) before first
+// paint, defeating the lazy-loaded Editor. scripts/check-bundle-size.ts
+// fails the build if an editor chunk is preloaded again.
+import type {} from "@tiptap/extension-image";
+import type {} from "@tiptap/extension-table";
 import type { Editor } from "@tiptap/react";
 import { commands } from "../commands";
 

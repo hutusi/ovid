@@ -6,50 +6,41 @@ import { defineConfig } from "vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-function manualChunks(id: string): string | undefined {
-  if (!id.includes("/node_modules/")) return undefined;
+// Named vendor chunks, as Rolldown code-splitting groups. A group also captures
+// its modules' dependencies, and a higher `priority` claims a module first —
+// which is the point of the order here:
+//
+// - React is claimed before the editor groups. Otherwise editor-tiptap
+//   captures it (React is a dependency of @tiptap/react), the entry imports
+//   React from there, and index.html preloads and evaluates the whole editor
+//   vendor set (~750 KiB) at startup despite the lazy-loaded Editor.
+//   scripts/check-bundle-size.ts fails the build if that regresses.
+// - The editor groups load with the lazy Editor. editor-tiptap includes
+//   extension-mathematics, whose aliased `katex` import
+//   (src/lib/katexGlobal.ts) must stay free of module-scope side effects.
+//   Don't split mathematics into its own chunk: group capture drags shared
+//   prosemirror/tiptap modules along. scripts/check-entry-evaluates.ts
+//   smoke-tests the built entry against this class of startup crash.
+const nodeModule = (pattern: string) => new RegExp(`[\\/]node_modules[\\/](?:${pattern})`);
 
-  if (
-    id.includes("/node_modules/prosemirror-")
-  ) {
-    return "editor-prosemirror";
-  }
-
-  // The shortcut command table eagerly imports @tiptap extensions, so this
-  // chunk evaluates at startup — including extension-mathematics, whose
-  // aliased `katex` import (src/lib/katexGlobal.ts) must therefore stay free
-  // of module-scope side effects. Don't try to split mathematics into its own
-  // lazy chunk: Rolldown's group capture drags shared prosemirror/tiptap
-  // modules along and the chunk ends up eagerly reachable anyway.
-  // scripts/check-entry-evaluates.ts smoke-tests the built entry against
-  // exactly this class of startup crash.
-  if (id.includes("/node_modules/@tiptap/")) {
-    return "editor-tiptap";
-  }
-
-  if (
-    id.includes("/node_modules/lowlight/") ||
-    id.includes("/node_modules/highlight.js/") ||
-    id.includes("/node_modules/fault/") ||
-    id.includes("/node_modules/hast-util-") ||
-    id.includes("/node_modules/mdast-util-") ||
-    id.includes("/node_modules/micromark") ||
-    id.includes("/node_modules/unified/") ||
-    id.includes("/node_modules/unist-")
-  ) {
-    return "editor-highlight";
-  }
-
-  if (id.includes("/node_modules/@tauri-apps/")) {
-    return "tauri-vendor";
-  }
-
-  if (id.includes("/node_modules/lucide-react/")) {
-    return "icon-vendor";
-  }
-
-  return undefined;
-}
+const codeSplittingGroups = [
+  {
+    name: "react-vendor",
+    test: nodeModule("react[\\/]|react-dom[\\/]|scheduler[\\/]|use-sync-external-store[\\/]"),
+    priority: 50,
+  },
+  { name: "tauri-vendor", test: nodeModule("@tauri-apps[\\/]"), priority: 40 },
+  { name: "icon-vendor", test: nodeModule("lucide-react[\\/]"), priority: 40 },
+  { name: "editor-prosemirror", test: nodeModule("prosemirror-"), priority: 30 },
+  { name: "editor-tiptap", test: nodeModule("@tiptap[\\/]"), priority: 20 },
+  {
+    name: "editor-highlight",
+    test: nodeModule(
+      "lowlight[\\/]|highlight\\.js[\\/]|fault[\\/]|hast-util-|mdast-util-|micromark|unified[\\/]|unist-"
+    ),
+    priority: 10,
+  },
+];
 
 // KaTeX ships every font face as woff2 + woff + ttf (~60 files); Tauri's
 // WebViews (WKWebView / WebView2) always support woff2, so the woff/ttf
@@ -86,13 +77,10 @@ export default defineConfig(async () => ({
     ],
   },
   build: {
-    // Vite 8 deprecated the `manualChunks` function form in favour of Rolldown's
-    // declarative `codeSplitting` (https://rolldown.rs/reference/OutputOptions.codeSplitting).
-    // The function still works and keeps the six named editor/vendor bundles distinct;
-    // migrating is a separate rethink and out of scope for the dep sweep.
+    // Rolldown's declarative code splitting (https://rolldown.rs/reference/OutputOptions.codeSplitting).
     rolldownOptions: {
       output: {
-        manualChunks,
+        codeSplitting: { groups: codeSplittingGroups },
       },
     },
   },

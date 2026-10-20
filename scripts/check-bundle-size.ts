@@ -13,7 +13,8 @@ type Budget = {
 };
 
 const budgets: Budget[] = [
-  { label: "application entry", pattern: /^index-[^.]+\.js$/, rawKiB: 510, gzipKiB: 170 },
+  { label: "application entry", pattern: /^index-[^.]+\.js$/, rawKiB: 360, gzipKiB: 110 },
+  { label: "React vendor", pattern: /^react-vendor-[^.]+\.js$/, rawKiB: 200, gzipKiB: 65 },
   {
     label: "ProseMirror vendor",
     pattern: /^editor-prosemirror-[^.]+\.js$/,
@@ -75,6 +76,28 @@ for (const budget of budgets) {
       `${budget.label}: ${formatKiB(measurement.gzip)} gzip exceeds ${budget.gzipKiB} KiB`,
     );
   }
+}
+
+// Everything index.html loads before first paint: the entry plus the chunks it
+// preloads. The editor's vendor chunks (ProseMirror, Tiptap, highlighting) must
+// load with the lazy Editor, never here — a stray side-effect import or chunk
+// grouping that drags them in once cost ~750 KiB of startup JavaScript.
+const indexHtml = readFileSync(join(assetsDirectory, "..", "index.html"), "utf8");
+const startupFiles = [...indexHtml.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map(
+  (match) => match[1]
+);
+const startupEditorChunks = startupFiles.filter((name) => name.startsWith("editor-"));
+if (startupEditorChunks.length > 0) {
+  failures.push(`index.html loads editor chunks at startup: ${startupEditorChunks.join(", ")}`);
+}
+const startupRaw = startupFiles.reduce(
+  (sum, name) => sum + (measurements.get(name)?.raw ?? 0),
+  0
+);
+const startupRawLimit = 600 * 1024;
+console.log(`startup JavaScript: ${formatKiB(startupRaw)} raw (${startupFiles.length} files)`);
+if (startupRaw > startupRawLimit) {
+  failures.push(`startup JavaScript: ${formatKiB(startupRaw)} raw exceeds 600 KiB`);
 }
 
 const totalRawLimit = 2_100 * 1024;
