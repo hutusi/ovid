@@ -166,6 +166,31 @@ mod tests {
     }
 
     #[test]
+    fn ignores_ovid_atomic_save_staging_files() {
+        // An autosave stages `.~hello.md.tmp.<pid>-<n>` and renames it over
+        // hello.md. Only the real file may surface; the staging entry must not
+        // make the save look like a structural change.
+        let dir = TempDir::new().unwrap();
+        let real = dir.path().join("notes").join("hello.md");
+        let staged = dir.path().join("notes").join(".~hello.md.tmp.4242-7");
+
+        assert!(workspace_change_for_event(
+            dir.path(),
+            &event(EventKind::Create(CreateKind::File), vec![staged.clone()]),
+        )
+        .is_none());
+        let change = workspace_change_for_event(
+            dir.path(),
+            &event(
+                EventKind::Modify(ModifyKind::Name(RenameMode::Both)),
+                vec![staged, real.clone()],
+            ),
+        )
+        .unwrap();
+        assert_eq!(change.paths, vec![to_slash(&real)]);
+    }
+
+    #[test]
     fn ignores_non_markdown_data_and_noise_paths() {
         let dir = TempDir::new().unwrap();
         let image = dir.path().join("image.png");

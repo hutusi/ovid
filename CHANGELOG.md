@@ -60,6 +60,14 @@ release cadence and Conventional Commit history.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 
+### Performance
+- **Autosave no longer triggers a workspace rescan**: the temporary file each
+  atomic save stages next to the document looked like a new file to the
+  watcher, so every autosave re-walked the workspace, reloaded the sidebar
+  tree, re-read every note for wiki links and backlinks, and refreshed git
+  twice. Ovid's own staging files are now ignored by the watcher and hidden
+  from the sidebar (including any left behind by a crash).
+
 ## 0.17.0 - 2026-08-08
 
 ### Added
