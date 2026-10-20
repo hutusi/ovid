@@ -717,6 +717,11 @@
     "done": "完成"
   },
   "errors": {
+    "reload_panel": "重新加载面板",
+    "sidebar_failed": "侧边栏出现问题",
+    "properties_failed": "属性面板出现问题",
+    "status_bar_failed": "状态栏出现问题",
+    "dialog_failed": "该对话框出现问题",
     "boundary_title": "出错了",
     "unexpected": "发生意外错误——详情请见控制台",
     "close_save_failed": "关闭前保存失败——已保留窗口，以免丢失更改",

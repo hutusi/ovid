@@ -310,23 +310,29 @@ export function EditorPane({
         />
       )}
       {selectedFile && !isReadOnlyContent(selectedFile) && (
-        <PropertiesPanel
-          frontmatter={parsedFrontmatter}
-          frontmatterError={frontmatterError}
-          visible={propertiesOpen}
-          drawer={propertiesDrawer}
-          rootRef={propertiesDrawerRef}
-          slug={selectedFile.name.replace(/\.mdx?$/, "")}
-          contentType={selectedFile.contentType}
-          coverImageVisible={coverImageVisible}
-          filePath={selectedFile.path}
-          assetRoot={assetRoot}
-          cdnBase={cdnBase}
-          onFieldChange={(key, value) => onFieldChange(selectedFile.path, key, value)}
-          onToggleCoverImage={onToggleCoverImage}
-          onToggle={onToggleProperties}
-          onError={onError}
-        />
+        <ErrorBoundary
+          variant="panel"
+          title={t("errors.properties_failed")}
+          resetKey={selectedFile.path}
+        >
+          <PropertiesPanel
+            frontmatter={parsedFrontmatter}
+            frontmatterError={frontmatterError}
+            visible={propertiesOpen}
+            drawer={propertiesDrawer}
+            rootRef={propertiesDrawerRef}
+            slug={selectedFile.name.replace(/\.mdx?$/, "")}
+            contentType={selectedFile.contentType}
+            coverImageVisible={coverImageVisible}
+            filePath={selectedFile.path}
+            assetRoot={assetRoot}
+            cdnBase={cdnBase}
+            onFieldChange={(key, value) => onFieldChange(selectedFile.path, key, value)}
+            onToggleCoverImage={onToggleCoverImage}
+            onToggle={onToggleProperties}
+            onError={onError}
+          />
+        </ErrorBoundary>
       )}
     </>
   );

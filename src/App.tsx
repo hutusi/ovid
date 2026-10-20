@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
 import type { EditorViewState } from "./components/EditorPane";
 import { EditorPane } from "./components/EditorPane";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getFileViewKind, isReadOnlyContent } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
@@ -692,46 +693,52 @@ function App() {
       data-platform={isMac ? "darwin" : undefined}
     >
       <div className="app-body">
-        {overlay.is("search") ? (
-          <Suspense fallback={null}>
-            <SearchPanel onOpenFile={handleOpenByPath} onClose={() => overlay.close("search")} />
-          </Suspense>
-        ) : (
-          <Sidebar
-            tree={sidebarTree}
-            workspaceKey={workspaceRootPath}
-            selectedPath={fileViewerNode?.path ?? selectedFile?.path ?? null}
-            visible={panelLayout.sidebarVisible}
-            maxWidth={panelLayout.sidebarMaxWidth}
-            workspaceName={workspaceName}
-            gitStatusMap={gitStatusMap}
-            mode={sidebarMode}
-            postsBasePath={postsBasePath}
-            features={features}
-            collectionLinks={collectionLinks}
-            onToggleMode={handleToggleSidebarMode}
-            onToggleVisible={panelLayout.toggleSidebar}
-            onSelect={handleSidebarSelect}
-            onOpenWorkspace={handleOpenWorkspace}
-            onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
-            onNewFile={(dirPath, kind) =>
-              overlay.open({ kind: "modal", state: { type: "new-file", dirPath, kind } })
-            }
-            onNewTodayFlow={handleNewTodayFlow}
-            onAddToCollection={handleAddToCollection}
-            onRemoveFromCollection={handleRemoveFromCollection}
-            onRename={(node) =>
-              overlay.open({ kind: "modal", state: { type: "rename-path", node } })
-            }
-            onDuplicate={(node) =>
-              overlay.open({ kind: "modal", state: { type: "duplicate-file", node } })
-            }
-            onNewFromExisting={(node) =>
-              overlay.open({ kind: "modal", state: { type: "new-from-existing", node } })
-            }
-            onDelete={handleDelete}
-          />
-        )}
+        <ErrorBoundary
+          variant="panel"
+          title={t("errors.sidebar_failed")}
+          resetKey={workspaceRootPath ?? undefined}
+        >
+          {overlay.is("search") ? (
+            <Suspense fallback={null}>
+              <SearchPanel onOpenFile={handleOpenByPath} onClose={() => overlay.close("search")} />
+            </Suspense>
+          ) : (
+            <Sidebar
+              tree={sidebarTree}
+              workspaceKey={workspaceRootPath}
+              selectedPath={fileViewerNode?.path ?? selectedFile?.path ?? null}
+              visible={panelLayout.sidebarVisible}
+              maxWidth={panelLayout.sidebarMaxWidth}
+              workspaceName={workspaceName}
+              gitStatusMap={gitStatusMap}
+              mode={sidebarMode}
+              postsBasePath={postsBasePath}
+              features={features}
+              collectionLinks={collectionLinks}
+              onToggleMode={handleToggleSidebarMode}
+              onToggleVisible={panelLayout.toggleSidebar}
+              onSelect={handleSidebarSelect}
+              onOpenWorkspace={handleOpenWorkspace}
+              onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
+              onNewFile={(dirPath, kind) =>
+                overlay.open({ kind: "modal", state: { type: "new-file", dirPath, kind } })
+              }
+              onNewTodayFlow={handleNewTodayFlow}
+              onAddToCollection={handleAddToCollection}
+              onRemoveFromCollection={handleRemoveFromCollection}
+              onRename={(node) =>
+                overlay.open({ kind: "modal", state: { type: "rename-path", node } })
+              }
+              onDuplicate={(node) =>
+                overlay.open({ kind: "modal", state: { type: "duplicate-file", node } })
+              }
+              onNewFromExisting={(node) =>
+                overlay.open({ kind: "modal", state: { type: "new-from-existing", node } })
+              }
+              onDelete={handleDelete}
+            />
+          )}
+        </ErrorBoundary>
         <EditorPane
           workspaceRoot={workspaceRoot}
           tabs={tabs}
@@ -786,120 +793,130 @@ function App() {
           onToggleCoverImage={toggleCoverImage}
         />
       </div>
-      <StatusBar
-        fileLabel={selectedFile ? getPathDisplayLabel(selectedFile) : null}
-        wordCount={wordCount}
-        resolvedTheme={resolvedTheme}
-        saveStatus={saveStatus}
-        zenMode={zenMode}
-        typewriterMode={typewriterMode}
-        sessionWordsAdded={sessionWordsAdded}
-        wordCountGoal={wordCountGoal}
-        fontFamily={prefs.fontFamily}
-        fontSize={prefs.fontSize}
-        spellCheck={prefs.spellCheck}
-        gitBranch={isGitRepo ? currentBranch : null}
-        gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo, t) : undefined}
-        gitSyncLabel={gitSyncLabel}
-        gitSyncTitle={gitSyncPopover?.description}
-        gitChangeLabel={gitChangeSummary?.label}
-        gitChangeTitle={gitChangeSummary?.title}
-        gitSyncPopoverOpen={overlay.is("gitSyncPopover")}
-        notificationsCount={notifications.length}
-        notificationsUnread={unread}
-        notificationsOpen={overlay.is("notifications")}
-        onOpenNotifications={() => {
-          if (overlay.is("notifications")) {
-            overlay.close("notifications");
-          } else {
-            markNotificationsRead();
-            overlay.open({ kind: "notifications" });
+      <ErrorBoundary variant="bar" title={t("errors.status_bar_failed")}>
+        <StatusBar
+          fileLabel={selectedFile ? getPathDisplayLabel(selectedFile) : null}
+          wordCount={wordCount}
+          resolvedTheme={resolvedTheme}
+          saveStatus={saveStatus}
+          zenMode={zenMode}
+          typewriterMode={typewriterMode}
+          sessionWordsAdded={sessionWordsAdded}
+          wordCountGoal={wordCountGoal}
+          fontFamily={prefs.fontFamily}
+          fontSize={prefs.fontSize}
+          spellCheck={prefs.spellCheck}
+          gitBranch={isGitRepo ? currentBranch : null}
+          gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo, t) : undefined}
+          gitSyncLabel={gitSyncLabel}
+          gitSyncTitle={gitSyncPopover?.description}
+          gitChangeLabel={gitChangeSummary?.label}
+          gitChangeTitle={gitChangeSummary?.title}
+          gitSyncPopoverOpen={overlay.is("gitSyncPopover")}
+          notificationsCount={notifications.length}
+          notificationsUnread={unread}
+          notificationsOpen={overlay.is("notifications")}
+          onOpenNotifications={() => {
+            if (overlay.is("notifications")) {
+              overlay.close("notifications");
+            } else {
+              markNotificationsRead();
+              overlay.open({ kind: "notifications" });
+            }
+          }}
+          onOpenBranches={() => void openBranchSwitcher()}
+          onRenamePath={
+            selectedFile && !selectedFile.isDirectory
+              ? () =>
+                  overlay.open({
+                    kind: "modal",
+                    state: { type: "rename-path", node: selectedFile },
+                  })
+              : undefined
           }
-        }}
-        onOpenBranches={() => void openBranchSwitcher()}
-        onRenamePath={
-          selectedFile && !selectedFile.isDirectory
-            ? () =>
-                overlay.open({
-                  kind: "modal",
-                  state: { type: "rename-path", node: selectedFile },
-                })
-            : undefined
-        }
-        onOpenCommit={() => void openCommitDialog(t("commit_dialog.default_update_message"))}
-        onOpenGitSync={toggleGitSyncPopover}
-        onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
-        onToggleZen={() => setZenMode((v) => !v)}
-        onToggleTypewriter={() => setTypewriterMode((v) => !v)}
-        onSetFontFamily={(f) => updatePrefs({ fontFamily: f })}
-        onSetFontSize={(s) => updatePrefs({ fontSize: s })}
-        onToggleSpellCheck={() => updatePrefs({ spellCheck: !prefs.spellCheck })}
-        onSetWordCountGoal={setWordCountGoal}
-        onOpenPreferences={() => overlay.open({ kind: "preferences" })}
-      />
-      <AppDialogs
-        overlay={overlay}
-        toasts={toasts}
-        notifications={notifications}
-        clearNotifications={clearNotifications}
-        flushPendingSave={flushPendingSave}
-        git={{ gitUi, currentBranch, handlePush }}
-        workspace={{
-          recentWorkspaces,
-          workspaceRootPath,
-          openWorkspaceAtPath,
-          handleOpenWorkspace,
-          removeRecentWorkspace,
-          handleCreateAmytisWorkspace,
-          handleCloneWorkspace,
-          showToast,
-        }}
-        files={{
-          handleNewFile,
-          handleDuplicate,
-          handleNewFromExisting,
-          handleRename,
-          collectionCandidatesFor,
-          onAddCollectionItem: handleAddCollectionItem,
-          flatFiles,
-          recentFiles,
-          openFileByPath,
-        }}
-        wechat={{
-          selectedFile,
-          parsedFrontmatter,
-          workspaceRootPath,
-          defaultAuthor: defaultAuthor ?? null,
-          pendingMarkdownRef,
-          lastSavedContentRef,
-          fileContent: editorDocument.body,
-          authors,
-          assetRoot,
-          // Bound to the file being published when this render's closure is
-          // captured by the dialog's publish call, so the media id is recorded
-          // on that file even if the user moves on before it finishes.
-          onSuccess: (mediaId) => {
-            if (selectedFile) void handleFieldChange(selectedFile.path, "wechatMediaId", mediaId);
-          },
-        }}
-        preferences={{
-          themePreference,
-          setThemePreference: setPreference,
-          editorPrefs: prefs,
-          updateEditorPrefs: updatePrefs,
-          wordCountGoal,
-          setWordCountGoal,
-          contentPrefs,
-          updateContentPrefs,
-          appPrefs,
-          updateAppPrefs,
-          showToast,
-        }}
-        conflict={{
-          fileName: selectedFile?.name ?? "",
-          resolveConflict: handleResolveConflict,
-        }}
-      />
+          onOpenCommit={() => void openCommitDialog(t("commit_dialog.default_update_message"))}
+          onOpenGitSync={toggleGitSyncPopover}
+          onToggleTheme={() => setPreference(resolvedTheme === "dark" ? "light" : "dark")}
+          onToggleZen={() => setZenMode((v) => !v)}
+          onToggleTypewriter={() => setTypewriterMode((v) => !v)}
+          onSetFontFamily={(f) => updatePrefs({ fontFamily: f })}
+          onSetFontSize={(s) => updatePrefs({ fontSize: s })}
+          onToggleSpellCheck={() => updatePrefs({ spellCheck: !prefs.spellCheck })}
+          onSetWordCountGoal={setWordCountGoal}
+          onOpenPreferences={() => overlay.open({ kind: "preferences" })}
+        />
+      </ErrorBoundary>
+      {/* A crashed dialog shows a small card; closing it closes the overlay. */}
+      <ErrorBoundary
+        variant="floating"
+        title={t("errors.dialog_failed")}
+        resetKey={overlay.active?.kind}
+        onReset={() => overlay.close()}
+      >
+        <AppDialogs
+          overlay={overlay}
+          toasts={toasts}
+          notifications={notifications}
+          clearNotifications={clearNotifications}
+          flushPendingSave={flushPendingSave}
+          git={{ gitUi, currentBranch, handlePush }}
+          workspace={{
+            recentWorkspaces,
+            workspaceRootPath,
+            openWorkspaceAtPath,
+            handleOpenWorkspace,
+            removeRecentWorkspace,
+            handleCreateAmytisWorkspace,
+            handleCloneWorkspace,
+            showToast,
+          }}
+          files={{
+            handleNewFile,
+            handleDuplicate,
+            handleNewFromExisting,
+            handleRename,
+            collectionCandidatesFor,
+            onAddCollectionItem: handleAddCollectionItem,
+            flatFiles,
+            recentFiles,
+            openFileByPath,
+          }}
+          wechat={{
+            selectedFile,
+            parsedFrontmatter,
+            workspaceRootPath,
+            defaultAuthor: defaultAuthor ?? null,
+            pendingMarkdownRef,
+            lastSavedContentRef,
+            fileContent: editorDocument.body,
+            authors,
+            assetRoot,
+            // Bound to the file being published when this render's closure is
+            // captured by the dialog's publish call, so the media id is recorded
+            // on that file even if the user moves on before it finishes.
+            onSuccess: (mediaId) => {
+              if (selectedFile) void handleFieldChange(selectedFile.path, "wechatMediaId", mediaId);
+            },
+          }}
+          preferences={{
+            themePreference,
+            setThemePreference: setPreference,
+            editorPrefs: prefs,
+            updateEditorPrefs: updatePrefs,
+            wordCountGoal,
+            setWordCountGoal,
+            contentPrefs,
+            updateContentPrefs,
+            appPrefs,
+            updateAppPrefs,
+            showToast,
+          }}
+          conflict={{
+            fileName: selectedFile?.name ?? "",
+            resolveConflict: handleResolveConflict,
+          }}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

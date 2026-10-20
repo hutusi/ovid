@@ -717,6 +717,11 @@
     "done": "Done"
   },
   "errors": {
+    "reload_panel": "Reload panel",
+    "sidebar_failed": "The sidebar ran into a problem",
+    "properties_failed": "The properties panel ran into a problem",
+    "status_bar_failed": "The status bar ran into a problem",
+    "dialog_failed": "That dialog ran into a problem",
     "boundary_title": "Something went wrong",
     "unexpected": "Something went wrong — check console for details",
     "close_save_failed": "Couldn't save before closing — window kept open so you don't lose changes",

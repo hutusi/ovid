@@ -89,6 +89,11 @@ release cadence and Conventional Commit history.
   file, and editor font preferences read from local storage are now checked
   field by field; a malformed entry is ignored instead of crashing the app on
   every launch of that workspace (or reaching the editor's font settings).
+- **One panel's crash no longer takes down the window**: the sidebar (and
+  search panel), properties panel, status bar and dialogs each catch their
+  own errors and show a small "ran into a problem — Reload panel" notice,
+  leaving the editor and your text usable. Previously any of them replaced
+  the whole app with a stack trace.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 
