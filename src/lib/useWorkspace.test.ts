@@ -173,6 +173,43 @@ describe("useWorkspace", () => {
     expect(result.current.tree[0]?.path).toBe("/ws/content/posts/new-ws.md");
   });
 
+  it("a refresh with the same paths keeps the tree but renews the flat file list", async () => {
+    const walk = (): FileNode[] => [
+      {
+        name: "content",
+        path: "/ws/content",
+        isDirectory: true,
+        children: [
+          {
+            name: "posts",
+            path: "/ws/content/posts",
+            isDirectory: true,
+            children: [makeNode("/ws/content/posts/hello.md")],
+          },
+        ],
+      },
+    ];
+    invokeImpl = whenInvoke({
+      open_workspace_at_path: () => makeWorkspaceResult({ tree: walk() }),
+      list_workspace_tree: walk,
+    });
+    const { result } = renderHook(() => useWorkspace(makeOptions()));
+    await act(async () => {
+      await result.current.openWorkspaceAtPath("/ws");
+    });
+    const { tree, flatFiles } = result.current;
+    expect(flatFiles).toHaveLength(1);
+
+    await act(async () => {
+      await result.current.refreshTree();
+    });
+    // Same paths and titles: the sidebar keeps its tree object...
+    expect(result.current.tree).toBe(tree);
+    // ...but a file's contents may have changed (an alias, a link), and the
+    // flat file list's identity is what keys the wiki-link corpus.
+    expect(result.current.flatFiles).not.toBe(flatFiles);
+  });
+
   it("serializes concurrent opens so the second starts only after the first settles", async () => {
     const order: string[] = [];
     let resolveA: (r: unknown) => void = () => {};

@@ -13,10 +13,11 @@ export function makeFileNodeFromPath(path: string): FileNode {
   };
 }
 
-/** Whether two workspace trees (as `list_workspace_tree` returns them) are
- *  the same. A refresh that finds no change keeps the previous tree object, so
- *  everything derived from it — sidebar projection, flat file index, the
- *  wiki-link corpus read — doesn't redo its work. */
+/** Whether two workspace trees (as `list_workspace_tree` returns them) have
+ *  the same paths, names and metadata. A refresh that finds no change keeps
+ *  the previous tree object, so the sidebar projection doesn't redo its work.
+ *  File *contents* aren't compared — the flat file index is renewed per walk
+ *  regardless, so the wiki-link corpus still re-reads (see useWorkspace). */
 export function sameTree(a: readonly FileNode[], b: readonly FileNode[]): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;

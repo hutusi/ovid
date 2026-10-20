@@ -85,6 +85,13 @@ export function useWorkspace({
 }: UseWorkspaceOptions) {
   const { t } = useTranslation();
   const [tree, setTree] = useState<FileNode[]>([]);
+  // Counts successful re-walks. A walk that finds the same paths and titles
+  // keeps the previous tree object, so the sidebar doesn't re-render — but
+  // the files' contents may still have changed (an alias or a link edited
+  // outside Ovid), and flatFiles' identity is what keys the wiki-link corpus
+  // (corpusCache), the note index and the backlinks scan. So flatFiles is
+  // rebuilt per walk regardless.
+  const [walkCount, setWalkCount] = useState(0);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
   const [workspaceRootPath, setWorkspaceRootPath] = useState<string | null>(null);
@@ -109,6 +116,7 @@ export function useWorkspace({
   // Cmd+P / openFileByPath operate on the markdown-only projection of the
   // canonical tree. Derived rather than mirrored so it stays in lockstep with
   // tree mutations without explicit setFlatFiles calls.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: walkCount renews the list after a walk that kept the tree object, so content consumers re-read
   const flatFiles: FlatFile[] = useMemo(() => {
     if (!workspaceRoot || !workspaceRootPath) return [];
     return flattenTree(
@@ -118,7 +126,7 @@ export function useWorkspace({
         postsBasePath,
       })
     );
-  }, [tree, workspaceRoot, workspaceRootPath, postsBasePath]);
+  }, [tree, walkCount, workspaceRoot, workspaceRootPath, postsBasePath]);
 
   const refreshTree = useCallback(async (): Promise<FileNode[]> => {
     const requestId = ++refreshIdRef.current;
@@ -128,8 +136,10 @@ export function useWorkspace({
       )) as FileNode[];
       if (requestId !== refreshIdRef.current) return updated;
       // Keep the previous tree when nothing changed (e.g. a content-only edit
-      // to a file whose title didn't move) — see sameTree.
+      // to a file whose title didn't move) — see sameTree. The walk count
+      // still advances: see walkCount.
       setTree((prev) => (sameTree(prev, updated) ? prev : updated));
+      setWalkCount((n) => n + 1);
       return updated;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

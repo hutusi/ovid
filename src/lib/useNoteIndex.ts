@@ -36,8 +36,8 @@ export function whenIdle(task: () => void): () => void {
  *  frontmatter. That work is deferred until the app is idle, so on opening a
  *  workspace it doesn't compete with the tree, the first file read and the
  *  editor's first render; links resolve a moment later instead. It reruns
- *  whenever the tree changes (and only then — an unchanged tree keeps its
- *  identity, see sameTree). */
+ *  whenever `flatFiles` is renewed — after every workspace walk, since a walk
+ *  that kept the tree may still have found an alias edited on disk. */
 export function useNoteIndex(flatFiles: FlatFile[]) {
   const [noteResolverIndex, setNoteResolverIndex] =
     useState<NoteResolverIndex>(EMPTY_NOTE_RESOLVER_INDEX);

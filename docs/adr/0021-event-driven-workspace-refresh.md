@@ -59,8 +59,10 @@ emit a typed `workspace-fs-change` Tauri event.
   frontend comparison above remains as the fallback (e.g. an event that
   arrives after the stamp expired, or on a filesystem whose paths don't
   canonicalise identically). A refresh that returns an unchanged tree keeps
-  the previous tree object, so derived state (sidebar, flat file index,
-  wiki-link corpus) isn't rebuilt.
+  the previous tree object, so the sidebar isn't rebuilt. The flat file
+  index is still renewed per walk: an unchanged tree says nothing about file
+  contents, and the wiki-link corpus (keyed by that index) must re-read an
+  alias or link edited on disk.
 - Active-file conflict behavior remains the pure decision model in
   `workspaceRefresh.ts`: clean files reload, unsaved/saving files warn once per
   revision, removed files close, and Git status refresh follows a confirmed

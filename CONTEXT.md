@@ -502,7 +502,9 @@ A few rules keep startup and typing fast; each has a guard or a test.
   are `React.memo`'d; handlers passed to them must be stable — `useCallback`
   over stable values, or `useStableCallback` for handlers that close over
   state. Shared derived data keeps its identity when unchanged (`sameTree`
-  for the tree, unchanged git status maps).
+  for the tree, unchanged git status maps). The exception is `flatFiles`,
+  renewed after every walk: its identity keys the wiki-link corpus, and a
+  walk that kept the tree may still have found changed file contents.
 - **Corpus-wide work waits for idle.** The wiki-link index (`useNoteIndex`)
   reads every note; it runs via `whenIdle`, not during the first render after
   a workspace opens.
