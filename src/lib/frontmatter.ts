@@ -281,7 +281,11 @@ function hasOwn(object: object, key: string): boolean {
   return Object.prototype.propertyIsEnumerable.call(object, key);
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
+/** Structural equality of parsed YAML values. A YAML alias can make a value
+ *  contain itself (`meta: &m { self: *m }`), so a pair of objects already
+ *  under comparison counts as equal — that ends the recursion, and any real
+ *  difference still turns up elsewhere in the walk. */
+function deepEqual(a: unknown, b: unknown, seen = new Map<object, Set<object>>()): boolean {
   if (a === b) return true;
   if (a instanceof YamlTimestamp || b instanceof YamlTimestamp) {
     return a instanceof YamlTimestamp && b instanceof YamlTimestamp && a.raw === b.raw;
@@ -289,27 +293,31 @@ function deepEqual(a: unknown, b: unknown): boolean {
   if (a instanceof Date || b instanceof Date) {
     return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
   }
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") {
+    return Number.isNaN(a) && Number.isNaN(b);
+  }
+  const pairs = seen.get(a);
+  if (pairs?.has(b)) return true;
+  if (pairs) pairs.add(b);
+  else seen.set(a, new Set([b]));
   if (Array.isArray(a) || Array.isArray(b)) {
     return (
       Array.isArray(a) &&
       Array.isArray(b) &&
       a.length === b.length &&
-      a.every((item, index) => deepEqual(item, b[index]))
+      a.every((item, index) => deepEqual(item, b[index], seen))
     );
   }
-  if (a && b && typeof a === "object" && typeof b === "object") {
-    const aKeys = Object.keys(a);
-    const bKeys = Object.keys(b);
-    return (
-      aKeys.length === bKeys.length &&
-      aKeys.every(
-        (k) =>
-          hasOwn(b, k) &&
-          deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])
-      )
-    );
-  }
-  return Number.isNaN(a) && Number.isNaN(b);
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  return (
+    aKeys.length === bKeys.length &&
+    aKeys.every(
+      (k) =>
+        hasOwn(b, k) &&
+        deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], seen)
+    )
+  );
 }
 
 /** Apply one properties-panel edit to a frontmatter block.

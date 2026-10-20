@@ -286,6 +286,28 @@ describe("setFrontmatterKey", () => {
     const loaded = loadFrontmatterBlock(out);
     expect(loaded.ok && loaded.data).toEqual({ title: "T", items: [{ post: "a" }] });
   });
+
+  it("edits a block whose aliases refer to themselves", () => {
+    const block = "---\ntitle: A\nmeta: &m { self: *m }\nlist: &l [1, *l]\n---\n";
+    expect(edited(editFrontmatterField(block, "title", "B"))).toBe(
+      "---\ntitle: B\nmeta: &m { self: *m }\nlist: &l [1, *l]\n---\n"
+    );
+    expect(edited(editFrontmatterField(block, "title", "A"))).toBe(block);
+    expect(edited(setFrontmatterKey(block, "items", ["a"]))).toBe(
+      "---\ntitle: A\nmeta: &m { self: *m }\nlist: &l [1, *l]\nitems:\n  - a\n---\n"
+    );
+  });
+
+  it("keeps a self-referencing alias through the whole-block fallback", () => {
+    const out = edited(
+      setFrontmatterKey("---\n{ title: T, m: &m { self: *m } }\n---\n", "title", "U")
+    );
+    const loaded = loadFrontmatterBlock(out);
+    if (!loaded.ok) throw new Error(loaded.error);
+    const m = loaded.data.m as { self: unknown };
+    expect(loaded.data.title).toBe("U");
+    expect(m.self).toBe(m);
+  });
 });
 
 // ---------------------------------------------------------------------------
