@@ -1,6 +1,7 @@
 import { Extension } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { Plugin, PluginKey, type Transaction } from "@tiptap/pm/state";
+import { AddMarkStep, RemoveMarkStep } from "@tiptap/pm/transform";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 const FOOTNOTE_REF_RE = /\[\^([^\]]+)\]/g;
@@ -112,6 +113,13 @@ export function updateDecorations(prev: DecorationSet, tr: Transaction): Decorat
     stepMap.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
       changed.push([rest.map(newStart, -1), rest.map(newEnd, 1)]);
     });
+    // A mark step moves no position, so its step map is empty — yet adding or
+    // removing a mark splits or merges the text runs the scan reads one at a
+    // time (`[^` + bold `a` + `]` becomes a reference once the bold is gone).
+    const step = tr.steps[index];
+    if (step instanceof AddMarkStep || step instanceof RemoveMarkStep) {
+      changed.push([rest.map(step.from, -1), rest.map(step.to, 1)]);
+    }
   });
   for (const [rawFrom, rawTo] of changed) {
     // Widen by one so a collapsed range (a deletion) still reaches the block
