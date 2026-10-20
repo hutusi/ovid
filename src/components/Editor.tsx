@@ -24,6 +24,7 @@ import {
   createImagePasteHandler,
   IMAGE_MIME,
 } from "../lib/editor/imagePaste";
+import { isPersistableUpdate } from "../lib/editor/persistableChange";
 import { useEditorCommands } from "../lib/editor/useEditorCommands";
 import { useMarkdownSync } from "../lib/editor/useMarkdownSync";
 import type { FlatFile } from "../lib/fileSearch";
@@ -360,11 +361,12 @@ export function Editor({
         })(view, event);
       },
     },
-    onUpdate({ editor }) {
+    onUpdate({ editor, transaction }) {
       clearPendingRestore();
       setCurrentEditor(editor);
       updateStartedAtRef.current = performance.now();
-      const isUserEdit = editor.isFocused;
+      // Judged per transaction, not by focus — see isPersistableUpdate.
+      const persist = isPersistableUpdate(transaction);
       const { selection } = editor.state;
       const currentBlock =
         selection.$from.parent.type.name === "paragraph" ? selection.$from : null;
@@ -404,10 +406,8 @@ export function Editor({
         editor.commands.setTextSelection(typingNormalization.targetPos);
       }
 
-      if (isUserEdit) {
+      if (persist) {
         onDirty?.();
-      }
-      if (isUserEdit) {
         scheduleSerialize(editor);
       }
 

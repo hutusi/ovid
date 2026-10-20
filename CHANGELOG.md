@@ -12,6 +12,12 @@ release cadence and Conventional Commit history.
   Cmd+Q) now flushes pending saves before exiting, exactly like closing the
   window. Previously it terminated the app immediately, losing up to a second
   of typing still held by the autosave debounce.
+- **Replace All, image edits and code-block languages are saved**: document
+  changes made while focus sat outside the editor body — Find & Replace,
+  the image alt/src fields, the code-block language picker, task checkboxes —
+  were never marked unsaved or written to disk. Whether a change is saved is
+  now decided by the transaction itself, not by editor focus, and merely
+  opening a document no longer risks an automatic rewrite.
 
 ## 0.17.0 - 2026-08-08
 
