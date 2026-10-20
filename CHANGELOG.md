@@ -72,9 +72,9 @@ release cadence and Conventional Commit history.
   LF body. Saves now keep the file's BOM and line endings throughout.
 - **Git can no longer hang Ovid**: git commands had no time limit, so a
   stalled fetch or push left its spinner (and background auto-fetch) stuck for
-  the rest of the session. Local git commands now stop after a minute, network
-  ones after ten, and a stalled HTTP transfer is abandoned after a minute
-  without progress.
+  the rest of the session. Local git commands now stop after a minute; network
+  ones, and commits and branch switches (which run your git hooks), after ten;
+  and a stalled HTTP transfer is abandoned after a minute without progress.
 - **Clones can be cancelled**: the Workspace Manager shows a Cancel button
   while cloning; cancelling stops git and removes the partial folder.
   Previously a stuck clone also blocked opening any other workspace until

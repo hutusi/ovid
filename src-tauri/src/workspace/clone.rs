@@ -6,17 +6,18 @@
 //! directory flows through `build_workspace_result` so it becomes the
 //! active workspace exactly like a normal open.
 
-use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::Emitter;
 use ts_rs::TS;
 
-use crate::git::runner::{configure_child_process, HTTP_LOW_SPEED_ARGS};
+use crate::git::runner::{
+    configure_child_process, PipeReader, HTTP_LOW_SPEED_ARGS, PIPE_DRAIN_GRACE,
+};
 
 /// Marker message for a clone the user cancelled. The frontend matches on it
 /// to end quietly instead of reporting a failure.
@@ -189,38 +190,22 @@ pub(crate) fn clone_with_progress(
         Err(e) => return Err(CloneError::GitFailed(e.to_string())),
     };
 
-    let stderr = child.stderr.take();
-    let stderr_buf = if let Some(s) = stderr {
-        // Tee into both: stream live to the frontend AND keep a copy for the
-        // failure message. We re-read by capturing into a Vec via a small
-        // adapter — but a simpler approach is to spawn a reader thread that
-        // both emits and accumulates.
-        std::thread::spawn(move || {
-            let mut collected = Vec::new();
-            let mut buf = BufReader::new(s);
-            let mut byte = [0u8; 1];
-            let mut line = Vec::with_capacity(256);
-            while buf.read(&mut byte).unwrap_or(0) == 1 {
-                collected.push(byte[0]);
-                if byte[0] == b'\r' || byte[0] == b'\n' {
-                    if !line.is_empty() {
-                        let raw = String::from_utf8_lossy(&line).to_string();
-                        on_progress(parse_progress_line(&raw));
-                        line.clear();
-                    }
-                } else {
-                    line.push(byte[0]);
+    // Stream progress live to the frontend while the reader also keeps the
+    // whole of stderr for the failure message. git redraws a progress line
+    // with `\r` and ends one with `\n`.
+    let mut line = Vec::with_capacity(256);
+    let stderr = PipeReader::spawn(child.stderr.take(), move |chunk| {
+        for &byte in chunk {
+            if byte == b'\r' || byte == b'\n' {
+                if !line.is_empty() {
+                    on_progress(parse_progress_line(&String::from_utf8_lossy(&line)));
+                    line.clear();
                 }
+            } else {
+                line.push(byte);
             }
-            if !line.is_empty() {
-                let raw = String::from_utf8_lossy(&line).to_string();
-                on_progress(parse_progress_line(&raw));
-            }
-            collected
-        })
-    } else {
-        std::thread::spawn(Vec::new)
-    };
+        }
+    });
 
     let status = loop {
         if let Some(status) = child
@@ -241,7 +226,9 @@ pub(crate) fn clone_with_progress(
         }
         std::thread::sleep(Duration::from_millis(50));
     };
-    let collected = stderr_buf.join().unwrap_or_default();
+    // Bounded: an ssh ControlPersist master started by the clone keeps
+    // stderr open after git exits (see PIPE_DRAIN_GRACE).
+    let collected = stderr.finish(Instant::now() + PIPE_DRAIN_GRACE);
 
     if !status.success() {
         let stderr = String::from_utf8_lossy(&collected)
