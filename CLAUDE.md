@@ -149,7 +149,7 @@ These rules encode hard-won lessons about what works in Tauri's WebView. Violati
 
 ### Window chrome / drag regions
 
-- **Top strip is one 36 px region** — sidebar header, editor top bar, and properties panel header all consume `--topbar-height` from `:root` in `global.css` and use the inset bottom-border treatment (`box-shadow: inset 0 -1px 0 var(--color-border)`) for visual continuity across the seams
+- **Top strip is one 36 px region** — sidebar header (or the search panel's top strip, when search replaces the sidebar), editor top bar, and properties panel header all consume `--topbar-height` from `:root` in `global.css` and use the inset bottom-border treatment (`box-shadow: inset 0 -1px 0 var(--color-border)`) for visual continuity across the seams
 - **Use `data-tauri-drag-region="deep"`** — Tauri 2.11's bare `data-tauri-drag-region` is self-only (drag fires only on a direct click on the attributed element, descendants do not inherit). Use `"deep"` so clicks anywhere in the subtree drag the window. Intrinsically clickable descendants (`<button>`, `<a>`, `<input>`, contenteditable) auto-block, so buttons inside keep working with no annotation
 - **Opt out HTML5-draggable subtrees with `data-tauri-drag-region="false"`** — Tauri's mousedown handler runs before the browser's `dragstart` and calls `preventDefault` + `stopImmediatePropagation` on matching regions, killing HTML5 drag. Any element with `draggable` inside a `"deep"` parent (today: `.tab-bar-item`) must opt out explicitly
 - **Capability requirement** — `src-tauri/capabilities/default.json` must grant `core:window:allow-start-dragging`. The default `core:window` permission set does **not** include it; without it every drag region is wired up but inert (IPC rejection is silent)

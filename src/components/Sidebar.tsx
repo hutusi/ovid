@@ -24,6 +24,12 @@ import {
   needsPageDivider,
   nextSidebarWidth,
 } from "../lib/sidebarUtils";
+import {
+  readStoredSidebarWidth,
+  SIDEBAR_MAX,
+  SIDEBAR_MIN,
+  SIDEBAR_WIDTH_KEY,
+} from "../lib/sidebarWidth";
 import type { FileNode, GitStatus } from "../lib/types";
 import { useSidebarExpansion } from "../lib/useSidebarExpansion";
 import { describeTreeRow, sidebarTreeRows, useSidebarTreeFocus } from "../lib/useSidebarTreeFocus";
@@ -62,11 +68,6 @@ interface SidebarProps {
   onNewFromExisting: (node: FileNode) => void;
   onDelete: (node: FileNode) => void;
 }
-
-const SIDEBAR_WIDTH_KEY = "ovid:sidebarWidth";
-const SIDEBAR_MIN = 180;
-const SIDEBAR_MAX = 480;
-const SIDEBAR_DEFAULT = 240;
 
 /** Memoized: App re-renders often (save state, git refreshes) and the sidebar
  *  depends on none of that, given stable props. */
@@ -141,12 +142,7 @@ export const Sidebar = memo(function Sidebar({
     () => bucketNodes.length > 0 && bucketNodes.every((node) => isNodeExpanded(node, 0)),
     [bucketNodes, isNodeExpanded]
   );
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    const parsed = stored ? Number(stored) : SIDEBAR_DEFAULT;
-    if (!Number.isFinite(parsed)) return SIDEBAR_DEFAULT;
-    return clampSidebarWidth(parsed, SIDEBAR_MIN, SIDEBAR_MAX);
-  });
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth);
   // Transient width while a mouse drag is live — tracks the cursor independently
   // of the persisted preference, so a drag that returns to its start (or a no-op
   // click) renders correctly without clobbering `sidebarWidth`.

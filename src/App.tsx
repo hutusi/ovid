@@ -697,7 +697,11 @@ function App() {
         >
           {overlay.is("search") ? (
             <Suspense fallback={null}>
-              <SearchPanel onOpenFile={handleOpenByPath} onClose={() => overlay.close("search")} />
+              <SearchPanel
+                onOpenFile={handleOpenByPath}
+                onClose={() => overlay.close("search")}
+                maxWidth={panelLayout.sidebarMaxWidth}
+              />
             </Suspense>
           ) : (
             <Sidebar
