@@ -276,7 +276,9 @@ Because that decision is made from render-time state, `reloadSelectedFileFromDis
 re-checks for local edits itself — flushing the editor's serialize debounce
 first, and again after its read — and stands down (returns false) if any
 exist; only the user's explicit "discard & reload" passes `discardLocalEdits`.
-The Rust watcher emits filtered `workspace-fs-change` events; the hook
+The Rust watcher emits filtered `workspace-fs-change` events — never for
+Ovid's own staging files, and not for a save whose stamp `SelfWrites`
+recorded — and the hook
 debounces them and verifies a workspace revision before refreshing. A 30 s
 revision check and a visibility-resume check remain as correctness fallbacks
 for dropped or unsupported native events (ADR 0021).
@@ -474,6 +476,36 @@ lockstep. The two genuinely new preferences have their own hooks —
 "Settings…" app-menu item, or the StatusBar gear.
 
 ---
+
+## Performance seams
+
+A few rules keep startup and typing fast; each has a guard or a test.
+
+- **The editor's libraries load with the editor, never at startup.**
+  ProseMirror, Tiptap and highlighting are split into `editor-*` chunks that
+  only the lazy `Editor` imports. Two things have pulled them into startup
+  before: a side-effect import reachable from the shortcut table (augmentation
+  imports must be `import type {}`), and Rolldown group capture putting React
+  inside `editor-tiptap` (React has its own higher-priority `react-vendor`
+  group in `vite.config.ts`). `scripts/check-bundle-size.ts` fails the build if
+  `index.html` loads an `editor-*` chunk or startup JavaScript exceeds its
+  budget.
+- **Typing touches as little as possible.** The editor is configured once per
+  mount (extensions and editorProps memoized, live values read through refs);
+  a new extension instance per render makes Tiptap reconfigure the view.
+  The live word count and session progress live in an external store
+  (`writingStats.ts`) that only the status-bar readout subscribes to, not in
+  App state. Decoration plugins return their previous state on
+  non-document transactions and update incrementally where they can
+  (footnotes rescan only edited blocks).
+- **Memoized panels need stable props.** `Sidebar` and its `FileItem` rows
+  are `React.memo`'d; handlers passed to them must be stable — `useCallback`
+  over stable values, or `useStableCallback` for handlers that close over
+  state. Shared derived data keeps its identity when unchanged (`sameTree`
+  for the tree, unchanged git status maps).
+- **Corpus-wide work waits for idle.** The wiki-link index (`useNoteIndex`)
+  reads every note; it runs via `whenIdle`, not during the first render after
+  a workspace opens.
 
 ## Visual design language
 

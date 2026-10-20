@@ -50,6 +50,17 @@ emit a typed `workspace-fs-change` Tauri event.
   re-walking the workspace. The slow fallback later advances the revision
   baseline. The same comparison still protects the live document when a
   fallback discovers Ovid's own revision.
+- *(Amended 2026-10.)* Own saves are now mostly stopped at the source. The
+  atomic-save staging files (`.~<name>.<purpose>.<pid>-<n>`) are skipped by
+  every walk and by the watcher, and `write_file` records each save's
+  resulting file stamp (length + mtime) in `SelfWrites`; the watcher drops an
+  event for a path that still carries that stamp, so an autosave sends the
+  frontend nothing. Creates and renames are never suppressed. The
+  frontend comparison above remains as the fallback (e.g. an event that
+  arrives after the stamp expired, or on a filesystem whose paths don't
+  canonicalise identically). A refresh that returns an unchanged tree keeps
+  the previous tree object, so derived state (sidebar, flat file index,
+  wiki-link corpus) isn't rebuilt.
 - Active-file conflict behavior remains the pure decision model in
   `workspaceRefresh.ts`: clean files reload, unsaved/saving files warn once per
   revision, removed files close, and Git status refresh follows a confirmed
