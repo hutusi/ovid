@@ -31,6 +31,9 @@
   /* Accent (brand) — copper */
   --color-accent: #a8612c;
   --color-accent-subtle: rgba(168, 97, 44, 0.12);
+  /* Text/icons drawn on a solid accent or danger fill (4.8:1 / 5.9:1). */
+  --color-on-accent: #ffffff;
+  --color-on-danger: #ffffff;
 
   /* Wiki links — follow the copper accent */
   --color-wiki-link: #a8612c;
@@ -41,7 +44,9 @@
   --color-warning-subtle: rgba(181, 115, 10, 0.14);
   --color-success: #2e9e5a;
   --color-error: #b23a2b;
-  --color-danger: #c0392b;
+  /* Destructive actions. Same red as errors (they were near-duplicates);
+     warning amber is for caution, not destruction. */
+  --color-danger: #b23a2b;
 
   /* Modal/overlay backdrop — warm-tinted (theme-aware via dark override) */
   --color-backdrop: rgba(40, 32, 20, 0.28);
@@ -76,6 +81,9 @@
 
   --color-accent: #d08a4e;
   --color-accent-subtle: rgba(208, 138, 78, 0.16);
+  /* White on the dark copper is 2.8:1 (fails AA); warm ink is 6.2:1. */
+  --color-on-accent: #1a1916;
+  --color-on-danger: #1a1916;
 
   --color-wiki-link: #e0a878;
   --color-wiki-link-unresolved: #6e685c;
@@ -84,7 +92,7 @@
   --color-warning-subtle: rgba(240, 180, 41, 0.16);
   --color-success: #5cc985;
   --color-error: #e5675a;
-  --color-danger: #f0766a;
+  --color-danger: #e5675a;
 
   --color-syntax-comment: #6e685c;
   --color-syntax-keyword: #e0a07a;
@@ -127,6 +135,17 @@
   --radius-lg: 9px;
   --radius-xl: 12px;
   --radius-pill: 999px;
+
+  /* Stacking — one scale so layers can't leapfrog each other (editor
+     popovers used to sit above modal dialogs). Use these, not raw numbers,
+     for anything outside a component's own local stacking context. */
+  --z-raised: 10; /* in-flow overlays: resize handles, table/image controls */
+  --z-drawer: 40; /* compact properties drawer and its backdrop */
+  --z-dropdown: 100; /* anchored popovers: find bar, font settings, pickers */
+  --z-popover: 150; /* editor-floating popovers: link preview, [[ suggestions */
+  --z-modal: 200; /* modal dialogs and their backdrop */
+  --z-toast: 300; /* toasts stay readable above dialogs */
+  --z-dev-overlay: 900; /* perf panel */
 
   /* Motion */
   --duration-fast: 120ms;
@@ -181,6 +200,33 @@
     /* biome-ignore lint/complexity/noImportantStyles: reduced-motion overrides must win over component transitions */
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── Global interaction defaults ──────────────────────────────────────────
+   Native checkboxes, radios and range inputs take the copper accent instead of
+   system blue; selected text anywhere (title, dialogs, inputs) uses the warm
+   selection the editor already had; and every interactive element gets a
+   visible keyboard-focus ring. :where() keeps these at zero specificity so a
+   component's own focus styling still wins. */
+:root {
+  accent-color: var(--color-accent);
+}
+
+::selection {
+  background: var(--color-accent-subtle);
+}
+
+:where(
+  button,
+  a[href],
+  summary,
+  select,
+  [role="button"],
+  [role="option"],
+  [tabindex]
+):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* ── Reset ────────────────────────────────────────────────────────────────── */

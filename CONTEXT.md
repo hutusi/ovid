@@ -530,6 +530,9 @@ language is token-driven, the whole app recolours from the cascade; component
 CSS only adds the grain overlay, panel highlights, and two affordances (the
 active-tab copper indicator and the selected-file copper margin marker). The
 window-chrome geometry is unchanged — see [ADR 0013](docs/adr/0013-unified-window-chrome.md).
+Text on solid fills uses `--color-on-accent` / `--color-on-danger`, layering
+uses the `--z-*` scale (never raw numbers across components), and destructive
+actions are red (`--color-danger`), not warning amber.
 
 ---
 

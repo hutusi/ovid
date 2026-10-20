@@ -20,6 +20,7 @@ export function DeleteBranchDialog({ branch, onConfirm, onCancel }: DeleteBranch
         confirmLabel={t("delete_branch_dialog.delete")}
         onCancel={onCancel}
         onConfirm={onConfirm}
+        danger
       />
     </Modal>
   );

@@ -215,7 +215,7 @@
 }
 
 .ws-actions-menu-btn--danger {
-  color: var(--color-warning);
+  color: var(--color-danger);
 }
 
 .ws-empty {

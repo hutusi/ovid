@@ -3,7 +3,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -134,13 +134,18 @@
   border: 1px solid var(--color-border);
 }
 
-.modal-btn-cancel:hover {
+.modal-btn-cancel:hover:not(:disabled) {
   background: var(--color-surface-hover);
   color: var(--color-fg);
 }
 
+.modal-btn-cancel:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .modal-btn-primary {
-  color: #ffffff;
+  color: var(--color-on-accent);
   background: var(--color-accent);
   border: 1px solid transparent;
 }
@@ -154,14 +159,31 @@
   cursor: not-allowed;
 }
 
+/* Destructive, low-emphasis (e.g. "Remove link"): red text, no fill. */
 .modal-btn-danger {
-  color: var(--color-warning);
+  color: var(--color-danger);
   background: transparent;
   border: 1px solid transparent;
 }
 
-.modal-btn-danger:hover {
-  background: var(--color-warning-subtle);
+.modal-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+}
+
+/* Destructive confirm (e.g. "Delete"): the solid counterpart of primary. */
+.modal-btn-danger-solid {
+  color: var(--color-on-danger);
+  background: var(--color-danger);
+  border: 1px solid transparent;
+}
+
+.modal-btn-danger-solid:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.modal-btn-danger-solid:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ── Divider ──────────────────────────────────── */

@@ -171,4 +171,19 @@ describe("ModalActions", () => {
     expect(cancelled).toBe(1);
     unmount(m);
   });
+
+  it("renders a destructive confirm in the danger style", () => {
+    const m = mount(
+      <ModalActions
+        cancelLabel="Cancel"
+        confirmLabel="Delete"
+        onCancel={() => {}}
+        onConfirm={() => {}}
+        danger
+      />
+    );
+    expect(m.container.querySelector(".modal-btn-danger-solid")?.textContent).toBe("Delete");
+    expect(m.container.querySelector(".modal-btn-primary")).toBeNull();
+    unmount(m);
+  });
 });

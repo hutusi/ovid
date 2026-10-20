@@ -7,6 +7,16 @@ release cadence and Conventional Commit history.
 
 ## Unreleased
 
+### Changed
+- **Consistent keyboard focus, selection and controls**: every button, link
+  and option shows the copper focus ring when reached by keyboard (several
+  showed the system-blue default or nothing), selected text in titles,
+  inputs and dialogs uses the warm selection colour, and checkboxes and radio
+  buttons follow the accent instead of system blue.
+- **Destructive actions are red**: delete buttons and menu items used the
+  amber warning colour; they now use the danger red, and deleting a branch
+  confirms with a red button rather than the copper one.
+
 ### Fixed
 - **Cmd+Q no longer drops the last edits**: the app menu's Quit item (and
   Cmd+Q) now flushes pending saves before exiting, exactly like closing the
@@ -97,6 +107,10 @@ release cadence and Conventional Commit history.
 - **Body-heading warning follows the title**: the "this document already
   has a title" hint on a body H1 now appears and disappears as the title is
   set or cleared, instead of being fixed when the file was opened.
+- **Readable primary buttons in dark mode**: white text on the copper button
+  was below the WCAG AA contrast minimum in the dark theme; it now uses warm
+  ink. Editor popovers (link previews, `[[` suggestions) no longer draw on top
+  of open dialogs, and toasts stay readable above them.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 

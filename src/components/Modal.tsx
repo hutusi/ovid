@@ -89,6 +89,9 @@ interface ModalActionsProps {
   onCancel: () => void;
   onConfirm: () => void;
   confirmDisabled?: boolean;
+  /** The confirm action destroys something (delete): render it red rather
+   *  than as the copper primary. */
+  danger?: boolean;
   extraLeft?: ReactNode;
 }
 
@@ -98,6 +101,7 @@ export function ModalActions({
   onCancel,
   onConfirm,
   confirmDisabled = false,
+  danger = false,
   extraLeft,
 }: ModalActionsProps) {
   return (
@@ -109,7 +113,7 @@ export function ModalActions({
       </button>
       <button
         type="button"
-        className="modal-btn modal-btn-primary"
+        className={`modal-btn ${danger ? "modal-btn-danger-solid" : "modal-btn-primary"}`}
         disabled={confirmDisabled}
         onClick={onConfirm}
       >
