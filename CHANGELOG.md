@@ -128,6 +128,10 @@ release cadence and Conventional Commit history.
   session progress were app-wide state, so every count update while typing
   (about three a second) re-rendered the sidebar, editor pane and dialogs.
   Only the status-bar readout updates now.
+- **Wiki-link indexing waits for a quiet moment**: reading every note to
+  resolve `[[links]]` now happens once the app is idle after opening a
+  workspace (or after the file tree changes), instead of competing with the
+  first file load; collection indexes are read in parallel.
 - **File operations no longer block the window**: reading, saving, creating,
   renaming, duplicating and trashing files, and saving pasted or dropped
   images, now run off the UI thread. A save's fsync, a slow or network volume,

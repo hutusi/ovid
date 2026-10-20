@@ -9,24 +9,16 @@ import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import type { AppActionCtx } from "./lib/appActions";
 import { loadLastRecentFilePath } from "./lib/appRestore";
-import { collectionCandidates } from "./lib/collection";
 import { commands } from "./lib/commands";
-import { corpusReadFile, readCorpus } from "./lib/corpusCache";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
-import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
-import type {
-  CollectionItem,
-  FileNode,
-  SaveStatus,
-  SearchJumpTarget,
-  WordCountKind,
-} from "./lib/types";
+import { forContentMode, forFilesMode } from "./lib/sidebarUtils";
+import type { FileNode, SaveStatus, SearchJumpTarget, WordCountKind } from "./lib/types";
 import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCloseGuard } from "./lib/useCloseGuard";
-import { useCollectionLinks } from "./lib/useCollectionLinks";
+import { useCollectionActions } from "./lib/useCollectionActions";
 import { useContentPreferences } from "./lib/useContentPreferences";
 import { useCoverImage } from "./lib/useCoverImage";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
@@ -39,6 +31,7 @@ import { useGitUiController } from "./lib/useGitUiController";
 import { useGlobalErrorHandlers } from "./lib/useGlobalErrorHandlers";
 import { useKeyboardShortcuts } from "./lib/useKeyboardShortcuts";
 import { useMenuActions } from "./lib/useMenuActions";
+import { useNoteIndex } from "./lib/useNoteIndex";
 import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useResponsivePanels } from "./lib/useResponsivePanels";
@@ -47,14 +40,7 @@ import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspaceChangeMonitor } from "./lib/useWorkspaceChangeMonitor";
 import { useWorkspaceSession } from "./lib/useWorkspaceSession";
-import {
-  buildNoteResolverIndex,
-  createWikiNote,
-  EMPTY_NOTE_RESOLVER_INDEX,
-  type NoteResolverIndex,
-  type ResolvedWikiTarget,
-  resolveWikiTarget,
-} from "./lib/wikiLink";
+import { createWikiNote } from "./lib/wikiLink";
 import { createWritingStats } from "./lib/writingStats";
 import "./styles/global.css";
 import "./App.css";
@@ -242,54 +228,21 @@ function App() {
   ]);
 
   // Resolve each collection entry's `items:` to navigable sidebar links.
-  const { links: collectionLinks, reload: reloadCollectionLinks } = useCollectionLinks({
+  const {
+    collectionLinks,
+    handleAddToCollection,
+    handleRemoveFromCollection,
+    handleAddCollectionItem,
+    collectionCandidatesFor,
+  } = useCollectionActions({
     tree,
     flatFiles,
-    contentRoot: workspaceRoot,
+    workspaceRoot,
     postsBasePath,
+    overlay,
+    addCollectionItem,
+    removeCollectionItem,
   });
-
-  const handleAddToCollection = useCallback(
-    (collectionDir: FileNode) => {
-      const index = getDirIndexEntry(collectionDir);
-      if (!index) return;
-      const existing: CollectionItem[] = (collectionLinks.get(collectionDir.path) ?? []).map(
-        (link) => (link.kind === "series" ? { series: link.slug } : { post: link.slug })
-      );
-      overlay.open({
-        kind: "modal",
-        state: { type: "add-to-collection", indexPath: index.path, existing },
-      });
-    },
-    [collectionLinks, overlay]
-  );
-
-  const handleRemoveFromCollection = useCallback(
-    async (indexPath: string, key: string) => {
-      await removeCollectionItem(indexPath, key);
-      reloadCollectionLinks();
-    },
-    [removeCollectionItem, reloadCollectionLinks]
-  );
-
-  const collectionCandidatesFor = useCallback(
-    (existing: CollectionItem[], selfIndexPath: string) =>
-      collectionCandidates(
-        flatFiles,
-        { contentRoot: workspaceRoot ?? "", postsBasePath },
-        existing,
-        selfIndexPath
-      ),
-    [flatFiles, workspaceRoot, postsBasePath]
-  );
-
-  const handleAddCollectionItem = useCallback(
-    async (indexPath: string, item: CollectionItem) => {
-      await addCollectionItem(indexPath, item);
-      reloadCollectionLinks();
-    },
-    [addCollectionItem, reloadCollectionLinks]
-  );
 
   // openByPath / openFile / closeActive live inside useEditorSession; here we
   // only have to clear the FileViewer (a separate, files-mode UI concern) and
@@ -313,36 +266,13 @@ function App() {
   const searchJumpGenRef = useRef(0);
   const handleSearchJumpHandled = useCallback(() => setSearchJump(null), []);
 
-  const [noteResolverIndex, setNoteResolverIndex] =
-    useState<NoteResolverIndex>(EMPTY_NOTE_RESOLVER_INDEX);
-  const noteResolverGenRef = useRef(0);
-  const noteResolverIndexRef = useRef(noteResolverIndex);
-  useEffect(() => {
-    noteResolverIndexRef.current = noteResolverIndex;
-  }, [noteResolverIndex]);
-  useEffect(() => {
-    const gen = ++noteResolverGenRef.current;
-    void (async () => {
-      // One bulk IPC read per tree generation, shared with the backlinks
-      // scanner via the corpus cache — not one read_file per note.
-      const contents = await readCorpus(flatFiles).catch(() => new Map<string, string>());
-      if (gen !== noteResolverGenRef.current) return;
-      const index = await buildNoteResolverIndex(flatFiles, corpusReadFile(contents));
-      if (gen === noteResolverGenRef.current) {
-        setNoteResolverIndex(index);
-      }
-    })();
-  }, [flatFiles]);
-
-  const resolveWikiTargetCallback = useCallback(
-    (target: string): ResolvedWikiTarget => resolveWikiTarget(target, noteResolverIndexRef.current),
-    []
-  );
+  const { noteResolverIndex, resolveWikiTarget: resolveWikiTargetCallback } =
+    useNoteIndex(flatFiles);
 
   const onOpenWikiTarget = useCallback(
     async (target: string) => {
       if (!workspaceRoot) return;
-      const resolved = resolveWikiTarget(target, noteResolverIndexRef.current);
+      const resolved = resolveWikiTargetCallback(target);
       if (resolved.exists) {
         setFileViewerNode(null);
         void openByPath(`${workspaceRoot}/${resolved.relativePath}`);
@@ -371,7 +301,16 @@ function App() {
         );
       }
     },
-    [workspaceRoot, postsBasePath, refreshTree, openByPath, setFileViewerNode, showToast, t]
+    [
+      workspaceRoot,
+      postsBasePath,
+      refreshTree,
+      openByPath,
+      setFileViewerNode,
+      showToast,
+      t,
+      resolveWikiTargetCallback,
+    ]
   );
 
   async function handleSidebarSelect(node: FileNode) {
