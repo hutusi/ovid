@@ -94,6 +94,9 @@ release cadence and Conventional Commit history.
   own errors and show a small "ran into a problem — Reload panel" notice,
   leaving the editor and your text usable. Previously any of them replaced
   the whole app with a stack trace.
+- **Body-heading warning follows the title**: the "this document already
+  has a title" hint on a body H1 now appears and disappears as the title is
+  set or cleared, instead of being fixed when the file was opened.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 
@@ -117,6 +120,10 @@ release cadence and Conventional Commit history.
   repository root is looked up once instead of per git command. A refresh
   that finds the file tree unchanged no longer rebuilds the sidebar, the
   file index or the wiki-link data.
+- **Less work while typing**: the editor reconfigured its ProseMirror view
+  (twice) every time the window re-rendered — after each autosave state
+  change, word-count update or git refresh. It is now configured once, and
+  re-renders only when what it shows changes.
 - **File operations no longer block the window**: reading, saving, creating,
   renaming, duplicating and trashing files, and saving pasted or dropped
   images, now run off the UI thread. A save's fsync, a slow or network volume,

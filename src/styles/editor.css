@@ -32,12 +32,14 @@
   padding: 0 max(0px, calc((100% - 760px) / 2)) 48px;
 }
 
-/* H1 in body warning — document already has a title field */
-.ProseMirror .h1-warning {
+/* H1 in body warning — document already has a title field. The H1Warning
+   plugin always marks body H1s; the scroll container opts in to showing the
+   warning only while the document has a title. */
+.editor-scroll--h1-warning .ProseMirror .h1-warning {
   position: relative;
 }
 
-.ProseMirror .h1-warning::after {
+.editor-scroll--h1-warning .ProseMirror .h1-warning::after {
   content: var(
     --h1-warning-text,
     "⚠ This document already has a title. Consider changing this heading to ##."

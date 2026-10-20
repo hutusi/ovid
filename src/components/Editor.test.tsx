@@ -172,3 +172,40 @@ describe("Editor — what counts as an edit", () => {
     expect(onChange.mock.calls[0]?.[0]).toBe("baz bar baz");
   });
 });
+
+describe("Editor — configured once", () => {
+  it("re-rendering doesn't reconfigure the ProseMirror view", () => {
+    const onChange = mock((_markdown: string) => {});
+    const props = { content: "text", loadId: 1, filePath: "/ws/note.md", onChange };
+    const view = render(<Editor {...props} title="One" />);
+    mounted.push(view);
+    const editor = tiptapOf(view.container);
+    let setOptionsCalls = 0;
+    const original = editor.setOptions.bind(editor);
+    editor.setOptions = (options) => {
+      setOptionsCalls += 1;
+      original(options);
+    };
+
+    act(() => {
+      view.rerender(<Editor {...props} title="Two" />);
+    });
+    act(() => {
+      view.rerender(<Editor {...props} title="Three" onError={() => {}} />);
+    });
+    expect(setOptionsCalls).toBe(0);
+  });
+
+  it("shows the body-H1 warning only while the document has a title", () => {
+    const props = { content: "# Heading\n\nbody", loadId: 1, filePath: "/ws/note.md" };
+    const view = render(<Editor {...props} showH1Warning={false} />);
+    mounted.push(view);
+    const scroll = () => view.container.querySelector(".editor-scroll");
+    expect(scroll()?.classList.contains("editor-scroll--h1-warning")).toBe(false);
+    act(() => {
+      view.rerender(<Editor {...props} showH1Warning />);
+    });
+    expect(scroll()?.classList.contains("editor-scroll--h1-warning")).toBe(true);
+    expect(view.container.querySelector("h1.h1-warning")).not.toBeNull();
+  });
+});
