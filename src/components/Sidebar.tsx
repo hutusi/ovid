@@ -15,6 +15,7 @@ import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
 import type { FeatureBucket } from "../lib/commands/generated/FeatureBucket";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
+import { treeKeyAction } from "../lib/sidebarKeyboard";
 import {
   clampSidebarWidth,
   computeGitRollup,
@@ -25,6 +26,7 @@ import {
 } from "../lib/sidebarUtils";
 import type { FileNode, GitStatus } from "../lib/types";
 import { useSidebarExpansion } from "../lib/useSidebarExpansion";
+import { describeTreeRow, sidebarTreeRows, useSidebarTreeFocus } from "../lib/useSidebarTreeFocus";
 import { FileItem } from "./sidebar/FileItem";
 import "./Sidebar.css";
 
@@ -101,6 +103,8 @@ export const Sidebar = memo(function Sidebar({
   const [filterQuery, setFilterQuery] = useState("");
   const [filterExpanded, setFilterExpanded] = useState(false);
   const filterInputRef = useRef<HTMLInputElement>(null);
+  const treeRef = useRef<HTMLDivElement>(null);
+  useSidebarTreeFocus(treeRef);
   // A top-level Content-mode bucket (`notes/`, `books/`, …) — these rows are
   // collapsed by default so a workspace dominated by one bucket doesn't push
   // the others off-screen. Files mode and nested folders aren't buckets.
@@ -209,6 +213,35 @@ export const Sidebar = memo(function Sidebar({
     });
     return () => cancelAnimationFrame(id);
   }, [filterExpanded]);
+
+  // Arrow keys, Home and End on a focused row (see sidebarKeyboard.ts).
+  // Rows mark themselves with data-tree-row / data-depth / data-expanded, so
+  // the visible order is read straight from the DOM.
+  function handleTreeKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.defaultPrevented || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    const rows = sidebarTreeRows(e.currentTarget);
+    const index = rows.indexOf(e.target as HTMLElement);
+    if (index < 0) return;
+    const described = rows.map(describeTreeRow);
+    let action = treeKeyAction(described, index, e.key);
+    // While a filter is active every folder is forced open and can't
+    // collapse: Left steps out to the parent instead.
+    if (action?.kind === "collapse" && filterQuery) {
+      described[index] = { ...described[index], expanded: null };
+      action = treeKeyAction(described, index, e.key);
+    }
+    if (!action) return;
+    e.preventDefault();
+    if (action.kind === "focus") {
+      rows[action.index]?.focus();
+      return;
+    }
+    const row = rows[index];
+    if (!row.dataset.path) return;
+    handleToggleExpand(row.dataset.path, Number(row.dataset.depth ?? 0), {
+      isBucket: row.dataset.bucket === "true",
+    });
+  }
 
   function handleResizeMouseDown(e: React.MouseEvent) {
     e.preventDefault();
@@ -367,6 +400,14 @@ export const Sidebar = memo(function Sidebar({
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
               onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  const first = sidebarTreeRows(treeRef.current)[0];
+                  if (first) {
+                    e.preventDefault();
+                    first.focus();
+                  }
+                  return;
+                }
                 if (e.key === "Escape") {
                   if (filterQuery === "") {
                     setFilterExpanded(false);
@@ -396,7 +437,8 @@ export const Sidebar = memo(function Sidebar({
         </div>
       )}
 
-      <div className="sidebar-tree">
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: delegates arrow keys for the row buttons inside; the rows are the interactive elements */}
+      <div ref={treeRef} className="sidebar-tree" onKeyDown={handleTreeKeyDown}>
         {tree.length === 0 ? (
           <div className="sidebar-empty">
             <p>{t("sidebar.no_workspace")}</p>

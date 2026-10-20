@@ -825,7 +825,8 @@
     "note": {
       "in_list_item": "在列表项中",
       "no_modifier": "无 Cmd / Ctrl",
-      "macos_hide_conflict": "macOS 隐藏窗口可能拦截"
+      "macos_hide_conflict": "macOS 隐藏窗口可能拦截",
+      "in_sidebar": "在侧边栏中"
     },
     "toggle_sidebar": "切换侧栏",
     "toggle_properties": "切换属性面板",
@@ -841,6 +842,9 @@
     "git_commit": "打开提交对话框",
     "open_preferences": "打开偏好设置",
     "show_shortcuts": "显示此对话框",
+    "sidebar_move": "在行之间移动（↑ ↓ Home End）",
+    "sidebar_expand": "展开文件夹，或进入其中",
+    "sidebar_collapse": "折叠文件夹，或回到上级",
     "insert_link": "插入链接",
     "paste_plain": "粘贴为纯文本",
     "find": "查找",

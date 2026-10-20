@@ -825,7 +825,8 @@
     "note": {
       "in_list_item": "in a list item",
       "no_modifier": "no Cmd / Ctrl",
-      "macos_hide_conflict": "macOS Hide may intercept"
+      "macos_hide_conflict": "macOS Hide may intercept",
+      "in_sidebar": "in the sidebar"
     },
     "toggle_sidebar": "Toggle sidebar",
     "toggle_properties": "Toggle properties panel",
@@ -841,6 +842,9 @@
     "git_commit": "Open commit dialog",
     "open_preferences": "Open preferences",
     "show_shortcuts": "Show this dialog",
+    "sidebar_move": "Move between rows (↑ ↓ Home End)",
+    "sidebar_expand": "Expand a folder, or step into it",
+    "sidebar_collapse": "Collapse a folder, or step out to its parent",
     "insert_link": "Insert link",
     "paste_plain": "Paste as plain text",
     "find": "Find",

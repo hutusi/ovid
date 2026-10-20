@@ -421,6 +421,14 @@
   transition: none;
 }
 
+/* Keyboard focus on a row: an inset ring, so the scrolling tree can't clip
+   it, and distinct from the hover and selected fills. */
+.sidebar-tree [data-tree-row="true"]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
 .sidebar-file-row.selected .sidebar-file {
   color: var(--color-accent);
   font-weight: 500;

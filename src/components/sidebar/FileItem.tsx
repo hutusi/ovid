@@ -221,6 +221,9 @@ export const FileItem = memo(function FileItem({
               <button
                 type="button"
                 className="sidebar-dir-toggle"
+                // The label is the row the keyboard lands on; Left/Right on
+                // it expand and collapse, so the toggle stays mouse-only.
+                tabIndex={-1}
                 aria-expanded={expanded}
                 aria-label={t("sidebar.toggle_section", { name: dirLabel })}
                 onClick={() => onToggleExpand(node.path, depth, { isBucket: isBucketFolder })}
@@ -230,6 +233,12 @@ export const FileItem = memo(function FileItem({
               <button
                 type="button"
                 className="sidebar-dir-label"
+                data-tree-row="true"
+                data-path={node.path}
+                data-depth={depth}
+                data-expanded={String(expanded)}
+                data-bucket={isBucketFolder ? "true" : undefined}
+                aria-current={entrySelected ? "true" : undefined}
                 onClick={() => {
                   // Re-clicking an already-shown index collapses the row; the
                   // collapse path skips onSelect so selectedPath stays stable
@@ -255,6 +264,11 @@ export const FileItem = memo(function FileItem({
                 node.disabledForSite ? " disabled-for-site" : ""
               }`}
               aria-expanded={expanded}
+              data-tree-row="true"
+              data-path={node.path}
+              data-depth={depth}
+              data-expanded={String(expanded)}
+              data-bucket={isBucketFolder ? "true" : undefined}
               onClick={() => onToggleExpand(node.path, depth, { isBucket: isBucketFolder })}
             >
               {dirIconNode}
@@ -370,6 +384,10 @@ export const FileItem = memo(function FileItem({
           type="button"
           className="sidebar-file"
           style={{ paddingLeft: indent }}
+          data-tree-row="true"
+          data-path={node.path}
+          data-depth={depth}
+          aria-current={isSelected ? "true" : undefined}
           onClick={() => onSelect(node)}
           onKeyDown={(e) => {
             if (e.key === "F2") onRename(node);
@@ -404,6 +422,10 @@ export const FileItem = memo(function FileItem({
               type="button"
               className="sidebar-file"
               style={{ paddingLeft: `${12 + (depth + 1) * 14}px` }}
+              data-tree-row="true"
+              data-path={translation.path}
+              data-depth={depth + 1}
+              aria-current={trSelected ? "true" : undefined}
               onClick={() => onSelect(translation)}
             >
               <span className="sidebar-file-icon-wrap">

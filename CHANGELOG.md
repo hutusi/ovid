@@ -132,6 +132,12 @@ release cadence and Conventional Commit history.
   dialog's text or empty space dropped focus to the window behind it, so
   Escape stopped closing the dialog and Tab wandered into the sidebar. Focus
   now stays in the dialog, and Tab returns to its first control.
+- **Browse the sidebar with the keyboard**: with a file row focused, the
+  arrow keys move between rows, Right and Left expand and collapse folders
+  (or step into and out of them), and Home and End jump to the ends; Down
+  from the filter box enters the tree. The tree is one Tab stop, landing on
+  the open file, so Tab moves past it instead of through every row, and the
+  focused row shows a ring distinct from the hover and selection colours.
 - **Popovers work from the keyboard**: the editor settings popover, the
   code-block language picker and the Workspace Manager's row menu now take
   focus when they open and hand it back when closed with Escape. Escape in

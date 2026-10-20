@@ -9,7 +9,8 @@
  *
  * Adding or changing a shortcut means an entry here AND wiring it in its
  * source location (`useKeyboardShortcuts.ts`, `src/lib/editor/commands.ts`,
- * or — for Tiptap — relying on the extension's own binding). The
+ * the sidebar's row key handlers, or — for Tiptap — relying on the
+ * extension's own binding). The
  * `editorCommands[].keys` test asserts that every editor-source entry here
  * matches a real command-table row.
  */
@@ -25,7 +26,10 @@ export type ShortcutCategory =
   | "git"
   | "help";
 
-export type ShortcutSource = "global" | "editor" | "tiptap";
+/** Where a binding is handled. "sidebar" keys act on the focused sidebar
+ *  row (Sidebar.tsx / FileItem.tsx) rather than through the global action
+ *  table. */
+export type ShortcutSource = "global" | "editor" | "tiptap" | "sidebar";
 
 export interface ShortcutKeys {
   /** Cmd on macOS / Ctrl elsewhere. */
@@ -268,6 +272,35 @@ const GLOBAL_ENTRIES: ShortcutEntry[] = [
   },
 ];
 
+// ─── Sidebar tree (Sidebar.tsx, sidebarKeyboard.ts), on a focused row ─────
+
+const SIDEBAR_ENTRIES: ShortcutEntry[] = [
+  {
+    id: "sidebar-move",
+    keys: { mod: false, key: "ArrowDown" },
+    descriptionKey: "sidebar_move",
+    category: "navigation",
+    source: "sidebar",
+    note: "in_sidebar",
+  },
+  {
+    id: "sidebar-expand",
+    keys: { mod: false, key: "ArrowRight" },
+    descriptionKey: "sidebar_expand",
+    category: "navigation",
+    source: "sidebar",
+    note: "in_sidebar",
+  },
+  {
+    id: "sidebar-collapse",
+    keys: { mod: false, key: "ArrowLeft" },
+    descriptionKey: "sidebar_collapse",
+    category: "navigation",
+    source: "sidebar",
+    note: "in_sidebar",
+  },
+];
+
 // ─── Editor command table (src/lib/editor/commands.ts) ────────────────────
 
 const EDITOR_ENTRIES: ShortcutEntry[] = [
@@ -308,6 +341,7 @@ const EDITOR_ENTRIES: ShortcutEntry[] = [
 
 export const shortcuts: ShortcutEntry[] = [
   ...GLOBAL_ENTRIES,
+  ...SIDEBAR_ENTRIES,
   ...EDITOR_ENTRIES,
   ...TIPTAP_DEFAULT_ENTRIES,
 ];

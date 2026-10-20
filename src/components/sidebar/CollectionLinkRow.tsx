@@ -55,6 +55,10 @@ export function CollectionLinkRow({
         className={`sidebar-file sidebar-collection-link${resolved ? "" : " unresolved"}`}
         style={{ paddingLeft: indent }}
         disabled={!resolved}
+        data-tree-row="true"
+        data-path={`${indexPath}#${link.key}`}
+        data-depth={depth}
+        aria-current={isSelected ? "true" : undefined}
         title={resolved ? undefined : t("sidebar.collection_missing", { slug: link.slug })}
         onClick={() => resolved && onSelect(resolved)}
       >

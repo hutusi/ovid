@@ -38,6 +38,11 @@ function formatKeys(keys: ShortcutKeys, isMac: boolean): string {
     Escape: "Esc",
     Enter: "Enter",
     " ": "Space",
+    ArrowUp: "↑",
+    ArrowDown: "↓",
+    ArrowLeft: "←",
+    ArrowRight: "→",
+    Backspace: isMac ? "⌫" : "Backspace",
   };
   const k = namedKeys[keys.key] ?? keys.key;
   parts.push(k.length === 1 ? k.toUpperCase() : k);
