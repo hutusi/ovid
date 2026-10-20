@@ -630,9 +630,9 @@ function App() {
       ? String(parsedFrontmatter.coverImage)
       : undefined;
 
-  async function handlePublishAwareFieldChange(key: string, value: unknown) {
-    await handleFieldChange(key, value as Parameters<typeof handleFieldChange>[1]);
-    if (key === "draft" && value === false && isGitRepo) {
+  async function handlePublishAwareFieldChange(path: string, key: string, value: unknown) {
+    await handleFieldChange(path, key, value as Parameters<typeof handleFieldChange>[2]);
+    if (key === "draft" && value === false && isGitRepo && path === selectedFile?.path) {
       try {
         const title = parsedFrontmatter.title ?? selectedFile?.name ?? "";
         await openCommitDialog(t("commit_dialog.default_publish_message", { title }));
@@ -861,8 +861,11 @@ function App() {
           fileContent: editorDocument.body,
           authors,
           assetRoot,
+          // Bound to the file being published when this render's closure is
+          // captured by the dialog's publish call, so the media id is recorded
+          // on that file even if the user moves on before it finishes.
           onSuccess: (mediaId) => {
-            void handleFieldChange("wechatMediaId", mediaId);
+            if (selectedFile) void handleFieldChange(selectedFile.path, "wechatMediaId", mediaId);
           },
         }}
         preferences={{

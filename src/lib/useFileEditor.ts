@@ -728,46 +728,98 @@ export function useFileEditor({
     };
   }, []);
 
-  async function handleFieldChange(key: string, value: FrontmatterValue) {
-    if (!selectedFile) return;
-    // Edit the raw block, never a rebuild from the display projection: nested
-    // maps, lists of maps, timestamps and keys the panel doesn't show must all
-    // survive a title edit. Unparseable YAML is refused, not overwritten.
-    const edit = editFrontmatterField(frontmatterRef.current, key, value);
-    if (!edit.ok) {
-      showToast(t("errors.frontmatter_invalid"));
-      return;
-    }
-    if (edit.block === frontmatterRef.current) return;
-    const newFrontmatter = edit.block;
-    setParsedFrontmatter(parseYamlFrontmatter(newFrontmatter));
-    frontmatterRef.current = newFrontmatter;
-    // Keep the search-jump offset correct when a property edit changes the
-    // frontmatter's line count (offset is otherwise only recomputed on load).
-    setFrontmatterLineOffset(computeFrontmatterLineOffset(newFrontmatter));
+  /** Apply a property edit to a file that is *not* the open one — a cover
+   *  upload or WeChat publish that finished after the user moved on. A
+   *  versioned read-modify-write of that file alone, queued through
+   *  enqueueWrite so a flush (and quit) still waits for it; retried once if
+   *  the file changes underneath it. */
+  const writeFieldToFile = useCallback(
+    (path: string, key: string, value: FrontmatterValue): Promise<void> => {
+      const attempt = async (): Promise<"done" | "invalid" | "conflict"> => {
+        const { content, version } = await commands.files.readVersioned({ path });
+        const { frontmatter, body } = parseFrontmatter(content);
+        const edit = editFrontmatterField(frontmatter, key, value);
+        if (!edit.ok) return "invalid";
+        if (edit.block === frontmatter) return "done";
+        try {
+          await commands.files.write({
+            path,
+            content: joinFrontmatter(edit.block, body),
+            expectedVersion: version,
+          });
+          return "done";
+        } catch (err) {
+          if (isExternalChangeConflict(err)) return "conflict";
+          throw err;
+        }
+      };
+      return enqueueWrite(path, async () => {
+        try {
+          let outcome = await attempt();
+          if (outcome === "conflict") outcome = await attempt();
+          if (outcome === "invalid") showToast(t("errors.frontmatter_invalid"));
+          else if (outcome === "conflict") showToast(t("errors.save_failed"));
+        } catch (err) {
+          console.error("Failed to save frontmatter:", err);
+          showToast(t("errors.save_failed"));
+        }
+      });
+    },
+    [enqueueWrite, showToast, t]
+  );
 
-    // The body comes from the live pending edit when dirty, else from the last
-    // content known to be on disk — no re-read needed; an external change is
-    // caught by the write's mtime check instead of raced by a read.
-    const body =
-      pendingMarkdownRef.current ?? parseFrontmatter(lastSavedContentRef.current ?? "").body;
-    // Mark unsaved *now*, before the debounce — otherwise the revision poll
-    // sees a "saved" file with a pending property write and may reload it,
-    // refreshing the mtime so the debounced write then silently overwrites the
-    // external change. (Same reason handleEditorChange marks unsaved up front.)
-    setSaveStatus("unsaved");
-    // Debounce the whole-file rewrite: per-keystroke title edits coalesce into
-    // one write. The eventual write routes through writeMarkdown (tracked +
-    // per-path ordered) so flushPendingSave's awaitInFlightWrites still covers
-    // it, and flushPendingSave itself flushes or supersedes the debounce on
-    // switch/close/quit. See flushFieldSave.
-    pendingFieldSaveRef.current = { path: selectedFile.path, body, frontmatter: newFrontmatter };
-    if (fieldSaveTimerRef.current) clearTimeout(fieldSaveTimerRef.current);
-    fieldSaveTimerRef.current = setTimeout(() => {
-      fieldSaveTimerRef.current = null;
-      void flushFieldSave();
-    }, FIELD_SAVE_DELAY_MS);
-  }
+  /** Set one frontmatter field of the file at `path`.
+   *
+   *  The path is explicit — bound when the edit is made, not read from state
+   *  when it lands — because some edits finish asynchronously (a cover image
+   *  upload, a WeChat publish). If the user switched files meanwhile, the edit
+   *  goes to the file it was made on instead of the one now open. */
+  const handleFieldChange = useCallback(
+    async (path: string, key: string, value: FrontmatterValue) => {
+      if (path !== selectedPathRef.current || path !== loadedPathRef.current) {
+        await writeFieldToFile(path, key, value);
+        return;
+      }
+      // Edit the raw block, never a rebuild from the display projection: nested
+      // maps, lists of maps, timestamps and keys the panel doesn't show must all
+      // survive a title edit. Unparseable YAML is refused, not overwritten.
+      const edit = editFrontmatterField(frontmatterRef.current, key, value);
+      if (!edit.ok) {
+        showToast(t("errors.frontmatter_invalid"));
+        return;
+      }
+      if (edit.block === frontmatterRef.current) return;
+      const newFrontmatter = edit.block;
+      setParsedFrontmatter(parseYamlFrontmatter(newFrontmatter));
+      frontmatterRef.current = newFrontmatter;
+      // Keep the search-jump offset correct when a property edit changes the
+      // frontmatter's line count (offset is otherwise only recomputed on load).
+      setFrontmatterLineOffset(computeFrontmatterLineOffset(newFrontmatter));
+
+      // The body comes from the live pending edit when dirty, else from the last
+      // content known to be on disk — no re-read needed; an external change is
+      // caught by the write's version check instead of raced by a read.
+      const body =
+        pendingMarkdownRef.current ?? parseFrontmatter(lastSavedContentRef.current ?? "").body;
+      // Mark unsaved *now*, before the debounce — otherwise the revision poll
+      // sees a "saved" file with a pending property write and may reload it,
+      // refreshing the version so the debounced write then silently overwrites
+      // the external change. (Same reason handleEditorChange marks unsaved up front.)
+      setSaveStatus("unsaved");
+      // Debounce the whole-file rewrite: per-keystroke title edits coalesce into
+      // one write. The eventual write routes through writeMarkdown (tracked +
+      // per-path ordered) so flushPendingSave's awaitInFlightWrites still covers
+      // it, and flushPendingSave itself flushes or supersedes the debounce on
+      // switch/close/quit. See flushFieldSave.
+      pendingFieldSaveRef.current = { path, body, frontmatter: newFrontmatter };
+      if (fieldSaveTimerRef.current) clearTimeout(fieldSaveTimerRef.current);
+      fieldSaveTimerRef.current = setTimeout(() => {
+        fieldSaveTimerRef.current = null;
+        void flushFieldSave();
+      }, FIELD_SAVE_DELAY_MS);
+    },
+    [flushFieldSave, showToast, t, writeFieldToFile]
+  );
 
   const resolveConflict = useCallback(
     async (resolution: ConflictResolution) => {

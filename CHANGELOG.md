@@ -47,6 +47,10 @@ release cadence and Conventional Commit history.
   problem (with the parser's message) and is read-only, and the title field
   is hidden, instead of showing an empty panel whose first edit would have
   replaced every field.
+- **Late property edits land on the right file**: a cover image upload (or a
+  WeChat publish) that finished after you switched files wrote the original
+  file's whole frontmatter into the newly opened one. Property edits are now
+  bound to the file they were made on.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 

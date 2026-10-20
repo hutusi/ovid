@@ -69,7 +69,10 @@ export interface EditorPaneProps {
   parsedFrontmatter: ParsedFrontmatter;
   /** YAML parse error of the open file's frontmatter (properties read-only). */
   frontmatterError: string | null;
-  onFieldChange: (key: string, value: FrontmatterValue) => void | Promise<void>;
+  /** Set a frontmatter field of the file at `path`. EditorPane binds the open
+   *  file's path at render time, so an edit that completes after a file switch
+   *  (a cover upload) still targets the file it was made on. */
+  onFieldChange: (path: string, key: string, value: FrontmatterValue) => void | Promise<void>;
   onWordCount: (count: number, filePath?: string, kind?: WordCountKind) => void;
   onDirty: () => void;
   /** Serialized markdown from the editor showing session `docId`. */
@@ -271,7 +274,7 @@ export function EditorPane({
                 // it are refused — hide the title field rather than offer one.
                 onTitleChange={
                   frontmatterError === null
-                    ? (value) => void onFieldChange("title", value)
+                    ? (value) => void onFieldChange(selectedFile.path, "title", value)
                     : undefined
                 }
                 onWordCount={onWordCount}
@@ -319,7 +322,7 @@ export function EditorPane({
           filePath={selectedFile.path}
           assetRoot={assetRoot}
           cdnBase={cdnBase}
-          onFieldChange={onFieldChange}
+          onFieldChange={(key, value) => onFieldChange(selectedFile.path, key, value)}
           onToggleCoverImage={onToggleCoverImage}
           onToggle={onToggleProperties}
           onError={onError}

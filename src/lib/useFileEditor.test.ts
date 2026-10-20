@@ -251,7 +251,7 @@ describe("useFileEditor — save flush semantics", () => {
     // tracked path (a direct commands.files.write), the blocking flush below
     // would not wait for it — the regression this guards against.
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     // The field write sits behind a debounce; a background flush pre-empts the
     // timer and dispatches it without awaiting.
@@ -557,7 +557,7 @@ describe("useFileEditor — save flush semantics", () => {
     // behind it, not race it. (The background flush pre-empts the field
     // debounce and dispatches the write.)
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     await act(async () => {
       await result.current.flushPendingSave({ mode: "background" });
@@ -590,13 +590,13 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      void result.current.handleFieldChange("title", "A");
+      void result.current.handleFieldChange(NODE.path, "title", "A");
     });
     act(() => {
-      void result.current.handleFieldChange("title", "AB");
+      void result.current.handleFieldChange(NODE.path, "title", "AB");
     });
     act(() => {
-      void result.current.handleFieldChange("title", "ABC");
+      void result.current.handleFieldChange(NODE.path, "title", "ABC");
     });
     // No write yet — each keystroke resets the field debounce — but the panel
     // reflects the edit immediately.
@@ -628,7 +628,7 @@ describe("useFileEditor — save flush semantics", () => {
     });
 
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     expect(result.current.parsedFrontmatter.title).toBe("New");
 
@@ -658,7 +658,7 @@ describe("useFileEditor — save flush semantics", () => {
     expect(result.current.saveStatus).toBe("saved");
 
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     // Unsaved the instant the edit lands, before the debounce fires.
     expect(result.current.saveStatus).toBe("unsaved");
@@ -684,7 +684,7 @@ describe("useFileEditor — save flush semantics", () => {
 
     // A property edit is pending in the debounce window...
     act(() => {
-      void result.current.handleFieldChange("title", "Local");
+      void result.current.handleFieldChange(NODE.path, "title", "Local");
     });
     const writesBefore = invokeCalls.filter((c) => c.name === "write_file").length;
 
@@ -745,12 +745,12 @@ describe("useFileEditor — save flush semantics", () => {
 
     // Edit A, dispatch its write (which will fail), then edit B before A rejects.
     act(() => {
-      void result.current.handleFieldChange("title", "A");
+      void result.current.handleFieldChange(NODE.path, "title", "A");
     });
     failNext = true;
     const flushA = result.current.flushPendingSave();
     act(() => {
-      void result.current.handleFieldChange("title", "B");
+      void result.current.handleFieldChange(NODE.path, "title", "B");
     });
     await act(async () => {
       await flushA.catch(() => {});
@@ -921,7 +921,7 @@ describe("useFileEditor — the open document's identity", () => {
     });
     const before = result.current.editorDocument;
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     const renamed: FileNode = { name: "renamed.md", path: "/ws/renamed.md", isDirectory: false };
     act(() => {
@@ -1052,7 +1052,7 @@ body`;
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      void result.current.handleFieldChange("title", "New");
+      void result.current.handleFieldChange(NODE.path, "title", "New");
     });
     await act(async () => {
       await result.current.flushPendingSave();
@@ -1072,7 +1072,7 @@ body`;
       await result.current.handleSelectFile(NODE);
     });
     act(() => {
-      void result.current.handleFieldChange("title", "x");
+      void result.current.handleFieldChange(NODE.path, "title", "x");
     });
     await act(async () => {
       await result.current.flushPendingSave();
@@ -1100,5 +1100,39 @@ body`;
     });
     expect(result.current.frontmatterError).toBeNull();
     expect(result.current.parsedFrontmatter).toEqual({ title: "Fixed" });
+  });
+
+  it("an edit that lands after a switch updates the file it was made on, not the open one", async () => {
+    const disk: Record<string, string> = {
+      "/ws/draft.md": "---\ntitle: Draft\n---\ndraft body",
+      "/ws/b.md": "---\ntitle: B\n---\nb body",
+    };
+    invokeImpl = whenInvoke({
+      read_file: (args) => disk[(args as { path: string }).path],
+      get_file_mtime: () => 1000,
+      write_file: (args) => {
+        const { path, content } = args as { path: string; content: string };
+        disk[path] = content;
+        return 2000;
+      },
+    });
+    const { result } = renderHook(() => useFileEditor({ showToast: mock((_: string) => {}) }));
+    await act(async () => {
+      await result.current.handleSelectFile(NODE);
+    });
+    await act(async () => {
+      await result.current.handleSelectFile({ name: "b.md", path: "/ws/b.md", isDirectory: false });
+    });
+    // e.g. a cover upload started on draft.md finishes now.
+    await act(async () => {
+      await result.current.handleFieldChange(NODE.path, "coverImage", "./images/cover.png");
+    });
+
+    expect(disk["/ws/draft.md"]).toBe(
+      "---\ntitle: Draft\ncoverImage: ./images/cover.png\n---\ndraft body"
+    );
+    expect(disk["/ws/b.md"]).toBe("---\ntitle: B\n---\nb body");
+    expect(result.current.parsedFrontmatter).toEqual({ title: "B" });
+    expect(result.current.saveStatus).toBe("saved");
   });
 });
