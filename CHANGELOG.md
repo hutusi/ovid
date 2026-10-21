@@ -40,6 +40,10 @@ release cadence and Conventional Commit history.
   is ignored rather than starting a competing git operation.
 
 ### Fixed
+- **Git always acts on the open workspace**: Ovid's git commands followed
+  `GIT_DIR` and related variables when they were set in the environment
+  Ovid started from (a git hook, `git rebase --exec`), so they could act on
+  a different repository. Those variables are now ignored.
 - **Cmd+Q no longer drops the last edits**: the app menu's Quit item (and
   Cmd+Q) now flushes pending saves before exiting, exactly like closing the
   window. Previously it terminated the app immediately, losing up to a second

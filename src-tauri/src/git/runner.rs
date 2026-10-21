@@ -164,18 +164,58 @@ pub(crate) fn output_with_timeout(mut cmd: Command, timeout: Duration) -> Result
     }
 }
 
+/// The variables that point git at a particular repository — the list
+/// `git rev-parse --local-env-vars` prints. git exports them to the commands
+/// it runs (hooks, `rebase --exec`), so an Ovid process started from one —
+/// or `cargo test` run from one — would otherwise inherit them and have every
+/// git call act on that repository instead of the workspace.
+const REPO_LOCATION_ENV_VARS: [&str; 15] = [
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CONFIG",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_CONFIG_COUNT",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_GRAFT_FILE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_PREFIX",
+    "GIT_SHALLOW_FILE",
+    "GIT_COMMON_DIR",
+];
+
+/// Drop any inherited repository location, so git finds its repository from
+/// its arguments and working directory alone.
+fn clear_repo_location_env(cmd: &mut Command) {
+    for var in REPO_LOCATION_ENV_VARS {
+        cmd.env_remove(var);
+    }
+}
+
+/// A `git` command as Ovid runs every one, tests included: aimed only by its
+/// own arguments and working directory, never prompting (no terminal, no
+/// credential-manager window), and without a console window on Windows.
+pub(crate) fn git_command() -> Command {
+    let mut cmd = Command::new("git");
+    clear_repo_location_env(&mut cmd);
+    cmd.env("GIT_TERMINAL_PROMPT", "0")
+        .env("GCM_INTERACTIVE", "Never");
+    configure_child_process(&mut cmd);
+    cmd
+}
+
 /// Run `git <cmd_args>` with Ovid's non-interactive environment and a timeout
 /// suited to the subcommand; stdout on success, stderr (or a generic message)
 /// on failure.
 fn run_git_process(cmd_args: &[&str], envs: &[(&str, &str)]) -> Result<String, String> {
-    let mut cmd = Command::new("git");
-    cmd.args(cmd_args)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GCM_INTERACTIVE", "Never");
+    let mut cmd = git_command();
+    cmd.args(cmd_args);
     for (key, value) in envs {
         cmd.env(key, value);
     }
-    configure_child_process(&mut cmd);
     let output = output_with_timeout(cmd, git_timeout(cmd_args))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -188,9 +228,6 @@ fn run_git_process(cmd_args: &[&str], envs: &[(&str, &str)]) -> Result<String, S
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-/// Run a git subcommand rooted at `root`. Returns stdout on success or an
-/// error string (stderr) on failure. Returns an empty string if git is not
-/// found, so callers can treat a missing git as a graceful no-op.
 #[cfg(windows)]
 pub(crate) fn configure_child_process(cmd: &mut std::process::Command) {
     use std::os::windows::process::CommandExt;
@@ -202,6 +239,8 @@ pub(crate) fn configure_child_process(cmd: &mut std::process::Command) {
 #[cfg(not(windows))]
 pub(crate) fn configure_child_process(_cmd: &mut std::process::Command) {}
 
+/// Run a git subcommand rooted at `root`. Returns stdout on success or an
+/// error string (stderr) on failure.
 pub(crate) fn run_git(root: &str, args: &[&str]) -> Result<String, String> {
     let network = is_network_subcommand(args);
     let mut cmd_args = vec!["-C", root];
@@ -329,6 +368,63 @@ mod tests {
     }
 
     #[test]
+    fn git_commands_clear_every_repository_location_variable() {
+        let cmd = git_command();
+        let cleared: Vec<String> = cmd
+            .get_envs()
+            .filter(|(_, value)| value.is_none())
+            .map(|(key, _)| key.to_string_lossy().into_owned())
+            .collect();
+        for var in REPO_LOCATION_ENV_VARS {
+            assert!(cleared.iter().any(|c| c == var), "{var} is inherited");
+        }
+    }
+
+    #[test]
+    fn an_inherited_git_dir_cannot_point_git_at_another_repository() {
+        if !git_available() {
+            return;
+        }
+        // `git rebase --exec` and hooks export GIT_DIR. A test helper's
+        // `git init` / `git config` in a temp dir then acted on the
+        // repository being rebased instead (and `git init` through a linked
+        // worktree's GIT_DIR marks the shared repository bare).
+        let outer = TempDir::new().unwrap();
+        assert!(git_command()
+            .args(["init", "-q"])
+            .current_dir(outer.path())
+            .status()
+            .unwrap()
+            .success());
+        let inner = TempDir::new().unwrap();
+        let run_with_inherited_git_dir = |args: &[&str]| {
+            let mut cmd = Command::new("git");
+            cmd.env("GIT_DIR", outer.path().join(".git"));
+            clear_repo_location_env(&mut cmd);
+            assert!(cmd
+                .args(args)
+                .current_dir(inner.path())
+                .status()
+                .unwrap()
+                .success());
+        };
+        run_with_inherited_git_dir(&["init", "-q"]);
+        run_with_inherited_git_dir(&["config", "user.name", "Test"]);
+
+        assert!(inner.path().join(".git").is_dir());
+        let outer_name = git_command()
+            .arg("--git-dir")
+            .arg(outer.path().join(".git"))
+            .args(["config", "--local", "user.name"])
+            .output()
+            .unwrap();
+        assert!(
+            outer_name.stdout.is_empty(),
+            "the outer repo was configured"
+        );
+    }
+
+    #[test]
     fn hook_running_and_network_commands_get_the_long_timeout() {
         let long = |args: &[&str]| git_timeout(args) == LONG_GIT_TIMEOUT;
         assert!(long(&["-C", "/ws", "commit", "-m", "msg", "--", "a.md"]));
@@ -378,7 +474,7 @@ mod tests {
     }
 
     fn git_available() -> bool {
-        Command::new("git")
+        git_command()
             .arg("--version")
             .output()
             .map(|o| o.status.success())
@@ -406,9 +502,8 @@ mod tests {
         args.push("credential");
         args.push("fill");
 
-        let mut cmd = Command::new("git");
+        let mut cmd = git_command();
         cmd.args(&args)
-            .env("GIT_TERMINAL_PROMPT", "0")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());

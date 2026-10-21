@@ -194,6 +194,7 @@ Supported languages: **English** (`en`) and **Simplified Chinese** (`zh-CN`); pr
 - Tauri commands return `Result<T, String>`; the `commands` wrapper (`src/lib/commands/internal.ts`) normalises rejections to `Error` instances, so catch blocks should use `err instanceof Error ? err.message : String(err)`.
 - Display errors via the toast system (`showToast` in `App.tsx`) — never `console.error` for user-visible failures; `ErrorBoundary` wraps the editor and surfaces render errors instead of a blank screen.
 - Path validation happens in Rust — every containment check funnels through `ensure_within` in `src-tauri/src/paths.rs` (`read_file` / `write_file` / git commit selections reject paths outside the workspace root).
+- Git is spawned only through `git_command()` in `src-tauri/src/git/runner.rs`, tests included. It clears inherited repository-location variables (`GIT_DIR` and the rest of `git rev-parse --local-env-vars`) and disables prompts — without it, `cargo test` run from a git hook or `git rebase --exec` has the tests' `git init` / `git config` rewrite the real repository's config.
 
 ## Context Compression Hints
 

@@ -564,12 +564,12 @@ pub(crate) fn open_git_remote(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::git::runner::git_command;
     use std::path::PathBuf;
-    use std::process::Command;
     use tempfile::TempDir;
 
     fn git_available() -> bool {
-        Command::new("git")
+        git_command()
             .arg("--version")
             .output()
             .map(|o| o.status.success())
@@ -577,7 +577,7 @@ mod tests {
     }
 
     fn run_in(repo: &Path, args: &[&str]) {
-        let status = Command::new("git")
+        let status = git_command()
             .args(args)
             .current_dir(repo)
             .status()

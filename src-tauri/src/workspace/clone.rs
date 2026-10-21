@@ -7,7 +7,7 @@
 //! active workspace exactly like a normal open.
 
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -15,9 +15,7 @@ use serde::Serialize;
 use tauri::Emitter;
 use ts_rs::TS;
 
-use crate::git::runner::{
-    configure_child_process, PipeReader, HTTP_LOW_SPEED_ARGS, PIPE_DRAIN_GRACE,
-};
+use crate::git::runner::{git_command, PipeReader, HTTP_LOW_SPEED_ARGS, PIPE_DRAIN_GRACE};
 
 /// Marker message for a clone the user cancelled. The frontend matches on it
 /// to end quietly instead of reporting a failure.
@@ -170,7 +168,7 @@ pub(crate) fn clone_with_progress(
     cancel: &AtomicBool,
     on_progress: impl Fn(CloneProgress) + Send + 'static,
 ) -> Result<(), CloneError> {
-    let mut cmd = Command::new("git");
+    let mut cmd = git_command();
     // An HTTP transfer that stalls (under 1 KB/s for a minute) is aborted by
     // git itself; anything else can be cancelled by the user.
     cmd.args(HTTP_LOW_SPEED_ARGS)
@@ -178,11 +176,8 @@ pub(crate) fn clone_with_progress(
         .arg("--progress")
         .arg(url)
         .arg(target)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GCM_INTERACTIVE", "Never")
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
-    configure_child_process(&mut cmd);
 
     let mut child = match cmd.spawn() {
         Ok(c) => c,
@@ -389,7 +384,7 @@ mod tests {
     }
 
     fn git_available() -> bool {
-        Command::new("git")
+        git_command()
             .arg("--version")
             .output()
             .map(|o| o.status.success())
@@ -405,7 +400,7 @@ mod tests {
         let src = TempDir::new().unwrap();
         let src_path = src.path();
         let run = |args: &[&str], cwd: &Path| {
-            let status = Command::new("git")
+            let status = git_command()
                 .args(args)
                 .current_dir(cwd)
                 .status()
@@ -424,7 +419,7 @@ mod tests {
 
         let bare = TempDir::new().unwrap();
         let bare_path = bare.path().join("origin.git");
-        let status = Command::new("git")
+        let status = git_command()
             .args(["clone", "--bare", "-q"])
             .arg(src_path)
             .arg(&bare_path)
@@ -438,7 +433,7 @@ mod tests {
         // file. The non-emit code path (status check) is what we care about.
         let dest_parent = TempDir::new().unwrap();
         let dest = dest_parent.path().join("clone-test");
-        let mut cmd = Command::new("git");
+        let mut cmd = git_command();
         cmd.arg("clone")
             .arg("--progress")
             .arg(&bare_path)
@@ -477,7 +472,7 @@ mod tests {
         }
         let src = TempDir::new().unwrap();
         let run = |args: &[&str]| {
-            let status = Command::new("git")
+            let status = git_command()
                 .args(args)
                 .current_dir(src.path())
                 .status()
@@ -510,7 +505,7 @@ mod tests {
         // clone_blocking takes an AppHandle and emitting requires one.
         let dest_parent = TempDir::new().unwrap();
         let dest = dest_parent.path().join("never-clones");
-        let output = Command::new("git")
+        let output = git_command()
             .args(["clone", "--progress"])
             .arg("file:///this/path/does/not/exist/missing.git")
             .arg(&dest)

@@ -4,7 +4,7 @@
 
 Ovid is a Tauri 2 desktop app with a React/TypeScript frontend and Rust backend. `src/App.tsx` owns global workspace/editor state. Put UI in `src/components/`, shared hooks/helpers in `src/lib/`, Tiptap extensions in `src/lib/tiptap/`, and theme/editor CSS in `src/styles/`. Static assets live in `public/` and `src/assets/`.
 
-`src-tauri/` contains Tauri commands, config, capabilities, and icons. Tests are colocated with the code they cover, for example `src/lib/frontmatter.test.ts` and `src/lib/tiptap/FindReplace.test.ts`.
+`src-tauri/` contains Tauri commands, config, capabilities, and icons. Spawn git only through `git_command()` in `src-tauri/src/git/runner.rs`, tests included: it clears inherited `GIT_DIR`-style variables, which a git hook or `git rebase --exec` exports, and disables prompts. Tests are colocated with the code they cover, for example `src/lib/frontmatter.test.ts` and `src/lib/tiptap/FindReplace.test.ts`.
 
 ## Build, Test, and Development Commands
 
