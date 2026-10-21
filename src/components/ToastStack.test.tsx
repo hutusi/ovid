@@ -43,19 +43,4 @@ describe("ToastStack", () => {
     expect(h.onDismiss).toHaveBeenCalledWith(2);
     act(() => view.unmount());
   });
-
-  it("runs a toast's action and then dismisses it", () => {
-    const run = mock(() => {});
-    const h = handlers();
-    const view = render(
-      <ToastStack
-        toasts={[{ id: 7, message: "Removed", kind: "success", action: { label: "Undo", run } }]}
-        {...h}
-      />
-    );
-    act(() => view.getByRole("button", { name: "Undo" }).click());
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(h.onDismiss).toHaveBeenCalledWith(7);
-    act(() => view.unmount());
-  });
 });

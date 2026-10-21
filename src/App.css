@@ -203,23 +203,12 @@
   min-width: 0;
 }
 
-.toast-action,
 .toast-dismiss {
   flex: 0 0 auto;
   border: 0;
   background: transparent;
   color: inherit;
   cursor: pointer;
-}
-
-.toast-action {
-  font: inherit;
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.toast-dismiss {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -235,7 +224,6 @@
   background: color-mix(in srgb, var(--color-surface) 16%, transparent);
 }
 
-.toast-action:focus-visible,
 .toast-dismiss:focus-visible {
   outline: 2px solid var(--color-surface);
   outline-offset: 2px;

@@ -4,15 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *  announced assertively; successes and info are brief and polite. */
 export type ToastKind = "info" | "success" | "error";
 
-export interface ToastAction {
-  label: string;
-  run: () => void;
-}
-
 export interface ToastOptions {
   kind?: ToastKind;
-  /** One button on the toast (e.g. Undo). Running it dismisses the toast. */
-  action?: ToastAction;
   /** Override the kind's default visible time. */
   durationMs?: number;
 }
@@ -25,7 +18,6 @@ export interface Toast {
   id: number;
   message: string;
   kind: ToastKind;
-  action?: ToastAction;
   leaving?: boolean;
 }
 
@@ -40,9 +32,8 @@ export interface NotificationEntry {
 }
 
 /** Visible time by kind. Errors carry detail worth reading (they used to vanish
- *  after two seconds); a toast with an action stays long enough to use it. */
+ *  after two seconds). */
 const VISIBLE_MS: Record<ToastKind, number> = { info: 2500, success: 2500, error: 7000 };
-const ACTION_VISIBLE_MS = 6000;
 const EXIT_MS = 180;
 /** Cap on how many past toasts we retain. Twenty is enough to scroll through
  *  recent activity without making the popover feel like a log file; older
@@ -96,14 +87,11 @@ export function useToast() {
   const showToast = useCallback<ShowToast>(
     (message, options = {}) => {
       const kind = options.kind ?? "info";
-      const visibleMs =
-        options.durationMs ?? (options.action ? ACTION_VISIBLE_MS : VISIBLE_MS[kind]);
+      const visibleMs = options.durationMs ?? VISIBLE_MS[kind];
 
       // The same message already on screen (a save that keeps failing, a
       // repeated action) refreshes that toast instead of stacking copies.
-      const duplicate = liveRef.current.find(
-        (t) => t.message === message && t.kind === kind && !t.action && !options.action
-      );
+      const duplicate = liveRef.current.find((t) => t.message === message && t.kind === kind);
       if (duplicate) {
         startTimer(duplicate.id, visibleMs);
         return;
@@ -111,7 +99,7 @@ export function useToast() {
 
       const id = ++idRef.current;
       const at = Date.now();
-      const toast: Toast = { id, message, kind, action: options.action };
+      const toast: Toast = { id, message, kind };
       // Bound the stack: the oldest toasts on screen leave first.
       const live = [...liveRef.current, toast];
       const overflow = live.slice(0, Math.max(0, live.length - MAX_VISIBLE));
@@ -135,7 +123,7 @@ export function useToast() {
     [startTimer]
   );
 
-  /** Close a toast now (its dismiss button, or after running its action). */
+  /** Close a toast now (its dismiss button). */
   const dismissToast = useCallback((id: number) => removeToast(id), [removeToast]);
 
   /** Hovering a toast holds it on screen; leaving resumes the countdown. */

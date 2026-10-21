@@ -14,15 +14,15 @@ interface ToastStackProps {
  *  The live region is always mounted: a region that appears together with its
  *  first message is often not announced at all. Errors are `role="alert"`
  *  (assertive) and the rest `role="status"`. Hovering or focusing a toast
- *  holds it on screen; errors and toasts with an action can be dismissed. */
+ *  holds it on screen; errors can be dismissed. */
 export function ToastStack({ toasts, onDismiss, onPause, onResume }: ToastStackProps) {
   const { t } = useTranslation();
   return (
     <div className="toast-container" aria-live="polite">
       {toasts.map((toast) => {
-        const dismissible = toast.kind === "error" || toast.action !== undefined;
+        const dismissible = toast.kind === "error";
         return (
-          // biome-ignore lint/a11y/noStaticElementInteractions: hover/focus only pauses the auto-dismiss timer; the toast's actions are real buttons
+          // biome-ignore lint/a11y/noStaticElementInteractions: hover/focus only pauses the auto-dismiss timer; dismissing is a real button
           <div
             key={toast.id}
             role={toast.kind === "error" ? "alert" : "status"}
@@ -33,18 +33,6 @@ export function ToastStack({ toasts, onDismiss, onPause, onResume }: ToastStackP
             onBlur={() => onResume(toast.id)}
           >
             <span className="toast-message">{toast.message}</span>
-            {toast.action && (
-              <button
-                type="button"
-                className="toast-action"
-                onClick={() => {
-                  toast.action?.run();
-                  onDismiss(toast.id);
-                }}
-              >
-                {toast.action.label}
-              </button>
-            )}
             {dismissible && (
               <button
                 type="button"
