@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { getJSON, setJSON } from "./safeLocalStorage";
 import type { RecentWorkspace } from "./types";
 
@@ -26,6 +26,8 @@ function saveWorkspaces(workspaces: RecentWorkspace[]): void {
 
 export function useRecentWorkspaces() {
   const [recentWorkspaces, setRecentWorkspaces] = useState<RecentWorkspace[]>(loadWorkspaces);
+  const recentRef = useRef(recentWorkspaces);
+  recentRef.current = recentWorkspaces;
 
   const pushRecentWorkspace = useCallback((rootPath: string, name: string) => {
     setRecentWorkspaces((prev) => {
@@ -37,13 +39,28 @@ export function useRecentWorkspaces() {
     });
   }, []);
 
-  const removeRecentWorkspace = useCallback((rootPath: string) => {
+  /** Remove a workspace from the recents list. Returns an undo that puts it
+   *  back in its old position (or null when it wasn't in the list). */
+  const removeRecentWorkspace = useCallback((rootPath: string): (() => void) | null => {
+    const index = recentRef.current.findIndex((w) => w.rootPath === rootPath);
+    if (index === -1) return null;
+    const removed = recentRef.current[index];
     setRecentWorkspaces((prev) => {
       const next = prev.filter((w) => w.rootPath !== rootPath);
       if (next.length === prev.length) return prev;
       saveWorkspaces(next);
       return next;
     });
+    return () => {
+      setRecentWorkspaces((prev) => {
+        if (prev.some((w) => w.rootPath === removed.rootPath)) return prev;
+        const next = [...prev];
+        next.splice(Math.min(index, next.length), 0, removed);
+        const capped = next.slice(0, MAX_WORKSPACES);
+        saveWorkspaces(capped);
+        return capped;
+      });
+    };
   }, []);
 
   return { recentWorkspaces, pushRecentWorkspace, removeRecentWorkspace };

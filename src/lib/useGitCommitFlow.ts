@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { type GitAction, getErrorMessage } from "./gitActionError";
 import type { GitCommitChange } from "./types";
 import type { OverlayStack } from "./useOverlayStack";
+import type { ShowToast } from "./useToast";
 
 export type CommitDialogState = {
   message: string;
@@ -28,7 +29,7 @@ interface UseGitCommitFlowOptions {
   overlay: OverlayStack;
   parsedTitle?: string;
   selectedFileName?: string;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
   flushPendingSave: () => Promise<unknown>;
   handleCommit: (message: string, paths: string[], push: boolean) => Promise<void>;
   getCommitChanges: () => Promise<GitCommitChange[]>;
@@ -72,7 +73,7 @@ export function useGitCommitFlow({
         }
         overlay.open({ kind: "commit", state: { message, branch, changes } });
       } catch {
-        showToast(t("errors.git_load_changes_failed"));
+        showToast(t("errors.git_load_changes_failed"), { kind: "error" });
       }
     },
     [getBranch, getCommitChanges, showToast, t, overlay]
@@ -102,7 +103,7 @@ export function useGitCommitFlow({
           overlay.close("commit");
           return;
         }
-        showToast(formatCommitError(errMessage, t));
+        showToast(formatCommitError(errMessage, t), { kind: "error" });
       }
     },
     [

@@ -1,3 +1,4 @@
+import type { LogicalPosition } from "@tauri-apps/api/dpi";
 import { Menu, MenuItem, PredefinedMenuItem } from "@tauri-apps/api/menu";
 import { FileImage, FileText, Folder, FolderOpen } from "lucide-react";
 import { Fragment, memo } from "react";
@@ -6,6 +7,12 @@ import type { NewContentKind } from "../../lib/amytisScaffold";
 import type { CollectionLink } from "../../lib/collection";
 import type { FeatureBucket } from "../../lib/commands/generated/FeatureBucket";
 import { resolveEntryLabelClick } from "../../lib/sidebarExpansion";
+import {
+  isContextMenuKey,
+  isRenameKey,
+  isTrashKey,
+  rowMenuPosition,
+} from "../../lib/sidebarRowKeys";
 import {
   bucketLabel,
   getBucketContentType,
@@ -108,13 +115,33 @@ export const FileItem = memo(function FileItem({
   // `items:` and rendered as links rather than in-folder children.
   const indexEntry = node.isDirectory && !filesMode ? getDirIndexEntry(node) : undefined;
   const isCollection = indexEntry?.contentType === "collection";
+  // Top-level directories in content mode are the structural content-type
+  // buckets (flows, notes, posts, series, …). They can hold new content but
+  // must not be renamed or deleted.
+  const isBucket = depth === 0 && node.isDirectory;
+  const protectedBucket = !filesMode && isBucket;
 
-  async function showDirContextMenu() {
-    // Top-level directories in content mode are the structural content-type
-    // buckets (flows, notes, posts, series, …). They can hold new content but
-    // must not be renamed or deleted.
-    const isBucket = depth === 0 && node.isDirectory;
-    const protectedBucket = !filesMode && isBucket;
+  /** The keyboard path to a row's context-menu actions: the Menu key or
+   *  Shift+F10 opens the menu under the row, F2 renames, Cmd+Backspace
+   *  asks to move it to the Trash. */
+  function handleRowKeyDown(
+    e: React.KeyboardEvent<HTMLElement>,
+    showMenu: (at?: LogicalPosition) => Promise<void>,
+    canEdit: boolean
+  ) {
+    if (isContextMenuKey(e)) {
+      e.preventDefault();
+      void showMenu(rowMenuPosition(e.currentTarget));
+    } else if (canEdit && isRenameKey(e)) {
+      e.preventDefault();
+      onRename(node);
+    } else if (canEdit && isTrashKey(e)) {
+      e.preventDefault();
+      onDelete(node);
+    }
+  }
+
+  async function showDirContextMenu(at?: LogicalPosition) {
     // Layer-aware "New X". The bucket folder (depth 0) offers "New <Type>";
     // inside a series/book the folder offers a member post/chapter. Type comes
     // from the bucket folder, since Amytis files carry no `type:` frontmatter.
@@ -164,7 +191,7 @@ export const FileItem = memo(function FileItem({
           await MenuItem.new({ text: t("sidebar.delete"), action: () => onDelete(node) }),
         ];
     const menu = await Menu.new({ items });
-    await menu.popup();
+    await menu.popup(at);
   }
 
   if (node.isDirectory) {
@@ -200,7 +227,9 @@ export const FileItem = memo(function FileItem({
     const dirRollupDot = dirRollup ? (
       <span
         className={`git-dot git-dot-${dirRollup}`}
-        title={t("sidebar.changes_inside", { status: dirRollup })}
+        role="img"
+        aria-label={t("sidebar.changes_inside", { status: t(`sidebar.git_status.${dirRollup}`) })}
+        title={t("sidebar.changes_inside", { status: t(`sidebar.git_status.${dirRollup}`) })}
       />
     ) : null;
     return (
@@ -221,6 +250,9 @@ export const FileItem = memo(function FileItem({
               <button
                 type="button"
                 className="sidebar-dir-toggle"
+                // The label is the row the keyboard lands on; Left/Right on
+                // it expand and collapse, so the toggle stays mouse-only.
+                tabIndex={-1}
                 aria-expanded={expanded}
                 aria-label={t("sidebar.toggle_section", { name: dirLabel })}
                 onClick={() => onToggleExpand(node.path, depth, { isBucket: isBucketFolder })}
@@ -230,6 +262,13 @@ export const FileItem = memo(function FileItem({
               <button
                 type="button"
                 className="sidebar-dir-label"
+                data-tree-row="true"
+                data-path={node.path}
+                data-depth={depth}
+                data-expanded={String(expanded)}
+                data-bucket={isBucketFolder ? "true" : undefined}
+                aria-current={entrySelected ? "true" : undefined}
+                onKeyDown={(e) => handleRowKeyDown(e, showDirContextMenu, !protectedBucket)}
                 onClick={() => {
                   // Re-clicking an already-shown index collapses the row; the
                   // collapse path skips onSelect so selectedPath stays stable
@@ -255,6 +294,12 @@ export const FileItem = memo(function FileItem({
                 node.disabledForSite ? " disabled-for-site" : ""
               }`}
               aria-expanded={expanded}
+              data-tree-row="true"
+              data-path={node.path}
+              data-depth={depth}
+              data-expanded={String(expanded)}
+              data-bucket={isBucketFolder ? "true" : undefined}
+              onKeyDown={(e) => handleRowKeyDown(e, showDirContextMenu, !protectedBucket)}
               onClick={() => onToggleExpand(node.path, depth, { isBucket: isBucketFolder })}
             >
               {dirIconNode}
@@ -329,7 +374,7 @@ export const FileItem = memo(function FileItem({
   const displayName = !filesMode && isMarkdown ? getSidebarDisplayName(node) : node.name;
   const gitStatus = gitStatusMap.get(node.path);
 
-  async function showMarkdownContextMenu() {
+  async function showMarkdownContextMenu(at?: LogicalPosition) {
     const menu = await Menu.new({
       items: [
         await MenuItem.new({ text: t("sidebar.make_copy"), action: () => onDuplicate(node) }),
@@ -342,17 +387,17 @@ export const FileItem = memo(function FileItem({
         await MenuItem.new({ text: t("sidebar.delete"), action: () => onDelete(node) }),
       ],
     });
-    await menu.popup();
+    await menu.popup(at);
   }
 
-  async function showNonMarkdownContextMenu() {
+  async function showNonMarkdownContextMenu(at?: LogicalPosition) {
     const menu = await Menu.new({
       items: [
         await MenuItem.new({ text: t("sidebar.rename"), action: () => onRename(node) }),
         await MenuItem.new({ text: t("sidebar.delete"), action: () => onDelete(node) }),
       ],
     });
-    await menu.popup();
+    await menu.popup(at);
   }
 
   return (
@@ -370,10 +415,18 @@ export const FileItem = memo(function FileItem({
           type="button"
           className="sidebar-file"
           style={{ paddingLeft: indent }}
+          data-tree-row="true"
+          data-path={node.path}
+          data-depth={depth}
+          aria-current={isSelected ? "true" : undefined}
           onClick={() => onSelect(node)}
-          onKeyDown={(e) => {
-            if (e.key === "F2") onRename(node);
-          }}
+          onKeyDown={(e) =>
+            handleRowKeyDown(
+              e,
+              isMarkdown ? showMarkdownContextMenu : showNonMarkdownContextMenu,
+              true
+            )
+          }
         >
           <span className="sidebar-file-icon-wrap">
             {isMarkdown ? (
@@ -388,7 +441,14 @@ export const FileItem = memo(function FileItem({
           <span className={node.draft ? "sidebar-file-name draft" : "sidebar-file-name"}>
             {displayName}
           </span>
-          {gitStatus && <span className={`git-dot git-dot-${gitStatus}`} title={gitStatus} />}
+          {gitStatus && (
+            <span
+              className={`git-dot git-dot-${gitStatus}`}
+              role="img"
+              aria-label={t(`sidebar.git_status.${gitStatus}`)}
+              title={t(`sidebar.git_status.${gitStatus}`)}
+            />
+          )}
         </button>
       </div>
       {node.translations?.map((translation) => {
@@ -404,6 +464,10 @@ export const FileItem = memo(function FileItem({
               type="button"
               className="sidebar-file"
               style={{ paddingLeft: `${12 + (depth + 1) * 14}px` }}
+              data-tree-row="true"
+              data-path={translation.path}
+              data-depth={depth + 1}
+              aria-current={trSelected ? "true" : undefined}
               onClick={() => onSelect(translation)}
             >
               <span className="sidebar-file-icon-wrap">
@@ -412,7 +476,14 @@ export const FileItem = memo(function FileItem({
                 </span>
               </span>
               <span className="sidebar-file-name">{displayName}</span>
-              {trGit && <span className={`git-dot git-dot-${trGit}`} title={trGit} />}
+              {trGit && (
+                <span
+                  className={`git-dot git-dot-${trGit}`}
+                  role="img"
+                  aria-label={t(`sidebar.git_status.${trGit}`)}
+                  title={t(`sidebar.git_status.${trGit}`)}
+                />
+              )}
             </button>
           </div>
         );

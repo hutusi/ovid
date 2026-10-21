@@ -9,7 +9,11 @@ On macOS, `Cmd` is the ⌘ key and `Alt` is the ⌥ (Option) key. On Windows and
 | Shortcut | Action |
 |---|---|
 | `Cmd+P` | Quick file switcher |
+| `Cmd+0` | Focus the file tree (shows the sidebar if hidden) |
 | `Cmd+Shift+F` | Full-text search |
+| `↓` / `↑` / `Home` / `End` | Move between rows (in the sidebar) |
+| `→` | Expand a folder, or step into it (in the sidebar) |
+| `←` | Collapse a folder, or step out to its parent (in the sidebar) |
 
 ## Files
 
@@ -21,6 +25,9 @@ On macOS, `Cmd` is the ⌘ key and `Alt` is the ⌥ (Option) key. On Windows and
 | `Cmd+Shift+O` | Switch workspace |
 | `Cmd+S` | Save (force, bypass debounce) |
 | `Cmd+W` | Close file or tab |
+| `Shift+F10` / Menu key | Open the row's context menu (in the sidebar) |
+| `F2` | Rename (in the sidebar) |
+| `Cmd+Backspace` | Move to Trash, after confirming (in the sidebar) |
 
 ## Editing
 

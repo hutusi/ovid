@@ -130,6 +130,12 @@ Concretely:
 - **`src/components/Sidebar.tsx`**, **`src/components/EditorPane.tsx`**,
   **`src/components/PropertiesPanel.tsx`** — the three segments. Each
   uses `data-tauri-drag-region="deep"`.
+- **`src/components/SearchPanel.tsx`** — takes the sidebar's place while
+  full-text search is open, so it is the left segment then. *Amended
+  2026-10:* it used to put the search field in a 44 px header at the top
+  (under the macOS traffic lights, and not draggable); its top segment is
+  now a 36 px `"deep"` drag strip carrying only the close button, with the
+  search field in the row below, at the user's sidebar width.
 - **`src/components/TabBar.tsx`** — `.tab-bar-item` carries
   `data-tauri-drag-region="false"` to preserve HTML5 tab reorder.
 - **Tauri 2.11 `drag.js`** — the walker in

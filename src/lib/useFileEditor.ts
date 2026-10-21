@@ -21,6 +21,7 @@ import {
 import { measureAsync } from "./perf";
 import { frontmatterLineOffset as computeFrontmatterLineOffset } from "./searchJump";
 import type { FileNode, SaveStatus } from "./types";
+import type { ShowToast } from "./useToast";
 
 const SAVE_DELAY_MS = 750;
 // Property-panel/title edits rewrite the whole file; coalesce keystrokes on a
@@ -79,7 +80,7 @@ export function useFileEditor({
   showToast,
   onConflict,
 }: {
-  showToast: (msg: string) => void;
+  showToast: ShowToast;
   /** Called when a save is refused because the file changed on disk or no
    *  longer exists, so the host can surface the matching prompt. Resolve via
    *  `resolveConflict`. */
@@ -350,7 +351,7 @@ export function useFileEditor({
         return;
       }
       console.error("Failed to save frontmatter:", err);
-      showToast(t("errors.save_failed"));
+      showToast(t("errors.save_failed"), { kind: "error" });
       if (selectedPathRef.current !== path) return;
       // A newer edit's own write decides the panel and the status dot;
       // reverting here would strand it (panel shows old, disk later new).
@@ -490,7 +491,7 @@ export function useFileEditor({
               return;
             }
             console.error("Failed to flush pending save:", err);
-            showToast(t("errors.save_failed"));
+            showToast(t("errors.save_failed"), { kind: "error" });
             if (selectedPathRef.current === path) setSaveStatus("unsaved");
           });
         } else {
@@ -504,7 +505,7 @@ export function useFileEditor({
             if (block !== null) triggerConflict(block);
             else {
               console.error("Failed to flush pending save:", err);
-              showToast(t("errors.save_failed"));
+              showToast(t("errors.save_failed"), { kind: "error" });
             }
             throw err;
           }
@@ -529,7 +530,7 @@ export function useFileEditor({
             triggerConflict(block);
           } else {
             console.error("Failed to finish in-flight save:", err);
-            showToast(t("errors.save_failed"));
+            showToast(t("errors.save_failed"), { kind: "error" });
           }
           throw err;
         }
@@ -731,7 +732,9 @@ export function useFileEditor({
       return await applyDiskContent(node, { newSession: true });
     } catch (err) {
       console.error("Failed to read file:", err);
-      showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.open_file_failed"));
+      showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.open_file_failed"), {
+        kind: "error",
+      });
       if (selectedPathRef.current === node.path) selectedPathRef.current = prevPath;
       return false;
     }
@@ -755,7 +758,9 @@ export function useFileEditor({
         });
       } catch (err) {
         console.error("Failed to reload file:", err);
-        showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.reload_file_failed"));
+        showToast(t(isFileTooLarge(err) ? "errors.file_too_large" : "errors.reload_file_failed"), {
+          kind: "error",
+        });
         return false;
       }
     },
@@ -806,7 +811,7 @@ export function useFileEditor({
             return;
           }
           console.error("Failed to save file:", err);
-          showToast(t("errors.save_failed"));
+          showToast(t("errors.save_failed"), { kind: "error" });
           // Roll back to unsaved so the dot doesn't sit on "saving" forever after
           // a failed write; the pending markdown is retained for the next attempt.
           if (pendingMarkdownRef.current === snapshot) setSaveStatus("unsaved");
@@ -859,11 +864,11 @@ export function useFileEditor({
         try {
           let outcome = await attempt();
           if (outcome === "conflict") outcome = await attempt();
-          if (outcome === "invalid") showToast(t("errors.frontmatter_invalid"));
-          else if (outcome === "conflict") showToast(t("errors.save_failed"));
+          if (outcome === "invalid") showToast(t("errors.frontmatter_invalid"), { kind: "error" });
+          else if (outcome === "conflict") showToast(t("errors.save_failed"), { kind: "error" });
         } catch (err) {
           console.error("Failed to save frontmatter:", err);
-          showToast(t("errors.save_failed"));
+          showToast(t("errors.save_failed"), { kind: "error" });
         }
       });
     },
@@ -887,7 +892,7 @@ export function useFileEditor({
       // survive a title edit. Unparseable YAML is refused, not overwritten.
       const edit = editFrontmatterField(frontmatterRef.current, key, value);
       if (!edit.ok) {
-        showToast(t("errors.frontmatter_invalid"));
+        showToast(t("errors.frontmatter_invalid"), { kind: "error" });
         return;
       }
       if (edit.block === frontmatterRef.current) return;
@@ -961,7 +966,7 @@ export function useFileEditor({
           }
         } catch (err) {
           console.error("Failed to overwrite on conflict:", err);
-          showToast(t("errors.save_failed"));
+          showToast(t("errors.save_failed"), { kind: "error" });
           setSaveStatus("unsaved");
         }
         return;
@@ -989,7 +994,7 @@ export function useFileEditor({
           );
         } catch (err) {
           console.error("Failed to recreate file:", err);
-          showToast(t("errors.save_failed"));
+          showToast(t("errors.save_failed"), { kind: "error" });
           setSaveStatus("unsaved");
         }
         return;

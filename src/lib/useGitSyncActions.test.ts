@@ -36,7 +36,7 @@ describe("useGitSyncActions", () => {
     expect(spies.flushPendingSave).toHaveBeenCalled();
     expect(spies.handlePull).toHaveBeenCalledTimes(1);
     expect(spies.handlePush).not.toHaveBeenCalled();
-    expect(spies.showToast).toHaveBeenCalledWith("Pulled latest changes");
+    expect(spies.showToast).toHaveBeenCalledWith("Pulled latest changes", { kind: "success" });
   });
 
   it("handleGitSyncAction dispatches push when the popover actionKind is 'push'", async () => {
@@ -95,7 +95,7 @@ describe("useGitSyncActions", () => {
       await result.current.controller.handleGitSyncAction();
     });
 
-    expect(spies.showToast).toHaveBeenCalledWith("push failed: auth required");
+    expect(spies.showToast).toHaveBeenCalledWith("push failed: auth required", { kind: "error" });
   });
 
   it("runGitAction opens the credentials dialog when push rejects with AUTH_REQUIRED", async () => {
@@ -199,6 +199,40 @@ describe("useGitSyncActions", () => {
     });
 
     expect(result.current.overlay.active).toBeNull();
-    expect(spies.showToast).toHaveBeenCalledWith("push failed: network unreachable");
+    expect(spies.showToast).toHaveBeenCalledWith("push failed: network unreachable", {
+      kind: "error",
+    });
+  });
+
+  it("ignores a second trigger while one git action runs, and reports it in flight", async () => {
+    const spies = makeSpies();
+    let release: () => void = () => {};
+    const slowPush = mock(
+      () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        })
+    );
+    const { result } = renderController({ spies });
+
+    let first: Promise<void> = Promise.resolve();
+    await act(async () => {
+      first = result.current.controller.runGitAction("push", slowPush, "Pushed");
+      // Let the flush resolve so the push itself starts.
+      await Promise.resolve();
+    });
+    expect(result.current.controller.gitActionInFlight).toBe("push");
+
+    await act(async () => {
+      await result.current.controller.runGitAction("push", slowPush, "Pushed");
+    });
+    expect(slowPush).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      release();
+      await first;
+    });
+    expect(result.current.controller.gitActionInFlight).toBeNull();
+    expect(spies.showToast).toHaveBeenCalledWith("Pushed", { kind: "success" });
   });
 });

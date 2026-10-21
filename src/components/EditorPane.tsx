@@ -56,6 +56,8 @@ const Editor = lazy(async () => ({
 export interface EditorPaneProps {
   // Workspace context
   workspaceRoot: string | null;
+  /** A workspace is opening (see Sidebar's `loading`). */
+  workspaceLoading: boolean;
 
   // Tab bar
   tabs: string[];
@@ -119,6 +121,9 @@ export interface EditorPaneProps {
    *  line numbers to body lines). */
   frontmatterLineOffset: number;
   onSearchJumpHandled: () => void;
+  /** One-shot: focus this just-created file's body once it is on screen. */
+  focusBodyPath: string | null;
+  onFocusBodyHandled: () => void;
 
   // Empty state
   recentFiles: RecentFile[];
@@ -135,6 +140,7 @@ export interface EditorPaneProps {
 
 export function EditorPane({
   workspaceRoot,
+  workspaceLoading,
   tabs,
   tree,
   saveStatus,
@@ -173,6 +179,8 @@ export function EditorPane({
   searchJump,
   frontmatterLineOffset,
   onSearchJumpHandled,
+  focusBodyPath,
+  onFocusBodyHandled,
   recentFiles,
   onOpenWorkspace,
   onOpenRecent,
@@ -322,12 +330,15 @@ export function EditorPane({
                 searchJump={searchJump}
                 frontmatterLineOffset={frontmatterLineOffset}
                 onSearchJumpHandled={onSearchJumpHandled}
+                focusBodyPath={focusBodyPath}
+                onFocusBodyHandled={onFocusBodyHandled}
               />
             </Suspense>
           </ErrorBoundary>
         ) : (
           <EmptyState
             workspaceOpen={workspaceRoot !== null}
+            loading={workspaceLoading}
             recentFiles={recentFiles}
             onOpenWorkspace={onOpenWorkspace}
             onOpenRecent={onOpenRecent}

@@ -15,6 +15,7 @@ import type { NewContentKind } from "../lib/amytisScaffold";
 import type { CollectionLink } from "../lib/collection";
 import type { FeatureBucket } from "../lib/commands/generated/FeatureBucket";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
+import { treeKeyAction } from "../lib/sidebarKeyboard";
 import {
   clampSidebarWidth,
   computeGitRollup,
@@ -23,8 +24,15 @@ import {
   needsPageDivider,
   nextSidebarWidth,
 } from "../lib/sidebarUtils";
+import {
+  readStoredSidebarWidth,
+  SIDEBAR_MAX,
+  SIDEBAR_MIN,
+  SIDEBAR_WIDTH_KEY,
+} from "../lib/sidebarWidth";
 import type { FileNode, GitStatus } from "../lib/types";
 import { useSidebarExpansion } from "../lib/useSidebarExpansion";
+import { describeTreeRow, sidebarTreeRows, useSidebarTreeFocus } from "../lib/useSidebarTreeFocus";
 import { FileItem } from "./sidebar/FileItem";
 import "./Sidebar.css";
 
@@ -37,6 +45,9 @@ interface SidebarProps {
   visible: boolean;
   maxWidth?: number;
   workspaceName: string | null;
+  /** A workspace is being opened (or is about to be, at launch): say so
+   *  rather than "No workspace". */
+  loading?: boolean;
   gitStatusMap: Map<string, GitStatus>;
   mode: SidebarMode;
   /** `posts.basePath` from site.config, so the posts bucket follows the config. */
@@ -61,11 +72,6 @@ interface SidebarProps {
   onDelete: (node: FileNode) => void;
 }
 
-const SIDEBAR_WIDTH_KEY = "ovid:sidebarWidth";
-const SIDEBAR_MIN = 180;
-const SIDEBAR_MAX = 480;
-const SIDEBAR_DEFAULT = 240;
-
 /** Memoized: App re-renders often (save state, git refreshes) and the sidebar
  *  depends on none of that, given stable props. */
 export const Sidebar = memo(function Sidebar({
@@ -75,6 +81,7 @@ export const Sidebar = memo(function Sidebar({
   visible,
   maxWidth = SIDEBAR_MAX,
   workspaceName,
+  loading = false,
   gitStatusMap,
   mode,
   postsBasePath,
@@ -101,6 +108,8 @@ export const Sidebar = memo(function Sidebar({
   const [filterQuery, setFilterQuery] = useState("");
   const [filterExpanded, setFilterExpanded] = useState(false);
   const filterInputRef = useRef<HTMLInputElement>(null);
+  const treeRef = useRef<HTMLDivElement>(null);
+  useSidebarTreeFocus(treeRef);
   // A top-level Content-mode bucket (`notes/`, `books/`, …) — these rows are
   // collapsed by default so a workspace dominated by one bucket doesn't push
   // the others off-screen. Files mode and nested folders aren't buckets.
@@ -137,12 +146,7 @@ export const Sidebar = memo(function Sidebar({
     () => bucketNodes.length > 0 && bucketNodes.every((node) => isNodeExpanded(node, 0)),
     [bucketNodes, isNodeExpanded]
   );
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
-    const stored = localStorage.getItem(SIDEBAR_WIDTH_KEY);
-    const parsed = stored ? Number(stored) : SIDEBAR_DEFAULT;
-    if (!Number.isFinite(parsed)) return SIDEBAR_DEFAULT;
-    return clampSidebarWidth(parsed, SIDEBAR_MIN, SIDEBAR_MAX);
-  });
+  const [sidebarWidth, setSidebarWidth] = useState(readStoredSidebarWidth);
   // Transient width while a mouse drag is live — tracks the cursor independently
   // of the persisted preference, so a drag that returns to its start (or a no-op
   // click) renders correctly without clobbering `sidebarWidth`.
@@ -209,6 +213,35 @@ export const Sidebar = memo(function Sidebar({
     });
     return () => cancelAnimationFrame(id);
   }, [filterExpanded]);
+
+  // Arrow keys, Home and End on a focused row (see sidebarKeyboard.ts).
+  // Rows mark themselves with data-tree-row / data-depth / data-expanded, so
+  // the visible order is read straight from the DOM.
+  function handleTreeKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.defaultPrevented || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    const rows = sidebarTreeRows(e.currentTarget);
+    const index = rows.indexOf(e.target as HTMLElement);
+    if (index < 0) return;
+    const described = rows.map(describeTreeRow);
+    let action = treeKeyAction(described, index, e.key);
+    // While a filter is active every folder is forced open and can't
+    // collapse: Left steps out to the parent instead.
+    if (action?.kind === "collapse" && filterQuery) {
+      described[index] = { ...described[index], expanded: null };
+      action = treeKeyAction(described, index, e.key);
+    }
+    if (!action) return;
+    e.preventDefault();
+    if (action.kind === "focus") {
+      rows[action.index]?.focus();
+      return;
+    }
+    const row = rows[index];
+    if (!row.dataset.path) return;
+    handleToggleExpand(row.dataset.path, Number(row.dataset.depth ?? 0), {
+      isBucket: row.dataset.bucket === "true",
+    });
+  }
 
   function handleResizeMouseDown(e: React.MouseEvent) {
     e.preventDefault();
@@ -300,7 +333,8 @@ export const Sidebar = memo(function Sidebar({
         >
           <LibraryBig size={13} className="sidebar-workspace-name-icon" aria-hidden="true" />
           <span className="sidebar-workspace-name-label">
-            {workspaceName ?? t("sidebar.no_workspace_name")}
+            {workspaceName ??
+              (loading ? t("sidebar.opening_workspace") : t("sidebar.no_workspace_name"))}
           </span>
           <ChevronDown size={11} className="sidebar-workspace-name-chevron" aria-hidden="true" />
         </button>
@@ -367,6 +401,14 @@ export const Sidebar = memo(function Sidebar({
               value={filterQuery}
               onChange={(e) => setFilterQuery(e.target.value)}
               onKeyDown={(e) => {
+                if (e.key === "ArrowDown") {
+                  const first = sidebarTreeRows(treeRef.current)[0];
+                  if (first) {
+                    e.preventDefault();
+                    first.focus();
+                  }
+                  return;
+                }
                 if (e.key === "Escape") {
                   if (filterQuery === "") {
                     setFilterExpanded(false);
@@ -396,8 +438,13 @@ export const Sidebar = memo(function Sidebar({
         </div>
       )}
 
-      <div className="sidebar-tree">
-        {tree.length === 0 ? (
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: delegates arrow keys for the row buttons inside; the rows are the interactive elements */}
+      <div ref={treeRef} className="sidebar-tree" onKeyDown={handleTreeKeyDown}>
+        {tree.length === 0 && loading ? (
+          <div className="sidebar-empty" role="status">
+            <p>{t("sidebar.opening_workspace")}</p>
+          </div>
+        ) : tree.length === 0 ? (
           <div className="sidebar-empty">
             <p>{t("sidebar.no_workspace")}</p>
             <button type="button" className="sidebar-open-workspace-btn" onClick={onOpenWorkspace}>

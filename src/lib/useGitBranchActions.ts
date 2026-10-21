@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { getErrorMessage } from "./gitActionError";
 import type { GitBranch, GitRemoteBranch, GitRemoteInfo } from "./types";
 import type { OverlayStack } from "./useOverlayStack";
+import type { ShowToast } from "./useToast";
 
 export type BranchSwitcherState = {
   branches: GitBranch[];
@@ -38,7 +39,7 @@ export async function loadBranchSwitcherState({
 interface UseGitBranchActionsOptions {
   overlay: OverlayStack;
   workspaceRootPath: string | null;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
   flushPendingSave: () => Promise<unknown>;
   openWorkspaceAtPath: (path: string) => Promise<void>;
   handleSwitchBranch: (branch: string) => Promise<void>;
@@ -112,7 +113,7 @@ export function useGitBranchActions({
       }
       overlay.open({ kind: "branchSwitcher", state: nextState });
     } catch {
-      showToast(t("errors.git_load_branches_failed"));
+      showToast(t("errors.git_load_branches_failed"), { kind: "error" });
     }
   }, [loadBranchSwitcherData, showToast, t, overlay]);
 
@@ -126,7 +127,7 @@ export function useGitBranchActions({
       if (nextState) overlay.open({ kind: "branchSwitcher", state: nextState });
       else overlay.close("branchSwitcher");
     } catch {
-      showToast(t("errors.git_refresh_branches_failed"));
+      showToast(t("errors.git_refresh_branches_failed"), { kind: "error" });
     }
   }, [loadBranchSwitcherData, showToast, t, overlay]);
 
@@ -138,10 +139,10 @@ export function useGitBranchActions({
         closeBranchSwitcher();
         overlay.close("newBranch");
         await reloadWorkspaceAfterGitChange();
-        showToast(t("toast.git_switched_to", { branch }));
+        showToast(t("toast.git_switched_to", { branch }), { kind: "success" });
       } catch (err) {
         const message = getErrorMessage(err);
-        showToast(t("errors.git_switch_branch_failed", { message }));
+        showToast(t("errors.git_switch_branch_failed", { message }), { kind: "error" });
       }
     },
     [
@@ -163,10 +164,10 @@ export function useGitBranchActions({
         overlay.close("newBranch");
         closeBranchSwitcher();
         await reloadWorkspaceAfterGitChange();
-        showToast(t("toast.git_created_and_switched_to", { branch }));
+        showToast(t("toast.git_created_and_switched_to", { branch }), { kind: "success" });
       } catch (err) {
         const message = getErrorMessage(err);
-        showToast(t("errors.git_create_branch_failed", { message }));
+        showToast(t("errors.git_create_branch_failed", { message }), { kind: "error" });
       }
     },
     [
@@ -189,10 +190,12 @@ export function useGitBranchActions({
         closeBranchSwitcher();
         overlay.close("newBranch");
         await reloadWorkspaceAfterGitChange();
-        showToast(t("toast.git_checked_out", { ref: branchName || remoteRef }));
+        showToast(t("toast.git_checked_out", { ref: branchName || remoteRef }), {
+          kind: "success",
+        });
       } catch (err) {
         const message = getErrorMessage(err);
-        showToast(t("errors.git_checkout_failed", { message }));
+        showToast(t("errors.git_checkout_failed", { message }), { kind: "error" });
       }
     },
     [
@@ -213,10 +216,10 @@ export function useGitBranchActions({
         await handleRenameBranch(oldBranch, newBranch);
         overlay.close("renameBranch");
         await reopenBranchSwitcher();
-        showToast(t("toast.git_renamed", { from: oldBranch, to: newBranch }));
+        showToast(t("toast.git_renamed", { from: oldBranch, to: newBranch }), { kind: "success" });
       } catch (err) {
         const message = getErrorMessage(err);
-        showToast(t("errors.git_rename_branch_failed", { message }));
+        showToast(t("errors.git_rename_branch_failed", { message }), { kind: "error" });
       }
     },
     [flushPendingSave, handleRenameBranch, reopenBranchSwitcher, showToast, t, overlay]
@@ -229,10 +232,10 @@ export function useGitBranchActions({
         await handleDeleteBranch(branch);
         overlay.close("deleteBranch");
         await reopenBranchSwitcher();
-        showToast(t("toast.git_deleted", { branch }));
+        showToast(t("toast.git_deleted", { branch }), { kind: "success" });
       } catch (err) {
         const message = getErrorMessage(err);
-        showToast(t("errors.git_delete_branch_failed", { message }));
+        showToast(t("errors.git_delete_branch_failed", { message }), { kind: "error" });
       }
     },
     [flushPendingSave, handleDeleteBranch, reopenBranchSwitcher, showToast, t, overlay]

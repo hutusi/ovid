@@ -18,7 +18,7 @@
 .panel-drawer-backdrop {
   position: absolute;
   inset: var(--topbar-height) 0 0;
-  z-index: 40;
+  z-index: var(--z-drawer);
   padding: 0;
   border: 0;
   background: color-mix(in srgb, var(--color-fg) 14%, transparent);
@@ -156,18 +156,77 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  z-index: 1000;
+  z-index: var(--z-toast);
   pointer-events: none;
 }
 
 .toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(520px, calc(100vw - 32px));
   background: var(--color-fg);
   color: var(--color-surface);
   font-size: 12.5px;
-  padding: 7px 16px;
+  line-height: 1.45;
+  padding: 7px 14px;
   border-radius: var(--radius-md);
-  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  /* Long messages (git errors) wrap instead of running off-screen. */
+  overflow-wrap: anywhere;
+  /* The container lets clicks through; the toast itself is interactive
+     (hover holds it, action and dismiss buttons). */
+  pointer-events: auto;
   animation: toast-in var(--duration-base) var(--ease-out);
+}
+
+/* A small status mark before the message; info toasts have none. */
+.toast--error::before,
+.toast--success::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+}
+
+.toast--error::before {
+  background: var(--color-error);
+}
+
+.toast--success::before {
+  background: var(--color-success);
+}
+
+.toast-message {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toast-dismiss {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-right: -6px;
+  border-radius: var(--radius-sm);
+  opacity: 0.7;
+}
+
+.toast-dismiss:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--color-surface) 16%, transparent);
+}
+
+.toast-dismiss:focus-visible {
+  outline: 2px solid var(--color-surface);
+  outline-offset: 2px;
 }
 
 @keyframes toast-in {
@@ -202,12 +261,12 @@
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
-  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   backdrop-filter: blur(12px);
   box-shadow: var(--shadow-lg);
-  z-index: 900;
+  z-index: var(--z-dev-overlay);
   pointer-events: auto;
 }
 
@@ -215,11 +274,11 @@
   position: fixed;
   right: 14px;
   bottom: calc(var(--statusbar-height) + 12px);
-  z-index: 900;
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+  z-index: var(--z-dev-overlay);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
-  color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
+  color: var(--color-fg-muted);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
@@ -248,7 +307,7 @@
   justify-content: space-between;
   gap: 8px;
   font-size: 11px;
-  color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
+  color: var(--color-fg-muted);
 }
 
 .perf-panel.is-collapsed .perf-panel-header {
@@ -264,10 +323,10 @@
 
 .perf-panel-toggle,
 .perf-panel-clear {
-  border: 1px solid var(--color-border, rgba(0, 0, 0, 0.12));
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--color-surface) 94%, transparent);
-  color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
+  color: var(--color-fg-muted);
   font: inherit;
   line-height: 1;
   padding: 4px 8px;
@@ -275,7 +334,7 @@
 }
 
 .perf-panel-toggle.is-active {
-  background: color-mix(in srgb, var(--color-accent, #4b7cff) 18%, var(--color-surface));
+  background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
   color: var(--color-fg);
 }
 
@@ -302,7 +361,7 @@
 .perf-panel-name,
 .perf-panel-time,
 .perf-panel-detail {
-  font-family: "SF Mono", Menlo, Monaco, monospace;
+  font-family: var(--font-mono);
 }
 
 .perf-panel-name {
@@ -312,13 +371,13 @@
 
 .perf-panel-time {
   font-size: 11px;
-  color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
+  color: var(--color-fg-muted);
 }
 
 .perf-panel-detail {
   margin-top: 4px;
   font-size: 10px;
   line-height: 1.35;
-  color: var(--color-fg-muted, rgba(0, 0, 0, 0.55));
+  color: var(--color-fg-muted);
   overflow-wrap: anywhere;
 }

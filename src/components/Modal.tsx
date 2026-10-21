@@ -71,6 +71,10 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}
+        // Focusable (not tabbable) so a click on the panel's own padding or
+        // text keeps focus inside the dialog, where Escape and the focus trap
+        // see it, instead of dropping it to <body>.
+        tabIndex={-1}
         className={panelClass}
         style={width !== undefined ? { width, maxWidth: "calc(100vw - 48px)" } : undefined}
         onKeyDown={handleKeyDown}
@@ -89,6 +93,9 @@ interface ModalActionsProps {
   onCancel: () => void;
   onConfirm: () => void;
   confirmDisabled?: boolean;
+  /** The confirm action destroys something (delete): render it red rather
+   *  than as the copper primary. */
+  danger?: boolean;
   extraLeft?: ReactNode;
 }
 
@@ -98,6 +105,7 @@ export function ModalActions({
   onCancel,
   onConfirm,
   confirmDisabled = false,
+  danger = false,
   extraLeft,
 }: ModalActionsProps) {
   return (
@@ -109,7 +117,7 @@ export function ModalActions({
       </button>
       <button
         type="button"
-        className="modal-btn modal-btn-primary"
+        className={`modal-btn ${danger ? "modal-btn-danger-solid" : "modal-btn-primary"}`}
         disabled={confirmDisabled}
         onClick={onConfirm}
       >

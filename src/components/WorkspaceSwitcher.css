@@ -215,7 +215,7 @@
 }
 
 .ws-actions-menu-btn--danger {
-  color: var(--color-warning);
+  color: var(--color-danger);
 }
 
 .ws-empty {
@@ -546,6 +546,41 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* "Removed … — Undo" after a recent is removed. */
+.ws-removed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+}
+
+.ws-removed:empty {
+  display: none;
+}
+
+.ws-removed-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ws-undo-btn {
+  flex: 0 0 auto;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ws-undo-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .ws-progress {

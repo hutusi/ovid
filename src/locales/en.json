@@ -2,6 +2,8 @@
   "common": {
     "close": "Close",
     "done": "Done",
+    "dismiss": "Dismiss",
+    "undo": "Undo",
     "retry": "Retry"
   },
   "conflict": {
@@ -62,6 +64,9 @@
     "open_hint": "{{modKey}}O to open a folder"
   },
   "status_bar": {
+    "git_push_running": "Pushing…",
+    "git_pull_running": "Pulling…",
+    "git_fetch_running": "Fetching…",
     "unsaved": "Unsaved changes",
     "saving": "Saving…",
     "saved": "Saved",
@@ -143,7 +148,13 @@
     "open_folder": "Open folder",
     "resize": "Resize sidebar",
     "no_workspace_name": "No workspace",
-    "changes_inside": "{{status}} changes inside",
+    "opening_workspace": "Opening workspace…",
+    "changes_inside": "Changes inside: {{status}}",
+    "git_status": {
+      "modified": "Modified",
+      "staged": "Staged",
+      "untracked": "Untracked"
+    },
     "mode_content": "Content",
     "mode_files": "Files",
     "toggle_mode_to_files": "Switch to Files view",
@@ -388,7 +399,7 @@
     "toast_created": "Created “{{name}}”",
     "toast_cloned": "Cloned “{{name}}”",
     "toast_clone_not_amytis": "Cloned, but this is not an Amytis workspace (no site.config.ts).",
-    "toast_removed": "Removed “{{name}}” from recents",
+    "removed": "Removed “{{name}}” from recents",
     "toast_copied": "Path copied to clipboard",
     "error_name_invalid": "Name can't contain / or \\ or start with .",
     "error_url_invalid": "Please enter a remote URL.",
@@ -650,7 +661,8 @@
   },
   "tab_bar": {
     "open_files": "Open files",
-    "close_tab": "Close {{label}}"
+    "close_tab": "Close {{label}}",
+    "unsaved": "unsaved"
   },
   "editor": {
     "h1_warning": "⚠ This document already has a title. Consider changing this heading to ##.",
@@ -771,7 +783,10 @@
   },
   "confirm": {
     "delete_title": "Delete",
-    "move_to_trash": "Move \"{{name}}\" to Trash?"
+    "move_to_trash": "Move \"{{name}}\" to Trash?",
+    "move_to_trash_hint": "You can restore it from the Trash.",
+    "move_to_trash_action": "Move to Trash",
+    "cancel": "Cancel"
   },
   "scaffold": {
     "post_body": "Write your content here...",
@@ -817,9 +832,11 @@
     "note": {
       "in_list_item": "in a list item",
       "no_modifier": "no Cmd / Ctrl",
-      "macos_hide_conflict": "macOS Hide may intercept"
+      "macos_hide_conflict": "macOS Hide may intercept",
+      "in_sidebar": "in the sidebar"
     },
     "toggle_sidebar": "Toggle sidebar",
+    "focus_sidebar": "Focus the file tree",
     "toggle_properties": "Toggle properties panel",
     "toggle_search": "Full-text search",
     "zen_mode": "Toggle zen mode",
@@ -833,6 +850,12 @@
     "git_commit": "Open commit dialog",
     "open_preferences": "Open preferences",
     "show_shortcuts": "Show this dialog",
+    "sidebar_move": "Move between rows (↑ ↓ Home End)",
+    "sidebar_expand": "Expand a folder, or step into it",
+    "sidebar_collapse": "Collapse a folder, or step out to its parent",
+    "sidebar_context_menu": "Open the row's menu (or the Menu key)",
+    "sidebar_rename": "Rename",
+    "sidebar_trash": "Move to Trash",
     "insert_link": "Insert link",
     "paste_plain": "Paste as plain text",
     "find": "Find",

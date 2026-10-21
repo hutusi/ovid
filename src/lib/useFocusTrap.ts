@@ -13,7 +13,9 @@ const FOCUSABLE_SELECTORS = [
  * Returns a ref to attach to a dialog/modal container.
  * On mount: saves the previously focused element and focuses the first focusable
  *           child (unless the container already contains focus).
- * On Tab: cycles focus within the container.
+ * On Tab: cycles focus within the container, and brings focus back in when
+ *         it sits on the container itself or has escaped it (a click on the
+ *         panel's padding, or on the page behind).
  * On unmount: restores focus to the element focused before it opened.
  */
 export function useFocusTrap<T extends HTMLElement = HTMLDivElement>() {
@@ -37,6 +39,12 @@ export function useFocusTrap<T extends HTMLElement = HTMLDivElement>() {
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (!active || active === container || !container.contains(active)) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
       if (e.shiftKey) {
         if (document.activeElement === first) {
           e.preventDefault();

@@ -75,3 +75,21 @@ through the cascade and ADR 0005 still holds.
   inline or a compact drawer.
 - `TextCover`'s named gradient presets are *content* (cover-design choices the
   user picks), not chrome, and are intentionally left on their own palette.
+
+## Amendment (2026-10): token completeness
+
+A UI-consistency audit found values the token layer didn't cover. Added, all
+in `global.css`:
+
+- **`--color-on-accent` / `--color-on-danger`** — text on a solid copper or
+  red fill. White on the dark-mode copper measured 2.8:1 (fails AA), so the
+  dark theme uses warm ink there (6.2:1).
+- **A stacking scale** (`--z-raised` … `--z-toast`). Raw z-indexes had drifted
+  so that editor popovers (1000) rendered above modal dialogs (200).
+- **Destructive means red.** `--color-danger` now equals `--color-error` (they
+  were near-duplicates), and destructive buttons use it instead of the
+  warning amber. `ModalActions` gains a `danger` confirm style.
+- **Global interaction defaults** at zero specificity: native controls take
+  the accent (`accent-color`), text selection everywhere uses the warm
+  selection, and every interactive element without its own focus style gets
+  the copper focus ring instead of the system-blue default.

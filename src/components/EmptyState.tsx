@@ -11,6 +11,9 @@ interface RecentFile {
 
 interface EmptyStateProps {
   workspaceOpen: boolean;
+  /** A workspace is opening: keep the page quiet instead of flashing the
+   *  "Open a workspace" call to action. */
+  loading?: boolean;
   recentFiles: RecentFile[];
   onOpenWorkspace: () => void;
   onOpenRecent: (path: string) => void;
@@ -18,11 +21,15 @@ interface EmptyStateProps {
 
 export function EmptyState({
   workspaceOpen,
+  loading = false,
   recentFiles,
   onOpenWorkspace,
   onOpenRecent,
 }: EmptyStateProps) {
   const { t } = useTranslation();
+  if (!workspaceOpen && loading) {
+    return <div className="flex-1" aria-busy="true" />;
+  }
   if (workspaceOpen) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-3 text-fg-subtle select-none">

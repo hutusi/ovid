@@ -2,10 +2,11 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { getErrorMessage } from "./gitActionError";
 import type { GitRemoteInfo } from "./types";
+import type { ShowToast } from "./useToast";
 
 interface UseGitRemoteActionsOptions {
   remoteInfo: GitRemoteInfo;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
   handleOpenRemote: (remoteName?: string) => Promise<void>;
 }
 
@@ -29,15 +30,16 @@ export function useGitRemoteActions({
         showToast(
           remoteName
             ? t("errors.git_no_remote_url_for", { remote: remoteName })
-            : t("errors.git_no_remote_url")
+            : t("errors.git_no_remote_url"),
+          { kind: "error" }
         );
         return;
       }
       try {
         await navigator.clipboard.writeText(remoteUrl);
-        showToast(t("toast.copied_remote_url"));
+        showToast(t("toast.copied_remote_url"), { kind: "success" });
       } catch {
-        showToast(t("errors.git_copy_remote_failed"));
+        showToast(t("errors.git_copy_remote_failed"), { kind: "error" });
       }
     },
     [remoteInfo.remoteUrl, remoteInfo.remotes, showToast, t]
@@ -49,7 +51,7 @@ export function useGitRemoteActions({
         await handleOpenRemote(remoteName);
       } catch (err) {
         const message = getErrorMessage(err);
-        showToast(t("errors.git_open_remote_failed", { message }));
+        showToast(t("errors.git_open_remote_failed", { message }), { kind: "error" });
       }
     },
     [handleOpenRemote, showToast, t]

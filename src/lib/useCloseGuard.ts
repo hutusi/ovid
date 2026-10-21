@@ -1,6 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import type { ShowToast } from "./useToast";
 
 type FlushPendingSave = (opts?: { mode?: "blocking" | "background" }) => Promise<void>;
 
@@ -25,7 +26,7 @@ type FlushPendingSave = (opts?: { mode?: "blocking" | "background" }) => Promise
  */
 export function useCloseGuard(
   flushPendingSave: FlushPendingSave,
-  showToast: (msg: string) => void
+  showToast: ShowToast
 ): () => Promise<void> {
   const { t } = useTranslation();
   // Keep the latest closures in refs so the window listener registers once and
@@ -53,7 +54,7 @@ export function useCloseGuard(
       // toasts the failure; add a distinct signal that the quit was cancelled
       // so the open window isn't a mystery.
       closingRef.current = false;
-      toastRef.current(tRef.current("errors.close_save_failed"));
+      toastRef.current(tRef.current("errors.close_save_failed"), { kind: "error" });
     }
   }, []);
 

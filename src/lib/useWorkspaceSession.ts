@@ -1,10 +1,11 @@
 import { useCallback, useRef } from "react";
 import type { ContentPreferences } from "./useContentPreferences";
 import { type FileEditorHandle, useEditorSession } from "./useEditorSession";
+import type { ShowToast } from "./useToast";
 import { useWorkspace } from "./useWorkspace";
 
 interface UseWorkspaceSessionOptions {
-  showToast: (msg: string) => void;
+  showToast: ShowToast;
   flushPendingSave: () => Promise<void>;
   resetFileState: () => void;
   /**
@@ -23,6 +24,9 @@ interface UseWorkspaceSessionOptions {
    *  callbacks — they are captured by useWorkspace's mutation closures. */
   onSessionPathRenamed?: (oldPath: string, newPath: string) => void;
   onSessionPathRemoved?: (path: string) => void;
+  /** A file was created (New, Make a Copy, New from Existing, Today's Flow)
+   *  and is now open. */
+  onSessionPathCreated?: (path: string) => void;
 }
 
 /**
@@ -53,6 +57,7 @@ export function useWorkspaceSession({
   contentPrefs,
   onSessionPathRenamed,
   onSessionPathRemoved,
+  onSessionPathCreated,
 }: UseWorkspaceSessionOptions) {
   const sessionRef = useRef<ReturnType<typeof useEditorSession> | null>(null);
 
@@ -62,7 +67,9 @@ export function useWorkspaceSession({
     resetFileState,
     contentPrefs,
     onPathCreated: (node) =>
-      sessionRef.current?.openFile(node).then(() => undefined) ?? Promise.resolve(),
+      sessionRef.current?.openFile(node).then((opened) => {
+        if (opened) onSessionPathCreated?.(node.path);
+      }) ?? Promise.resolve(),
     onPathRenamed: (oldPath, newPath, lookup) => {
       onSessionPathRenamed?.(oldPath, newPath);
       sessionRef.current?.notifyPathRenamed(oldPath, newPath, lookup);

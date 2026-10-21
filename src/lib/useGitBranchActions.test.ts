@@ -146,7 +146,7 @@ describe("useGitBranchActions", () => {
     expect(spies.flushPendingSave).toHaveBeenCalled();
     expect(spies.handleSwitchBranch).toHaveBeenCalledWith("feature/x");
     expect(spies.openWorkspaceAtPath).toHaveBeenCalledWith("/ws");
-    expect(spies.showToast).toHaveBeenCalledWith("Switched to feature/x");
+    expect(spies.showToast).toHaveBeenCalledWith("Switched to feature/x", { kind: "success" });
     expect(branchSwitcherState(result.current.overlay)).toBeNull();
   });
 
@@ -160,7 +160,9 @@ describe("useGitBranchActions", () => {
 
     expect(spies.handleCreateBranch).toHaveBeenCalledWith("feature/new");
     expect(spies.openWorkspaceAtPath).toHaveBeenCalledWith("/ws");
-    expect(spies.showToast).toHaveBeenCalledWith("Created and switched to feature/new");
+    expect(spies.showToast).toHaveBeenCalledWith("Created and switched to feature/new", {
+      kind: "success",
+    });
   });
 
   it("switchBranch still toasts success when the post-switch workspace reload fails", async () => {
@@ -175,7 +177,7 @@ describe("useGitBranchActions", () => {
       await result.current.controller.switchBranch("feature/x");
     });
 
-    expect(spies.showToast).toHaveBeenCalledWith("Switched to feature/x");
+    expect(spies.showToast).toHaveBeenCalledWith("Switched to feature/x", { kind: "success" });
     const toastCalls = spies.showToast.mock.calls.map((c: unknown[]) => c[0] as string);
     expect(toastCalls.some((m) => m.toLowerCase().includes("failed"))).toBe(false);
   });
@@ -198,7 +200,7 @@ describe("useGitBranchActions", () => {
     });
 
     expect(spies.handleRenameBranch).toHaveBeenCalledWith("old", "new");
-    expect(spies.showToast).toHaveBeenCalledWith("Renamed old to new");
+    expect(spies.showToast).toHaveBeenCalledWith("Renamed old to new", { kind: "success" });
     expect(spies.getBranches).toHaveBeenCalledTimes(1);
     expect(branchSwitcherState(result.current.overlay)).not.toBeNull();
   });
@@ -219,7 +221,7 @@ describe("useGitBranchActions", () => {
     });
 
     expect(spies.handleDeleteBranch).toHaveBeenCalledWith("feature/x");
-    expect(spies.showToast).toHaveBeenCalledWith("Deleted feature/x");
+    expect(spies.showToast).toHaveBeenCalledWith("Deleted feature/x", { kind: "success" });
     expect(spies.getBranches).toHaveBeenCalledTimes(1);
     expect(branchSwitcherState(result.current.overlay)).not.toBeNull();
   });
@@ -235,6 +237,6 @@ describe("useGitBranchActions", () => {
     expect(spies.handleCheckoutRemoteBranch).toHaveBeenCalledWith("origin/feature/x");
     expect(spies.openWorkspaceAtPath).toHaveBeenCalledWith("/ws");
     // Toast strips the leading "origin/" — the user sees the local branch name.
-    expect(spies.showToast).toHaveBeenCalledWith("Checked out feature/x");
+    expect(spies.showToast).toHaveBeenCalledWith("Checked out feature/x", { kind: "success" });
   });
 });

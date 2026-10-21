@@ -2,6 +2,7 @@ import { Type } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
+import { usePopover } from "../lib/usePopover";
 import "./FontSettings.css";
 
 interface FontSettingsProps {
@@ -29,25 +30,13 @@ export function FontSettingsButton({
   const [open, setOpen] = useState(false);
   const [goalInput, setGoalInput] = useState("");
   const anchorRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  usePopover({ open, onClose: () => setOpen(false), containerRef: anchorRef, panelRef });
 
   useEffect(() => {
     if (!open) return;
     setGoalInput(wordCountGoal !== null ? String(wordCountGoal) : "");
-
-    function handlePointerDown(e: PointerEvent) {
-      if (anchorRef.current && !anchorRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
   }, [open, wordCountGoal]);
 
   function handleSetGoal() {
@@ -77,6 +66,7 @@ export function FontSettingsButton({
 
       {open && (
         <div
+          ref={panelRef}
           className="fsp-panel"
           role="dialog"
           aria-label={t("font_settings.editor_settings_label")}

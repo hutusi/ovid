@@ -10,6 +10,7 @@ import type { EditorPreferences, FontFamily, FontSize } from "../lib/useEditorPr
 import type { ThemePreference } from "../lib/useTheme";
 import { Modal } from "./Modal";
 import "./PreferencesDialog.css";
+import type { ShowToast } from "../lib/useToast";
 
 const TABS = ["general", "appearance", "editor", "language", "content"] as const;
 type PrefTab = (typeof TABS)[number];
@@ -25,7 +26,7 @@ interface PreferencesDialogProps {
   onUpdateContentPrefs: (updates: Partial<ContentPreferences>) => void;
   appPrefs: AppPreferences;
   onUpdateAppPrefs: (updates: Partial<AppPreferences>) => void;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
   onClose: () => void;
 }
 
@@ -58,17 +59,6 @@ export function PreferencesDialog({
     setGoalInput(wordCountGoal !== null ? String(wordCountGoal) : "");
   }, [wordCountGoal]);
 
-  // Document-level Escape handler — catches the key regardless of which
-  // control inside the dialog has focus, so native form-element quirks (e.g.
-  // a `<select>` swallowing the bubble) can't strand the user in the dialog.
-  useEffect(() => {
-    function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
-
   const currentLanguage = i18n.language === "zh-CN" ? "zh-CN" : "en";
 
   async function changeLanguage(lng: string) {
@@ -77,7 +67,7 @@ export function PreferencesDialog({
       await commands.menu.setLanguage({ labels: buildMenuLabels(i18n.t.bind(i18n)) });
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
-      showToast(`${t("preferences.language.change_failed")}: ${detail}`);
+      showToast(`${t("preferences.language.change_failed")}: ${detail}`, { kind: "error" });
     }
   }
 

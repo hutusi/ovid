@@ -144,6 +144,33 @@ describe("Modal", () => {
     expect(dialog?.contains(document.activeElement)).toBe(true);
     unmount(m);
   });
+
+  it("is focusable itself, and Tab from the panel lands on its first or last control", () => {
+    const m = mount(
+      <Modal ariaLabel="x" onClose={() => {}}>
+        <button type="button">first</button>
+        <button type="button">last</button>
+      </Modal>
+    );
+    const dialog = m.container.querySelector<HTMLElement>('[role="dialog"]');
+    expect(dialog?.tabIndex).toBe(-1);
+
+    // A click on the panel's padding focuses the panel, not a control.
+    act(() => dialog?.focus());
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", cancelable: true }));
+    });
+    expect(document.activeElement?.textContent).toBe("first");
+
+    act(() => dialog?.focus());
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, cancelable: true })
+      );
+    });
+    expect(document.activeElement?.textContent).toBe("last");
+    unmount(m);
+  });
 });
 
 describe("ModalActions", () => {
@@ -169,6 +196,21 @@ describe("ModalActions", () => {
     expect(m.container.querySelector(".modal-spacer")).not.toBeNull();
     act(() => cancel?.click());
     expect(cancelled).toBe(1);
+    unmount(m);
+  });
+
+  it("renders a destructive confirm in the danger style", () => {
+    const m = mount(
+      <ModalActions
+        cancelLabel="Cancel"
+        confirmLabel="Delete"
+        onCancel={() => {}}
+        onConfirm={() => {}}
+        danger
+      />
+    );
+    expect(m.container.querySelector(".modal-btn-danger-solid")?.textContent).toBe("Delete");
+    expect(m.container.querySelector(".modal-btn-primary")).toBeNull();
     unmount(m);
   });
 });

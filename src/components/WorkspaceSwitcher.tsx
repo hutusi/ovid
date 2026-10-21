@@ -10,8 +10,10 @@ import { commands } from "../lib/commands";
 import type { CloneProgress } from "../lib/commands/generated/CloneProgress";
 import { listenEvent } from "../lib/commands/internal";
 import type { RecentWorkspace } from "../lib/types";
+import { usePopover } from "../lib/usePopover";
 import { Modal } from "./Modal";
 import "./WorkspaceSwitcher.css";
+import type { ShowToast } from "../lib/useToast";
 
 /** Hard-coded starter for the "From Amytis starter" template option. */
 const AMYTIS_STARTER_URL = "https://github.com/hutusi/amytis-starter.git";
@@ -28,13 +30,14 @@ interface WorkspaceSwitcherProps {
   /** Open a native folder picker, then load that folder as a workspace. */
   onOpenOther: () => void;
   /** Remove a recent entry (does NOT touch the filesystem). */
-  onRemoveRecent: (rootPath: string) => void;
+  /** Returns an undo for the removal, when there is one. */
+  onRemoveRecent: (rootPath: string) => (() => void) | null;
   /** Scaffold a brand-new Amytis workspace; resolves true on success. */
   onCreate: (parentDir: string, name: string) => Promise<boolean>;
   /** Clone a remote workspace; resolves true on success. */
   onClone: (url: string, parentDir: string, name: string | null) => Promise<boolean>;
   /** Surface a toast (used for "Copied", "Removed", etc.). */
-  onToast: (message: string) => void;
+  onToast: ShowToast;
   onClose: () => void;
 }
 
@@ -176,7 +179,7 @@ export function WorkspaceSwitcher({
               onCreate={onCreate}
               onCloneStarter={(parentDir, name) => onClone(AMYTIS_STARTER_URL, parentDir, name)}
               onSuccess={(name) => {
-                onToast(t("workspace_switcher.toast_created", { name }));
+                onToast(t("workspace_switcher.toast_created", { name }), { kind: "success" });
                 onClose();
               }}
             />
@@ -185,7 +188,7 @@ export function WorkspaceSwitcher({
             <ClonePanel
               onClone={onClone}
               onSuccess={(name) => {
-                onToast(t("workspace_switcher.toast_cloned", { name }));
+                onToast(t("workspace_switcher.toast_cloned", { name }), { kind: "success" });
                 onClose();
               }}
             />
@@ -202,8 +205,9 @@ interface RecentPanelProps {
   recentWorkspaces: RecentWorkspace[];
   currentRootPath: string | null;
   onSelect: (rootPath: string) => void;
-  onRemoveRecent: (rootPath: string) => void;
-  onToast: (message: string) => void;
+  /** Returns an undo for the removal, when there is one. */
+  onRemoveRecent: (rootPath: string) => (() => void) | null;
+  onToast: ShowToast;
   onClose: () => void;
 }
 
@@ -225,6 +229,41 @@ function RecentPanel({
   // Refs to the row's primary button so the keyboard handler can move focus
   // alongside selection (roving tabindex).
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // The last removal, offered for undo here rather than in a toast: toasts
+  // sit outside this dialog's focus trap, so a keyboard user could never
+  // reach their Undo.
+  const [removal, setRemoval] = useState<{
+    name: string;
+    index: number;
+    undo: () => void;
+  } | null>(null);
+  const undoRef = useRef<HTMLButtonElement | null>(null);
+  // The row index to focus once the list re-renders after a removal or an
+  // undo — the focused control (a menu item, Undo) has just gone away.
+  const focusRowAfterRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const index = focusRowAfterRef.current;
+    if (index === null) return;
+    focusRowAfterRef.current = null;
+    const rows = rowRefs.current.slice(0, recentWorkspaces.length);
+    (rows[Math.min(index, rows.length - 1)] ?? undoRef.current)?.focus();
+  }, [recentWorkspaces]);
+
+  function removeRecent(workspace: RecentWorkspace, index: number) {
+    const undo = onRemoveRecent(workspace.rootPath);
+    if (!undo) return;
+    if (selectedRecent === workspace.rootPath) setSelectedRecent(null);
+    setRemoval({ name: workspace.name, index, undo });
+    focusRowAfterRef.current = index;
+  }
+
+  function undoRemoval() {
+    if (!removal) return;
+    removal.undo();
+    setRemoval(null);
+    focusRowAfterRef.current = removal.index;
+  }
 
   const canConfirm = selectedRecent !== null && selectedRecent !== currentRootPath;
 
@@ -294,11 +333,7 @@ function RecentPanel({
               rowRefs.current[idx] = el;
             }}
             onActivate={() => handleRowActivate(w.rootPath)}
-            onRemove={() => {
-              onRemoveRecent(w.rootPath);
-              if (selectedRecent === w.rootPath) setSelectedRecent(null);
-              onToast(t("workspace_switcher.toast_removed", { name: w.name }));
-            }}
+            onRemove={() => removeRecent(w, idx)}
             onReveal={async () => {
               try {
                 await revealItemInDir(w.rootPath);
@@ -306,19 +341,21 @@ function RecentPanel({
                 onToast(
                   t("errors.reveal_failed", {
                     message: err instanceof Error ? err.message : String(err),
-                  })
+                  }),
+                  { kind: "error" }
                 );
               }
             }}
             onCopyPath={async () => {
               try {
                 await navigator.clipboard.writeText(w.rootPath);
-                onToast(t("workspace_switcher.toast_copied"));
+                onToast(t("workspace_switcher.toast_copied"), { kind: "success" });
               } catch (err) {
                 onToast(
                   t("errors.copy_path_failed", {
                     message: err instanceof Error ? err.message : String(err),
-                  })
+                  }),
+                  { kind: "error" }
                 );
               }
             }}
@@ -328,6 +365,21 @@ function RecentPanel({
           <li className="ws-empty">{t("workspace_switcher.no_recent")}</li>
         )}
       </ul>
+
+      {/* Always mounted: a live region that appears with its message is
+          often not announced. */}
+      <div className="ws-removed" role="status">
+        {removal && (
+          <>
+            <span className="ws-removed-message">
+              {t("workspace_switcher.removed", { name: removal.name })}
+            </span>
+            <button ref={undoRef} type="button" className="ws-undo-btn" onClick={undoRemoval}>
+              {t("common.undo")}
+            </button>
+          </>
+        )}
+      </div>
 
       {recentWorkspaces.length > 0 && (
         <div className="ws-form-actions">
@@ -377,24 +429,16 @@ function RecentItem({
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   const containerRef = useRef<HTMLLIElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // Close on outside click + Escape. Plain-CSS popover pattern from
-  // FontSettings/CodeBlockView (no Portal — fits the Tauri WebView rule).
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handlePointer(e: MouseEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setMenuOpen(false);
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", handlePointer);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handlePointer);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [menuOpen]);
+  // Escape closes just this menu, not the Workspace Manager around it.
+  usePopover({
+    open: menuOpen,
+    onClose: () => setMenuOpen(false),
+    containerRef,
+    panelRef: menuRef,
+    menu: true,
+  });
 
   const classes = ["ws-item"];
   if (isCurrent) classes.push("ws-item--active");
@@ -441,7 +485,7 @@ function RecentItem({
         </div>
       </div>
       {menuOpen && (
-        <div className="ws-actions-menu" role="menu">
+        <div ref={menuRef} className="ws-actions-menu" role="menu">
           <button
             type="button"
             role="menuitem"

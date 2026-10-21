@@ -27,7 +27,9 @@ describe("useGitRemoteActions", () => {
     });
 
     expect(spies.handleOpenRemote).toHaveBeenCalledWith("origin");
-    expect(spies.showToast).toHaveBeenCalledWith("Open remote failed: no remote");
+    expect(spies.showToast).toHaveBeenCalledWith("Open remote failed: no remote", {
+      kind: "error",
+    });
   });
 
   it("copyRemoteUrl toasts when no remote URL is configured", async () => {
@@ -39,7 +41,7 @@ describe("useGitRemoteActions", () => {
       await result.current.controller.copyRemoteUrl();
     });
 
-    expect(spies.showToast).toHaveBeenCalledWith("No remote URL configured");
+    expect(spies.showToast).toHaveBeenCalledWith("No remote URL configured", { kind: "error" });
   });
 
   it("copyRemoteUrl writes to the clipboard when a URL exists", async () => {
@@ -65,6 +67,6 @@ describe("useGitRemoteActions", () => {
     });
 
     expect(writeText).toHaveBeenCalledWith("https://github.com/foo/bar");
-    expect(spies.showToast).toHaveBeenCalledWith("Copied remote URL");
+    expect(spies.showToast).toHaveBeenCalledWith("Copied remote URL", { kind: "success" });
   });
 });

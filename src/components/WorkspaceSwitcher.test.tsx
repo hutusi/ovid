@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it, mock } from "bun:test";
 import { act, render } from "@testing-library/react";
+import { useState } from "react";
 import { registerHappyDom, unregisterHappyDom } from "../../scripts/test-setup";
+import type { RecentWorkspace } from "../lib/types";
 import en from "../locales/en.json";
 
 mock.module("react-i18next", () => ({
@@ -66,7 +68,7 @@ describe("WorkspaceSwitcher two-pane shell", () => {
         currentRootPath="/a"
         onSelect={mock(() => {})}
         onOpenOther={mock(() => {})}
-        onRemoveRecent={mock(() => {})}
+        onRemoveRecent={mock(() => null)}
         onCreate={mock(() => Promise.resolve(true))}
         onClone={mock(() => Promise.resolve(true))}
         onToast={mock(() => {})}
@@ -131,7 +133,7 @@ describe("WorkspaceSwitcher two-pane shell", () => {
         currentRootPath="/a"
         onSelect={onSelect}
         onOpenOther={mock(() => {})}
-        onRemoveRecent={mock(() => {})}
+        onRemoveRecent={mock(() => null)}
         onCreate={mock(() => Promise.resolve(true))}
         onClone={mock(() => Promise.resolve(true))}
         onToast={mock(() => {})}
@@ -187,7 +189,7 @@ describe("WorkspaceSwitcher two-pane shell", () => {
         currentRootPath="/a"
         onSelect={onSelect}
         onOpenOther={mock(() => {})}
-        onRemoveRecent={mock(() => {})}
+        onRemoveRecent={mock(() => null)}
         onCreate={mock(() => Promise.resolve(true))}
         onClone={mock(() => Promise.resolve(true))}
         onToast={mock(() => {})}
@@ -240,7 +242,7 @@ describe("WorkspaceSwitcher two-pane shell", () => {
         currentRootPath="/a"
         onSelect={mock(() => {})}
         onOpenOther={mock(() => {})}
-        onRemoveRecent={mock(() => {})}
+        onRemoveRecent={mock(() => null)}
         onCreate={mock(() => Promise.resolve(true))}
         onClone={mock(() => Promise.resolve(true))}
         onToast={mock(() => {})}
@@ -277,5 +279,90 @@ describe("WorkspaceSwitcher two-pane shell", () => {
     // Now the Open panel content is visible; the Recent list is gone.
     expect(container.textContent).toContain(en.workspace_switcher.open_explainer);
     expect(container.textContent).not.toContain("alpha");
+  });
+  /** App's side of the recents: state, plus a removal that returns its undo. */
+  function RecentsHost({ onToast, onClose }: { onToast: () => void; onClose?: () => void }) {
+    const [recents, setRecents] = useState<RecentWorkspace[]>([
+      { rootPath: "/a", name: "alpha", lastOpenedAt: 1 },
+      { rootPath: "/b", name: "beta", lastOpenedAt: 2 },
+      { rootPath: "/c", name: "gamma", lastOpenedAt: 3 },
+    ]);
+    return (
+      <WorkspaceSwitcher
+        recentWorkspaces={recents}
+        currentRootPath="/a"
+        onSelect={mock(() => {})}
+        onOpenOther={mock(() => {})}
+        onRemoveRecent={(rootPath) => {
+          const index = recents.findIndex((w) => w.rootPath === rootPath);
+          const removed = recents[index];
+          setRecents((prev) => prev.filter((w) => w.rootPath !== rootPath));
+          return () =>
+            setRecents((prev) => [...prev.slice(0, index), removed, ...prev.slice(index)]);
+        }}
+        onCreate={mock(() => Promise.resolve(true))}
+        onClone={mock(() => Promise.resolve(true))}
+        onToast={onToast}
+        onClose={onClose ?? mock(() => {})}
+      />
+    );
+  }
+
+  /** Open a row's ⋯ menu from the keyboard and pick one of its items. */
+  function chooseRowAction(container: HTMLElement, rowName: string, actionLabel: string) {
+    const row = Array.from(container.querySelectorAll<HTMLElement>(".ws-item")).find((el) =>
+      el.querySelector(".ws-item-name")?.textContent?.includes(rowName)
+    );
+    const overflow = row?.querySelector<HTMLButtonElement>(".ws-overflow-btn");
+    if (!overflow) throw new Error(`${rowName} row menu not found`);
+    act(() => overflow.focus());
+    act(() => overflow.click());
+    const item = Array.from(
+      row?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []
+    ).find((b) => b.textContent === actionLabel);
+    if (!item) throw new Error(`${actionLabel} not found`);
+    act(() => item.click());
+    return overflow;
+  }
+
+  function rowNames(container: HTMLElement) {
+    return Array.from(container.querySelectorAll(".ws-item-name")).map((el) => el.textContent);
+  }
+
+  it("offers Undo for a removed recent inside the dialog, where the keyboard reaches it", () => {
+    const onToast = mock(() => {});
+    const { container } = render(<RecentsHost onToast={onToast} />);
+    const dialog = container.querySelector<HTMLElement>('[role="dialog"]');
+
+    chooseRowAction(container, "beta", en.workspace_switcher.item_remove);
+    expect(rowNames(container)).toEqual(["alpha", "gamma"]);
+    // Focus lands on the row that took the removed one's place, not <body>.
+    expect(document.activeElement?.textContent).toContain("gamma");
+    const status = container.querySelector<HTMLElement>(".ws-removed");
+    expect(status?.getAttribute("role")).toBe("status");
+    expect(status?.textContent).toContain("Removed “beta” from recents");
+    const undo = status?.querySelector<HTMLButtonElement>("button");
+    expect(undo?.textContent).toBe(en.common.undo);
+    expect(dialog?.contains(undo ?? null)).toBe(true);
+    // No toast: its Undo would sit outside the dialog's focus trap.
+    expect(onToast).not.toHaveBeenCalled();
+
+    act(() => undo?.click());
+    expect(rowNames(container)).toEqual(["alpha", "beta", "gamma"]);
+    expect(container.querySelector(".ws-removed")?.textContent).toBe("");
+    expect(document.activeElement?.textContent).toContain("beta");
+  });
+
+  it("keeps focus in the dialog after a row action, so Escape still closes it", () => {
+    const onClose = mock(() => {});
+    const { container } = render(<RecentsHost onToast={mock(() => {})} onClose={onClose} />);
+    const overflow = chooseRowAction(container, "beta", en.workspace_switcher.item_copy_path);
+    expect(document.activeElement).toBe(overflow);
+    act(() => {
+      document.activeElement?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+      );
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

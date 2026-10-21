@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from "bun:test";
 import { act, type RenderResult, render } from "@testing-library/react";
 import type { Editor as TiptapEditor } from "@tiptap/core";
+import { useState } from "react";
 import { localT } from "../../scripts/test-i18n-mock";
 import { registerHappyDom, unregisterHappyDom } from "../../scripts/test-setup";
 
@@ -207,5 +208,87 @@ describe("Editor — configured once", () => {
     });
     expect(scroll()?.classList.contains("editor-scroll--h1-warning")).toBe(true);
     expect(view.container.querySelector("h1.h1-warning")).not.toBeNull();
+  });
+});
+
+describe("Editor — a just-created file", () => {
+  it("selects the scaffold placeholder so the first keystroke replaces it", () => {
+    const onFocusBodyHandled = mock(() => {});
+    const placeholder = "Write your content here...";
+    const view = render(
+      <Editor
+        content={placeholder}
+        loadId={1}
+        filePath="/ws/new.md"
+        focusBodyPath="/ws/new.md"
+        onFocusBodyHandled={onFocusBodyHandled}
+      />
+    );
+    mounted.push(view);
+    const { from, to } = tiptapOf(view.container).state.selection;
+    expect(tiptapOf(view.container).state.doc.textBetween(from, to)).toBe(placeholder);
+    expect(onFocusBodyHandled).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the placeholder selected after App stores the new view state", async () => {
+    const placeholder = "Write your content here...";
+    // App's wiring: the editor reports its view state into a store, and the
+    // next App render (here, clearing focusBodyPath) passes it back down.
+    const saved: { current?: { selection: number; scrollTop: number } } = {};
+    function Host() {
+      const [focusBodyPath, setFocusBodyPath] = useState<string | null>("/ws/new.md");
+      return (
+        <Editor
+          content={placeholder}
+          loadId={1}
+          filePath="/ws/new.md"
+          initialSelection={saved.current?.selection}
+          initialScrollTop={saved.current?.scrollTop}
+          onViewStateChange={(viewState) => {
+            saved.current = viewState;
+          }}
+          focusBodyPath={focusBodyPath}
+          onFocusBodyHandled={() => setFocusBodyPath(null)}
+        />
+      );
+    }
+    const view = render(<Host />);
+    mounted.push(view);
+    await act(() => sleep(SETTLE_MS));
+    const { from, to } = tiptapOf(view.container).state.selection;
+    expect(tiptapOf(view.container).state.doc.textBetween(from, to)).toBe(placeholder);
+  });
+
+  it("puts the caret at the end of other bodies and selects nothing", () => {
+    const onFocusBodyHandled = mock(() => {});
+    const view = render(
+      <Editor
+        content={"First line\n\nSecond line"}
+        loadId={1}
+        filePath="/ws/flow.md"
+        focusBodyPath="/ws/flow.md"
+        onFocusBodyHandled={onFocusBodyHandled}
+      />
+    );
+    mounted.push(view);
+    const editor = tiptapOf(view.container);
+    expect(editor.state.selection.empty).toBe(true);
+    expect(editor.state.selection.from).toBe(editor.state.doc.content.size - 1);
+    expect(onFocusBodyHandled).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a request for another file", () => {
+    const onFocusBodyHandled = mock(() => {});
+    const view = render(
+      <Editor
+        content="text"
+        loadId={1}
+        filePath="/ws/note.md"
+        focusBodyPath="/ws/other.md"
+        onFocusBodyHandled={onFocusBodyHandled}
+      />
+    );
+    mounted.push(view);
+    expect(onFocusBodyHandled).not.toHaveBeenCalled();
   });
 });

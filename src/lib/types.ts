@@ -10,6 +10,7 @@ export type ModalState =
   | { type: "duplicate-file"; node: FileNode }
   | { type: "new-from-existing"; node: FileNode }
   | { type: "rename-path"; node: FileNode }
+  | { type: "delete-path"; node: FileNode }
   | { type: "add-to-collection"; indexPath: string; existing: CollectionItem[] }
   | null;
 

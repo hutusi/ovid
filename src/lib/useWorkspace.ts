@@ -1,4 +1,3 @@
-import { confirm } from "@tauri-apps/plugin-dialog";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { buildNewContent, type NewContentKind } from "./amytisScaffold";
@@ -26,6 +25,7 @@ import { createPostFromExistingContent } from "./postTemplate";
 import { forContentMode } from "./sidebarUtils";
 import type { FileNode } from "./types";
 import type { ContentPreferences } from "./useContentPreferences";
+import type { ShowToast } from "./useToast";
 
 // Same as the generated (Rust-sourced) WorkspaceResult, except `tree` is
 // re-typed to the frontend's own FileNode (./types) — the sidebar projections'
@@ -35,7 +35,7 @@ import type { ContentPreferences } from "./useContentPreferences";
 type WorkspaceResult = Omit<GeneratedWorkspaceResult, "tree"> & { tree: FileNode[] };
 
 interface UseWorkspaceOptions {
-  showToast: (msg: string) => void;
+  showToast: ShowToast;
   flushPendingSave: () => Promise<void>;
   resetFileState: () => void;
   /** New-content format/layout choice, threaded into `handleNewFile`'s scaffold call. */
@@ -144,7 +144,7 @@ export function useWorkspace({
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error("Failed to refresh tree:", err);
-      showToast(t("workspace_refresh.refresh_failed", { message }));
+      showToast(t("workspace_refresh.refresh_failed", { message }), { kind: "error" });
       return [];
     }
   }, [showToast, t]);
@@ -198,11 +198,18 @@ export function useWorkspace({
     return run;
   }, []);
 
+  // The workspace being opened right now, so the UI can say so instead of
+  // showing "no workspace" while a large tree is walked.
+  const [openingWorkspacePath, setOpeningWorkspacePath] = useState<string | null>(null);
+
   const openWorkspaceAtPath = useCallback(
     (path: string) =>
       enqueueOpen(async () => {
-        if (!(await flushBeforeMutation())) return;
+        // Marked before the flush, so there is no frame between the launch
+        // restore starting and this state where the UI reads "no workspace".
+        setOpeningWorkspacePath(path);
         try {
+          if (!(await flushBeforeMutation())) return;
           const result = (await measureAsync(
             "open_workspace_at_path.invoke",
             () => commands.workspace.openAtPath({ path }),
@@ -210,14 +217,17 @@ export function useWorkspace({
           )) as WorkspaceResult | null;
           if (result) {
             applyWorkspaceResult(result);
-          } else showToast(t("errors.workspace_path_invalid"));
+          } else showToast(t("errors.workspace_path_invalid"), { kind: "error" });
         } catch (err) {
           console.error("Failed to open workspace:", err);
           showToast(
             t("errors.open_workspace_failed", {
               message: err instanceof Error ? err.message : String(err),
-            })
+            }),
+            { kind: "error" }
           );
+        } finally {
+          setOpeningWorkspacePath(null);
         }
       }),
     [enqueueOpen, flushBeforeMutation, showToast, t, applyWorkspaceResult]
@@ -239,7 +249,8 @@ export function useWorkspace({
           showToast(
             t("errors.create_workspace_failed", {
               message: err instanceof Error ? err.message : String(err),
-            })
+            }),
+            { kind: "error" }
           );
           return false;
         }
@@ -266,7 +277,8 @@ export function useWorkspace({
           showToast(
             t("errors.clone_workspace_failed", {
               message: err instanceof Error ? err.message : String(err),
-            })
+            }),
+            { kind: "error" }
           );
           return false;
         }
@@ -290,7 +302,8 @@ export function useWorkspace({
           showToast(
             t("errors.open_workspace_failed", {
               message: err instanceof Error ? err.message : String(err),
-            })
+            }),
+            { kind: "error" }
           );
         }
       }),
@@ -320,7 +333,8 @@ export function useWorkspace({
       showToast(
         t("errors.open_today_flow_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }, [workspaceRoot, refreshTree, onPathCreated, showToast, t]);
@@ -368,7 +382,8 @@ export function useWorkspace({
       showToast(
         t("errors.create_file_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -390,7 +405,8 @@ export function useWorkspace({
       showToast(
         t("errors.rename_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -412,7 +428,8 @@ export function useWorkspace({
       showToast(
         t("errors.duplicate_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -423,7 +440,7 @@ export function useWorkspace({
     const targetPath = folderBacked ? `${newPath}/${entryFileName}` : newPath;
 
     if (findNode(tree, newPath)) {
-      showToast(t("errors.new_from_existing_conflict", { name: newName }));
+      showToast(t("errors.new_from_existing_conflict", { name: newName }), { kind: "error" });
       return;
     }
 
@@ -446,18 +463,16 @@ export function useWorkspace({
       showToast(
         t("errors.new_from_existing_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
 
+  // Moves the node to the Trash. The caller has already confirmed with the
+  // user (the in-app DeletePathDialog), so this does not ask again.
   async function handleDelete(node: FileNode) {
     const targetPath = node.containerDirPath ?? node.path;
-    const confirmed = await confirm(t("confirm.move_to_trash", { name: node.name }), {
-      title: t("confirm.delete_title"),
-      kind: "warning",
-    });
-    if (!confirmed) return;
     // Always flush — the editor session decides whether the deleted file is
     // the active one and closes it via onPathRemoved. flushPendingSave is a
     // no-op when nothing is pending, so unconditional is safe.
@@ -471,7 +486,8 @@ export function useWorkspace({
       showToast(
         t("errors.delete_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -509,11 +525,11 @@ export function useWorkspace({
       let outcome = await attempt();
       if (outcome === "conflict") outcome = await attempt();
       if (outcome === "invalid") {
-        showToast(t("errors.frontmatter_invalid"));
+        showToast(t("errors.frontmatter_invalid"), { kind: "error" });
         return;
       }
       if (outcome === "conflict") {
-        showToast(t("errors.collection_changed"));
+        showToast(t("errors.collection_changed"), { kind: "error" });
         await refreshTree();
         return;
       }
@@ -523,7 +539,8 @@ export function useWorkspace({
       showToast(
         t("errors.update_collection_failed", {
           message: err instanceof Error ? err.message : String(err),
-        })
+        }),
+        { kind: "error" }
       );
     }
   }
@@ -539,6 +556,7 @@ export function useWorkspace({
   return {
     tree,
     flatFiles,
+    openingWorkspacePath,
     workspaceName,
     workspaceRoot,
     workspaceRootPath,

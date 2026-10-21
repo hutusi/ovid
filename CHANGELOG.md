@@ -7,6 +7,38 @@ release cadence and Conventional Commit history.
 
 ## Unreleased
 
+### Changed
+- **Consistent keyboard focus, selection and controls**: every button, link
+  and option shows the copper focus ring when reached by keyboard (several
+  showed the system-blue default or nothing), selected text in titles,
+  inputs and dialogs uses the warm selection colour, and checkboxes and radio
+  buttons follow the accent instead of system blue.
+- **Destructive actions are red**: delete buttons and menu items used the
+  amber warning colour; they now use the danger red, and deleting a branch
+  confirms with a red button rather than the copper one.
+- **Clearer notifications**: errors now stay on screen for several seconds
+  (they used to vanish after two), carry a red mark, can be dismissed, and
+  are announced to screen readers immediately; confirmations carry a green
+  mark. Long messages wrap instead of running off the screen, hovering a
+  notification holds it, and a message that repeats (a save that keeps
+  failing) refreshes the one on screen instead of stacking copies.
+- **Undo a removed recent workspace**: removing a workspace from the
+  Workspace Manager's recent list shows "Removed …" with an Undo button in
+  the manager itself, where Tab reaches it, and focus moves to the next row
+  instead of being lost.
+- **Deleting a file asks in the app's own dialog**: "Move to Trash?" now
+  appears as an Ovid dialog in the current theme, with a red Move to Trash
+  button and focus on Cancel, instead of a system alert box.
+- **No "No workspace" flash at launch**: when Ovid reopens your last
+  workspace, the sidebar and editor no longer show "No workspace open" and
+  the Open button for a moment first; the sidebar says "Opening
+  workspace…" until the files appear, also when opening a workspace from
+  the switcher into an empty window.
+- **Git sync shows progress**: while a push, pull or fetch runs, the status
+  bar shows a spinner and what is running instead of the sync button, and a
+  second trigger (a double click, or the menu while the popover action runs)
+  is ignored rather than starting a competing git operation.
+
 ### Fixed
 - **Cmd+Q no longer drops the last edits**: the app menu's Quit item (and
   Cmd+Q) now flushes pending saves before exiting, exactly like closing the
@@ -97,8 +129,69 @@ release cadence and Conventional Commit history.
 - **Body-heading warning follows the title**: the "this document already
   has a title" hint on a body H1 now appears and disappears as the title is
   set or cleared, instead of being fixed when the file was opened.
+- **Readable primary buttons in dark mode**: white text on the copper button
+  was below the WCAG AA contrast minimum in the dark theme; it now uses warm
+  ink. Editor popovers (link previews, `[[` suggestions) no longer draw on top
+  of open dialogs, and toasts stay readable above them.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
+- **Search panel fits the window chrome**: the full-text search field used
+  to sit in the window's top strip, under the macOS window buttons, and that
+  strip could not be dragged. The panel now has the same 36 px draggable top
+  strip as the sidebar, with the search field just below it, a labelled
+  close button, and the width you gave the sidebar instead of a fixed one.
+- **The keyboard highlight stands out from the mouse hover**: in Quick
+  Open, Add to Collection and search results, the row the arrow keys have
+  selected (the one Enter opens) is now tinted, as in the `[[` link
+  suggestions, instead of looking identical to a row under the pointer.
+- **Long names in the status bar end in an ellipsis**: a long file name was
+  cut off mid-letter instead of ending in "…", and a long branch name had
+  no limit at all, pushing the rest of the status bar aside. Both now
+  truncate cleanly; the branch's tooltip still shows its full name.
+- **Screen-reader and language fixes**: sidebar git markers are announced
+  and labelled in the app language ("Modified", "Staged", "Untracked")
+  instead of showing raw English status words, including inside the Chinese
+  "changes inside" hint; an unsaved tab is announced as unsaved; the commit
+  message box has a name; and the code-block language picker says which
+  language is current.
+- **Dialogs keep keyboard focus after a click inside them**: clicking a
+  dialog's text or empty space dropped focus to the window behind it, so
+  Escape stopped closing the dialog and Tab wandered into the sidebar. Focus
+  now stays in the dialog, and Tab returns to its first control.
+- **Browse the sidebar with the keyboard**: with a file row focused, the
+  arrow keys move between rows, Right and Left expand and collapse folders
+  (or step into and out of them), and Home and End jump to the ends; Down
+  from the filter box enters the tree. The tree is one Tab stop, landing on
+  the open file, so Tab moves past it instead of through every row, and the
+  focused row shows a ring distinct from the hover and selection colours.
+- **Cmd+0 jumps to the file tree**: from the editor or anywhere else, Cmd+0
+  shows the sidebar if it is hidden and puts focus on the open file's row,
+  ready for the arrow keys.
+- **Sidebar file actions from the keyboard**: on a focused row, Shift+F10
+  or the Menu key opens its context menu under the row, F2 renames (now on
+  folders too), and Cmd+Backspace asks to move it to the Trash. Content
+  buckets stay protected from rename and delete, as in the menu.
+- **Start writing straight after creating a file**: after New (Cmd+N),
+  Make a Copy, New from Existing or Today's Flow, the caret is already in
+  the body, so you can type without clicking. A new post's "Write your
+  content here..." placeholder is selected, so the first keystroke replaces
+  it; anything else gets the caret at the end.
+- **Selected text stays selected**: when the app updated in the background
+  while text was selected (an autosave finishing, for instance), the
+  selection could shrink to a caret at its start. The editor now restores
+  the saved cursor position only when a document is opened.
+- **Popovers work from the keyboard**: the editor settings popover, the
+  code-block language picker and the Workspace Manager's row menu now take
+  focus when they open and hand it back when they close, whether by Escape
+  or by choosing an item. Escape in a row menu closes just the menu, not the
+  whole Workspace Manager, and the menu's items can be reached with the
+  arrow keys, Home and End.
+- **Git sync popover and shortcuts help behave like other dialogs**: both
+  now use the shared dialog shell, so a click inside keeps keyboard focus
+  there, and the sync popover's close button uses the standard icon.
+- **Typewriter mode respects Reduce Motion**: with the system's Reduce
+  Motion setting on, typewriter mode keeps the current line centred by
+  jumping instead of animating a scroll on every keystroke.
 
 ### Performance
 - **Faster startup**: the editor's libraries (ProseMirror, Tiptap and code

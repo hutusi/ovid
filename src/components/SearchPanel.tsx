@@ -1,8 +1,11 @@
+import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "../lib/commands";
 import { createGenerationGuard } from "../lib/latestOnly";
 import { isPerfLoggingEnabled, logPerf, measureAsync, measureSync } from "../lib/perf";
+import { clampSidebarWidth } from "../lib/sidebarUtils";
+import { readStoredSidebarWidth, SIDEBAR_MAX, SIDEBAR_MIN } from "../lib/sidebarWidth";
 import type { SearchResult } from "../lib/types";
 import "./SearchPanel.css";
 import { Input } from "./ui/input";
@@ -16,6 +19,9 @@ interface SearchPanelProps {
     match?: { lineContent: string; lineNumber: number; query: string }
   ) => void;
   onClose: () => void;
+  /** The window-dependent cap on the sidebar width (the panel takes the
+   *  sidebar's place at the user's sidebar width). */
+  maxWidth?: number;
 }
 
 const DEBOUNCE_MS = 300;
@@ -30,8 +36,10 @@ export function limitResults<T>(results: T[]): { shown: T[]; hidden: number } {
   return { shown, hidden: results.length - shown.length };
 }
 
-export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
+export function SearchPanel({ onOpenFile, onClose, maxWidth = SIDEBAR_MAX }: SearchPanelProps) {
   const { t } = useTranslation();
+  const [preferredWidth] = useState(readStoredSidebarWidth);
+  const width = Math.min(preferredWidth, clampSidebarWidth(maxWidth, SIDEBAR_MIN, SIDEBAR_MAX));
   const renderStartedAtRef = useRef(0);
   renderStartedAtRef.current = performance.now();
   const [query, setQuery] = useState("");
@@ -194,7 +202,20 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
   }, [query.length, results.length, searching, totalMatches]);
 
   return (
-    <div className="search-panel">
+    <div className="search-panel" style={{ width, minWidth: width }}>
+      {/* The 36 px window strip shared with the editor top bar (ADR 0013):
+          draggable, and clear of the macOS traffic lights on the left. */}
+      <div className="search-panel-topbar" data-tauri-drag-region="deep">
+        <button
+          type="button"
+          className="search-close-btn"
+          onClick={onClose}
+          title={t("search_panel.close_tooltip")}
+          aria-label={t("search_panel.close_tooltip")}
+        >
+          <X size={13} />
+        </button>
+      </div>
       <div className="search-panel-header">
         <Input
           ref={inputRef}
@@ -210,14 +231,6 @@ export function SearchPanel({ onOpenFile, onClose }: SearchPanelProps) {
           aria-activedescendant={activeIndex >= 0 ? `search-option-${activeIndex}` : undefined}
           className="h-7 text-[13px]"
         />
-        <button
-          type="button"
-          className="search-close-btn"
-          onClick={onClose}
-          title={t("search_panel.close_tooltip")}
-        >
-          ✕
-        </button>
       </div>
 
       <div className="search-results" ref={resultsRef}>

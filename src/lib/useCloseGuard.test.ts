@@ -81,7 +81,7 @@ describe("useCloseGuard", () => {
 
     expect(flush).toHaveBeenCalledTimes(1);
     expect(destroyCalls).toBe(0);
-    expect(showToast).toHaveBeenCalledWith("errors.close_save_failed");
+    expect(showToast).toHaveBeenCalledWith("errors.close_save_failed", { kind: "error" });
   });
 
   it("requestQuit (Cmd+Q / Quit menu) flushes then destroys", async () => {
@@ -105,7 +105,7 @@ describe("useCloseGuard", () => {
     await result.current();
 
     expect(destroyCalls).toBe(0);
-    expect(showToast).toHaveBeenCalledWith("errors.close_save_failed");
+    expect(showToast).toHaveBeenCalledWith("errors.close_save_failed", { kind: "error" });
   });
 
   it("a close request during an in-flight quit flushes only once", async () => {

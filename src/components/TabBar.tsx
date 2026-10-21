@@ -122,6 +122,7 @@ export function TabBar({
                 aria-hidden="true"
               />
               <span className="tab-bar-label-text">{label}</span>
+              {showUnsaved && <span className="sr-only">, {t("tab_bar.unsaved")}</span>}
             </button>
             <button
               type="button"

@@ -11,6 +11,7 @@ import { useGitCredentialsRetry } from "./useGitCredentialsRetry";
 import { useGitRemoteActions } from "./useGitRemoteActions";
 import { useGitSyncActions } from "./useGitSyncActions";
 import type { OverlayStack } from "./useOverlayStack";
+import type { ShowToast } from "./useToast";
 
 interface UseGitUiControllerOptions {
   overlay: OverlayStack;
@@ -20,7 +21,7 @@ interface UseGitUiControllerOptions {
   workspaceRootPath: string | null;
   parsedTitle?: string;
   selectedFileName?: string;
-  showToast: (message: string) => void;
+  showToast: ShowToast;
   flushPendingSave: () => Promise<unknown>;
   openWorkspaceAtPath: (path: string) => Promise<void>;
   handleCommit: (message: string, paths: string[], push: boolean) => Promise<void>;

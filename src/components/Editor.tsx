@@ -25,11 +25,13 @@ import {
   createImagePasteHandler,
   IMAGE_MIME,
 } from "../lib/editor/imagePaste";
+import { placeholderSelection } from "../lib/editor/newDocumentFocus";
 import { isPersistableUpdate } from "../lib/editor/persistableChange";
 import { useEditorCommands } from "../lib/editor/useEditorCommands";
 import { useMarkdownSync } from "../lib/editor/useMarkdownSync";
 import type { FlatFile } from "../lib/fileSearch";
 import { normalizeMarkdownSpacing } from "../lib/markdown";
+import { scrollBehavior } from "../lib/motion";
 import { isPerfLoggingEnabled, logPerf, measureSync } from "../lib/perf";
 import { matchOccurrenceRank, stripLineMarkers } from "../lib/searchJump";
 import { ActiveHeadingIndicator } from "../lib/tiptap/ActiveHeadingIndicator";
@@ -109,6 +111,8 @@ interface EditorProps {
   showH1Warning?: boolean;
   title?: string;
   onTitleChange?: (value: string) => void;
+  /** Where the document was left last time; read once, when the editor
+   *  mounts. */
   initialSelection?: number;
   initialScrollTop?: number;
   /** Reports the document's word count with the file it belongs to and the
@@ -130,6 +134,10 @@ interface EditorProps {
    *  to a body line. */
   frontmatterLineOffset?: number;
   onSearchJumpHandled?: () => void;
+  /** One-shot: this file was just created; once its content is on screen,
+   *  put the caret in the body, then clear via onFocusBodyHandled. */
+  focusBodyPath?: string | null;
+  onFocusBodyHandled?: () => void;
 }
 
 export const Editor = memo(function Editor({
@@ -157,6 +165,8 @@ export const Editor = memo(function Editor({
   searchJump,
   frontmatterLineOffset = 0,
   onSearchJumpHandled,
+  focusBodyPath,
+  onFocusBodyHandled,
 }: EditorProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -166,6 +176,13 @@ export const Editor = memo(function Editor({
   const pendingRestoreTimersRef = useRef<number[]>([]);
   const pendingRestoreFramesRef = useRef<number[]>([]);
   const lastAppliedLoadIdRef = useRef(loadId);
+  // The view state to restore is the one this document was opened with.
+  // EditorPane mounts a new Editor per document, so later values of these
+  // props are only this editor's own selection and scroll, reported up
+  // through onViewStateChange and passed back by App's next render.
+  // Restoring those again would collapse a range selection to its start
+  // (the placeholder of a just-created file, or text the user has selected).
+  const openedViewStateRef = useRef({ selection: initialSelection, scrollTop: initialScrollTop });
   // The editor is configured once (see the useEditor call); handlers inside
   // that configuration read values that change over its life from here.
   const liveRef = useRef({ filePath, onError, t });
@@ -492,7 +509,7 @@ export const Editor = memo(function Editor({
             const rect = scrollEl.getBoundingClientRect();
             const cursorRelTop = coords.top - rect.top;
             const target = scrollEl.scrollTop + cursorRelTop - rect.height / 2;
-            scrollEl.scrollTo({ top: Math.max(0, target), behavior: "smooth" });
+            scrollEl.scrollTo({ top: Math.max(0, target), behavior: scrollBehavior() });
           },
           {
             docSize: ed.state.doc.content.size,
@@ -547,19 +564,20 @@ export const Editor = memo(function Editor({
   useEffect(() => {
     if (!editor) return;
     clearPendingRestore();
+    const { selection, scrollTop } = openedViewStateRef.current;
     const restoreViewState = () => {
-      if (initialSelection !== undefined) {
+      if (selection !== undefined) {
         const maxPos = Math.max(1, editor.state.doc.content.size);
         const nextSelection = TextSelection.create(
           editor.state.doc,
-          Math.min(Math.max(initialSelection, 1), maxPos)
+          Math.min(Math.max(selection, 1), maxPos)
         );
         editor.view.dispatch(
           editor.state.tr.setSelection(nextSelection).setMeta("scrollIntoView", false)
         );
       }
-      if (scrollRef.current && initialScrollTop !== undefined) {
-        scrollRef.current.scrollTop = initialScrollTop;
+      if (scrollRef.current && scrollTop !== undefined) {
+        scrollRef.current.scrollTop = scrollTop;
       }
     };
     pendingRestoreFramesRef.current.push(window.requestAnimationFrame(restoreViewState));
@@ -573,7 +591,7 @@ export const Editor = memo(function Editor({
     return () => {
       clearPendingRestore();
     };
-  }, [clearPendingRestore, editor, initialScrollTop, initialSelection]);
+  }, [clearPendingRestore, editor]);
 
   // Consume a pending search-match jump once this editor shows the target
   // file. Declared *after* the view-state-restoration effect so it can cancel
@@ -638,6 +656,20 @@ export const Editor = memo(function Editor({
     clearPendingRestore,
     onSearchJumpHandled,
   ]);
+
+  // A just-created file (New, Make a Copy, Today's Flow): its title was
+  // typed in the dialog, so the next keystroke belongs to the body. The
+  // scaffold's "Write your content here..." placeholder is selected so typing
+  // replaces it; otherwise the caret goes to the end.
+  useEffect(() => {
+    if (!editor || !focusBodyPath || focusBodyPath !== filePath) return;
+    if (lastAppliedLoadIdRef.current !== loadId) return;
+    clearPendingRestore();
+    const range = placeholderSelection(editor.state.doc, t("scaffold.post_body"));
+    if (range) editor.chain().focus().setTextSelection(range).run();
+    else editor.commands.focus("end");
+    onFocusBodyHandled?.();
+  }, [editor, focusBodyPath, filePath, loadId, clearPendingRestore, onFocusBodyHandled, t]);
 
   // Update spellcheck live — set directly on the DOM to avoid replacing editorProps
   useEffect(() => {

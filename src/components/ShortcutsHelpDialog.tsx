@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   type ShortcutCategory,
@@ -38,6 +37,11 @@ function formatKeys(keys: ShortcutKeys, isMac: boolean): string {
     Escape: "Esc",
     Enter: "Enter",
     " ": "Space",
+    ArrowUp: "↑",
+    ArrowDown: "↓",
+    ArrowLeft: "←",
+    ArrowRight: "→",
+    Backspace: isMac ? "⌫" : "Backspace",
   };
   const k = namedKeys[keys.key] ?? keys.key;
   parts.push(k.length === 1 ? k.toUpperCase() : k);
@@ -53,25 +57,6 @@ export function ShortcutsHelpDialog({ onClose }: ShortcutsHelpDialogProps) {
   const { t } = useTranslation();
   const isMac = isMacPlatform();
   const grouped = shortcutsByCategory();
-
-  // Window-level Escape handler. The other modal dialogs use React's
-  // onKeyDown on the dialog div, which only fires when focus is inside
-  // the dialog. Those dialogs have an input that useFocusTrap targets, so
-  // focus reliably lands inside. This dialog has only a Close button —
-  // useFocusTrap should focus it, but lazy-load timing + the user clicking
-  // anywhere non-focusable inside the dialog leaves the bubbling chain
-  // unreliable. A window-level capture listener avoids all of that.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [onClose]);
 
   function renderRow(s: ShortcutEntry) {
     return (

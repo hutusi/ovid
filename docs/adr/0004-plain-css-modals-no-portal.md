@@ -49,7 +49,9 @@ Specifically:
   on the dialog on open, returned to its trigger on close; Tab may leave;
   Escape dismisses and yields to any nested `[aria-modal="true"]` dialog).
 - `cmdk` is permitted for the file switcher because it doesn't use Portal
-  and works correctly in Tauri's WebView.
+  and works correctly in Tauri's WebView. *(2026-10: no longer used — the
+  switcher and pickers are hand-rolled listboxes inside `<Modal>`; the
+  dependency was removed.)*
 
 ## Consequences
 

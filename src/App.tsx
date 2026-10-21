@@ -7,6 +7,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getFileViewKind, isReadOnlyContent } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import { ToastStack } from "./components/ToastStack";
 import type { NewContentKind } from "./lib/amytisScaffold";
 import type { AppActionCtx } from "./lib/appActions";
 import { loadLastRecentFilePath } from "./lib/appRestore";
@@ -36,6 +37,7 @@ import { useNoteIndex } from "./lib/useNoteIndex";
 import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useResponsivePanels } from "./lib/useResponsivePanels";
+import { focusSidebarTree } from "./lib/useSidebarTreeFocus";
 import { useStableCallback } from "./lib/useStableCallback";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
@@ -68,8 +70,22 @@ function App() {
   const pendingAutoOpenPath = useRef<string | null>(null);
   const editorViewStateRef = useRef<Record<string, EditorViewState>>({});
 
-  const { toasts, showToast, notifications, unread, markNotificationsRead, clearNotifications } =
-    useToast();
+  const {
+    toasts,
+    showToast,
+    dismissToast,
+    pauseToast,
+    resumeToast,
+    notifications,
+    unread,
+    markNotificationsRead,
+    clearNotifications,
+  } = useToast();
+  // Editor/properties failures (image paste, cover upload) are errors.
+  const showError = useCallback(
+    (message: string) => showToast(message, { kind: "error" }),
+    [showToast]
+  );
   // Surface otherwise-silent async failures (fire-and-forget promises, uncaught
   // errors) as a throttled toast instead of losing them to the console.
   useGlobalErrorHandlers(showToast);
@@ -145,6 +161,10 @@ function App() {
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
   const saveStatusRef = useRef<SaveStatus>(saveStatus);
   const isGitRepoRef = useRef(false);
+  // One-shot: a file just created and opened gets keyboard focus in its body
+  // (the title was typed in the New dialog), consumed by the Editor.
+  const [focusBodyPath, setFocusBodyPath] = useState<string | null>(null);
+  const handleFocusBodyHandled = useCallback(() => setFocusBodyPath(null), []);
 
   selectedFileRef.current = selectedFile;
   saveStatusRef.current = saveStatus;
@@ -152,6 +172,7 @@ function App() {
   const {
     tree,
     flatFiles,
+    openingWorkspacePath,
     workspaceName,
     workspaceRoot,
     workspaceRootPath,
@@ -190,6 +211,7 @@ function App() {
     contentPrefs,
     onSessionPathRenamed: writingStats.pathRenamed,
     onSessionPathRemoved: writingStats.pathRemoved,
+    onSessionPathCreated: setFocusBodyPath,
     fileEditor: {
       selectedFile,
       renameSelection,
@@ -302,7 +324,8 @@ function App() {
           t("wikiLink.createNoteFailed", {
             target,
             message: err instanceof Error ? err.message : String(err),
-          })
+          }),
+          { kind: "error" }
         );
       }
     },
@@ -324,7 +347,10 @@ function App() {
   const sidebarHandlers = {
     onSelect: useStableCallback((node: FileNode) => handleSidebarSelect(node)),
     onToggleMode: useStableCallback(() => handleToggleSidebarMode()),
-    onDelete: useStableCallback((node: FileNode) => handleDelete(node)),
+    onDelete: useCallback(
+      (node: FileNode) => openModal({ kind: "modal", state: { type: "delete-path", node } }),
+      [openModal]
+    ),
     onOpenSwitcher: useCallback(() => openModal({ kind: "workspaceSwitcher" }), [openModal]),
     onNewFile: useCallback(
       (dirPath: string, kind: NewContentKind) =>
@@ -453,6 +479,7 @@ function App() {
   // App-level consumers (StatusBar, menu/keyboard wiring) pull what they
   // need off the controller; the git dialogs receive `gitUi` whole.
   const {
+    gitActionInFlight,
     gitChangeSummary,
     gitSyncLabel,
     gitSyncPopover,
@@ -500,6 +527,16 @@ function App() {
     void openWorkspaceAtPath(recentWorkspaces[0].rootPath);
   }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath]);
 
+  // Opening a workspace — including the first frames of a launch that is
+  // about to restore one, before the effect above has started the open, so
+  // the sidebar and editor don't flash "no workspace" on every launch.
+  const awaitingLaunchRestore =
+    !autoReopenAttempted.current &&
+    workspaceRootPath === null &&
+    recentWorkspaces.length > 0 &&
+    initialRestoreLastSession.current;
+  const workspaceLoading = openingWorkspacePath !== null || awaitingLaunchRestore;
+
   useEffect(() => {
     const path = pendingAutoOpenPath.current;
     if (!path || tree.length === 0 || selectedFile) return;
@@ -525,6 +562,11 @@ function App() {
       showToast,
       t,
       toggleSidebar: panelLayout.toggleSidebar,
+      focusSidebar: () => {
+        panelLayout.showSidebar();
+        // After the sidebar has rendered visible.
+        requestAnimationFrame(() => focusSidebarTree());
+      },
       toggleProperties: panelLayout.toggleProperties,
       setZenMode,
       setTypewriterMode,
@@ -557,6 +599,7 @@ function App() {
       showToast,
       t,
       panelLayout.toggleSidebar,
+      panelLayout.showSidebar,
       panelLayout.toggleProperties,
       requestQuit,
       flushPendingSave,
@@ -665,7 +708,11 @@ function App() {
         >
           {overlay.is("search") ? (
             <Suspense fallback={null}>
-              <SearchPanel onOpenFile={handleOpenByPath} onClose={() => overlay.close("search")} />
+              <SearchPanel
+                onOpenFile={handleOpenByPath}
+                onClose={() => overlay.close("search")}
+                maxWidth={panelLayout.sidebarMaxWidth}
+              />
             </Suspense>
           ) : (
             <Sidebar
@@ -675,6 +722,7 @@ function App() {
               visible={panelLayout.sidebarVisible}
               maxWidth={panelLayout.sidebarMaxWidth}
               workspaceName={workspaceName}
+              loading={workspaceLoading}
               gitStatusMap={gitStatusMap}
               mode={sidebarMode}
               postsBasePath={postsBasePath}
@@ -698,6 +746,7 @@ function App() {
         </ErrorBoundary>
         <EditorPane
           workspaceRoot={workspaceRoot}
+          workspaceLoading={workspaceLoading}
           tabs={tabs}
           tree={tree}
           saveStatus={saveStatus}
@@ -723,7 +772,7 @@ function App() {
           onWordCount={handleWordCount}
           onDirty={handleEditorDirty}
           onChange={handleEditorChange}
-          onError={showToast}
+          onError={showError}
           currentEditorViewState={currentEditorViewState}
           onEditorViewStateChange={handleEditorViewStateChange}
           registerPendingFlush={registerEditorFlush}
@@ -740,6 +789,8 @@ function App() {
           searchJump={searchJump}
           frontmatterLineOffset={frontmatterLineOffset}
           onSearchJumpHandled={handleSearchJumpHandled}
+          focusBodyPath={focusBodyPath}
+          onFocusBodyHandled={handleFocusBodyHandled}
           recentFiles={recentFiles}
           onOpenWorkspace={handleOpenWorkspace}
           onOpenRecent={handleOpenByPath}
@@ -766,6 +817,7 @@ function App() {
           gitBranch={isGitRepo ? currentBranch : null}
           gitBranchTitle={isGitRepo ? getGitBranchTitle(currentBranch, remoteInfo, t) : undefined}
           gitSyncLabel={gitSyncLabel}
+          gitActionInFlight={gitActionInFlight}
           gitSyncTitle={gitSyncPopover?.description}
           gitChangeLabel={gitChangeSummary?.label}
           gitChangeTitle={gitChangeSummary?.title}
@@ -812,7 +864,6 @@ function App() {
       >
         <AppDialogs
           overlay={overlay}
-          toasts={toasts}
           notifications={notifications}
           clearNotifications={clearNotifications}
           flushPendingSave={flushPendingSave}
@@ -832,6 +883,7 @@ function App() {
             handleDuplicate,
             handleNewFromExisting,
             handleRename,
+            handleDelete,
             collectionCandidatesFor,
             onAddCollectionItem: handleAddCollectionItem,
             flatFiles,
@@ -874,6 +926,13 @@ function App() {
           }}
         />
       </ErrorBoundary>
+      {/* Outside the dialog boundary: a crashed dialog must not hide toasts. */}
+      <ToastStack
+        toasts={toasts}
+        onDismiss={dismissToast}
+        onPause={pauseToast}
+        onResume={resumeToast}
+      />
     </div>
   );
 }

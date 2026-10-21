@@ -118,6 +118,7 @@ export function CommitDialog({
         ref={textareaRef}
         className="modal-textarea"
         value={message}
+        aria-label={t("commit_dialog.message_placeholder")}
         placeholder={t("commit_dialog.message_placeholder")}
         rows={3}
         {...PLAIN_TEXT_INPUT_PROPS}
