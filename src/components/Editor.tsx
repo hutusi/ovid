@@ -111,6 +111,8 @@ interface EditorProps {
   showH1Warning?: boolean;
   title?: string;
   onTitleChange?: (value: string) => void;
+  /** Where the document was left last time; read once, when the editor
+   *  mounts. */
   initialSelection?: number;
   initialScrollTop?: number;
   /** Reports the document's word count with the file it belongs to and the
@@ -174,6 +176,13 @@ export const Editor = memo(function Editor({
   const pendingRestoreTimersRef = useRef<number[]>([]);
   const pendingRestoreFramesRef = useRef<number[]>([]);
   const lastAppliedLoadIdRef = useRef(loadId);
+  // The view state to restore is the one this document was opened with.
+  // EditorPane mounts a new Editor per document, so later values of these
+  // props are only this editor's own selection and scroll, reported up
+  // through onViewStateChange and passed back by App's next render.
+  // Restoring those again would collapse a range selection to its start
+  // (the placeholder of a just-created file, or text the user has selected).
+  const openedViewStateRef = useRef({ selection: initialSelection, scrollTop: initialScrollTop });
   // The editor is configured once (see the useEditor call); handlers inside
   // that configuration read values that change over its life from here.
   const liveRef = useRef({ filePath, onError, t });
@@ -555,19 +564,20 @@ export const Editor = memo(function Editor({
   useEffect(() => {
     if (!editor) return;
     clearPendingRestore();
+    const { selection, scrollTop } = openedViewStateRef.current;
     const restoreViewState = () => {
-      if (initialSelection !== undefined) {
+      if (selection !== undefined) {
         const maxPos = Math.max(1, editor.state.doc.content.size);
         const nextSelection = TextSelection.create(
           editor.state.doc,
-          Math.min(Math.max(initialSelection, 1), maxPos)
+          Math.min(Math.max(selection, 1), maxPos)
         );
         editor.view.dispatch(
           editor.state.tr.setSelection(nextSelection).setMeta("scrollIntoView", false)
         );
       }
-      if (scrollRef.current && initialScrollTop !== undefined) {
-        scrollRef.current.scrollTop = initialScrollTop;
+      if (scrollRef.current && scrollTop !== undefined) {
+        scrollRef.current.scrollTop = scrollTop;
       }
     };
     pendingRestoreFramesRef.current.push(window.requestAnimationFrame(restoreViewState));
@@ -581,7 +591,7 @@ export const Editor = memo(function Editor({
     return () => {
       clearPendingRestore();
     };
-  }, [clearPendingRestore, editor, initialScrollTop, initialSelection]);
+  }, [clearPendingRestore, editor]);
 
   // Consume a pending search-match jump once this editor shows the target
   // file. Declared *after* the view-state-restoration effect so it can cancel

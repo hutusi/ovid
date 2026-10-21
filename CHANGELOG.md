@@ -174,6 +174,10 @@ release cadence and Conventional Commit history.
   the body, so you can type without clicking. A new post's "Write your
   content here..." placeholder is selected, so the first keystroke replaces
   it; anything else gets the caret at the end.
+- **Selected text stays selected**: when the app updated in the background
+  while text was selected (an autosave finishing, for instance), the
+  selection could shrink to a caret at its start. The editor now restores
+  the saved cursor position only when a document is opened.
 - **Popovers work from the keyboard**: the editor settings popover, the
   code-block language picker and the Workspace Manager's row menu now take
   focus when they open and hand it back when closed with Escape. Escape in
