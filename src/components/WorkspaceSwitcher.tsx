@@ -229,6 +229,41 @@ function RecentPanel({
   // Refs to the row's primary button so the keyboard handler can move focus
   // alongside selection (roving tabindex).
   const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // The last removal, offered for undo here rather than in a toast: toasts
+  // sit outside this dialog's focus trap, so a keyboard user could never
+  // reach their Undo.
+  const [removal, setRemoval] = useState<{
+    name: string;
+    index: number;
+    undo: () => void;
+  } | null>(null);
+  const undoRef = useRef<HTMLButtonElement | null>(null);
+  // The row index to focus once the list re-renders after a removal or an
+  // undo — the focused control (a menu item, Undo) has just gone away.
+  const focusRowAfterRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const index = focusRowAfterRef.current;
+    if (index === null) return;
+    focusRowAfterRef.current = null;
+    const rows = rowRefs.current.slice(0, recentWorkspaces.length);
+    (rows[Math.min(index, rows.length - 1)] ?? undoRef.current)?.focus();
+  }, [recentWorkspaces]);
+
+  function removeRecent(workspace: RecentWorkspace, index: number) {
+    const undo = onRemoveRecent(workspace.rootPath);
+    if (!undo) return;
+    if (selectedRecent === workspace.rootPath) setSelectedRecent(null);
+    setRemoval({ name: workspace.name, index, undo });
+    focusRowAfterRef.current = index;
+  }
+
+  function undoRemoval() {
+    if (!removal) return;
+    removal.undo();
+    setRemoval(null);
+    focusRowAfterRef.current = removal.index;
+  }
 
   const canConfirm = selectedRecent !== null && selectedRecent !== currentRootPath;
 
@@ -298,14 +333,7 @@ function RecentPanel({
               rowRefs.current[idx] = el;
             }}
             onActivate={() => handleRowActivate(w.rootPath)}
-            onRemove={() => {
-              const undo = onRemoveRecent(w.rootPath);
-              if (selectedRecent === w.rootPath) setSelectedRecent(null);
-              onToast(t("workspace_switcher.toast_removed", { name: w.name }), {
-                kind: "success",
-                action: undo ? { label: t("common.undo"), run: undo } : undefined,
-              });
-            }}
+            onRemove={() => removeRecent(w, idx)}
             onReveal={async () => {
               try {
                 await revealItemInDir(w.rootPath);
@@ -337,6 +365,21 @@ function RecentPanel({
           <li className="ws-empty">{t("workspace_switcher.no_recent")}</li>
         )}
       </ul>
+
+      {/* Always mounted: a live region that appears with its message is
+          often not announced. */}
+      <div className="ws-removed" role="status">
+        {removal && (
+          <>
+            <span className="ws-removed-message">
+              {t("workspace_switcher.removed", { name: removal.name })}
+            </span>
+            <button ref={undoRef} type="button" className="ws-undo-btn" onClick={undoRemoval}>
+              {t("common.undo")}
+            </button>
+          </>
+        )}
+      </div>
 
       {recentWorkspaces.length > 0 && (
         <div className="ws-form-actions">

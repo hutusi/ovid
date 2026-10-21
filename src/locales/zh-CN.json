@@ -399,7 +399,7 @@
     "toast_created": "已创建 “{{name}}”",
     "toast_cloned": "已克隆 “{{name}}”",
     "toast_clone_not_amytis": "已克隆，但这不是 Amytis 工作区（缺少 site.config.ts）。",
-    "toast_removed": "已从最近列表移除 “{{name}}”",
+    "removed": "已从最近列表移除 “{{name}}”",
     "toast_copied": "已复制路径到剪贴板",
     "error_name_invalid": "名称不能包含 / 或 \\，也不能以 . 开头",
     "error_url_invalid": "请输入远程 URL。",

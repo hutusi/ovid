@@ -325,6 +325,34 @@ describe("WorkspaceSwitcher two-pane shell", () => {
     return overflow;
   }
 
+  function rowNames(container: HTMLElement) {
+    return Array.from(container.querySelectorAll(".ws-item-name")).map((el) => el.textContent);
+  }
+
+  it("offers Undo for a removed recent inside the dialog, where the keyboard reaches it", () => {
+    const onToast = mock(() => {});
+    const { container } = render(<RecentsHost onToast={onToast} />);
+    const dialog = container.querySelector<HTMLElement>('[role="dialog"]');
+
+    chooseRowAction(container, "beta", en.workspace_switcher.item_remove);
+    expect(rowNames(container)).toEqual(["alpha", "gamma"]);
+    // Focus lands on the row that took the removed one's place, not <body>.
+    expect(document.activeElement?.textContent).toContain("gamma");
+    const status = container.querySelector<HTMLElement>(".ws-removed");
+    expect(status?.getAttribute("role")).toBe("status");
+    expect(status?.textContent).toContain("Removed “beta” from recents");
+    const undo = status?.querySelector<HTMLButtonElement>("button");
+    expect(undo?.textContent).toBe(en.common.undo);
+    expect(dialog?.contains(undo ?? null)).toBe(true);
+    // No toast: its Undo would sit outside the dialog's focus trap.
+    expect(onToast).not.toHaveBeenCalled();
+
+    act(() => undo?.click());
+    expect(rowNames(container)).toEqual(["alpha", "beta", "gamma"]);
+    expect(container.querySelector(".ws-removed")?.textContent).toBe("");
+    expect(document.activeElement?.textContent).toContain("beta");
+  });
+
   it("keeps focus in the dialog after a row action, so Escape still closes it", () => {
     const onClose = mock(() => {});
     const { container } = render(<RecentsHost onToast={mock(() => {})} onClose={onClose} />);

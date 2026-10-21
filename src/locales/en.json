@@ -399,7 +399,7 @@
     "toast_created": "Created “{{name}}”",
     "toast_cloned": "Cloned “{{name}}”",
     "toast_clone_not_amytis": "Cloned, but this is not an Amytis workspace (no site.config.ts).",
-    "toast_removed": "Removed “{{name}}” from recents",
+    "removed": "Removed “{{name}}” from recents",
     "toast_copied": "Path copied to clipboard",
     "error_name_invalid": "Name can't contain / or \\ or start with .",
     "error_url_invalid": "Please enter a remote URL.",

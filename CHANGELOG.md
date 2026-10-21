@@ -22,8 +22,10 @@ release cadence and Conventional Commit history.
   mark. Long messages wrap instead of running off the screen, hovering a
   notification holds it, and a message that repeats (a save that keeps
   failing) refreshes the one on screen instead of stacking copies.
-  Removing a workspace from the recent list can be undone from the
-  notification.
+- **Undo a removed recent workspace**: removing a workspace from the
+  Workspace Manager's recent list shows "Removed …" with an Undo button in
+  the manager itself, where Tab reaches it, and focus moves to the next row
+  instead of being lost.
 - **Deleting a file asks in the app's own dialog**: "Move to Trash?" now
   appears as an Ovid dialog in the current theme, with a red Move to Trash
   button and focus on Cancel, instead of a system alert box.
