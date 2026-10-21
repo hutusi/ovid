@@ -507,7 +507,11 @@ A few rules keep startup and typing fast; each has a guard or a test.
   walk that kept the tree may still have found changed file contents.
 - **Corpus-wide work waits for idle.** The wiki-link index (`useNoteIndex`)
   reads every note; it runs via `whenIdle`, not during the first render after
-  a workspace opens.
+  a workspace opens. The index belongs to the workspace it was built for:
+  until the open workspace's own index lands, links resolve against an empty
+  one (never the previous workspace's), and following a link builds the
+  index on the spot rather than treating the link as missing — which would
+  create a duplicate note.
 
 ## Visual design language
 

@@ -268,13 +268,16 @@ function App() {
   const searchJumpGenRef = useRef(0);
   const handleSearchJumpHandled = useCallback(() => setSearchJump(null), []);
 
-  const { noteResolverIndex, resolveWikiTarget: resolveWikiTargetCallback } =
-    useNoteIndex(flatFiles);
+  const {
+    noteResolverIndex,
+    resolveWikiTarget: resolveWikiTargetCallback,
+    resolveWikiTargetForNavigation,
+  } = useNoteIndex(flatFiles, workspaceRoot);
 
   const onOpenWikiTarget = useCallback(
     async (target: string) => {
       if (!workspaceRoot) return;
-      const resolved = resolveWikiTargetCallback(target);
+      const resolved = await resolveWikiTargetForNavigation(target);
       if (resolved.exists) {
         setFileViewerNode(null);
         void openByPath(`${workspaceRoot}/${resolved.relativePath}`);
@@ -311,7 +314,7 @@ function App() {
       setFileViewerNode,
       showToast,
       t,
-      resolveWikiTargetCallback,
+      resolveWikiTargetForNavigation,
     ]
   );
 
