@@ -1,5 +1,5 @@
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::{mpsc, Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
@@ -274,11 +274,24 @@ pub(crate) fn resolve_git_root(state: State<'_, WorkspaceState>) -> Result<Optio
     };
     drop(root_guard);
 
-    Ok(
-        run_git(&root.to_string_lossy(), &["rev-parse", "--show-toplevel"])
-            .ok()
-            .map(|s| s.trim().to_string()),
-    )
+    if let Some((cached_root, git_root)) = state
+        .git_root_cache
+        .lock()
+        .map_err(|e| e.to_string())?
+        .as_ref()
+    {
+        if *cached_root == root && Path::new(git_root).is_dir() {
+            return Ok(Some(git_root.clone()));
+        }
+    }
+
+    let git_root = run_git(&root.to_string_lossy(), &["rev-parse", "--show-toplevel"])
+        .ok()
+        .map(|s| s.trim().to_string());
+    if let Some(found) = &git_root {
+        *state.git_root_cache.lock().map_err(|e| e.to_string())? = Some((root, found.clone()));
+    }
+    Ok(git_root)
 }
 
 pub(crate) fn resolve_workspace_root(

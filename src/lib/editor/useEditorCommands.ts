@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { listenEvent } from "../commands/internal";
 import {
   commandCanRun,
@@ -23,18 +23,24 @@ import {
  *   command, suppressing all commands when the inline link dialog is
  *   open — matches the global guard the old listener applied.
  *
- * The ctx object is reconstructed every render (closure-captured
- * `editor`, `setLinkDialog`, etc.). React's dependency array catches
- * any drift.
+ * Both subscribe once per editor and read the latest ctx through a ref.
+ * The ctx changes on most renders (it carries callbacks and dialog state);
+ * re-subscribing each time churned the Tauri `listen`/`unlisten` IPC and
+ * left a gap, while the async `listen` was pending, in which a menu event
+ * could be dropped.
  */
 export function useEditorCommands(
   editor: Editor | null,
   ctx: Omit<EditorCommandCtx, "editor">
 ): void {
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
+
   useEffect(() => {
     if (!editor) return;
-    const fullCtx: EditorCommandCtx = { ...ctx, editor };
     function onKeyDown(e: KeyboardEvent) {
+      if (!editor) return;
+      const fullCtx: EditorCommandCtx = { ...ctxRef.current, editor };
       for (const cmd of editorCommands) {
         if (!cmd.keys) continue;
         if (!shortcutMatches(cmd.keys, e)) continue;
@@ -46,12 +52,12 @@ export function useEditorCommands(
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editor, ctx]);
+  }, [editor]);
 
   useEffect(() => {
     if (!editor) return;
-    const fullCtx: EditorCommandCtx = { ...ctx, editor };
     return listenEvent<string>("menu-action", (payload) => {
+      const fullCtx: EditorCommandCtx = { ...ctxRef.current, editor };
       // Globally suppress when the link dialog is open — matches the
       // pre-table behavior of the menu listener (Editor.tsx:662).
       if (fullCtx.linkDialogOpen) return;
@@ -59,5 +65,5 @@ export function useEditorCommands(
       if (!cmd) return;
       void cmd.run(fullCtx);
     });
-  }, [editor, ctx]);
+  }, [editor]);
 }

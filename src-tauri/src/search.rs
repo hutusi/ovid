@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Instant;
 use ts_rs::TS;
 
@@ -102,7 +103,7 @@ const MAX_SEARCH_MATCHES_PER_FILE: usize = 8;
 pub(crate) fn search_dir(
     path: &Path,
     query_lower: &str,
-    cache: &mut HashMap<PathBuf, CachedSearchFile>,
+    cache: &mut HashMap<PathBuf, Arc<CachedSearchFile>>,
     frontmatter_cache: &HashMap<PathBuf, CachedFrontmatter>,
 ) -> Vec<SearchResult> {
     let Ok(entries) = std::fs::read_dir(path) else {
@@ -138,8 +139,8 @@ pub(crate) fn search_dir(
             let mut total_matches = 0;
             let mut matches = Vec::new();
 
-            for (i, line) in file.lines.iter().enumerate() {
-                if !line.to_lowercase().contains(query_lower) {
+            for (i, (line, lower)) in file.lines.iter().zip(&file.lines_lower).enumerate() {
+                if !lower.contains(query_lower) {
                     continue;
                 }
                 total_matches += 1;

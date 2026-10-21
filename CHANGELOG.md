@@ -94,16 +94,65 @@ release cadence and Conventional Commit history.
   own errors and show a small "ran into a problem — Reload panel" notice,
   leaving the editor and your text usable. Previously any of them replaced
   the whole app with a stack trace.
+- **Body-heading warning follows the title**: the "this document already
+  has a title" hint on a body H1 now appears and disappears as the title is
+  set or cleared, instead of being fixed when the file was opened.
 - **WeChat copy uses the current text**, including edits autosaved since the
   file was opened.
 
 ### Performance
+- **Faster startup**: the editor's libraries (ProseMirror, Tiptap and code
+  highlighting, about 750 KiB of JavaScript) were loaded and evaluated before
+  the window first painted, even though the editor itself loads lazily.
+  Startup now loads about 540 KiB instead of about 1,280 KiB (−58%); the
+  editor libraries arrive with the editor. The build fails if they creep back
+  into startup.
+- **Restored sessions open sooner**: when Ovid reopens your last file, the
+  editor now loads while the workspace is still opening rather than after,
+  and its math renderer loads alongside it instead of first. The native menu
+  bar is no longer rebuilt at startup when the language hasn't changed.
 - **Autosave no longer triggers a workspace rescan**: the temporary file each
   atomic save stages next to the document looked like a new file to the
   watcher, so every autosave re-walked the workspace, reloaded the sidebar
   tree, re-read every note for wiki links and backlinks, and refreshed git
   twice. Ovid's own staging files are now ignored by the watcher and hidden
   from the sidebar (including any left behind by a crash).
+- **Lighter saves**: Ovid recognises its own saves at the source, so an
+  autosave no longer sends a file-change event back to the app. The git
+  refresh after a save asks only for file status instead of re-reading
+  branches and remotes (about one git process instead of ten), and the
+  repository root is looked up once instead of per git command. A refresh
+  that finds the file tree unchanged no longer rebuilds the sidebar, the
+  file index or the wiki-link data.
+- **Less work while typing**: the editor reconfigured its ProseMirror view
+  (twice) every time the window re-rendered — after each autosave state
+  change, word-count update or git refresh. It is now configured once, and
+  re-renders only when what it shows changes.
+- **Typing no longer re-renders the window**: the live word count and
+  session progress were app-wide state, so every count update while typing
+  (about three a second) re-rendered the sidebar, editor pane and dialogs.
+  Only the status-bar readout updates now.
+- **Wiki-link indexing waits for a quiet moment**: reading every note to
+  resolve `[[links]]` now happens once the app is idle after opening a
+  workspace (or after the file tree changes), instead of competing with the
+  first file load; collection indexes are read in parallel.
+- **Smoother typing in long documents**: footnote highlighting rescanned
+  the entire document on every keystroke (quadratically in heavily formatted
+  paragraphs); it now rescans only the paragraph being edited. Section
+  folding and find-highlighting no longer rebuild on every cursor move, and
+  fold chevrons are no longer re-created for every heading on each change.
+- **Faster search, and a calmer results list**: searching no longer copies
+  and re-lowercases every cached file for each query, and the results list
+  shows the 100 best-matching files (with a note on how many more matched)
+  instead of rendering thousands of rows for a common word. Opening a
+  workspace walks its files on a background thread.
+- **Pasting large images is quicker**: pasted, dropped and cover images are
+  sent to the backend as raw bytes instead of a JSON list of numbers, which
+  inflated a 5 MB screenshot to roughly 15–20 MB of text to build and parse.
+- **A quieter sidebar**: the file tree re-rendered every row — re-walking
+  each collapsed folder for its git dot — whenever anything in the window
+  changed, including autosave status while typing and each step of a
+  sidebar resize. Rows now re-render only when their own content changes.
 - **File operations no longer block the window**: reading, saving, creating,
   renaming, duplicating and trashing files, and saving pasted or dropped
   images, now run off the UI thread. A save's fsync, a slow or network volume,

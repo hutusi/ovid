@@ -10,7 +10,7 @@ use crate::content_types::{
 };
 use crate::paths::to_slash;
 use crate::perf::log_perf;
-use crate::state::{CachedFrontmatter, WorkspaceState};
+use crate::state::{run_blocking, CachedFrontmatter, WorkspaceState};
 
 use super::clone::{clone_blocking, resolve_target};
 use super::revision::compute_workspace_revision;
@@ -36,7 +36,7 @@ pub(crate) async fn open_workspace_at_path(
         return Ok(None);
     }
 
-    let result = build_workspace_result(&root, &state, &app)?;
+    let result = build_workspace_result(&root, &state, &app).await?;
     log_perf(
         "open_workspace_at_path",
         started.elapsed(),
@@ -76,7 +76,7 @@ pub(crate) async fn open_workspace(
         tauri_plugin_dialog::FilePath::Url(u) => PathBuf::from(u.path()),
     };
 
-    let result = build_workspace_result(&root, &state, &app)?;
+    let result = build_workspace_result(&root, &state, &app).await?;
     log_perf(
         "open_workspace",
         started.elapsed(),
@@ -151,8 +151,10 @@ fn derive_tree_root(root: &Path) -> PathBuf {
 
 /// Shared body for `open_workspace` / `open_workspace_at_path`. Stores roots
 /// in shared state, calls the pure core to assemble the result, and grants
-/// asset-protocol scope.
-fn build_workspace_result(
+/// asset-protocol scope. The core — a full tree walk plus a frontmatter parse
+/// of every Markdown file — runs on the blocking pool, not on an async-runtime
+/// worker, and without holding the frontmatter-cache lock for its duration.
+async fn build_workspace_result(
     root: &PathBuf,
     state: &State<'_, WorkspaceState>,
     app: &tauri::AppHandle,
@@ -177,10 +179,14 @@ fn build_workspace_result(
         .map_err(|e| e.to_string())?
         .clear();
 
-    let result = {
-        let mut cache = state.frontmatter_cache.lock().map_err(|e| e.to_string())?;
-        build_workspace_result_core(root, &mut cache)
-    };
+    let walk_root = root.clone();
+    let (result, cache) = run_blocking(move || {
+        let mut cache = HashMap::new();
+        let result = build_workspace_result_core(&walk_root, &mut cache);
+        Ok((result, cache))
+    })
+    .await?;
+    *state.frontmatter_cache.lock().map_err(|e| e.to_string())? = cache;
 
     // Grant asset protocol access to the entire workspace root so that both
     // root-relative paths (resolved inside public/) and relative paths
@@ -254,7 +260,7 @@ pub(crate) async fn create_amytis_workspace(
     let started = Instant::now();
     let parent = PathBuf::from(&parent_dir);
     let target = scaffold_amytis_workspace(&parent, &name).map_err(|err| err.user_message())?;
-    let result = build_workspace_result(&target, &state, &app)?;
+    let result = build_workspace_result(&target, &state, &app).await?;
     log_perf(
         "create_amytis_workspace",
         started.elapsed(),
@@ -297,7 +303,7 @@ pub(crate) async fn clone_workspace(
     .await
     .map_err(|e| e.to_string())??;
 
-    let result = build_workspace_result(&target, &state, &app)?;
+    let result = build_workspace_result(&target, &state, &app).await?;
     log_perf(
         "clone_workspace",
         started.elapsed(),

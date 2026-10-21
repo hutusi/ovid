@@ -197,6 +197,22 @@ describe("TextFolding fold state machine", () => {
     while (createdEditors.length) createdEditors.pop()?.destroy();
   });
 
+  it("leaves its state untouched on a selection-only transaction", () => {
+    const editor = createEditorWithDoc(docOf(heading(1, "Title"), para("one"), para("two")));
+    const before = FOLD_KEY.getState(editor.state);
+    editor.commands.setTextSelection(10);
+    expect(FOLD_KEY.getState(editor.state)).toBe(before);
+  });
+
+  it("renders a chevron per foldable heading", () => {
+    const editor = createEditorWithDoc(
+      docOf(heading(1, "One"), para("a"), heading(2, "Two"), para("b"))
+    );
+    const chevrons = editor.view.dom.querySelectorAll(".fold-chevron");
+    expect(chevrons).toHaveLength(2);
+    expect(chevrons[0]?.getAttribute("aria-label")).toBe("Collapse section");
+  });
+
   it("starts with an empty folded set", () => {
     const editor = createEditorWithDoc(docOf(heading(1, "Title"), para("body")));
     expect(getFoldedSet(editor).size).toBe(0);

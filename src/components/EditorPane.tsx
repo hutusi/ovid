@@ -1,5 +1,5 @@
 import { PanelLeftOpen, PanelRightOpen } from "lucide-react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { FlatFile } from "../lib/fileSearch";
 import type { FrontmatterValue, ParsedFrontmatter } from "../lib/frontmatter";
@@ -25,10 +25,30 @@ import { TextCover } from "./TextCover";
 
 export type EditorViewState = { selection: number; scrollTop: number };
 
-const loadEditor = async () => {
-  await loadKatexRuntime();
-  return import("./Editor");
-};
+// KaTeX (a script-injected asset) and the Editor chunk load in parallel —
+// evaluating the Editor module before KaTeX exists is safe because the math
+// extension resolves the KaTeX global lazily (src/lib/katexGlobal.ts). The
+// Editor only renders once both are in. Memoized so a preload and the lazy
+// component share one load.
+let editorLoad: Promise<typeof import("./Editor")> | null = null;
+function loadEditor(): Promise<typeof import("./Editor")> {
+  if (!editorLoad) {
+    editorLoad = Promise.all([loadKatexRuntime(), import("./Editor")]).then(([, mod]) => mod);
+    // A failed load (e.g. KaTeX script error) may be retried on next use.
+    editorLoad.catch(() => {
+      editorLoad = null;
+    });
+  }
+  return editorLoad;
+}
+
+/** Start loading the editor ahead of the first file open — called while a
+ *  restored session's workspace is opening, so the file it reopens doesn't
+ *  wait on the editor's chunks afterwards. */
+export function preloadEditor(): void {
+  void loadEditor().catch(() => {});
+}
+
 const Editor = lazy(async () => ({
   default: (await loadEditor()).Editor,
 }));
@@ -174,6 +194,29 @@ export function EditorPane({
 
   const editorTitle = parsedFrontmatter.title != null ? String(parsedFrontmatter.title) : "";
 
+  // Stable props for the memoized Editor — it re-renders only when what it
+  // shows changes, not on every App render.
+  const selectedPath = selectedFile?.path ?? null;
+  const docId = editorDocument.docId;
+  const onFieldChangeRef = useRef(onFieldChange);
+  onFieldChangeRef.current = onFieldChange;
+  const handleEditorChange = useCallback(
+    (markdown: string) => onChange(markdown, docId),
+    [onChange, docId]
+  );
+  // Bound to the path at render time: an edit always names the file it was
+  // made on (see useFileEditor.handleFieldChange).
+  const handleTitleChange = useCallback(
+    (value: string) => {
+      if (selectedPath) void onFieldChangeRef.current(selectedPath, "title", value);
+    },
+    [selectedPath]
+  );
+  const backlinks = useMemo(
+    () => ({ currentRelativePath, flatFiles, resolverIndex: noteResolverIndex, onOpenSource }),
+    [currentRelativePath, flatFiles, noteResolverIndex, onOpenSource]
+  );
+
   return (
     <>
       <div className="editor-column">
@@ -260,26 +303,17 @@ export function EditorPane({
                 cdnBase={cdnBase}
                 resolveWikiTarget={resolveWikiTarget}
                 onOpenWikiTarget={onOpenWikiTarget}
-                backlinks={{
-                  currentRelativePath,
-                  flatFiles,
-                  resolverIndex: noteResolverIndex,
-                  onOpenSource,
-                }}
+                backlinks={backlinks}
                 typewriterMode={typewriterMode}
                 spellCheck={spellCheck}
                 showH1Warning={editorTitle.trim() !== ""}
                 title={editorTitle}
                 // Unparseable frontmatter has no knowable title, and edits to
                 // it are refused — hide the title field rather than offer one.
-                onTitleChange={
-                  frontmatterError === null
-                    ? (value) => void onFieldChange(selectedFile.path, "title", value)
-                    : undefined
-                }
+                onTitleChange={frontmatterError === null ? handleTitleChange : undefined}
                 onWordCount={onWordCount}
                 onDirty={onDirty}
-                onChange={(markdown) => onChange(markdown, editorDocument.docId)}
+                onChange={handleEditorChange}
                 onError={onError}
                 initialSelection={currentEditorViewState?.selection}
                 initialScrollTop={currentEditorViewState?.scrollTop}

@@ -18,7 +18,9 @@ import { buildMenuLabels } from "../lib/menuLabels";
 import type { SaveStatus } from "../lib/types";
 import type { FontFamily, FontSize } from "../lib/useEditorPreferences";
 import type { ResolvedTheme } from "../lib/useTheme";
+import type { WritingStats } from "../lib/writingStats";
 import { FontSettingsButton } from "./FontSettings";
+import { WordCountStatus } from "./WordCountStatus";
 import "./StatusBar.css";
 
 export type { SaveStatus };
@@ -38,12 +40,14 @@ function GitSyncStatusIcon({ label }: { label: string }) {
 
 interface StatusBarProps {
   fileLabel: string | null;
-  wordCount: number;
+  /** Word counts and session progress (subscribed by WordCountStatus). */
+  writingStats: WritingStats;
+  /** The open file's path, for the word count readout. */
+  filePath: string | null;
   resolvedTheme: ResolvedTheme;
   saveStatus: SaveStatus;
   zenMode: boolean;
   typewriterMode: boolean;
-  sessionWordsAdded: number;
   wordCountGoal: number | null;
   fontFamily: FontFamily;
   fontSize: FontSize;
@@ -75,12 +79,12 @@ interface StatusBarProps {
 
 export function StatusBar({
   fileLabel,
-  wordCount,
+  writingStats,
+  filePath,
   resolvedTheme,
   saveStatus,
   zenMode,
   typewriterMode,
-  sessionWordsAdded,
   wordCountGoal,
   fontFamily,
   fontSize,
@@ -110,22 +114,6 @@ export function StatusBar({
   onOpenPreferences,
 }: StatusBarProps) {
   const { t, i18n } = useTranslation();
-  const goalProgress =
-    wordCountGoal !== null && wordCountGoal > 0 ? sessionWordsAdded / wordCountGoal : null;
-  const sessionClass =
-    goalProgress === null
-      ? "statusbar-session"
-      : goalProgress >= 1
-        ? "statusbar-session goal-reached"
-        : goalProgress >= 0.5
-          ? "statusbar-session goal-halfway"
-          : "statusbar-session";
-
-  const sessionTitle =
-    wordCountGoal !== null
-      ? t("status_bar.session_goal", { added: sessionWordsAdded, goal: wordCountGoal })
-      : t("status_bar.session_words_title");
-
   return (
     <div className="statusbar">
       <div className="statusbar-left">
@@ -192,15 +180,7 @@ export function StatusBar({
         )}
       </div>
       <div className="statusbar-right">
-        {sessionWordsAdded > 0 && (
-          <span className={sessionClass} title={sessionTitle}>
-            +{sessionWordsAdded}
-            {wordCountGoal !== null && `/${wordCountGoal}`}
-          </span>
-        )}
-        <span className="statusbar-words">
-          {wordCount > 0 ? t("status_bar.word_count", { count: wordCount }) : ""}
-        </span>
+        <WordCountStatus stats={writingStats} path={filePath} wordCountGoal={wordCountGoal} />
         <div className="statusbar-mode-group">
           <button
             type="button"

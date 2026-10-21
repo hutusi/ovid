@@ -10,6 +10,21 @@ export async function invokeCmd<T>(name: string, args?: object): Promise<T> {
   }
 }
 
+/** Invoke a command whose payload is raw bytes (sent as the request body,
+ *  not JSON-encoded), with string metadata in request headers. */
+export async function invokeRaw<T>(
+  name: string,
+  body: Uint8Array,
+  headers: Record<string, string>
+): Promise<T> {
+  try {
+    return await invoke<T>(name, body, { headers });
+  } catch (err) {
+    if (err instanceof Error) throw err;
+    throw new Error(typeof err === "string" ? err : String(err));
+  }
+}
+
 export function listenEvent<T>(name: string, handler: (payload: T) => void): () => void {
   let unlisten: UnlistenFn | undefined;
   let cancelled = false;

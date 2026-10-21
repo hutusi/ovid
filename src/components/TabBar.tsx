@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { findNodeByPath } from "../lib/appRestore";
 import { getSidebarDisplayName } from "../lib/sidebarUtils";
@@ -38,6 +38,12 @@ export function TabBar({
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const activeTabRef = useRef<HTMLDivElement | null>(null);
+  // One tree lookup per tab per tree change, not per tab per render (the tab
+  // bar re-renders with every save-state change).
+  const tabNodes = useMemo(
+    () => new Map(tabs.map((path) => [path, nodeForPath(tree, path)])),
+    [tabs, tree]
+  );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: activePath is the intended trigger for scrolling into view
   useEffect(() => {
@@ -47,7 +53,7 @@ export function TabBar({
   return (
     <div className="tab-bar" role="toolbar" aria-label={t("tab_bar.open_files")}>
       {tabs.map((path, index) => {
-        const node = nodeForPath(tree, path);
+        const node = tabNodes.get(path) ?? nodeForPath(tree, path);
         const label = getSidebarDisplayName(node);
         const isActive = path === activePath;
         const isDragging = dragIndex === index;

@@ -10,10 +10,11 @@ import { TableHeader } from "@tiptap/extension-table-header";
 import { TableRow } from "@tiptap/extension-table-row";
 import Typography from "@tiptap/extension-typography";
 import { TextSelection } from "@tiptap/pm/state";
+import type { EditorProps as ViewProps } from "@tiptap/pm/view";
 import { EditorContent, ReactNodeViewRenderer, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "tiptap-markdown";
 import { commands } from "../lib/commands";
@@ -131,7 +132,7 @@ interface EditorProps {
   onSearchJumpHandled?: () => void;
 }
 
-export function Editor({
+export const Editor = memo(function Editor({
   content = "",
   loadId = 0,
   filePath,
@@ -165,6 +166,15 @@ export function Editor({
   const pendingRestoreTimersRef = useRef<number[]>([]);
   const pendingRestoreFramesRef = useRef<number[]>([]);
   const lastAppliedLoadIdRef = useRef(loadId);
+  // The editor is configured once (see the useEditor call); handlers inside
+  // that configuration read values that change over its life from here.
+  const liveRef = useRef({ filePath, onError, t });
+  liveRef.current = { filePath, onError, t };
+  // Only the mount's content is handed to useEditor; reloads are applied by
+  // the loadId effect below. Passing the live prop would make Tiptap see
+  // changed options on every reload and re-run setOptions.
+  const initialContentRef = useRef(content);
+  const initialSpellCheckRef = useRef(spellCheck);
   useEffect(() => {
     typewriterRef.current = typewriterMode;
   }, [typewriterMode]);
@@ -228,8 +238,14 @@ export function Editor({
     pendingRestoreFramesRef.current = [];
   }, []);
 
-  const editor = useEditor({
-    extensions: [
+  // Built once per mounted editor. Tiptap's useEditor compares options on
+  // every render and calls setOptions — a ProseMirror view.setProps plus a
+  // state update — whenever an extension instance or editorProps object is
+  // new, which inline construction made true on every render. Values that
+  // change over the editor's life are read through refs instead.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: configured once by design; live values come from refs
+  const extensions = useMemo(
+    () => [
       // `link`, `bold`, `italic`, and `strike` are disabled here because we
       // register customised versions below: Link gets a `[text](url)` input
       // rule and `openOnClick: false`; Bold/Italic/Strike get CJK-friendly
@@ -263,7 +279,7 @@ export function Editor({
         transformCopiedText: true,
       }),
       Placeholder.configure({
-        placeholder: t("editor.placeholder"),
+        placeholder: () => liveRef.current.t("editor.placeholder"),
       }),
       Typography,
       Link.extend({
@@ -310,12 +326,16 @@ export function Editor({
       ListBackspace,
       TextFolding,
       InlineEditMode,
-      ...(showH1Warning ? [H1Warning] : []),
+      // Always installed; whether its warning shows follows showH1Warning
+      // through a class on the scroll container (see editor.css).
+      H1Warning,
     ],
-    content,
-    editorProps: {
+    []
+  );
+  const editorProps = useMemo<ViewProps>(
+    () => ({
       attributes: {
-        spellcheck: spellCheck ? "true" : "false",
+        spellcheck: initialSpellCheckRef.current ? "true" : "false",
         autocorrect: "off",
         autocapitalize: "none",
       },
@@ -335,9 +355,7 @@ export function Editor({
       handlePaste(view, event) {
         if (
           createImagePasteHandler({
-            filePath,
-            onError,
-            t,
+            ...liveRef.current,
             saveFromBytes: commands.assets.saveFromBytes,
           })(view, event)
         ) {
@@ -370,13 +388,18 @@ export function Editor({
       },
       handleDrop(view, event) {
         return createImageDropHandler({
-          filePath,
-          onError,
-          t,
+          ...liveRef.current,
           saveFromBytes: commands.assets.saveFromBytes,
         })(view, event);
       },
-    },
+    }),
+    []
+  );
+
+  const editor = useEditor({
+    extensions,
+    content: initialContentRef.current,
+    editorProps,
     onUpdate({ editor, transaction }) {
       clearPendingRestore();
       setCurrentEditor(editor);
@@ -686,7 +709,10 @@ export function Editor({
 
   return (
     <div className="editor-wrapper">
-      <div ref={scrollRef} className="editor-scroll">
+      <div
+        ref={scrollRef}
+        className={showH1Warning ? "editor-scroll editor-scroll--h1-warning" : "editor-scroll"}
+      >
         {onTitleChange !== undefined && (
           <TitleInput
             title={title ?? ""}
@@ -747,4 +773,4 @@ export function Editor({
       )}
     </div>
   );
-}
+});

@@ -18,6 +18,14 @@ pub(crate) struct AboutState {
 // (left sidebar / right sidebar) so the menu can be rebuilt with the
 // correct check state on language change. Frontend keeps this in sync
 // via `set_menu_checked`.
+/// The labels the current native menu was built with. The frontend sends its
+/// labels once i18n initialises; they usually match what Rust seeded from the
+/// system locale, and rebuilding the whole menu bar then was wasted startup
+/// work, so set_menu_language skips identical labels.
+pub(crate) struct MenuLabelsState {
+    pub(crate) labels: Mutex<HashMap<String, String>>,
+}
+
 pub(crate) struct ViewToggleState {
     pub(crate) sidebar_visible: Mutex<bool>,
     pub(crate) properties_open: Mutex<bool>,
@@ -461,13 +469,32 @@ pub(crate) fn default_menu_labels() -> HashMap<String, String> {
     .collect()
 }
 
+/// Whether the menu built from `current` already shows every label in
+/// `incoming`. The frontend sends only the labels the menu uses (`MENU_KEYS`),
+/// while the startup map holds every `menu.*` string in the locale file — some
+/// of them toast messages — so the two are compared by the keys sent, never as
+/// whole maps (which would always differ and rebuild the menu for nothing).
+fn labels_already_applied(
+    current: &HashMap<String, String>,
+    incoming: &HashMap<String, String>,
+) -> bool {
+    incoming
+        .iter()
+        .all(|(key, value)| current.get(key) == Some(value))
+}
+
 #[tauri::command]
 pub(crate) fn set_menu_language(
     app: tauri::AppHandle,
     labels: HashMap<String, String>,
     about_state: State<'_, AboutState>,
     view_state: State<'_, ViewToggleState>,
+    labels_state: State<'_, MenuLabelsState>,
 ) -> Result<(), String> {
+    let mut current = labels_state.labels.lock().map_err(|e| e.to_string())?;
+    if labels_already_applied(&current, &labels) {
+        return Ok(());
+    }
     // Update stored about dialog strings for the non-macOS handler.
     if let Some(title) = labels.get("about_title") {
         *about_state.title.lock().map_err(|e| e.to_string())? = title.clone();
@@ -490,6 +517,7 @@ pub(crate) fn set_menu_language(
     let menu = build_app_menu(&app, &labels, sidebar_checked, properties_checked)
         .map_err(|e| e.to_string())?;
     app.set_menu(menu).map_err(|e| e.to_string())?;
+    *current = labels;
     Ok(())
 }
 
@@ -528,8 +556,34 @@ pub(crate) fn set_menu_checked(
 
 #[cfg(test)]
 mod tests {
-    use super::default_menu_labels;
-    use std::collections::HashSet;
+    use super::{default_menu_labels, labels_already_applied};
+    use std::collections::{HashMap, HashSet};
+
+    /// The startup labels (every `menu.*` string, as `initial_menu_labels`
+    /// reads them) already show what the frontend sends for the same locale —
+    /// only the `MENU_KEYS` subset — so its first `set_menu_language` call is
+    /// skipped instead of rebuilding an identical menu.
+    #[test]
+    fn startup_labels_cover_the_subset_the_frontend_sends() {
+        const EN: &str = include_str!("../../src/locales/en.json");
+        let en: serde_json::Value = serde_json::from_str(EN).expect("en.json is valid JSON");
+        let startup: HashMap<String, String> = en["menu"]
+            .as_object()
+            .expect("en.json must contain a `menu` object")
+            .iter()
+            .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+            .collect();
+
+        let mut sent = startup.clone();
+        sent.remove("git_pull_success"); // a toast string, not in MENU_KEYS
+        assert!(labels_already_applied(&startup, &sent));
+
+        sent.insert("menu_file".to_string(), "文件".to_string());
+        assert!(!labels_already_applied(&startup, &sent));
+
+        let unknown = HashMap::from([("menu_new_item".to_string(), "New item".to_string())]);
+        assert!(!labels_already_applied(&startup, &unknown));
+    }
 
     /// Rust side of the cross-language menu contract: every key the locale
     /// JSON declares under `menu.*` must have a Rust fallback in

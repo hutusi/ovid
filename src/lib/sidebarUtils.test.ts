@@ -4,6 +4,7 @@ import {
   bucketLabel,
   clampSidebarWidth,
   collapseIndexNodes,
+  computeGitRollup,
   filterTree,
   findCollectionEntries,
   forContentMode,
@@ -173,6 +174,26 @@ describe("collapseIndexNodes", () => {
 // ---------------------------------------------------------------------------
 // rollupGitStatus
 // ---------------------------------------------------------------------------
+
+describe("computeGitRollup", () => {
+  it("agrees with rollupGitStatus for every folder, in one pass", () => {
+    const staged = makeFile("a/staged.md");
+    const modified = makeFile("a/b/modified.md");
+    const clean = makeFile("c/clean.md");
+    const inner = makeDir("a/b", [modified]);
+    const a = makeDir("a", [staged, inner]);
+    const c = makeDir("c", [clean]);
+    const map = makeStatusMap([
+      [staged, "staged"],
+      [modified, "modified"],
+    ]);
+    const rollup = computeGitRollup([a, c], map);
+    for (const dir of [a, inner, c]) {
+      expect(rollup.get(dir.path)).toBe(rollupGitStatus(dir, map));
+    }
+    expect(rollup.has(c.path)).toBe(false);
+  });
+});
 
 describe("rollupGitStatus", () => {
   it("returns undefined for a file not in the map", () => {

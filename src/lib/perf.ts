@@ -25,10 +25,23 @@ let perfEvents: PerfEvent[] = [];
 let perfSummaries = new Map<string, PerfMetricSummary>();
 const perfListeners = new Set<() => void>();
 
+let perfLoggingEnabled: boolean | null = null;
+
+/** Whether perf logging is on: always in dev, otherwise when
+ *  `localStorage["ovid:perf"] === "1"` (read once — set the flag, then
+ *  reload). Cached because the editor checks it on every keystroke, and a
+ *  synchronous localStorage read each time is needless work on that path. */
 export function isPerfLoggingEnabled(): boolean {
   if (import.meta.env.DEV) return true;
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(PERF_FLAG_KEY) === "1";
+  if (perfLoggingEnabled === null) {
+    try {
+      perfLoggingEnabled =
+        typeof window !== "undefined" && window.localStorage.getItem(PERF_FLAG_KEY) === "1";
+    } catch {
+      perfLoggingEnabled = false;
+    }
+  }
+  return perfLoggingEnabled;
 }
 
 export function isPerfPanelCollapsed(): boolean {

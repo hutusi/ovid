@@ -101,6 +101,10 @@ export const FindReplace = Extension.create({
 
             const currentIndex = meta?.currentIndex ?? prev.currentIndex;
             const needsRecompute = meta?.searchTerm !== undefined || tr.docChanged;
+            // Cursor moves and other non-edits change nothing here; rebuilding
+            // every match decoration on each of them was wasted work while the
+            // find bar is open.
+            if (!needsRecompute && currentIndex === prev.currentIndex) return prev;
             const matches = needsRecompute ? collectMatches(tr.doc, searchTerm) : prev.matches;
             const clampedIndex =
               matches.length > 0 ? Math.min(currentIndex, matches.length - 1) : 0;

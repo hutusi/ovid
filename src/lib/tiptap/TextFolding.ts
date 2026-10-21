@@ -43,6 +43,17 @@ export function getHeadingRanges(doc: Node): HeadingRange[] {
   });
 }
 
+function createChevron(headingFrom: number, isFolded: boolean): HTMLElement {
+  const chevron = document.createElement("span");
+  chevron.className = "fold-chevron";
+  chevron.setAttribute("contenteditable", "false");
+  chevron.setAttribute("role", "button");
+  chevron.setAttribute("tabindex", "0");
+  chevron.setAttribute("data-fold-pos", String(headingFrom));
+  chevron.setAttribute("aria-label", isFolded ? "Expand section" : "Collapse section");
+  return chevron;
+}
+
 function buildDecorations(doc: Node, folded: ReadonlySet<number>): DecorationSet {
   const ranges = getHeadingRanges(doc);
   if (ranges.length === 0) return DecorationSet.empty;
@@ -64,18 +75,15 @@ function buildDecorations(doc: Node, folded: ReadonlySet<number>): DecorationSet
       })
     );
 
-    // Chevron widget — placed just before the heading's first text character
-    const chevron = document.createElement("span");
-    chevron.className = "fold-chevron";
-    chevron.setAttribute("contenteditable", "false");
-    chevron.setAttribute("role", "button");
-    chevron.setAttribute("tabindex", "0");
-    chevron.setAttribute("data-fold-pos", String(range.headingFrom));
-    chevron.setAttribute("aria-label", isFolded ? "Expand section" : "Collapse section");
+    // Chevron widget — placed just before the heading's first text character.
+    // A factory, so the element is only created when ProseMirror actually
+    // draws the widget; the key (position + state) lets it keep the drawn
+    // element across rebuilds instead of re-creating one per heading.
+    const headingFrom = range.headingFrom;
     decorations.push(
-      Decoration.widget(range.headingFrom + 1, chevron, {
+      Decoration.widget(headingFrom + 1, () => createChevron(headingFrom, isFolded), {
         side: -1,
-        key: `chevron-${range.headingFrom}`,
+        key: `chevron-${headingFrom}-${isFolded ? "closed" : "open"}`,
         // biome-ignore lint/suspicious/noExplicitAny: ProseMirror widget spec
         marks: [] as any,
       })
@@ -116,6 +124,9 @@ export const TextFolding = Extension.create({
           },
           apply(tr, prev) {
             const meta = tr.getMeta(FOLD_KEY) as { togglePos: number } | undefined;
+            // Cursor moves and other non-edits leave headings and folds as they
+            // were — this ran a full rebuild on every transaction before.
+            if (meta?.togglePos === undefined && !tr.docChanged) return prev;
 
             let folded: ReadonlySet<number>;
             if (meta?.togglePos !== undefined) {

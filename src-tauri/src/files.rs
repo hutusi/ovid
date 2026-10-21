@@ -227,9 +227,14 @@ pub(crate) async fn write_file(
     state: State<'_, WorkspaceState>,
 ) -> Result<String, String> {
     let root = state.workspace_root_path()?;
+    let self_writes = state.self_writes.clone();
     run_blocking(move || {
         let canonical = resolve_write_target(&root, &path)?;
-        write_checked(&canonical, &content, expected_version.as_deref())
+        let version = write_checked(&canonical, &content, expected_version.as_deref())?;
+        // Recorded on the IO thread, immediately after the rename, so the
+        // watcher's event for this save finds it.
+        self_writes.record(&canonical);
+        Ok(version)
     })
     .await
 }

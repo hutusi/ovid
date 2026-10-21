@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import {
   type AppActionCtx,
   dispatchAppAction,
@@ -31,8 +31,13 @@ function isInInput(target: EventTarget | null): boolean {
 
 /** Wire global keyboard shortcuts to the app action table. */
 export function useKeyboardShortcuts(ctx: AppActionCtx): void {
+  // One listener for the app's lifetime, reading the latest ctx through a ref
+  // (ctx changes on most App renders).
+  const ctxRef = useRef(ctx);
+  ctxRef.current = ctx;
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      const ctx = ctxRef.current;
       // Escape exits zen mode (only when no modal is blocking).
       if (e.key?.toLowerCase() === "escape" && ctx.zenMode && !ctx.overlay.isBlocking) {
         ctx.setZenMode(false);
@@ -63,5 +68,5 @@ export function useKeyboardShortcuts(ctx: AppActionCtx): void {
     }
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [ctx]);
+  }, []);
 }

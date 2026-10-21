@@ -19,7 +19,7 @@ export interface ImageHandlerDeps {
   t: Translate;
   /** `commands.assets.saveFromBytes` in production. */
   saveFromBytes: (args: {
-    bytes: number[];
+    bytes: Uint8Array;
     extension: string;
     activeFilePath?: string;
   }) => Promise<string>;
@@ -41,7 +41,7 @@ async function saveImageFiles(
     files.map((file) => {
       const ext = toExtension(file);
       return file.arrayBuffer().then((buf) => {
-        const bytes = Array.from(new Uint8Array(buf));
+        const bytes = new Uint8Array(buf);
         return deps
           .saveFromBytes({ bytes, extension: ext, activeFilePath: deps.filePath })
           .then((relPath) => ({ name: toName(file), relPath }));

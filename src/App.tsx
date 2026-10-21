@@ -2,31 +2,24 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from "react-i18next";
 import { AppDialogs } from "./components/AppDialogs";
 import type { EditorViewState } from "./components/EditorPane";
-import { EditorPane } from "./components/EditorPane";
+import { EditorPane, preloadEditor } from "./components/EditorPane";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { getFileViewKind, isReadOnlyContent } from "./components/FileViewer";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
+import type { NewContentKind } from "./lib/amytisScaffold";
 import type { AppActionCtx } from "./lib/appActions";
 import { loadLastRecentFilePath } from "./lib/appRestore";
-import { collectionCandidates } from "./lib/collection";
 import { commands } from "./lib/commands";
-import { corpusReadFile, readCorpus } from "./lib/corpusCache";
 import { getGitBranchTitle } from "./lib/gitUi";
 import { isMac } from "./lib/platform";
 import { getPathDisplayLabel } from "./lib/postPath";
-import { forContentMode, forFilesMode, getDirIndexEntry } from "./lib/sidebarUtils";
-import type {
-  CollectionItem,
-  FileNode,
-  SaveStatus,
-  SearchJumpTarget,
-  WordCountKind,
-} from "./lib/types";
+import { forContentMode, forFilesMode } from "./lib/sidebarUtils";
+import type { FileNode, SaveStatus, SearchJumpTarget, WordCountKind } from "./lib/types";
 import { PROPERTIES_OPEN_KEY, SIDEBAR_VISIBLE_KEY } from "./lib/uiVisibility";
 import { useAppPreferences } from "./lib/useAppPreferences";
 import { useCloseGuard } from "./lib/useCloseGuard";
-import { useCollectionLinks } from "./lib/useCollectionLinks";
+import { useCollectionActions } from "./lib/useCollectionActions";
 import { useContentPreferences } from "./lib/useContentPreferences";
 import { useCoverImage } from "./lib/useCoverImage";
 import { useEditorPreferences } from "./lib/useEditorPreferences";
@@ -39,23 +32,18 @@ import { useGitUiController } from "./lib/useGitUiController";
 import { useGlobalErrorHandlers } from "./lib/useGlobalErrorHandlers";
 import { useKeyboardShortcuts } from "./lib/useKeyboardShortcuts";
 import { useMenuActions } from "./lib/useMenuActions";
+import { useNoteIndex } from "./lib/useNoteIndex";
 import { useOverlayStack } from "./lib/useOverlayStack";
 import { useRecentWorkspaces } from "./lib/useRecentWorkspaces";
 import { useResponsivePanels } from "./lib/useResponsivePanels";
-import { useSessionWords } from "./lib/useSessionWords";
+import { useStableCallback } from "./lib/useStableCallback";
 import { useTheme } from "./lib/useTheme";
 import { useToast } from "./lib/useToast";
 import { useWordCountGoal } from "./lib/useWordCountGoal";
 import { useWorkspaceChangeMonitor } from "./lib/useWorkspaceChangeMonitor";
 import { useWorkspaceSession } from "./lib/useWorkspaceSession";
-import {
-  buildNoteResolverIndex,
-  createWikiNote,
-  EMPTY_NOTE_RESOLVER_INDEX,
-  type NoteResolverIndex,
-  type ResolvedWikiTarget,
-  resolveWikiTarget,
-} from "./lib/wikiLink";
+import { createWikiNote } from "./lib/wikiLink";
+import { createWritingStats } from "./lib/writingStats";
 import "./styles/global.css";
 import "./App.css";
 
@@ -102,8 +90,6 @@ function App() {
     remountEditor,
     renameSelection,
     frontmatterLineOffset,
-    wordCount,
-    setWordCount,
     parsedFrontmatter,
     frontmatterError,
     saveStatus,
@@ -146,22 +132,15 @@ function App() {
   // Flush pending saves before the window closes so the last ~1s of typing held
   // by the autosave debounce isn't lost when the WebView is torn down on quit.
   const requestQuit = useCloseGuard(flushPendingSave, showToast);
-  const {
-    sessionWordsAdded,
-    noteWordCount,
-    rebaselineWordCount,
-    notePathRenamed,
-    notePathRemoved,
-  } = useSessionWords(selectedFile?.path ?? null);
+  // Word counts and session progress live outside App state (see
+  // writingStats.ts): only the status-bar readout re-renders while typing.
+  const [writingStats] = useState(createWritingStats);
   const { coverImageVisible, toggleCoverImage } = useCoverImage(selectedFile);
   const handleWordCount = useCallback(
     (count: number, path?: string, kind?: WordCountKind) => {
-      setWordCount(count);
-      if (!path) return;
-      if (kind === "reload") rebaselineWordCount(path, count);
-      else noteWordCount(path, count);
+      if (path) writingStats.report(path, count, kind);
     },
-    [setWordCount, noteWordCount, rebaselineWordCount]
+    [writingStats]
   );
   const selectedFileRef = useRef<FileNode | null>(selectedFile);
   const saveStatusRef = useRef<SaveStatus>(saveStatus);
@@ -209,8 +188,8 @@ function App() {
     flushPendingSave,
     resetFileState,
     contentPrefs,
-    onSessionPathRenamed: notePathRenamed,
-    onSessionPathRemoved: notePathRemoved,
+    onSessionPathRenamed: writingStats.pathRenamed,
+    onSessionPathRemoved: writingStats.pathRemoved,
     fileEditor: {
       selectedFile,
       renameSelection,
@@ -251,54 +230,21 @@ function App() {
   ]);
 
   // Resolve each collection entry's `items:` to navigable sidebar links.
-  const { links: collectionLinks, reload: reloadCollectionLinks } = useCollectionLinks({
+  const {
+    collectionLinks,
+    handleAddToCollection,
+    handleRemoveFromCollection,
+    handleAddCollectionItem,
+    collectionCandidatesFor,
+  } = useCollectionActions({
     tree,
     flatFiles,
-    contentRoot: workspaceRoot,
+    workspaceRoot,
     postsBasePath,
+    overlay,
+    addCollectionItem,
+    removeCollectionItem,
   });
-
-  const handleAddToCollection = useCallback(
-    (collectionDir: FileNode) => {
-      const index = getDirIndexEntry(collectionDir);
-      if (!index) return;
-      const existing: CollectionItem[] = (collectionLinks.get(collectionDir.path) ?? []).map(
-        (link) => (link.kind === "series" ? { series: link.slug } : { post: link.slug })
-      );
-      overlay.open({
-        kind: "modal",
-        state: { type: "add-to-collection", indexPath: index.path, existing },
-      });
-    },
-    [collectionLinks, overlay]
-  );
-
-  const handleRemoveFromCollection = useCallback(
-    async (indexPath: string, key: string) => {
-      await removeCollectionItem(indexPath, key);
-      reloadCollectionLinks();
-    },
-    [removeCollectionItem, reloadCollectionLinks]
-  );
-
-  const collectionCandidatesFor = useCallback(
-    (existing: CollectionItem[], selfIndexPath: string) =>
-      collectionCandidates(
-        flatFiles,
-        { contentRoot: workspaceRoot ?? "", postsBasePath },
-        existing,
-        selfIndexPath
-      ),
-    [flatFiles, workspaceRoot, postsBasePath]
-  );
-
-  const handleAddCollectionItem = useCallback(
-    async (indexPath: string, item: CollectionItem) => {
-      await addCollectionItem(indexPath, item);
-      reloadCollectionLinks();
-    },
-    [addCollectionItem, reloadCollectionLinks]
-  );
 
   // openByPath / openFile / closeActive live inside useEditorSession; here we
   // only have to clear the FileViewer (a separate, files-mode UI concern) and
@@ -322,36 +268,16 @@ function App() {
   const searchJumpGenRef = useRef(0);
   const handleSearchJumpHandled = useCallback(() => setSearchJump(null), []);
 
-  const [noteResolverIndex, setNoteResolverIndex] =
-    useState<NoteResolverIndex>(EMPTY_NOTE_RESOLVER_INDEX);
-  const noteResolverGenRef = useRef(0);
-  const noteResolverIndexRef = useRef(noteResolverIndex);
-  useEffect(() => {
-    noteResolverIndexRef.current = noteResolverIndex;
-  }, [noteResolverIndex]);
-  useEffect(() => {
-    const gen = ++noteResolverGenRef.current;
-    void (async () => {
-      // One bulk IPC read per tree generation, shared with the backlinks
-      // scanner via the corpus cache — not one read_file per note.
-      const contents = await readCorpus(flatFiles).catch(() => new Map<string, string>());
-      if (gen !== noteResolverGenRef.current) return;
-      const index = await buildNoteResolverIndex(flatFiles, corpusReadFile(contents));
-      if (gen === noteResolverGenRef.current) {
-        setNoteResolverIndex(index);
-      }
-    })();
-  }, [flatFiles]);
-
-  const resolveWikiTargetCallback = useCallback(
-    (target: string): ResolvedWikiTarget => resolveWikiTarget(target, noteResolverIndexRef.current),
-    []
-  );
+  const {
+    noteResolverIndex,
+    resolveWikiTarget: resolveWikiTargetCallback,
+    resolveWikiTargetForNavigation,
+  } = useNoteIndex(flatFiles, workspaceRoot);
 
   const onOpenWikiTarget = useCallback(
     async (target: string) => {
       if (!workspaceRoot) return;
-      const resolved = resolveWikiTarget(target, noteResolverIndexRef.current);
+      const resolved = await resolveWikiTargetForNavigation(target);
       if (resolved.exists) {
         setFileViewerNode(null);
         void openByPath(`${workspaceRoot}/${resolved.relativePath}`);
@@ -380,8 +306,44 @@ function App() {
         );
       }
     },
-    [workspaceRoot, postsBasePath, refreshTree, openByPath, setFileViewerNode, showToast, t]
+    [
+      workspaceRoot,
+      postsBasePath,
+      refreshTree,
+      openByPath,
+      setFileViewerNode,
+      showToast,
+      t,
+      resolveWikiTargetForNavigation,
+    ]
   );
+
+  // Stable handlers for the memoized sidebar (its rows re-render only when
+  // their own inputs change). The overlay's open() is itself stable.
+  const openModal = overlay.open;
+  const sidebarHandlers = {
+    onSelect: useStableCallback((node: FileNode) => handleSidebarSelect(node)),
+    onToggleMode: useStableCallback(() => handleToggleSidebarMode()),
+    onDelete: useStableCallback((node: FileNode) => handleDelete(node)),
+    onOpenSwitcher: useCallback(() => openModal({ kind: "workspaceSwitcher" }), [openModal]),
+    onNewFile: useCallback(
+      (dirPath: string, kind: NewContentKind) =>
+        openModal({ kind: "modal", state: { type: "new-file", dirPath, kind } }),
+      [openModal]
+    ),
+    onRename: useCallback(
+      (node: FileNode) => openModal({ kind: "modal", state: { type: "rename-path", node } }),
+      [openModal]
+    ),
+    onDuplicate: useCallback(
+      (node: FileNode) => openModal({ kind: "modal", state: { type: "duplicate-file", node } }),
+      [openModal]
+    ),
+    onNewFromExisting: useCallback(
+      (node: FileNode) => openModal({ kind: "modal", state: { type: "new-from-existing", node } }),
+      [openModal]
+    ),
+  };
 
   async function handleSidebarSelect(node: FileNode) {
     // Bump first, before any branch or early return, so *every* sidebar click
@@ -434,6 +396,7 @@ function App() {
     currentBranch,
     remoteInfo,
     refreshGitStatus,
+    refreshFileStatus,
     handleCommit,
     handlePush,
     handlePull,
@@ -532,6 +495,8 @@ function App() {
       recentWorkspaces[0].rootPath,
       localStorage
     );
+    // A file will reopen once the workspace is in: load the editor meanwhile.
+    if (pendingAutoOpenPath.current) preloadEditor();
     void openWorkspaceAtPath(recentWorkspaces[0].rootPath);
   }, [recentWorkspaces, openWorkspaceAtPath, workspaceRootPath]);
 
@@ -612,7 +577,7 @@ function App() {
 
   useKeyboardShortcuts(appActionCtx);
 
-  useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus });
+  useGitRefreshOnSave({ saveStatus, isGitRepo, refreshGitStatus: refreshFileStatus });
 
   useWorkspaceChangeMonitor({
     workspaceRootPath,
@@ -715,27 +680,19 @@ function App() {
               postsBasePath={postsBasePath}
               features={features}
               collectionLinks={collectionLinks}
-              onToggleMode={handleToggleSidebarMode}
+              onToggleMode={sidebarHandlers.onToggleMode}
               onToggleVisible={panelLayout.toggleSidebar}
-              onSelect={handleSidebarSelect}
+              onSelect={sidebarHandlers.onSelect}
               onOpenWorkspace={handleOpenWorkspace}
-              onOpenSwitcher={() => overlay.open({ kind: "workspaceSwitcher" })}
-              onNewFile={(dirPath, kind) =>
-                overlay.open({ kind: "modal", state: { type: "new-file", dirPath, kind } })
-              }
+              onOpenSwitcher={sidebarHandlers.onOpenSwitcher}
+              onNewFile={sidebarHandlers.onNewFile}
               onNewTodayFlow={handleNewTodayFlow}
               onAddToCollection={handleAddToCollection}
               onRemoveFromCollection={handleRemoveFromCollection}
-              onRename={(node) =>
-                overlay.open({ kind: "modal", state: { type: "rename-path", node } })
-              }
-              onDuplicate={(node) =>
-                overlay.open({ kind: "modal", state: { type: "duplicate-file", node } })
-              }
-              onNewFromExisting={(node) =>
-                overlay.open({ kind: "modal", state: { type: "new-from-existing", node } })
-              }
-              onDelete={handleDelete}
+              onRename={sidebarHandlers.onRename}
+              onDuplicate={sidebarHandlers.onDuplicate}
+              onNewFromExisting={sidebarHandlers.onNewFromExisting}
+              onDelete={sidebarHandlers.onDelete}
             />
           )}
         </ErrorBoundary>
@@ -796,12 +753,12 @@ function App() {
       <ErrorBoundary variant="bar" title={t("errors.status_bar_failed")}>
         <StatusBar
           fileLabel={selectedFile ? getPathDisplayLabel(selectedFile) : null}
-          wordCount={wordCount}
+          writingStats={writingStats}
+          filePath={selectedFile?.path ?? null}
           resolvedTheme={resolvedTheme}
           saveStatus={saveStatus}
           zenMode={zenMode}
           typewriterMode={typewriterMode}
-          sessionWordsAdded={sessionWordsAdded}
           wordCountGoal={wordCountGoal}
           fontFamily={prefs.fontFamily}
           fontSize={prefs.fontSize}
