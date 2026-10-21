@@ -34,6 +34,9 @@ percent-encoding = "2"
 notify = "8.2.0"
 renamore = "0.3.2"
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tempfile = "3"
 mockito = "1"

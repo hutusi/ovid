@@ -2692,6 +2692,7 @@ dependencies = [
 name = "ovid"
 version = "0.17.0"
 dependencies = [
+ "libc",
  "mockito",
  "notify",
  "percent-encoding",

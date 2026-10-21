@@ -7,7 +7,7 @@
 //! active workspace exactly like a normal open.
 
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
@@ -178,6 +178,7 @@ pub(crate) fn clone_with_progress(
         .arg(target)
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
+    lead_own_process_group(&mut cmd);
 
     let mut child = match cmd.spawn() {
         Ok(c) => c,
@@ -210,13 +211,7 @@ pub(crate) fn clone_with_progress(
             break status;
         }
         if cancel.swap(false, Ordering::SeqCst) {
-            let _ = child.kill();
-            let _ = child.wait();
-            // `resolve_target` guaranteed the target didn't exist before the
-            // clone, so whatever is there now is the partial checkout.
-            if target.exists() {
-                let _ = std::fs::remove_dir_all(target);
-            }
+            abort_clone(&mut child, target);
             return Err(CloneError::Cancelled);
         }
         std::thread::sleep(Duration::from_millis(50));
@@ -238,6 +233,61 @@ pub(crate) fn clone_with_progress(
         return Err(CloneError::GitFailed(stderr));
     }
     Ok(())
+}
+
+/// Run the clone as the leader of a new process group. git hands the transfer
+/// to helpers (`git-remote-https`, `index-pack`, `ssh`) that write into the
+/// target themselves; killing only git leaves them writing while the partial
+/// folder is removed, which can fail the removal and leave the folder behind.
+/// (Under `tauri dev`, a group of its own also means an ssh host-key prompt
+/// can't take over the terminal; the packaged app has no terminal.)
+#[cfg(unix)]
+fn lead_own_process_group(cmd: &mut Command) {
+    use std::os::unix::process::CommandExt;
+    cmd.process_group(0);
+}
+
+#[cfg(not(unix))]
+fn lead_own_process_group(_cmd: &mut Command) {}
+
+/// Stop a cancelled clone and remove what it wrote. `resolve_target`
+/// guaranteed the target didn't exist before the clone, so whatever is there
+/// now is the partial checkout.
+fn abort_clone(child: &mut Child, target: &Path) {
+    kill_process_group(child);
+    let _ = child.wait();
+    remove_partial_clone(target);
+}
+
+#[cfg(unix)]
+fn kill_process_group(child: &mut Child) {
+    // The group's id is git's pid, which can't be reused before the caller's
+    // wait reaps git.
+    let group = child.id() as libc::pid_t;
+    // SAFETY: kill(2) only sends a signal; a negative pid names the group.
+    if unsafe { libc::kill(-group, libc::SIGKILL) } != 0 {
+        let _ = child.kill();
+    }
+}
+
+/// Windows has no process groups here: git itself is killed and its
+/// helpers exit once their pipes close, which the removal retries cover.
+#[cfg(not(unix))]
+fn kill_process_group(child: &mut Child) {
+    let _ = child.kill();
+}
+
+/// Remove a partial clone, retrying for up to two seconds: a helper still
+/// exiting can add a file mid-removal and fail it with "directory not empty".
+fn remove_partial_clone(target: &Path) {
+    for _ in 0..40 {
+        match std::fs::remove_dir_all(target) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            _ => return,
+        }
+    }
 }
 
 /// Resolve the target directory for a clone request given the user-supplied
@@ -463,6 +513,40 @@ mod tests {
         assert_eq!(result, Err(CloneError::Cancelled));
         assert!(!dest.exists(), "partial clone must be removed");
         assert!(!cancel.load(Ordering::SeqCst), "the request is consumed");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn aborting_a_clone_stops_its_helpers_before_removing_the_target() {
+        let parent = TempDir::new().unwrap();
+        let target = parent.path().join("partial");
+        let marker = target.join(".git/objects/pack");
+        // Stands in for git and a helper it hands the transfer to: the
+        // background loop keeps writing into the target's .git after its
+        // parent dies, as index-pack does. Bounded (~5 s) so a regression
+        // can't leave it running.
+        let script = format!(
+            "(for i in $(seq 1 1000); do mkdir -p '{dir}'; touch '{dir}/x'; sleep 0.005; done) & wait",
+            dir = marker.display()
+        );
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", &script]);
+        lead_own_process_group(&mut cmd);
+        let mut child = cmd.spawn().unwrap();
+        let started = Instant::now();
+        while !marker.join("x").exists() {
+            assert!(
+                started.elapsed() < Duration::from_secs(5),
+                "writer never started"
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        abort_clone(&mut child, &target);
+        // Gone, and still gone once a straggler would have written again.
+        assert!(!target.exists());
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(!target.exists(), "a helper kept writing into the target");
     }
 
     #[test]
