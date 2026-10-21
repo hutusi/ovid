@@ -219,8 +219,10 @@ release cadence and Conventional Commit history.
   refresh after a save asks only for file status instead of re-reading
   branches and remotes (about one git process instead of ten), and the
   repository root is looked up once instead of per git command. A refresh
-  that finds the file tree unchanged no longer rebuilds the sidebar, the
-  file index or the wiki-link data.
+  that finds the file tree unchanged no longer rebuilds the sidebar. Wiki
+  links and linked references still follow your edits straight away: a save
+  updates them in memory instead of re-reading every note, and only a
+  changed title or alias rebuilds the link index.
 - **Less work while typing**: the editor reconfigured its ProseMirror view
   (twice) every time the window re-rendered — after each autosave state
   change, word-count update or git refresh. It is now configured once, and

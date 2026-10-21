@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { corpusReadFile, readCorpus } from "./corpusCache";
+import { corpusReadFile, onCorpusEdit, readCorpus } from "./corpusCache";
 import type { FlatFile } from "./fileSearch";
+import { parseFrontmatter } from "./frontmatter";
 import {
   buildNoteResolverIndex,
   EMPTY_NOTE_RESOLVER_INDEX,
@@ -46,7 +47,10 @@ type BuiltIndex = { workspace: string | null; index: NoteResolverIndex };
  *  workspace it doesn't compete with the tree, the first file read and the
  *  editor's first render; links resolve a moment later instead. It reruns
  *  whenever `flatFiles` is renewed — after every workspace walk, since a walk
- *  that kept the tree may still have found an alias edited on disk.
+ *  that kept the tree may still have found an alias edited on disk — and when
+ *  one of Ovid's own saves changes a file's frontmatter, where titles and
+ *  aliases live. Those saves cause no walk; the corpus cache applies them in
+ *  memory, so that rebuild reads nothing from disk.
  *
  *  The index belongs to the workspace it was built for. Until the open
  *  workspace's own index lands, resolution sees an empty one — never another
@@ -63,7 +67,21 @@ export function useNoteIndex(flatFiles: FlatFile[], workspace: string | null) {
   flatFilesRef.current = flatFiles;
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
+  // Counts saves of Ovid's own that changed some file's frontmatter. A body
+  // edit can't move a title or alias, so typing never rebuilds the index.
+  const [frontmatterEdits, setFrontmatterEdits] = useState(0);
 
+  useEffect(
+    () =>
+      onCorpusEdit((_path, before, after) => {
+        if (parseFrontmatter(before).frontmatter !== parseFrontmatter(after).frontmatter) {
+          setFrontmatterEdits((n) => n + 1);
+        }
+      }),
+    []
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: frontmatterEdits reruns the build after a save changed a title or alias
   useEffect(() => {
     let cancelled = false;
     const cancelIdle = whenIdle(() => {
@@ -75,7 +93,7 @@ export function useNoteIndex(flatFiles: FlatFile[], workspace: string | null) {
       cancelled = true;
       cancelIdle();
     };
-  }, [flatFiles, workspace]);
+  }, [flatFiles, workspace, frontmatterEdits]);
 
   const noteResolverIndex = built.workspace === workspace ? built.index : EMPTY_NOTE_RESOLVER_INDEX;
 

@@ -512,6 +512,12 @@ A few rules keep startup and typing fast; each has a guard or a test.
   one (never the previous workspace's), and following a link builds the
   index on the spot rather than treating the link as missing — which would
   create a duplicate note.
+- **Own saves patch the corpus, not re-read it.** A save of Ovid's own causes
+  no walk (ADR 0021), so `flatFiles` and the cached corpus stay put. Instead
+  `commands.files.onWrite` reports the written text and `corpusCache` applies
+  it to the current corpus in memory; backlinks read it from there, and
+  `useNoteIndex` rebuilds (from memory) only when the save changed a file's
+  frontmatter — typing in a body never rebuilds the index.
 
 ## Visual design language
 

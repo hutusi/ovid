@@ -65,7 +65,11 @@ emit a typed `workspace-fs-change` Tauri event.
   the previous tree object, so the sidebar isn't rebuilt. The flat file
   index is still renewed per walk: an unchanged tree says nothing about file
   contents, and the wiki-link corpus (keyed by that index) must re-read an
-  alias or link edited on disk.
+  alias or link edited on disk. An own save causes no walk, so it reaches
+  that corpus another way: `commands.files` reports each successful write
+  and create (`onWrite`), and `corpusCache` applies the written text to the
+  current corpus in memory. The note index rebuilds from it, with no disk
+  read, only when the save changed the file's frontmatter.
 - Active-file conflict behavior remains the pure decision model in
   `workspaceRefresh.ts`: clean files reload, unsaved/saving files warn once per
   revision, removed files close, and Git status refresh follows a confirmed

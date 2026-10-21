@@ -61,6 +61,23 @@ export interface EnsureDirArgs {
   path: string;
 }
 
+/** Told the path and text of each write this app makes. */
+export type WriteListener = (path: string, content: string) => void;
+
+const writeListeners = new Set<WriteListener>();
+
+/** Pass a successful write on to the listeners. A throwing listener is
+ *  logged, never turned into a failed save. */
+function reportWrite(path: string, content: string): void {
+  for (const listener of writeListeners) {
+    try {
+      listener(path, content);
+    } catch (err) {
+      console.error("[files.onWrite] listener failed", err);
+    }
+  }
+}
+
 export const files = {
   read: (args: ReadFileArgs) => invokeCmd<string>("read_file", args),
   /** Read a file's content and its content-hash version token in one snapshot.
@@ -74,9 +91,27 @@ export const files = {
   /** Returns the post-write version token. Rejects with EXTERNAL_CHANGE_CONFLICT
    *  when expectedVersion is set and the file's content changed on disk, and
    *  with FILE_MISSING when the file no longer exists. */
-  write: (args: WriteFileArgs) => invokeCmd<string>("write_file", args),
+  write: (args: WriteFileArgs) =>
+    invokeCmd<string>("write_file", args).then((version) => {
+      reportWrite(args.path, args.content);
+      return version;
+    }),
   /** Creates a new file (fails if it exists); returns its version token. */
-  create: (args: CreateFileArgs) => invokeCmd<string>("create_file", args),
+  create: (args: CreateFileArgs) =>
+    invokeCmd<string>("create_file", args).then((version) => {
+      reportWrite(args.path, args.content);
+      return version;
+    }),
+  /** Subscribe to this app's own successful writes and creates, with the
+   *  exact text written. The workspace watcher drops the events for them
+   *  (Rust records its own writes, ADR 0021), so a cache of file contents
+   *  learns of them only here. Returns an unsubscribe function. */
+  onWrite: (listener: WriteListener): (() => void) => {
+    writeListeners.add(listener);
+    return () => {
+      writeListeners.delete(listener);
+    };
+  },
   rename: (args: RenameFileArgs) => invokeCmd<void>("rename_file", args),
   duplicate: (args: DuplicateEntryArgs) => invokeCmd<void>("duplicate_entry", args),
   trash: (args: TrashFileArgs) => invokeCmd<void>("trash_file", args),
