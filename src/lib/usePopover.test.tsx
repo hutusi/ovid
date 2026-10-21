@@ -8,8 +8,18 @@ import { usePopover } from "./usePopover";
 beforeAll(registerHappyDom);
 afterAll(unregisterHappyDom);
 
-function Harness({ menu = false, onOuterKey }: { menu?: boolean; onOuterKey?: () => void }) {
+function Harness({
+  menu = false,
+  onOuterKey,
+  itemsClose = false,
+}: {
+  menu?: boolean;
+  onOuterKey?: () => void;
+  /** The panel's buttons are actions that close it, like a menu's items. */
+  itemsClose?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  const onItem = itemsClose ? () => setOpen(false) : undefined;
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   usePopover({ open, onClose: () => setOpen(false), containerRef, panelRef, menu });
@@ -26,13 +36,13 @@ function Harness({ menu = false, onOuterKey }: { menu?: boolean; onOuterKey?: ()
         </button>
         {open && (
           <div ref={panelRef} data-testid="panel" role={menu ? "menu" : "dialog"}>
-            <button type="button" role={menu ? "menuitem" : undefined}>
+            <button type="button" role={menu ? "menuitem" : undefined} onClick={onItem}>
               one
             </button>
-            <button type="button" role={menu ? "menuitem" : undefined}>
+            <button type="button" role={menu ? "menuitem" : undefined} onClick={onItem}>
               two
             </button>
-            <button type="button" role={menu ? "menuitem" : undefined}>
+            <button type="button" role={menu ? "menuitem" : undefined} onClick={onItem}>
               three
             </button>
           </div>
@@ -97,13 +107,35 @@ describe("usePopover", () => {
     unmount(m);
   });
 
-  it("closes on a press outside, leaving focus alone", () => {
+  it("closes on a press outside, leaving focus where the press put it", () => {
     const m = mount(<Harness />);
     openFromEditor(m.container);
     act(() => {
       q(m.container, "outside")?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      q(m.container, "outside")?.focus();
     });
     expect(q(m.container, "panel")).toBeNull();
+    expect(document.activeElement).toBe(q(m.container, "outside"));
+    unmount(m);
+  });
+
+  it("returns focus when a menu action closes it, so focus isn't stranded on <body>", () => {
+    const m = mount(<Harness menu itemsClose />);
+    openFromEditor(m.container);
+    key(document.activeElement, "ArrowDown");
+    act(() => (document.activeElement as HTMLElement | null)?.click());
+    expect(q(m.container, "panel")).toBeNull();
+    expect(document.activeElement).toBe(q(m.container, "editor"));
+    unmount(m);
+  });
+
+  it("returns focus to the trigger a keyboard user opened it from", () => {
+    const m = mount(<Harness menu itemsClose />);
+    act(() => q(m.container, "trigger")?.focus());
+    act(() => q(m.container, "trigger")?.click());
+    expect(document.activeElement?.textContent).toBe("one");
+    act(() => (document.activeElement as HTMLElement | null)?.click());
+    expect(document.activeElement).toBe(q(m.container, "trigger"));
     unmount(m);
   });
 

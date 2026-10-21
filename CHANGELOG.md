@@ -180,9 +180,10 @@ release cadence and Conventional Commit history.
   the saved cursor position only when a document is opened.
 - **Popovers work from the keyboard**: the editor settings popover, the
   code-block language picker and the Workspace Manager's row menu now take
-  focus when they open and hand it back when closed with Escape. Escape in
-  a row menu closes just the menu, not the whole Workspace Manager, and the
-  menu's items can be reached with the arrow keys, Home and End.
+  focus when they open and hand it back when they close, whether by Escape
+  or by choosing an item. Escape in a row menu closes just the menu, not the
+  whole Workspace Manager, and the menu's items can be reached with the
+  arrow keys, Home and End.
 - **Git sync popover and shortcuts help behave like other dialogs**: both
   now use the shared dialog shell, so a click inside keeps keyboard focus
   there, and the sync popover's close button uses the standard icon.

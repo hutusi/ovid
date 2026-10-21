@@ -31,8 +31,11 @@ interface UsePopoverOptions {
 /**
  * The shared behaviour of the app's non-modal popovers (a positioned <div>,
  * no portal; see CLAUDE.md "Custom popovers"): focus moves in when it opens;
- * Escape closes it and returns focus to where it was; a press outside, or
- * Tab past its last control, closes it and leaves focus there.
+ * Escape closes it; a press outside, or Tab past its last control, closes it
+ * too. However it closes, focus that would be left with nowhere to go — on a
+ * control that went away with the panel, such as the menu item just chosen —
+ * returns to where it was before the popover opened. Focus the close moved
+ * somewhere (Tab, a press on another control) stays there.
  *
  * Escape is handled on the container, before the event bubbles to React's
  * root or the document, so closing a popover does not also close the dialog
@@ -70,7 +73,6 @@ export function usePopover({
         e.preventDefault();
         e.stopPropagation();
         close();
-        if (returnTo?.isConnected) returnTo.focus();
         return;
       }
       if (!menu) return;
@@ -109,6 +111,11 @@ export function usePopover({
       container.removeEventListener("keydown", handleKeyDown);
       container.removeEventListener("focusout", handleFocusOut);
       document.removeEventListener("pointerdown", handlePointerDown);
+      // Focus left on <body> is outside every dialog's reach: its Escape and
+      // focus trap stop working until something is clicked.
+      const active = document.activeElement;
+      const focusLost = !active || active === document.body || !active.isConnected;
+      if (focusLost && returnTo?.isConnected) returnTo.focus();
     };
   }, [open, close, containerRef, panelRef, initialFocusRef, menu, closeOnFocusOut]);
 }

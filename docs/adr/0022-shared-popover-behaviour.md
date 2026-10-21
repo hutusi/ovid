@@ -32,11 +32,16 @@ Escape, and the copies had drifted in the same ways:
 - **On open**, focus moves to the panel's first control (or
   `initialFocusRef`), remembering the element focused before.
 - **Escape** is handled by a native listener on the container — below
-  React's root and the document — which stops propagation, closes, and
-  returns focus to the remembered element. A popover inside a dialog or
-  the editor closes alone.
+  React's root and the document — which stops propagation and closes. A
+  popover inside a dialog or the editor closes alone.
 - **A press outside** the container (document `pointerdown`) closes and
   leaves focus where the press put it.
+- **On close**, however it happened, focus that has nowhere to go
+  returns to the remembered element. That covers Escape and a menu item
+  or option that closes the panel: the focused control unmounts with the
+  panel, and focus would otherwise drop to `<body>`, out of reach of the
+  surrounding dialog's Escape and focus trap. Focus that the close moved
+  somewhere (Tab, a press on another control) stays put.
 - **Focus leaving** the container (Tab past the last control) closes it;
   a `focusout` with no `relatedTarget` (focus going nowhere) does not.
   `closeOnFocusOut: false` opts out — the code-block picker does, because
