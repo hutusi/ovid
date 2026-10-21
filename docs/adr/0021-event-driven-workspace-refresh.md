@@ -55,8 +55,11 @@ emit a typed `workspace-fs-change` Tauri event.
   every walk and by the watcher, and `write_file` records each save's
   resulting file stamp (length + mtime) in `SelfWrites`; the watcher drops an
   event for a path that still carries that stamp, so an autosave sends the
-  frontend nothing. Creates and renames are never suppressed. The
-  frontend comparison above remains as the fallback (e.g. an event that
+  frontend nothing. The filter matches paths, whatever the event kind (the
+  autosave itself arrives as a rename over the target), but only
+  `write_file` records stamps — so creates and renames made by other
+  commands (`create_file`, `rename_file`) or by external tools always get
+  through. The frontend comparison above remains as the fallback (e.g. an event that
   arrives after the stamp expired, or on a filesystem whose paths don't
   canonicalise identically). A refresh that returns an unchanged tree keeps
   the previous tree object, so the sidebar isn't rebuilt. The flat file
